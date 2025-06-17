@@ -10,6 +10,8 @@ import { formatCurrency } from '@/lib/utils'
 // import { auth } from '@/auth'
 import RatingSummary from '@/components/shared/product/rating-summary'
 import ProductSlider from '@/components/shared/product/product-slider'
+import BrowsingHistoryList from '@/components/shared/browsing-history-list'
+import AddToBrowsingHistory from '@/components/shared/product/add-to-browsing-history'
 
 export default async function ProductDetails(props: {
   params: Promise<{ slug: string }>
@@ -35,7 +37,7 @@ export default async function ProductDetails(props: {
 
   return (
     <div>
-      {/* <AddToBrowsingHistory id={product._id} category={product.category} /> */}
+      <AddToBrowsingHistory id={product._id} category={product.category} />
       <section>
         <div className='grid grid-cols-1 md:grid-cols-5  '>
           <div className='col-span-2'>
@@ -149,9 +151,9 @@ export default async function ProductDetails(props: {
           title={`Cele mai Vândute in ${product.category}`}
         />
       </section>
-      {/* <section>
+      <section>
         <BrowsingHistoryList className='mt-10' />
-      </section> */}
+      </section>
     </div>
   )
 }

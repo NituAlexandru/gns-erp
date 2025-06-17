@@ -20,8 +20,8 @@ export default function useBrowsingHistory() {
     products,
     addItem: (product: { id: string; category: string }) => {
       const index = products.findIndex((p) => p.id === product.id)
-      if (index !== -1) products.splice(index, 1)
-      products.unshift(product)
+      if (index !== -1) products.splice(index, 1) // remove duplicate if it exists
+      products.unshift(product) // add id to the beginning
 
       if (products.length > 10) products.pop()
 
