@@ -21,3 +21,7 @@ export const UNITS = [
   'm2',
   'ml',
 ] as const
+
+export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 16)
+
+export const SITE_URL = 'http://localhost:3000/'
