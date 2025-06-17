@@ -1,6 +1,9 @@
-import { Data } from '@/types'
+import { Data, IProductInput } from '@/types'
+
+const products: IProductInput[] = []
 
 const data: Data = {
+  products,
   headerMenus: [
     {
       name: 'Cere Ofertă Personalizată',

@@ -16,11 +16,13 @@ export const toSlug = (text: string): string =>
     .replace(/\s+/g, '-')
     .replace(/^-+|-+$/g, '')
     .replace(/-+/g, '-')
+
 const CURRENCY_FORMATTER = new Intl.NumberFormat('ro-RO', {
   currency: 'RON',
   style: 'currency',
   minimumFractionDigits: 2,
 })
+
 export function formatCurrency(amount: number) {
   return CURRENCY_FORMATTER.format(amount)
 }
