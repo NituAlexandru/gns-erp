@@ -15,7 +15,6 @@ export default function Menu({ forAdmin = false }: { forAdmin?: boolean }) {
     <div className='flex justify-end'>
       <nav className='hidden md:flex gap-3  w-full'>
         <ThemeSwitcher />
-        <UserButton />
         {forAdmin ? null : <UserButton />}
         {/* <CartButton /> ??? adaug sau nu? se creiaza comanda noua de aici */}
       </nav>
