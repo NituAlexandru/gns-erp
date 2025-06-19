@@ -11,8 +11,10 @@ type ToasterToast = ToasterProps & {
   id: string
   title?: React.ReactNode
   description?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }
-
+// eslint-disable-next-line
 const actionTypes = {
   ADD_TOAST: 'ADD_TOAST',
   UPDATE_TOAST: 'UPDATE_TOAST',

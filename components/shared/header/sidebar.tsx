@@ -2,7 +2,7 @@ import * as React from 'react'
 import Link from 'next/link'
 import { X, ChevronRight, UserCircle, MenuIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-// import { SignOut } from '@/lib/actions/user.actions'
+import { SignOut } from '@/lib/actions/user.actions'
 import {
   Drawer,
   DrawerClose,
@@ -12,14 +12,14 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from '@/components/ui/drawer'
-// import { auth } from '@/auth'
+import { auth } from '@/auth'
 
 export default async function Sidebar({
   categories,
 }: {
   categories: string[]
 }) {
-  //   const session = await auth()
+  const session = await auth()
 
   return (
     <Drawer direction='left'>
@@ -34,7 +34,7 @@ export default async function Sidebar({
             <DrawerHeader>
               <DrawerTitle className='flex items-center'>
                 <UserCircle className='h-6 w-6 mr-2' />
-                {/* {session ? (
+                {session ? (
                   <DrawerClose asChild>
                     <Link href='/account'>
                       <span className='text-lg font-semibold'>
@@ -42,15 +42,15 @@ export default async function Sidebar({
                       </span>
                     </Link>
                   </DrawerClose>
-                ) : ( */}
-                <DrawerClose asChild>
-                  <Link href='/sign-in'>
-                    <span className='text-lg font-semibold'>
-                      Salut, intră în cont
-                    </span>
-                  </Link>
-                </DrawerClose>
-                {/* )} */}
+                ) : (
+                  <DrawerClose asChild>
+                    <Link href='/sign-in'>
+                      <span className='text-lg font-semibold'>
+                        Salut, intră în cont
+                      </span>
+                    </Link>
+                  </DrawerClose>
+                )}
               </DrawerTitle>
               <DrawerDescription></DrawerDescription>
             </DrawerHeader>
@@ -97,7 +97,7 @@ export default async function Sidebar({
                 Suport Clienți
               </Link>
             </DrawerClose>
-            {/* {session ? (
+            {session ? (
               <form action={SignOut} className='w-full'>
                 <Button
                   className='w-full justify-start item-button text-base'
@@ -106,11 +106,11 @@ export default async function Sidebar({
                   Deconectare
                 </Button>
               </form>
-            ) : ( */}
-            <Link href='/sign-in' className='item-button'>
-              Autentifică-te
-            </Link>
-            {/* )} */}
+            ) : (
+              <Link href='/sign-in' className='item-button'>
+                Autentifică-te
+              </Link>
+            )}
           </div>
         </div>
       </DrawerContent>

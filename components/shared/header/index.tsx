@@ -3,10 +3,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import Menu from './menu'
 import data from '@/lib/data'
-// import Sidebar from './sidebar'
-import { getAllCategories } from '@/lib/actions/product.actions'
 import Sidebar from './sidebar'
-// import MobileMainMenu from './mobile-main-menu'
+import { getAllCategories } from '@/lib/actions/product.actions'
+import MobileMainMenuDropdown from './mobile-main-menu'
 
 export default async function Header() {
   const categories = await getAllCategories()
@@ -35,7 +34,7 @@ export default async function Header() {
       <div className='flex items-center px-3 mb-[1px] bg-gray-800 overflow-hidden'>
         <Sidebar categories={categories} />
         <div className='lg:hidden'>
-          {/* <MobileMainMenu menuItems={data.headerMenus} /> */}
+          <MobileMainMenuDropdown menuItems={data.headerMenus} />
         </div>
         <div className='hidden lg:flex items-center flex-wrap gap-3 max-h-[42px]'>
           {' '}

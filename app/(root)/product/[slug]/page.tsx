@@ -7,7 +7,6 @@ import ProductPrice from '@/components/shared/product/product-price'
 import ProductGallery from '@/components/shared/product/product-gallery'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency } from '@/lib/utils'
-// import { auth } from '@/auth'
 import RatingSummary from '@/components/shared/product/rating-summary'
 import ProductSlider from '@/components/shared/product/product-slider'
 import BrowsingHistoryList from '@/components/shared/browsing-history-list'
@@ -32,8 +31,6 @@ export default async function ProductDetails(props: {
     productId: product._id,
     page: Number(page || '1'),
   })
-
-  //   const session = await auth()
 
   return (
     <div>
@@ -143,7 +140,6 @@ export default async function ProductDetails(props: {
         <h2 className='h2-bold mb-2' id='reviews'>
           Recenzii clienți
         </h2>
-        {/* <ReviewList product={product} userId={session?.user.id} /> */}
       </section>
       <section className='mt-10'>
         <ProductSlider

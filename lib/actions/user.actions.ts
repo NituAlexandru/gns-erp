@@ -16,6 +16,7 @@ import {
   UserPasswordUpdateSchema,
   UserPhoneUpdateSchema,
 } from '../validator'
+import { sendWelcomeEmail } from '@/emails'
 
 export async function signInWithCredentials(user: IUserSignIn) {
   return await signIn('credentials', { ...user, redirect: false })
