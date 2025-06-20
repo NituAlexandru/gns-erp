@@ -3,6 +3,7 @@ import {
   OrderInputSchema,
   OrderItemSchema,
   ProductInputSchema,
+  ReviewInputSchema,
   ShippingAddressSchema,
   UserInputSchema,
   UserNameSchema,
@@ -11,26 +12,24 @@ import {
 } from '@/lib/validator'
 import { z } from 'zod'
 
-export type IProductInput = z.infer<typeof ProductInputSchema>
-
-export interface PalletType {
-  id: string // ID unic, ex: 'EURO-STD-WOOD'
-  name: string // Nume afișat, ex: "Custodie Europalet Lemn Standard"
-  slug: string // Pentru URL-uri sau referințe, ex: "custodie-europalet-lemn-standard"
-  custodyFee: number // Taxa de custodie (prețul paletului)
-  lengthCm: number
-  widthCm: number
-  heightCm: number // Înălțimea paletului GOL
-  weightKg: number // Greutatea paletului GOL
-  volumeM3: number // Volumul paletului GOL (specificat)
-  image: string // Calea către imaginea statică a paletului
-  supplier: string
-  returnConditions?: string // Opțional
+export type IReviewInput = z.infer<typeof ReviewInputSchema>
+export type IReviewDetails = IReviewInput & {
+  _id: string
+  createdAt: string
+  user: {
+    name: string
+  }
 }
+export type IProductInput = z.infer<typeof ProductInputSchema>
 
 export type Data = {
   users: IUserInput[]
   products: IProductInput[]
+  reviews: {
+    title: string
+    rating: number
+    comment: string
+  }[]
   headerMenus: {
     name: string
     href: string
@@ -52,10 +51,16 @@ export type IOrderList = IOrderInput & {
   createdAt: Date
 }
 export type OrderItem = z.infer<typeof OrderItemSchema>
-export type Cart = z.infer<typeof CartSchema> // se va scoate
+export type Cart = z.infer<typeof CartSchema>
 export type ShippingAddress = z.infer<typeof ShippingAddressSchema>
 
-// Auto -trb completat cu alocarea exacta a masinilor, dupa numar/sofer
+// user
+export type IUserInput = z.infer<typeof UserInputSchema>
+export type IUserSignIn = z.infer<typeof UserSignInSchema>
+export type IUserSignUp = z.infer<typeof UserSignUpSchema>
+export type IUserName = z.infer<typeof UserNameSchema>
+
+// Auto
 export interface VehicleType {
   name: string
   maxLoadKg: number
@@ -72,8 +77,17 @@ export interface VehicleAllocation {
   totalCost: number
 }
 
-// user
-export type IUserInput = z.infer<typeof UserInputSchema>
-export type IUserSignIn = z.infer<typeof UserSignInSchema>
-export type IUserSignUp = z.infer<typeof UserSignUpSchema>
-export type IUserName = z.infer<typeof UserNameSchema>
+export interface PalletType {
+  id: string // ID unic, ex: 'EURO-STD-WOOD'
+  name: string // Nume afișat, ex: "Custodie Europalet Lemn Standard"
+  slug: string // Pentru URL-uri sau referințe, ex: "custodie-europalet-lemn-standard"
+  custodyFee: number // Taxa de custodie (prețul paletului)
+  lengthCm: number
+  widthCm: number
+  heightCm: number // Înălțimea paletului GOL
+  weightKg: number // Greutatea paletului GOL
+  volumeM3: number // Volumul paletului GOL (specificat)
+  image: string // Calea către imaginea statică a paletului
+  supplier: string
+  returnConditions?: string // Opțional
+}

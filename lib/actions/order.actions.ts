@@ -533,7 +533,7 @@ export const createOrder = async (clientSideCart: Cart) => {
     return { success: false, message: formatError(error) }
   }
 }
-
+// se va sterge
 export const createOrderFromCart = async (
   clientSideCart: Cart, // Folosim direct coșul primit de la client
   userId: string
