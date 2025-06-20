@@ -259,8 +259,18 @@ const users: IUserInput[] = [
     emailVerified: false,
   },
 ]
+
+const reviews = [
+  {
+    rating: 1,
+    title: 'Poor quality',
+    comment:
+      'Very disappointed. The item broke after just a few uses. Not worth the money.',
+  },
+]
 const data: Data = {
   users,
+  reviews,
   products,
   headerMenus: [
     {
