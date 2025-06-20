@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { UNITS } from './constants'
 import { formatNumberWithDecimal } from './utils'
+import { UNITS } from './constants'
 
 // Common
 const MongoId = z
@@ -15,22 +15,22 @@ const Price = (field: string) =>
       `${field} trebuie să aibă exact două zecimale (ex: 49.99)`
     )
 
-export const ShippingAddressSchema = z.object({
-  fullName: z
+export const ReviewInputSchema = z.object({
+  product: MongoId,
+  user: MongoId,
+  isVerifiedPurchase: z.boolean(),
+  title: z.string().min(5, 'Titlul trebuie să aibă cel puțin 5 caractere'),
+  comment: z
     .string()
-    .min(5, 'Numele complet trebuie să aibă cel puțin 5 caractere'),
-  street: z
-    .string()
-    .min(10, 'Adresa trebuie să conțină cel puțin 10 caractere'),
-  city: z.string().min(3, 'Orașul trebuie să aibă cel puțin 3 caractere'),
-  postalCode: z
-    .string()
-    .min(3, 'Codul poștal trebuie să aibă cel puțin 3 caractere'),
-  province: z.string().min(1, 'Județul/Sectorul este obligatoriu'),
-  phone: z.string().min(10, 'Numărul de telefon trebuie să aibă 10 cifre'),
-  country: z.string().min(1, 'Țara este obligatorie'),
+    .min(10, 'Comentariul trebuie să aibă cel puțin 10 caractere'),
+  rating: z.coerce
+    .number()
+    .int()
+    .min(1, 'Rating-ul trebuie să fie minim 1')
+    .max(5, 'Rating-ul trebuie să fie maxim 5'),
 })
-
+// Cars
+// 1. Schema pentru alocarea vehiculului ????
 const VehicleAllocationSchema = z.object({
   vehicle: z.object({
     name: z.string(),
@@ -46,21 +46,6 @@ const VehicleAllocationSchema = z.object({
     .int({ message: 'Numărul de curse trebuie să fie un număr întreg' })
     .positive({ message: 'Numărul de curse trebuie să fie un număr pozitiv' }),
   totalCost: z.number(),
-})
-
-export const ReviewInputSchema = z.object({
-  product: MongoId,
-  user: MongoId,
-  isVerifiedPurchase: z.boolean(),
-  title: z.string().min(5, 'Titlul trebuie să aibă cel puțin 5 caractere'),
-  comment: z
-    .string()
-    .min(10, 'Comentariul trebuie să aibă cel puțin 10 caractere'),
-  rating: z.coerce
-    .number()
-    .int()
-    .min(1, 'Rating-ul trebuie să fie minim 1')
-    .max(5, 'Rating-ul trebuie să fie maxim 5'),
 })
 
 export const ProductInputSchema = z.object({
@@ -132,6 +117,11 @@ export const ProductInputSchema = z.object({
     ),
   palletTypeId: z.string().optional(),
 })
+
+export const ProductUpdateSchema = ProductInputSchema.extend({
+  _id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'ID produs invalid'),
+})
+
 // Order Item
 export const OrderItemSchema = z.object({
   clientId: z.string().min(1, 'ID-ul clientului este obligatoriu'),
@@ -164,25 +154,22 @@ export const OrderItemSchema = z.object({
   brand: z.string().optional(),
   entryPrice: Price('Preț de intrare').optional(),
 })
-// Cart - se va combina cu Order
-export const CartSchema = z.object({
-  items: z
-    .array(OrderItemSchema)
-    .min(1, 'Comanda trebuie să conțină cel puțin un articol'),
-  itemsPrice: z.number(),
-  taxPrice: z.optional(z.number()),
-  shippingPrice: z.optional(z.number()),
-  totalPrice: z.number(),
-  paymentMethod: z.optional(z.string()),
-  shippingAddress: z.optional(ShippingAddressSchema),
-  deliveryDateIndex: z.optional(z.number()),
-  expectedDeliveryDate: z.optional(z.date()),
-  shippingDistance: z
-    .number()
-    .nonnegative('Distanța de livrare trebuie să fie >= 0')
-    .optional(),
-  vehicleAllocation: VehicleAllocationSchema,
+export const ShippingAddressSchema = z.object({
+  fullName: z
+    .string()
+    .min(5, 'Numele complet trebuie să aibă cel puțin 5 caractere'),
+  street: z
+    .string()
+    .min(10, 'Adresa trebuie să conțină cel puțin 10 caractere'),
+  city: z.string().min(3, 'Orașul trebuie să aibă cel puțin 3 caractere'),
+  postalCode: z
+    .string()
+    .min(3, 'Codul poștal trebuie să aibă cel puțin 3 caractere'),
+  province: z.string().min(1, 'Județul/Sectorul este obligatoriu'),
+  phone: z.string().min(10, 'Numărul de telefon trebuie să aibă 10 cifre'),
+  country: z.string().min(1, 'Țara este obligatorie'),
 })
+
 // Order
 export const OrderInputSchema = z.object({
   user: z.union([
@@ -224,7 +211,28 @@ export const OrderInputSchema = z.object({
     .nonnegative('Distanța de livrare trebuie să fie >= 0'),
   vehicleAllocation: VehicleAllocationSchema,
 })
-// ---------------------------- USER ------------------------------
+
+// Cart - de sters dupa ce fac order
+export const CartSchema = z.object({
+  items: z
+    .array(OrderItemSchema)
+    .min(1, 'Comanda trebuie să conțină cel puțin un articol'),
+  itemsPrice: z.number(),
+  taxPrice: z.optional(z.number()),
+  shippingPrice: z.optional(z.number()),
+  totalPrice: z.number(),
+  paymentMethod: z.optional(z.string()),
+  shippingAddress: z.optional(ShippingAddressSchema),
+  deliveryDateIndex: z.optional(z.number()),
+  expectedDeliveryDate: z.optional(z.date()),
+  shippingDistance: z
+    .number()
+    .nonnegative('Distanța de livrare trebuie să fie >= 0')
+    .optional(),
+  vehicleAllocation: VehicleAllocationSchema,
+})
+
+// USER
 const UserName = z
   .string()
   .min(3, {
@@ -292,7 +300,7 @@ export const UserUpdateSchema = z.object({
   role: UserRole,
 })
 
-// ─── Validare câmp email, parola și telefon ───
+// ─── Scopul: validare câmp email, parola și telefon ───
 export const UserEmailUpdateSchema = z.object({
   email: Email,
 })
@@ -310,4 +318,117 @@ export const UserPasswordUpdateSchema = z
 export const UserPhoneUpdateSchema = z.object({
   phone: z.string().min(8, 'Numărul de telefon este obligatoriu'),
 })
-// -------------------- End of User -------------------------
+
+// WEBPAGE
+export const WebPageInputSchema = z.object({
+  title: z.string().min(3, 'Titlul trebuie să aibă cel puțin 3 caractere'),
+  slug: z.string().min(3, 'Slug-ul trebuie să aibă cel puțin 3 caractere'),
+  content: z.string().min(1, 'Conținutul este obligatoriu'),
+  isPublished: z.boolean(),
+})
+export const WebPageUpdateSchema = WebPageInputSchema.extend({
+  _id: z.string(),
+})
+
+// Setting
+
+export const SiteLanguageSchema = z.object({
+  name: z.string().min(1, 'Numele este obligatoriu'),
+  code: z.string().min(1, 'Codul este obligatoriu'),
+})
+export const CarouselSchema = z.object({
+  title: z.string().min(1, 'Titlul este obligatoriu'),
+  url: z.string().min(1, 'URL-ul este obligatoriu'),
+  image: z.string().min(1, 'Imaginea este obligatorie'),
+  buttonCaption: z.string().min(1, 'Textul butonului este obligatoriu'),
+})
+
+export const SiteCurrencySchema = z.object({
+  name: z.string().min(1, 'Numele este obligatoriu'),
+  code: z.string().min(1, 'Codul este obligatoriu'),
+  convertRate: z.coerce
+    .number()
+    .min(0, 'Rata de conversie trebuie să fie minim 0'),
+  symbol: z.string().min(1, 'Simbolul este obligatoriu'),
+})
+
+export const PaymentMethodSchema = z.object({
+  name: z.string().min(1, 'Numele este obligatoriu'),
+  commission: z.coerce.number().min(0, 'Comisionul trebuie să fie minim 0'),
+})
+
+export const DeliveryDateSchema = z.object({
+  name: z.string().min(1, 'Numele este obligatoriu'),
+  daysToDeliver: z
+    .number()
+    .min(0, 'Zilele până la livrare trebuie să fie minim 0'),
+  shippingPrice: z.coerce
+    .number()
+    .min(0, 'Prețul de livrare trebuie să fie minim 0'),
+  freeShippingMinPrice: z.coerce
+    .number()
+    .min(0, 'Suma minimă pentru transport gratuit trebuie să fie minim 0'),
+})
+
+export const SettingInputSchema = z.object({
+  common: z.object({
+    pageSize: z.coerce.number().min(1).default(9),
+    isMaintenanceMode: z.boolean().default(false),
+    freeShippingMinPrice: z.coerce.number().min(0).default(0),
+    defaultTheme: z.string().min(1).default('light'),
+  }),
+  site: z.object({
+    name: z.string().min(1),
+    logo: z.string().min(1),
+    slogan: z.string().min(1),
+    description: z.string().min(1),
+    keywords: z.string().min(1),
+    url: z.string().min(1),
+    email: z.string().min(1),
+    phone: z.string().min(1),
+    author: z.string().min(1),
+    copyright: z.string().min(1),
+    address: z.string().min(1),
+  }),
+  carousels: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        url: z.string().min(1),
+        image: z.string().min(1),
+        buttonCaption: z.string().min(1),
+      })
+    )
+    .min(1),
+  availablePaymentMethods: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        commission: z.coerce.number().min(0),
+      })
+    )
+    .min(1),
+  defaultPaymentMethod: z.string().min(1),
+  availableDeliveryDates: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        daysToDeliver: z.number().min(0),
+        shippingPrice: z.coerce.number().min(0),
+        freeShippingMinPrice: z.coerce.number().min(0),
+      })
+    )
+    .min(1),
+  defaultDeliveryDate: z.string().min(1),
+})
+// Carousel
+export const CarouselInputSchema = z.object({
+  _id: z.string().optional(), // pentru edit
+  title: z.string().min(1, 'Titlul este obligatoriu'),
+  url: z.string().min(1, 'URL-ul este obligatoriu'),
+  image: z.string().min(1, 'URL-ul imaginii este obligatoriu'),
+  buttonCaption: z.string().min(1, 'Textul butonului este obligatoriu'),
+  isPublished: z.boolean().default(true),
+})
+
+export type CarouselInput = z.infer<typeof CarouselInputSchema>

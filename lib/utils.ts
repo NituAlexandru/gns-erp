@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import qs from 'query-string'
+import { addBusinessDays } from './deliveryDates'
 
 export function formUrlQuery({
   params,
@@ -194,4 +195,17 @@ export const normalizeStringForComparison = (str: string): string => {
     .normalize('NFD') // 2. Descompune diacriticele (ex: 'ă' -> 'a' + '˘')
     .replace(/[\u0300-\u036f]/g, '') // 3. Elimină semnele diacritice
     .replace(/\s+/g, '') // 4. Elimină toate spațiile
+}
+export function calculateFutureDate(days: number): Date {
+  const now = new Date()
+
+  // ora de tăiere în ziua curentă: 15:00
+  const cutoff = new Date(now)
+  cutoff.setHours(15, 0, 0, 0)
+
+  // Dacă suntem după ora de tăiere, începem de mâine (prima zi lucrătoare)
+  const baseDate = now > cutoff ? addBusinessDays(now, 1) : now
+
+  // Apoi adăugăm zilele de livrare peste această bază
+  return addBusinessDays(baseDate, days)
 }
