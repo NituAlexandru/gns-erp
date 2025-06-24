@@ -29,13 +29,10 @@ import useIsMounted from '@/hooks/use-is-mounted'
 import Link from 'next/link'
 import useCartStore from '@/hooks/use-cart-store'
 import ProductPrice from '@/components/shared/product/product-price'
-import {
-  APP_NAME,
-} from '@/lib/constants'
+import { APP_NAME } from '@/lib/constants'
 import { createOrder } from '@/lib/actions/order.actions'
 import { toast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
-
 
 const shippingAddressDefaultValues =
   process.env.NODE_ENV === 'development'
@@ -58,17 +55,12 @@ const shippingAddressDefaultValues =
         country: '',
       }
 
-const CheckoutForm = () => {
+const OrderForm = () => {
   const router = useRouter()
   const isMounted = useIsMounted()
 
-  const {
-    cart,
-    setShippingAddress,
-    clearCart,
-    removeItem,
-    updateItem,
-  } = useCartStore()
+  const { cart, setShippingAddress, clearCart, removeItem, updateItem } =
+    useCartStore()
 
   const {
     items,
@@ -88,8 +80,6 @@ const CheckoutForm = () => {
     return () => clearInterval(id)
   }, [])
 
-  
-  
   const shippingAddressForm = useForm<ShippingAddress>({
     resolver: zodResolver(ShippingAddressSchema),
     defaultValues: cartShippingAddress || shippingAddressDefaultValues,
@@ -119,7 +109,7 @@ const CheckoutForm = () => {
               </Link>
             </div>
           ),
-         
+
           duration: 5000,
         })
 
@@ -132,7 +122,6 @@ const CheckoutForm = () => {
         // orice altă eroare o afișăm ca eroare critică
         console.error('Unexpected error in setShippingAddress:', err)
         toast({
-         
           description: msg || 'A apărut o eroare neașteptată.',
         })
         setIsAddressSelected(false)
@@ -165,7 +154,6 @@ const CheckoutForm = () => {
 
     const orderPayload = {
       ...cart,
-     
     }
     console.log('[Checkout] placing order with payload:', orderPayload)
     const res = await createOrder(cart)
@@ -173,7 +161,6 @@ const CheckoutForm = () => {
     if (!res.success) {
       toast({
         description: res.message,
-
       })
     } else {
       toast({
@@ -433,7 +420,6 @@ const CheckoutForm = () => {
                   <span className='w-8'>2 </span>
                   <span>Alege o metodă de plată</span>
                 </div>
-              
               </>
             ) : (
               <div className='flex text-muted-foreground text-lg font-bold my-4 py-3'>
@@ -450,7 +436,7 @@ const CheckoutForm = () => {
                   <span className='w-8'>3 </span>
                   <span>Articole și livrare</span>
                 </div>
-               
+
                 <div className='col-span-2'>
                   <Button
                     variant={'outline'}
@@ -471,7 +457,6 @@ const CheckoutForm = () => {
                 </div>
                 <Card className='md:ml-8'>
                   <CardContent className='p-4'>
-                   
                     <div className='grid md:grid-cols-2 gap-6'>
                       <div>
                         {items.map((item, _index) => (
@@ -543,7 +528,6 @@ const CheckoutForm = () => {
                         ))}
                       </div>
                       {/*  */}
-                  
                     </div>
                   </CardContent>
                 </Card>
@@ -598,7 +582,6 @@ const CheckoutForm = () => {
               </Card>
             </div>
           )}
-        
         </div>
         <div className='hidden md:block'>
           <CheckoutSummary />
@@ -607,4 +590,4 @@ const CheckoutForm = () => {
     </main>
   )
 }
-export default CheckoutForm
+export default OrderForm
