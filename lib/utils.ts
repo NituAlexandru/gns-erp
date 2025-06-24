@@ -127,7 +127,6 @@ export const getFilterUrl = ({
   tag,
   sort,
   price,
-  rating,
   page,
 }: {
   params: {
@@ -135,7 +134,6 @@ export const getFilterUrl = ({
     category?: string
     tag?: string
     price?: string
-    rating?: string
     sort?: string
     page?: string
   }
@@ -143,14 +141,12 @@ export const getFilterUrl = ({
   tag?: string
   sort?: string
   price?: string
-  rating?: string
   page?: string
 }) => {
   // Pornim de la parametrii curenți (q, category, tag, price, rating, sort, page) din URL
   const newParams: { [key: string]: string } = { ...params } as {
     [key: string]: string
   }
-
   // Detectăm dacă se schimbă vreun filtru
   let isFiltering = false
 
@@ -164,10 +160,6 @@ export const getFilterUrl = ({
   }
   if (price) {
     newParams.price = price
-    isFiltering = true
-  }
-  if (rating) {
-    newParams.rating = rating
     isFiltering = true
   }
   if (sort) {
@@ -186,7 +178,7 @@ export const getFilterUrl = ({
   }
 
   // Reconstruim query-string-ul
-  return `/search?${new URLSearchParams(newParams).toString()}`
+  return `/catalog-produse?${new URLSearchParams(newParams).toString()}`
 }
 export const normalizeStringForComparison = (str: string): string => {
   if (!str) return ''
