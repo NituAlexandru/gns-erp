@@ -25,7 +25,7 @@ export default async function Sidebar({
     <Drawer direction='left'>
       <DrawerTrigger className='header-button flex items-center p-2  '>
         <MenuIcon className='h-5 w-5 mr-1' />
-        Categorii
+        Meniu
       </DrawerTrigger>
       <DrawerContent className='w-[350px] mt-0 top-0'>
         <div className='flex flex-col h-full'>
@@ -65,7 +65,7 @@ export default async function Sidebar({
           {/* Shop By Category */}
           <div className='flex-1 overflow-y-auto'>
             <div className='p-4 border-b'>
-              <h2 className='text-lg font-semibold'>Categorii Produse</h2>
+              <h2 className='text-lg font-semibold'>Meniu</h2>
             </div>
             <nav className='flex flex-col'>
               {categories.map((category) => (
@@ -92,11 +92,6 @@ export default async function Sidebar({
                 Contul tău
               </Link>
             </DrawerClose>{' '}
-            <DrawerClose asChild>
-              <Link href='/page/suport-clienti' className='item-button'>
-                Suport Clienți
-              </Link>
-            </DrawerClose>
             {session ? (
               <form action={SignOut} className='w-full'>
                 <Button
