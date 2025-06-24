@@ -40,7 +40,7 @@ export async function updateOrderToPaid(orderId: string) {
 
     // console.log('[DEBUG] order saved, now trying to sendPurchaseReceipt…')
 
-    if (!process.env.MONGODB_URI?.startsWith('mongodb://localhost'))
+    if (!process.env.MONGODB_ERP_URI?.startsWith('mongodb://localhost'))
       await updateProductStock(order._id)
 
     // if (order.user.email) {
