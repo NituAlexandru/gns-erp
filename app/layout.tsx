@@ -4,9 +4,7 @@ import { APP_DESCRIPTION, APP_NAME, APP_SLOGAN } from '@/lib/constants'
 import './globals.css'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
-// import ClientProviders from '@/components/shared/client-providers'
-// import { Suspense } from 'react'
-// import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics'
+import ClientProviders from '@/components/shared/client-providers'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -36,13 +34,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div>{children}</div>
-        {/* <ClientProviders>{children}</ClientProviders> */}
+        <ClientProviders>{children}</ClientProviders>
         <Analytics />
         <SpeedInsights />
-        {/* <Suspense>
-          <GoogleAnalytics />
-        </Suspense> */}
       </body>
     </html>
   )
