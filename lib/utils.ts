@@ -201,3 +201,19 @@ export function calculateFutureDate(days: number): Date {
   // Apoi adăugăm zilele de livrare peste această bază
   return addBusinessDays(baseDate, days)
 }
+export function getMonthName(yearMonth: string): string {
+  const [year, month] = yearMonth.split('-').map(Number)
+  const date = new Date(year, month - 1)
+  const monthName = date.toLocaleString('default', { month: 'long' })
+  const now = new Date()
+
+  if (year === now.getFullYear() && month === now.getMonth() + 1) {
+    return `${monthName} Ongoing`
+  }
+  return monthName
+}
+export function calculatePastDate(days: number) {
+  const currentDate = new Date()
+  currentDate.setDate(currentDate.getDate() - days)
+  return currentDate
+}

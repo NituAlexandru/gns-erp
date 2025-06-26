@@ -1,8 +1,120 @@
+'use server'
+
 import { connectToDatabase } from '@/lib/db'
 import Product, { IProduct } from '@/lib/db/models/product.model'
-import { PAGE_SIZE } from '../constants'
+import { revalidatePath } from 'next/cache'
+import { formatError } from '../utils'
+import { ProductInputSchema, ProductUpdateSchema } from '../validator'
+import { IProductInput } from '@/types'
+import { z } from 'zod'
+import { ADMIN_PAGE_SIZE, PAGE_SIZE } from '../constants'
 
-// GET
+// CREATE
+export async function createProduct(data: IProductInput) {
+  try {
+    const product = ProductInputSchema.parse(data)
+    await connectToDatabase()
+    await Product.create(product)
+    revalidatePath('/admin/products')
+    return {
+      success: true,
+      message: 'Product created successfully',
+    }
+  } catch (error) {
+    return { success: false, message: formatError(error) }
+  }
+}
+//
+// UPDATE
+export async function updateProduct(data: z.infer<typeof ProductUpdateSchema>) {
+  try {
+    const product = ProductUpdateSchema.parse(data)
+    await connectToDatabase()
+    await Product.findByIdAndUpdate(product._id, product)
+    revalidatePath('/admin/products')
+    return {
+      success: true,
+      message: 'Product updated successfully',
+    }
+  } catch (error) {
+    return { success: false, message: formatError(error) }
+  }
+}
+// GET ONE PRODUCT BY ID
+export async function getProductById(productId: string) {
+  await connectToDatabase()
+  const product = await Product.findById(productId)
+  return JSON.parse(JSON.stringify(product)) as IProduct
+}
+// DELETE
+export async function deleteProduct(id: string) {
+  try {
+    await connectToDatabase()
+    const res = await Product.findByIdAndDelete(id)
+    if (!res) throw new Error('Product not found')
+    revalidatePath('/admin/products')
+    return {
+      success: true,
+      message: 'Product deleted successfully',
+    }
+  } catch (error) {
+    return { success: false, message: formatError(error) }
+  }
+}
+// GET ALL PRODUCTS FOR ADMIN
+export async function getAllProductsForAdmin({
+  query,
+  page = 1,
+  sort = 'latest',
+  limit,
+}: {
+  query: string
+  page?: number
+  sort?: string
+  limit?: number
+}) {
+  await connectToDatabase()
+
+  const pageSize = limit || ADMIN_PAGE_SIZE
+  const queryFilter =
+    query && query !== 'all'
+      ? {
+          name: {
+            $regex: query,
+            $options: 'i',
+          },
+        }
+      : {}
+
+  const order: Record<string, 1 | -1> =
+    sort === 'best-selling'
+      ? { numSales: -1 }
+      : sort === 'price-low-to-high'
+        ? { price: 1 }
+        : sort === 'price-high-to-low'
+          ? { price: -1 }
+          : sort === 'avg-customer-review'
+            ? { avgRating: -1 }
+            : { _id: -1 }
+  const products = await Product.find({
+    ...queryFilter,
+  })
+    .sort(order)
+    .skip(pageSize * (Number(page) - 1))
+    .limit(pageSize)
+    .lean()
+
+  const countProducts = await Product.countDocuments({
+    ...queryFilter,
+  })
+  return {
+    products: JSON.parse(JSON.stringify(products)) as IProduct[],
+    totalPages: Math.ceil(countProducts / pageSize),
+    totalProducts: countProducts,
+    from: pageSize * (Number(page) - 1) + 1,
+    to: pageSize * (Number(page) - 1) + products.length,
+  }
+}
 export async function getAllCategories() {
   await connectToDatabase()
   const categories = await Product.find({ isPublished: true }).distinct(
@@ -10,7 +122,59 @@ export async function getAllCategories() {
   )
   return categories
 }
+export async function getProductsForCard({
+  tag,
+  limit = 4,
+}: {
+  tag: string
+  limit?: number
+}) {
+  await connectToDatabase()
 
+  const products = await Product.find(
+    { tags: { $in: [tag] }, isPublished: true },
+    {
+      name: 1,
+      href: { $concat: ['/product/', '$slug'] },
+      image: { $arrayElemAt: ['$images', 0] },
+    }
+  )
+    .sort({ createdAt: 'desc' })
+    .limit(limit)
+
+  return JSON.parse(JSON.stringify(products)) as {
+    name: string
+    href: string
+    image: string
+  }[]
+}
+export async function getProductsRandomForCard({
+  tag,
+  limit = 4,
+}: {
+  tag: string
+  limit?: number
+}) {
+  await connectToDatabase()
+
+  const products = await Product.aggregate([
+    { $match: { tags: { $in: [tag] }, isPublished: true } },
+    { $sample: { size: limit } },
+    {
+      $project: {
+        name: 1,
+        href: { $concat: ['/product/', '$slug'] },
+        image: { $arrayElemAt: ['$images', 0] },
+        _id: 0,
+      },
+    },
+  ])
+  return JSON.parse(JSON.stringify(products)) as {
+    name: string
+    href: string
+    image: string
+  }[]
+}
 export async function getProductsByTag({
   tag,
   limit = 10,
@@ -27,7 +191,22 @@ export async function getProductsByTag({
     .limit(limit)
   return JSON.parse(JSON.stringify(products)) as IProduct[]
 }
+export async function getProductsRandomByTag({
+  tag,
+  limit = 10,
+}: {
+  tag: string
+  limit?: number
+}) {
+  await connectToDatabase()
 
+  const products = await Product.aggregate([
+    { $match: { tags: { $in: [tag] }, isPublished: true } },
+    { $sample: { size: limit } },
+  ])
+
+  return JSON.parse(JSON.stringify(products)) as IProduct[]
+}
 export async function getProductBySlug(slug: string) {
   await connectToDatabase()
   const product = await Product.findOne({ slug, isPublished: true })
@@ -62,74 +241,7 @@ export async function getRelatedProductsByCategory({
     totalPages: Math.ceil(productsCount / limit),
   }
 }
-export async function getProductsDetailsForCart(
-  productIds: string[]
-): Promise<Record<string, IProduct>> {
-  // Returnează un map/record pentru căutare ușoară după ID
-  console.log(
-    '[Server Action] getProductsDetailsForCart called for IDs:',
-    productIds
-  )
-
-  // Verificăm dacă avem ID-uri de căutat
-  if (!productIds || productIds.length === 0) {
-    console.log(
-      '[Server Action] No product IDs provided to getProductsDetailsForCart.'
-    )
-    return {} // Returnăm un obiect gol dacă lista de ID-uri e goală
-  }
-
-  try {
-    await connectToDatabase()
-
-    // Căutăm toate produsele ale căror ID-uri sunt în array-ul primit
-    // Folosim .lean() pentru performanță (returnează obiecte JS simple, nu documente Mongoose complexe)
-    const products = await Product.find({
-      _id: { $in: productIds }, // Operatorul $in pentru a căuta mai multe ID-uri
-    }).lean<IProduct[]>() // Specificăm tipul așteptat după .lean()
-
-    // Transformăm array-ul de produse într-un obiect (Record)
-    // pentru acces rapid folosind ID-ul produsului ca cheie
-    const productsMap: Record<string, IProduct> = {}
-    products.forEach((product) => {
-      // Verificăm dacă produsul și ID-ul există (bună practică)
-      if (product?._id) {
-        // Convertim ObjectId în string pentru cheia obiectului
-        const plainProduct = JSON.parse(JSON.stringify(product))
-        productsMap[product._id.toString()] = plainProduct
-      }
-    })
-
-    console.log(
-      `[Server Action] Found details for ${
-        Object.keys(productsMap).length
-      } out of ${productIds.length} requested products.`
-    )
-    return productsMap
-  } catch (error) {
-    console.error('Error fetching product details for cart:', error)
-    // Putem arunca eroarea mai departe sau returna un obiect gol
-    // Alegem să returnăm gol pentru a nu bloca complet procesul în caz de eroare la fetch
-    return {}
-  }
-}
-export async function getAllTags() {
-  const tags = await Product.aggregate([
-    { $unwind: '$tags' },
-    { $group: { _id: null, uniqueTags: { $addToSet: '$tags' } } },
-    { $project: { _id: 0, uniqueTags: 1 } },
-  ])
-  return (
-    (tags[0]?.uniqueTags
-      .sort((a: string, b: string) => a.localeCompare(b))
-      .map((x: string) =>
-        x
-          .split('-')
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join(' ')
-      ) as string[]) || []
-  )
-}
+// GET ALL PRODUCTS
 export async function getAllProducts({
   query,
   limit,
@@ -259,5 +371,71 @@ export async function getAllProducts({
     totalProducts: countProducts,
     from: skipAmount + 1,
     to: skipAmount + products.length,
+  }
+}
+export async function getAllTags() {
+  const tags = await Product.aggregate([
+    { $unwind: '$tags' },
+    { $group: { _id: null, uniqueTags: { $addToSet: '$tags' } } },
+    { $project: { _id: 0, uniqueTags: 1 } },
+  ])
+  return (
+    (tags[0]?.uniqueTags
+      .sort((a: string, b: string) => a.localeCompare(b))
+      .map((x: string) =>
+        x
+          .split('-')
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ')
+      ) as string[]) || []
+  )
+}
+export async function getProductsDetailsForCart(
+  productIds: string[]
+): Promise<Record<string, IProduct>> {
+  // Returnează un map/record pentru căutare ușoară după ID
+  console.log(
+    '[Server Action] getProductsDetailsForCart called for IDs:',
+    productIds
+  )
+
+  // Verificăm dacă avem ID-uri de căutat
+  if (!productIds || productIds.length === 0) {
+    console.log(
+      '[Server Action] No product IDs provided to getProductsDetailsForCart.'
+    )
+    return {} // Returnăm un obiect gol dacă lista de ID-uri e goală
+  }
+
+  try {
+    await connectToDatabase()
+
+    // Căutăm toate produsele ale căror ID-uri sunt în array-ul primit
+    // Folosim .lean() pentru performanță (returnează obiecte JS simple, nu documente Mongoose complexe)
+    const products = await Product.find({
+      _id: { $in: productIds }, // Operatorul $in pentru a căuta mai multe ID-uri
+    }).lean<IProduct[]>() // Specificăm tipul așteptat după .lean()
+
+    // Transformăm array-ul de produse într-un obiect (Record)
+    // pentru acces rapid folosind ID-ul produsului ca cheie
+    const productsMap: Record<string, IProduct> = {}
+    products.forEach((product) => {
+      // Verificăm dacă produsul și ID-ul există (bună practică)
+      if (product?._id) {
+        // Convertim ObjectId în string pentru cheia obiectului
+        const plainProduct = JSON.parse(JSON.stringify(product))
+        productsMap[product._id.toString()] = plainProduct
+      }
+    })
+
+    console.log(
+      `[Server Action] Found details for ${Object.keys(productsMap).length} out of ${productIds.length} requested products.`
+    )
+    return productsMap
+  } catch (error) {
+    console.error('Error fetching product details for cart:', error)
+    // Putem arunca eroarea mai departe sau returna un obiect gol
+    // Alegem să returnăm gol pentru a nu bloca complet procesul în caz de eroare la fetch
+    return {}
   }
 }

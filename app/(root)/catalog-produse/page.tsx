@@ -199,7 +199,7 @@ export default async function CatalogPage(props: {
         </div>
       </div>
       {/* ====== END BreadCrumbs cu butoane de reset pentru fiecare filtru ====== */}
-      <div className='bg-card grid md:grid-cols-5 md:gap-4'>
+      <div className=' grid md:grid-cols-5 md:gap-4'>
         <CollapsibleOnMobile title='Filtre'>
           <div className='hidden md:block flex-1 max-w-xl'>
             <Search />

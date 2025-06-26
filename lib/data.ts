@@ -306,6 +306,58 @@ const data: Data = {
       href: '/page/ajutor',
     },
   ],
+  settings: [
+    {
+      common: {
+        pageSize: 9,
+        freeShippingMinPrice: 35,
+        isMaintenanceMode: false,
+        defaultTheme: 'Light',
+      },
+      site: {
+        name: 'Magazin Genesis Marketing & Distribution',
+        description:
+          'Genesis Marketing & Distribution îți oferă materiale de construcții de calitate superioară.',
+        keywords: 'materiale construcții, Genesis, magazin online',
+        url: 'https://magazin-exemplu.ro',
+        logo: '/icons/logo.svg',
+        slogan: 'Cheltuiește mai puțin, bucură-te mai mult',
+        author: 'Genesis GmbH',
+        copyright: '© 2025 Magazin Genesis. Toate drepturile rezervate.',
+        email: 'contact@magazin-exemplu.ro',
+        address: 'Str. Exemplu, Nr. 1, București, România',
+        phone: '+40 21 123 4567',
+      },
+
+      availablePaymentMethods: [
+        { name: 'PayPal', commission: 0 },
+        { name: 'Stripe', commission: 0 },
+        { name: 'Numerar la livrare', commission: 0 },
+      ],
+      defaultPaymentMethod: 'PayPal',
+      availableDeliveryDates: [
+        {
+          name: 'Mâine',
+          daysToDeliver: 1,
+          shippingPrice: 12.9,
+          freeShippingMinPrice: 0,
+        },
+        {
+          name: 'În 3 zile',
+          daysToDeliver: 3,
+          shippingPrice: 6.9,
+          freeShippingMinPrice: 0,
+        },
+        {
+          name: 'În 5 zile',
+          daysToDeliver: 5,
+          shippingPrice: 4.9,
+          freeShippingMinPrice: 35,
+        },
+      ],
+      defaultDeliveryDate: 'În 5 zile',
+    },
+  ],
 }
 
 export default data

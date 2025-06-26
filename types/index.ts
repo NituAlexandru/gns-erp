@@ -4,6 +4,7 @@ import {
   OrderItemSchema,
   ProductInputSchema,
   ReviewInputSchema,
+  SettingInputSchema,
   ShippingAddressSchema,
   UserInputSchema,
   UserNameSchema,
@@ -23,6 +24,7 @@ export type IReviewDetails = IReviewInput & {
 export type IProductInput = z.infer<typeof ProductInputSchema>
 
 export type Data = {
+  settings: ISettingInput[]
   users: IUserInput[]
   products: IProductInput[]
   reviews: {
@@ -60,6 +62,12 @@ export type IUserSignIn = z.infer<typeof UserSignInSchema>
 export type IUserSignUp = z.infer<typeof UserSignUpSchema>
 export type IUserName = z.infer<typeof UserNameSchema>
 
+// setting
+
+export type ISettingInput = z.infer<typeof SettingInputSchema>
+export type ClientSetting = ISettingInput & {
+  currency: string
+}
 // Auto
 export interface VehicleType {
   name: string

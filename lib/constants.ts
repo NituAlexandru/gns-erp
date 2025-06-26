@@ -32,8 +32,6 @@ export const OFFER_REQUEST_RECIPIENT = process.env.OFFER_REQUEST_RECIPIENT!
 export const ADMIN_EMAIL =
   process.env.ADMIN_EMAIL || 'genesismarketingdistributie@gmail.com'
 
-export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 16)
-
 export const SITE_URL = 'http://localhost:3000/'
 
 export const FREE_SHIPPING_MIN_PRICE = Number(
@@ -475,3 +473,13 @@ export const AVAILABLE_DELIVERY_DATES = [
     message: 'Nu implica costuri extra',
   },
 ]
+export const ADMIN_PAGE_SIZE = 15
+export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 16)
+export const AVAILABLE_TAGS = [
+  'best-seller',
+  'featured',
+  'todays-deal',
+  'new-arrival',
+] as const
+export const USER_ROLES = ['Admin', 'User']
+export const THEMES = ['Light', 'Dark', 'System']
