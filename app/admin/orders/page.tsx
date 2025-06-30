@@ -12,9 +12,9 @@ import {
 } from '@/components/ui/table'
 import { deleteOrder, getAllOrders } from '@/lib/db/modules/order/order.actions'
 import { formatDateTime, formatId } from '@/lib/utils'
-import { IOrderList } from '@/types'
 import ProductPrice from '@/components/shared/product/product-price'
 import DeleteDialog from '../delete-dialog'
+import { IOrderList } from '@/lib/db/modules/order/types'
 
 export default async function OrdersPage(props: {
   searchParams: Promise<{ page: string }>

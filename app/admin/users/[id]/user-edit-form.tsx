@@ -26,7 +26,7 @@ import { useToast } from '@/hooks/use-toast'
 import { updateUser } from '@/lib/db/modules/user/user.actions'
 import { USER_ROLES } from '@/lib/constants'
 import { IUser } from '@/lib/db/modules/user/user.model'
-import { UserUpdateSchema } from '@/lib/validator'
+import { UserUpdateSchema } from '@/lib/db/modules/user/validator'
 
 const UserEditForm = ({ user }: { user: IUser }) => {
   const router = useRouter()

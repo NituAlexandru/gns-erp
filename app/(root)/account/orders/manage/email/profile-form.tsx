@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { updateUserEmail } from '@/lib/db/modules/user/user.actions'
-import { UserEmailUpdateSchema } from '@/lib/validator'
+import { UserEmailUpdateSchema } from '@/lib/db/modules/user/validator'
 
 interface EmailFormProps {
   defaultEmail: string

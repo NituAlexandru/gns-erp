@@ -2,9 +2,7 @@
 
 import { connectToDatabase } from '@/lib/db'
 import SupplierModel from './supplier.model'
-import type { ISupplierInput } from '@/types'
-import type { ISupplierDoc } from './types'
-
+import type { ISupplierDoc, ISupplierInput } from './types'
 import { SupplierCreateSchema, SupplierUpdateSchema } from './validator'
 
 export async function createSupplier(data: ISupplierInput) {

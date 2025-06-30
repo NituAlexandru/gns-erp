@@ -1,4 +1,5 @@
-import { PalletType, VehicleType } from '@/types'
+import { PalletType } from '@/types'
+import { VehicleType } from './db/modules/vehicle/types'
 
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Genesis ERP'
 export const APP_SLOGAN =

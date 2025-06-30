@@ -1,5 +1,6 @@
 import { Document, Model, models, model, Schema, Types } from 'mongoose'
-import { IReceptionInput } from '@/types'
+import { IReceptionInput } from './types'
+
 
 export interface IReceptionDoc extends Document, IReceptionInput {
   _id: string

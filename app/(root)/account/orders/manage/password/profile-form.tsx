@@ -16,8 +16,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
-import { UserPasswordUpdateSchema } from '@/lib/validator'
 import { updateUserPassword } from '@/lib/db/modules/user/user.actions'
+import { UserPasswordUpdateSchema } from '@/lib/db/modules/user/validator'
 
 export function PasswordForm() {
   const router = useRouter()

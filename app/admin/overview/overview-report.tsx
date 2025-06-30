@@ -23,13 +23,12 @@ import { DateRange } from 'react-day-picker'
 import { getOrderSummary } from '@/lib/db/modules/order/order.actions'
 import SalesAreaChart from './sales-area-chart'
 import { CalendarDateRangePicker } from './date-range-picker'
-import { IOrderList } from '@/types'
 import ProductPrice from '@/components/shared/product/product-price'
 import TableChart from './table-chart'
 import { Skeleton } from '@/components/ui/skeleton'
 import SalesCategoryBySumPieChart from './sales-category-by-sum-pie-chart'
-
 import MonthlyEarnings from './monthly-earnings'
+import { IOrderList } from '@/lib/db/modules/order/types'
 
 export default function OverviewReport() {
   const [date, setDate] = useState<DateRange | undefined>({

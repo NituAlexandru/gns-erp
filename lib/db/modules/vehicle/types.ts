@@ -28,7 +28,7 @@ export interface IVehicleInput {
   widthCm: number
   heightCm: number
   ratePerKm: number
-  carNumber: string
+  carNumber?: string
   carType?: string
   averageConsumption?: number
   year?: number
@@ -61,6 +61,17 @@ export interface VehicleType {
   widthCm: number
   heightCm: number
   ratePerKm: number
+  carNumber?: string
+  carType?: string
+  averageConsumption?: number
+  year?: number
+  brand?: string
+  model?: string
+  chassisNumber?: string
+  notes?: string
+  productCapacities?: ProductCapacity[]
+  restrictions?: VehicleRestrictions
+  loadingUnloadingTimes?: LoadingUnloadingTimes
 }
 
 export interface VehicleAllocation {

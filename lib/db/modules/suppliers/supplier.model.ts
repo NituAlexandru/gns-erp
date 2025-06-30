@@ -1,5 +1,5 @@
 import { Document, Model, model, models, Schema, Types } from 'mongoose'
-import { ISupplierInput } from '@/types'
+import { ISupplierInput } from './types'
 
 export interface ISupplier extends Document, ISupplierInput {
   _id: string

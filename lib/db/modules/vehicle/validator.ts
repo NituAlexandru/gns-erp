@@ -29,7 +29,7 @@ export const VehicleCreateSchema = z.object({
   widthCm: z.number().nonnegative(),
   heightCm: z.number().nonnegative(),
   ratePerKm: z.number().nonnegative(),
-  carNumber: z.string().min(1),
+  carNumber: z.string().min(1).optional(),
   carType: z.string().optional(),
   averageConsumption: z.number().nonnegative().optional(),
   year: z.number().int().optional(),

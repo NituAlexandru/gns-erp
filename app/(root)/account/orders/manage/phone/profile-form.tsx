@@ -18,7 +18,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { updateUserPhone } from '@/lib/db/modules/user/user.actions'
-import { UserPhoneUpdateSchema } from '@/lib/validator'
+import { UserPhoneUpdateSchema } from '@/lib/db/modules/user/validator'
+
 
 interface PhoneFormProps {
   defaultPhone: string

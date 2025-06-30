@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
-
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -18,7 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { updateUserName } from '@/lib/db/modules/user/user.actions'
-import { UserNameSchema } from '@/lib/validator'
+import { UserNameSchema } from '@/lib/db/modules/user/validator'
 
 export const ProfileForm = () => {
   const router = useRouter()

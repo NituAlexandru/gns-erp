@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Cart, OrderItem, ShippingAddress, VehicleType } from '@/types'
 import {
   ALLOWED_COUNTIES,
   AVAILABLE_DELIVERY_DATES,
@@ -14,6 +13,8 @@ import { calculateFutureDate, normalizeStringForComparison } from '@/lib/utils'
 import { getDistanceInKm } from '@/lib/maps'
 import { allocateVehicleTrips, VehicleChoice } from '@/lib/vehicle'
 import { getProductsDetailsForCart } from '@/lib/db/modules/product'
+import { VehicleType } from '@/lib/db/modules/vehicle/types'
+import { Cart, OrderItem, ShippingAddress } from '@/lib/db/modules/order/types'
 
 interface CartVehicleAllocation {
   vehicle: VehicleType
@@ -397,7 +398,7 @@ const useCartStore = create(
             shippingPrice: newShippingPrice,
             totalPrice: newTotalPrice,
             shippingDistance: newShippingDistance,
-            vehicleAllocation: newVehicleAllocation,
+            // vehicleAllocation: newVehicleAllocation,
             expectedDeliveryDate: newExpectedDeliveryDate,
           },
         })

@@ -11,7 +11,7 @@ const vehicleSchema = new Schema(
     widthCm: { type: Number, required: true },
     heightCm: { type: Number, required: true },
     ratePerKm: { type: Number, required: true },
-    carNumber: { type: String, required: true, unique: true },
+    carNumber: { type: String, required: false },
     carDriver: { type: String },
     carType: { type: String },
     averageConsumption: { type: Number, default: 0 },
