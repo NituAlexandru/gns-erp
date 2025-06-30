@@ -2,7 +2,7 @@
 
 import { useFormStatus } from 'react-dom'
 import { Button } from '@/components/ui/button'
-import { SignInWithGoogle } from '@/lib/actions/user.actions'
+import { SignInWithGoogle } from '@/lib/db/modules/user/user.actions'
 import { Loader2 } from 'lucide-react'
 
 export function GoogleSignInForm() {

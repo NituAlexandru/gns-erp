@@ -2,18 +2,18 @@ import Image from 'next/image'
 import Link from 'next/link'
 import React from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { IProduct } from '@/lib/db/models/product.model'
 import Rating from './rating'
 import { formatCurrency, formatNumber } from '@/lib/utils'
 import ProductPrice from './product-price'
 import ImageHover from './image-hover'
+import { IProductDoc } from '@/lib/db/modules/product'
 
 const ProductCard = ({
   product,
   hideBorder = false,
   hideDetails = false,
 }: {
-  product: IProduct
+  product: IProductDoc
   hideDetails?: boolean
   hideBorder?: boolean
   hideAddToCart?: boolean

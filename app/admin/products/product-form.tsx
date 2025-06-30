@@ -19,13 +19,16 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
-import { createProduct, updateProduct } from '@/lib/actions/product.actions'
-import { IProduct } from '@/lib/db/models/product.model'
 import { UploadButton } from '@/lib/uploadthing'
-import { ProductInputSchema, ProductUpdateSchema } from '@/lib/validator'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toSlug } from '@/lib/utils'
-import { IProductInput } from '@/types'
+import {
+  createProduct,
+  updateProduct,
+  ProductInputSchema,
+  ProductUpdateSchema,
+} from '@/lib/db/modules/product'
+import type { IProductInput, IProductDoc } from '@/lib/db/modules/product'
 import { Trash } from 'lucide-react'
 import {
   AVAILABLE_PALLET_TYPES,
@@ -118,7 +121,7 @@ const ProductForm = ({
   productId,
 }: {
   type: 'Create' | 'Update'
-  product?: IProduct
+  product?: IProductDoc
   productId?: string
 }) => {
   const router = useRouter()

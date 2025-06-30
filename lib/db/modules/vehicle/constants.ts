@@ -1,0 +1,1 @@
+export const DEFAULT_ALLOWED_HOURS = '08:00-18:00'

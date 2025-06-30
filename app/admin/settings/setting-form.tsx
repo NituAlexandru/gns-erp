@@ -5,17 +5,16 @@ import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
 import { useToast } from '@/hooks/use-toast'
-import { SettingInputSchema } from '@/lib/validator'
-import { ClientSetting, ISettingInput } from '@/types'
-import { updateSetting } from '@/lib/actions/setting.actions'
-import useSetting from '@/hooks/use-setting-store'
+import { SettingInputSchema, updateSetting } from '@/lib/db/modules/setting'
+import type { ISettingInput } from '@/lib/db/modules/setting'
+// import useSetting from '@/hooks/use-setting-store'
 import SiteInfoForm from './site-info-form'
 import CommonForm from './common-form'
 import PaymentMethodForm from './payment-method-form'
 import DeliveryDateForm from './delivery-date-form'
 
 const SettingForm = ({ setting }: { setting: ISettingInput }) => {
-  const { setSetting } = useSetting()
+  // const { setSetting } = useSetting()
   const { toast } = useToast()
 
   const form = useForm<ISettingInput>({
@@ -31,12 +30,11 @@ const SettingForm = ({ setting }: { setting: ISettingInput }) => {
     const res = await updateSetting(values)
     if (!res.success) {
       toast({
-    
         description: res.message,
       })
     } else {
       toast({ description: res.message })
-      setSetting(values as ClientSetting)
+      // setSetting(values)
     }
   }
 

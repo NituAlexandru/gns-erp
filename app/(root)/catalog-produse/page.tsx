@@ -2,13 +2,13 @@ import Link from 'next/link'
 import Pagination from '@/components/shared/pagination'
 import ProductCard from '@/components/shared/product/product-card'
 import { Button } from '@/components/ui/button'
-import { IProduct } from '@/lib/db/models/product.model'
+import type { IProductDoc } from '@/lib/db/modules/product'
 import { getFilterUrl, toSlug } from '@/lib/utils'
 import {
   getAllCategories,
   getAllProducts,
   getAllTags,
-} from '@/lib/actions/product.actions'
+} from '@/lib/db/modules/product'
 import CollapsibleOnMobile from '@/components/shared/header/collapsible-on-mobile'
 import Search from '@/components/shared/header/search'
 
@@ -295,7 +295,7 @@ export default async function CatalogPage(props: {
 
           <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
             {data.products.length === 0 && <div>Niciun produs găsit</div>}
-            {data.products.map((product: IProduct) => (
+            {data.products.map((product: IProductDoc) => (
               <ProductCard key={product._id} product={product} />
             ))}
           </div>

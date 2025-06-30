@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
-import { updateUserName } from '@/lib/actions/user.actions'
+import { updateUserName } from '@/lib/db/modules/user/user.actions'
 import { UserNameSchema } from '@/lib/validator'
 
 export const ProfileForm = () => {

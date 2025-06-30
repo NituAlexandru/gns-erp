@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 
-import { getUserById } from '@/lib/actions/user.actions'
+import { getUserById } from '@/lib/db/modules/user/user.actions'
 
 import UserEditForm from './user-edit-form'
 import Link from 'next/link'

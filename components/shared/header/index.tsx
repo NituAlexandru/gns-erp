@@ -4,8 +4,9 @@ import Link from 'next/link'
 import Menu from './menu'
 import data from '@/lib/data'
 import Sidebar from './sidebar'
-import { getAllCategories } from '@/lib/actions/product.actions'
+
 import MobileMainMenuDropdown from './mobile-main-menu'
+import { getAllCategories } from '@/lib/db/modules/product'
 
 export default async function Header() {
   const categories = await getAllCategories()

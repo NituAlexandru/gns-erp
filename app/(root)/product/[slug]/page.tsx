@@ -1,7 +1,7 @@
 import {
   getProductBySlug,
   getRelatedProductsByCategory,
-} from '@/lib/actions/product.actions'
+} from '@/lib/db/modules/product'
 import SelectVariant from '@/components/shared/product/select-variant'
 import ProductPrice from '@/components/shared/product/product-price'
 import ProductGallery from '@/components/shared/product/product-gallery'

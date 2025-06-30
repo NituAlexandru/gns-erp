@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
-import { updateUserPhone } from '@/lib/actions/user.actions'
+import { updateUserPhone } from '@/lib/db/modules/user/user.actions'
 import { UserPhoneUpdateSchema } from '@/lib/validator'
 
 interface PhoneFormProps {

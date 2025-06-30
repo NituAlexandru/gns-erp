@@ -16,7 +16,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { THEMES } from '@/lib/constants'
-import { ISettingInput } from '@/types'
+import { ISettingInput } from '@/lib/db/modules/setting'
+
 import React from 'react'
 import { UseFormReturn } from 'react-hook-form'
 
@@ -62,6 +63,18 @@ export default function CommonForm({
                   />
                 </FormControl>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='common.currency'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Monedă</FormLabel>
+                <FormControl>
+                  <Input {...field} />
+                </FormControl>
               </FormItem>
             )}
           />

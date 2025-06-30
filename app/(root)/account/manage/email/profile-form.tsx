@@ -5,7 +5,6 @@ import { useSession } from 'next-auth/react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
-
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -17,8 +16,8 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
-import { updateUserEmail } from '@/lib/actions/user.actions'
-import { UserEmailUpdateSchema } from '@/lib/validator'
+import { updateUserEmail } from '@/lib/db/modules/user/user.actions'
+import { UserEmailUpdateSchema } from '@/lib/db/modules/user/validator'
 
 interface EmailFormProps {
   defaultEmail: string

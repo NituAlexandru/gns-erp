@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import Product from '@/lib/db/models/product.model'
+import { ERPProductModel } from '@/lib/db/modules/product'
 import { connectToDatabase } from '@/lib/db'
 
 export const GET = async (request: NextRequest) => {
@@ -22,7 +22,7 @@ export const GET = async (request: NextRequest) => {
       : { category: { $in: categories }, _id: { $nin: productIds } }
 
   await connectToDatabase()
-  const products = await Product.find(filter)
+  const products = await ERPProductModel.find(filter)
   if (listType === 'history')
     return NextResponse.json(
       products.sort(

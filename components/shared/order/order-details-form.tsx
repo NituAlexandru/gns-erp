@@ -12,12 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { IOrder } from '@/lib/db/models/order.model'
 import { cn, formatDateTime } from '@/lib/utils'
 import { buttonVariants } from '@/components/ui/button'
 import ProductPrice from '../product/product-price'
-import { deliverOrder, updateOrderToPaid } from '@/lib/actions/order.actions'
+import {
+  deliverOrder,
+  updateOrderToPaid,
+} from '@/lib/db/modules/order/order.actions'
 import ActionButton from '../action-button'
+import { IOrder } from '@/lib/db/modules/order/order.model'
 
 export default function OrderDetailsForm({
   order,
@@ -55,7 +58,7 @@ export default function OrderDetailsForm({
           <CardContent className='p-4 gap-4'>
             <h2 className='text-xl pb-4'>Adresă de livrare</h2>
             <p>
-              {shippingAddress.fullName} {shippingAddress.phone}
+              {shippingAddress.adressName} {shippingAddress.phone}
             </p>
             <p>
               {shippingAddress.street}, {shippingAddress.city},{' '}

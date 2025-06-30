@@ -1,27 +1,6 @@
-import {
-  CartSchema,
-  OrderInputSchema,
-  OrderItemSchema,
-  ProductInputSchema,
-  ReviewInputSchema,
-  SettingInputSchema,
-  ShippingAddressSchema,
-  UserInputSchema,
-  UserNameSchema,
-  UserSignInSchema,
-  UserSignUpSchema,
-} from '@/lib/validator'
-import { z } from 'zod'
-
-export type IReviewInput = z.infer<typeof ReviewInputSchema>
-export type IReviewDetails = IReviewInput & {
-  _id: string
-  createdAt: string
-  user: {
-    name: string
-  }
-}
-export type IProductInput = z.infer<typeof ProductInputSchema>
+import { IProductInput } from '@/lib/db/modules/product/types'
+import { ISettingInput } from '@/lib/db/modules/setting/types'
+import { IUserInput } from '@/lib/db/modules/user/types'
 
 export type Data = {
   settings: ISettingInput[]
@@ -37,53 +16,6 @@ export type Data = {
     href: string
   }[]
 }
-// Order
-export type IOrderInput = z.infer<typeof OrderInputSchema>
-export type IOrderList = IOrderInput & {
-  _id: string
-  user: {
-    name: string
-    email: string
-  }
-  vehicleAllocation: {
-    vehicle: { name: string }
-    trips: number
-    totalCost: number
-  }
-  createdAt: Date
-}
-export type OrderItem = z.infer<typeof OrderItemSchema>
-export type Cart = z.infer<typeof CartSchema>
-export type ShippingAddress = z.infer<typeof ShippingAddressSchema>
-
-// user
-export type IUserInput = z.infer<typeof UserInputSchema>
-export type IUserSignIn = z.infer<typeof UserSignInSchema>
-export type IUserSignUp = z.infer<typeof UserSignUpSchema>
-export type IUserName = z.infer<typeof UserNameSchema>
-
-// setting
-
-export type ISettingInput = z.infer<typeof SettingInputSchema>
-export type ClientSetting = ISettingInput & {
-  currency: string
-}
-// Auto
-export interface VehicleType {
-  name: string
-  maxLoadKg: number
-  maxVolumeM3: number
-  lengthCm: number
-  widthCm: number
-  heightCm: number
-  ratePerKm: number
-}
-
-export interface VehicleAllocation {
-  vehicle: VehicleType
-  trips: number
-  totalCost: number
-}
 
 export interface PalletType {
   id: string // ID unic, ex: 'EURO-STD-WOOD'
@@ -98,4 +30,14 @@ export interface PalletType {
   image: string // Calea către imaginea statică a paletului
   supplier: string
   returnConditions?: string // Opțional
+}
+
+// Markup‐urile personalizate pentru un client
+export interface ClientMarkup {
+  clientId: string
+  markups: {
+    markupDirectDeliveryPrice?: number
+    markupFullTruckPrice?: number
+    markupSmallDeliveryBusinessPrice?: number
+  }
 }

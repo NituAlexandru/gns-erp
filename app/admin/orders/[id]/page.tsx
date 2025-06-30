@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import React from 'react'
 import { auth } from '@/auth'
-import { getOrderById } from '@/lib/actions/order.actions'
+import { getOrderById } from '@/lib/db/modules/order/order.actions'
 import Link from 'next/link'
 import PrintButton from '@/components/shared/print-button'
 import OrderDetailsForm from '@/components/shared/order/order-details-form'

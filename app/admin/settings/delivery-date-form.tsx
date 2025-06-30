@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ISettingInput } from '@/types'
+import { ISettingInput } from '@/lib/db/modules/setting'
 import { TrashIcon } from 'lucide-react'
 import React, { useEffect } from 'react'
 import { useFieldArray, UseFormReturn } from 'react-hook-form'

@@ -23,9 +23,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { updateUser } from '@/lib/actions/user.actions'
+import { updateUser } from '@/lib/db/modules/user/user.actions'
 import { USER_ROLES } from '@/lib/constants'
-import { IUser } from '@/lib/db/models/user.model'
+import { IUser } from '@/lib/db/modules/user/user.model'
 import { UserUpdateSchema } from '@/lib/validator'
 
 const UserEditForm = ({ user }: { user: IUser }) => {
@@ -45,7 +45,6 @@ const UserEditForm = ({ user }: { user: IUser }) => {
       })
       if (!res.success)
         return toast({
-         
           description: res.message,
         })
 
@@ -57,7 +56,6 @@ const UserEditForm = ({ user }: { user: IUser }) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       toast({
-      
         description: error.message,
       })
     }

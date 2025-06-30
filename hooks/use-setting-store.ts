@@ -1,6 +1,6 @@
 import data from '@/lib/data'
+import { ClientSetting } from '@/lib/db/modules/setting'
 import { create } from 'zustand'
-import { ClientSetting } from '@/types'
 
 interface SettingState {
   setting: ClientSetting

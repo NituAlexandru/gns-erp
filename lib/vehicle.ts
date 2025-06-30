@@ -1,5 +1,5 @@
 import { VEHICLE_TYPES } from '@/lib/constants'
-import { VehicleType } from '@/types'
+import { VehicleType } from './db/modules/vehicle/types'
 
 export interface VehicleChoice {
   vehicle: VehicleType

@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import React from 'react'
 // import { auth } from '@/auth'
-import { getOrderById } from '@/lib/actions/order.actions'
+import { getOrderById } from '@/lib/db/modules/order/order.actions'
 // import OrderDetailsForm from '@/components/shared/order/order-details-form'
 import Link from 'next/link'
 import { formatId } from '@/lib/utils'
@@ -46,9 +46,7 @@ export default async function OrderDetailsPage(props: {
         {' '}
         <div className='flex items-center justify-between py-4'>
           <h1 className='h1-bold m-0'>Comanda - {order._id}</h1>
-          <div className='print-btn'>
-            {/* <PrintButton /> */}
-          </div>
+          <div className='print-btn'>{/* <PrintButton /> */}</div>
         </div>
         {/* <OrderDetailsForm order={order} isAdmin={isAdmin} /> */}
       </div>

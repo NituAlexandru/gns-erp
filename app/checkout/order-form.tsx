@@ -18,21 +18,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ShippingAddressSchema } from '@/lib/validator'
 import { zodResolver } from '@hookform/resolvers/zod'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { SubmitHandler, useForm } from 'react-hook-form'
-import { ShippingAddress } from '@/types'
 import useIsMounted from '@/hooks/use-is-mounted'
 import Link from 'next/link'
 import useCartStore from '@/hooks/use-cart-store'
 import ProductPrice from '@/components/shared/product/product-price'
 import { APP_NAME } from '@/lib/constants'
-import { createOrder } from '@/lib/actions/order.actions'
+import { createOrder } from '@/lib/db/modules/order/order.actions'
 import { toast } from '@/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
+import { OrderItem, ShippingAddress } from '@/lib/db/modules/order/types'
+import { ShippingAddressSchema } from '@/lib/db/modules/order/validator'
 
 const shippingAddressDefaultValues =
   process.env.NODE_ENV === 'development'
@@ -131,7 +131,7 @@ const OrderForm = () => {
 
   useEffect(() => {
     if (!isMounted || !cartShippingAddress) return
-    shippingAddressForm.setValue('fullName', cartShippingAddress.fullName)
+    shippingAddressForm.setValue('adressName', cartShippingAddress.adressName)
     shippingAddressForm.setValue('street', cartShippingAddress.street)
     shippingAddressForm.setValue('city', cartShippingAddress.city)
     shippingAddressForm.setValue('country', cartShippingAddress.country)
@@ -232,7 +232,7 @@ const OrderForm = () => {
                 </div>
                 <div className='col-span-5 '>
                   <p>
-                    {cartShippingAddress.fullName} <br />
+                    {cartShippingAddress.adressName} <br />
                     {cartShippingAddress.street} <br />
                     {`${cartShippingAddress.city}, ${cartShippingAddress.province}, ${cartShippingAddress.postalCode}, ${cartShippingAddress.country}`}
                   </p>
@@ -271,7 +271,7 @@ const OrderForm = () => {
                         <div className='flex flex-col gap-5 md:flex-row'>
                           <FormField
                             control={shippingAddressForm.control}
-                            name='fullName'
+                            name='adressName'
                             render={({ field }) => (
                               <FormItem className='w-full'>
                                 <FormLabel>Nume complet</FormLabel>
@@ -459,7 +459,7 @@ const OrderForm = () => {
                   <CardContent className='p-4'>
                     <div className='grid md:grid-cols-2 gap-6'>
                       <div>
-                        {items.map((item, _index) => (
+                        {items.map((item: OrderItem, _index: number) => (
                           <div key={_index} className='flex gap-4 py-2'>
                             <div className='relative w-16 h-16'>
                               <Image

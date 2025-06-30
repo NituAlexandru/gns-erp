@@ -1,7 +1,9 @@
-import { Data, IProductInput, IUserInput } from '@/types'
+import { Data } from '@/types'
 import bcrypt from 'bcryptjs'
+import { IProductDoc } from './db/modules/product'
+import { IUserInput } from './db/modules/user/types'
 
-const products: IProductInput[] = []
+const products: IProductDoc[] = []
 const users: IUserInput[] = [
   {
     name: 'John',
@@ -313,6 +315,7 @@ const data: Data = {
         freeShippingMinPrice: 35,
         isMaintenanceMode: false,
         defaultTheme: 'Light',
+        currency: 'RON',
       },
       site: {
         name: 'Magazin Genesis Marketing & Distribution',

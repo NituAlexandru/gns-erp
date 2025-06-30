@@ -8,8 +8,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getMyOrders } from '@/lib/actions/order.actions'
-import { IOrder } from '@/lib/db/models/order.model'
+import { getMyOrders } from '@/lib/db/modules/order/order.actions'
+import { IOrder } from '@/lib/db/modules/order/order.model'
 import { formatDateTime, formatId } from '@/lib/utils'
 import ProductPrice from '@/components/shared/product/product-price'
 

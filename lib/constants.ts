@@ -481,5 +481,5 @@ export const AVAILABLE_TAGS = [
   'todays-deal',
   'new-arrival',
 ] as const
-export const USER_ROLES = ['Admin', 'User']
+export const USER_ROLES = ['Admin', 'Manager', 'User']
 export const THEMES = ['Light', 'Dark', 'System']

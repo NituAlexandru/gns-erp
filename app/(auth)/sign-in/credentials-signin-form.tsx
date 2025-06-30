@@ -13,14 +13,13 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
-import { IUserSignIn } from '@/types'
-import { signInWithCredentials } from '@/lib/actions/user.actions'
-
+import { signInWithCredentials } from '@/lib/db/modules/user/user.actions'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { UserSignInSchema } from '@/lib/validator'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { APP_NAME } from '@/lib/constants'
 import { toast } from 'sonner'
+import { UserSignInSchema } from '@/lib/db/modules/user/validator'
+import { IUserSignIn } from '@/lib/db/modules/user/types'
 
 const signInDefaultValues =
   process.env.NODE_ENV === 'development'
@@ -73,7 +72,11 @@ export default function CredentialsSignInForm() {
               <FormItem className='w-full'>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input placeholder='Introduceți adresa de email' {...field} />
+                  <Input
+                    suppressHydrationWarning
+                    placeholder='Introduceți adresa de email'
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

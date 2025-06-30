@@ -1,9 +1,8 @@
 import { notFound } from 'next/navigation'
-
-import { getProductById } from '@/lib/actions/product.actions'
 import Link from 'next/link'
 import ProductForm from '../product-form'
 import { Metadata } from 'next'
+import { getProductById } from '@/lib/db/modules/product'
 
 export const metadata: Metadata = {
   title: 'Edit Product',

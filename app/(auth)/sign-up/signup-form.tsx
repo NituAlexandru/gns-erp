@@ -13,14 +13,17 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { useForm } from 'react-hook-form'
-import { IUserSignUp } from '@/types'
-import { registerUser, signInWithCredentials } from '@/lib/actions/user.actions'
+import {
+  registerUser,
+  signInWithCredentials,
+} from '@/lib/db/modules/user/user.actions'
 import { toast } from '@/hooks/use-toast'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { UserSignUpSchema } from '@/lib/validator'
 import { Separator } from '@/components/ui/separator'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
 import { APP_NAME } from '@/lib/constants'
+import { UserSignUpSchema } from '@/lib/db/modules/user/validator'
+import { IUserSignUp } from '@/lib/db/modules/user/types'
 
 const signUpDefaultValues =
   process.env.NODE_ENV === 'development'
@@ -100,7 +103,11 @@ export default function SignUpForm() {
               <FormItem className='w-full'>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input placeholder='Introduceți adresa de email' {...field} />
+                  <Input
+                    suppressHydrationWarning
+                    placeholder='Introduceți adresa de email'
+                    {...field}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import Product from '@/lib/db/models/product.model'
+import { ERPProductModel } from '@/lib/db/modules/product'
 
 export async function GET() {
-  const pallets = await Product.find({ category: 'Paleti' })
+  const pallets = await ERPProductModel.find({ category: 'Paleti' })
     .select([
       '_id',
       'slug',

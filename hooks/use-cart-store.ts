@@ -10,11 +10,10 @@ import {
   VAT_RATE,
   VEHICLE_TYPES,
 } from '@/lib/constants'
-
-import { getProductsDetailsForCart } from '@/lib/actions/product.actions'
 import { calculateFutureDate, normalizeStringForComparison } from '@/lib/utils'
 import { getDistanceInKm } from '@/lib/maps'
 import { allocateVehicleTrips, VehicleChoice } from '@/lib/vehicle'
+import { getProductsDetailsForCart } from '@/lib/db/modules/product'
 
 interface CartVehicleAllocation {
   vehicle: VehicleType

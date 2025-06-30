@@ -11,8 +11,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from '@/hooks/use-toast'
+import { ISettingInput } from '@/lib/db/modules/setting'
 import { UploadButton } from '@/lib/uploadthing'
-import { ISettingInput } from '@/types'
 import { TrashIcon } from 'lucide-react'
 import React from 'react'
 import { UseFormReturn } from 'react-hook-form'
@@ -102,7 +102,6 @@ export default function SiteInfoForm({
                 }}
                 onUploadError={(error: Error) => {
                   toast({
-                  
                     description: `ERROR! ${error.message}`,
                   })
                 }}

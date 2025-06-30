@@ -12,11 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  deleteProduct,
-  getAllProductsForAdmin,
-} from '@/lib/actions/product.actions'
-import { IProduct } from '@/lib/db/models/product.model'
+import { deleteProduct, getAllProductsForAdmin } from '@/lib/db/modules/product'
+import type { IProductDoc } from '@/lib/db/modules/product'
 
 import React, { useEffect, useState, useTransition } from 'react'
 import { Input } from '@/components/ui/input'
@@ -24,7 +21,7 @@ import { formatDateTime, formatId } from '@/lib/utils'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 type ProductListDataProps = {
-  products: IProduct[]
+  products: IProductDoc[]
   totalPages: number
   totalProducts: number
   to: number
@@ -126,7 +123,7 @@ const ProductList = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data?.products.map((product: IProduct) => (
+              {data?.products.map((product: IProductDoc) => (
                 <TableRow key={product._id}>
                   <TableCell>{formatId(product._id)}</TableCell>
                   <TableCell>

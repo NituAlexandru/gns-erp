@@ -12,8 +12,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { deleteUser, getAllUsers } from '@/lib/actions/user.actions'
-import { IUser } from '@/lib/db/models/user.model'
+import { deleteUser, getAllUsers } from '@/lib/db/modules/user/user.actions'
+import { IUser } from '@/lib/db/modules/user/user.model'
 import { formatId } from '@/lib/utils'
 
 export const metadata: Metadata = {
