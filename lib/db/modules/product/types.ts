@@ -19,6 +19,7 @@ export interface IERPProductInput {
   images?: string[]
   description?: string
   mainSupplier: string // ObjectId furnizor
+  brand?: string
   directDeliveryPrice: number
   fullTruckPrice: number
   smallDeliveryBusinessPrice: number

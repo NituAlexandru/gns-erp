@@ -25,6 +25,7 @@ const supplierSchema = new Schema<ISupplier>(
     externalTransportCosts: { type: Number, default: 0 },
     // Costuri de transport generale (poate fi folosit pentru costuri interne sau externe, după necesitate)
     internalTransportCosts: { type: Number, default: 0 },
+    brand: { type: [String], default: [] },
   },
   {
     timestamps: true,

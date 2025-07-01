@@ -17,6 +17,7 @@ export const SupplierCreateSchema = z.object({
   supplierDriver: z.string().optional(),
   externalTransportCosts: z.number().nonnegative().optional().default(0),
   internalTransportCosts: z.number().nonnegative().optional().default(0),
+  brand: z.array(z.string()).optional().default([]),
 })
 
 export const SupplierUpdateSchema = SupplierCreateSchema.extend({

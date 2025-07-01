@@ -20,4 +20,5 @@ export interface ISupplierInput {
   supplierDriver?: string
   externalTransportCosts?: number
   internalTransportCosts?: number
+  brand: string[]
 }

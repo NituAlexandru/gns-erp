@@ -20,6 +20,7 @@ const erpProductSchema = new Schema(
     images: [String],
     description: { type: String },
     mainSupplier: { type: Types.ObjectId, ref: 'Supplier', required: false },
+    brand: { type: String },
     directDeliveryPrice: { type: Number, required: true },
     fullTruckPrice: { type: Number, required: true },
     smallDeliveryBusinessPrice: { type: Number, required: true },
