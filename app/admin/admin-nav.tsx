@@ -14,13 +14,22 @@ const links = [
     href: '/admin/products',
   },
   {
-    title: 'Comenzi',
-    href: '/admin/orders',
+    title: 'Categorii Produse',
+    href: '/admin/categories',
+  },
+  {
+    title: 'Clienti',
+    href: '/admin/clients',
   },
   {
     title: 'NIR',
     href: '/admin/nir',
   },
+  {
+    title: 'Comenzi',
+    href: '/admin/orders',
+  },
+
   {
     title: 'Avize',
     href: '/admin/avize',

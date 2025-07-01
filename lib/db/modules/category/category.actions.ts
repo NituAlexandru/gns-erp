@@ -1,9 +1,7 @@
-'use server'
-
 import { z } from 'zod'
 import { connectToDatabase } from '@/lib/db'
 import { formatError } from '@/lib/utils'
-import { revalidatePath } from 'next/cache'
+
 import { ADMIN_PAGE_SIZE } from '@/lib/constants'
 import { CategoryInputSchema, CategoryUpdateSchema } from './validator'
 import CategoryModel from './category.model'
@@ -13,12 +11,9 @@ export async function createCategory(
   data: z.infer<typeof CategoryInputSchema>
 ) {
   try {
-    // validare
     const payload = CategoryInputSchema.parse(data)
     await connectToDatabase()
     await CategoryModel.create(payload)
-    // revalidăm pagina de admin
-    revalidatePath('/admin/categories')
     return { success: true, message: 'Category created successfully' }
   } catch (error) {
     return { success: false, message: formatError(error) }
@@ -33,7 +28,6 @@ export async function updateCategory(
     const payload = CategoryUpdateSchema.parse(data)
     await connectToDatabase()
     await CategoryModel.findByIdAndUpdate(payload._id, payload)
-    revalidatePath('/admin/categories')
     return { success: true, message: 'Category updated successfully' }
   } catch (error) {
     return { success: false, message: formatError(error) }
@@ -46,7 +40,6 @@ export async function deleteCategory(id: string) {
     await connectToDatabase()
     const res = await CategoryModel.findByIdAndDelete(id)
     if (!res) throw new Error('Category not found')
-    revalidatePath('/admin/categories')
     return { success: true, message: 'Category deleted successfully' }
   } catch (error) {
     return { success: false, message: formatError(error) }
@@ -71,14 +64,11 @@ export async function getAllCategoriesForAdmin({
 }) {
   await connectToDatabase()
 
-  // TS ştie că acum `limit` e number pur
   const skipAmount = (page - 1) * limit
-
-  // total
   const total = await CategoryModel.countDocuments()
 
-  // query cu skip/limit
   const data = await CategoryModel.find()
+    .populate('mainCategory', 'name')
     .sort({ createdAt: -1 })
     .skip(skipAmount)
     .limit(limit)
@@ -97,5 +87,15 @@ export async function getAllCategoriesForAdmin({
 export async function getAllCategories() {
   await connectToDatabase()
   const docs = await CategoryModel.find().lean()
+  return JSON.parse(JSON.stringify(docs))
+}
+
+// 7) GET MAIN CATEGORIES
+export async function getMainCategories() {
+  await connectToDatabase()
+  // Căutăm toate documentele unde câmpul 'mainCategory' nu există sau este null
+  const docs = await CategoryModel.find({ mainCategory: { $exists: false } })
+    .sort({ name: 1 })
+    .lean()
   return JSON.parse(JSON.stringify(docs))
 }

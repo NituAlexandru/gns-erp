@@ -43,8 +43,7 @@ export default function DeleteDialog({
           <AlertDialogCancel>Anulează</AlertDialogCancel>
 
           <Button
-            variant='destructive'
-            size='sm'
+            size='default'
             disabled={isPending}
             onClick={() =>
               startTransition(async () => {
