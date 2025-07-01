@@ -22,3 +22,17 @@ export const STOCK_MOVEMENT_TYPES = [
 ] as const
 
 export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number]
+
+export const OUT_TYPES = new Set<StockMovementType>([
+  'BON_DE_CONSUM',
+  'VANZARE_DIRECTA',
+  'VANZARE_DEPOZIT',
+  'RETUR_FURNIZOR',
+  'AJUSTARE_STOC_OUT',
+])
+
+export const IN_TYPES = new Set<StockMovementType>([
+  'RECEPTIE',
+  'RETUR_CLIENT',
+  'AJUSTARE_STOC_IN',
+])

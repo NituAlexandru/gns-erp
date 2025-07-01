@@ -5,6 +5,7 @@ export interface IInventoryItemDoc extends Document {
   location: string
   quantityOnHand: number
   quantityReserved: number
+  averageCost: number
   createdAt: Date
   updatedAt: Date
 }
@@ -15,6 +16,7 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
     location: { type: String, required: true, index: true },
     quantityOnHand: { type: Number, required: true, default: 0 },
     quantityReserved: { type: Number, required: true, default: 0 },
+    averageCost: { type: Number, required: true, default: 0 },
   },
   { timestamps: true }
 )
