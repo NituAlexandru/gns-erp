@@ -17,7 +17,7 @@ import { chunkString, formatError, formatId, toSlug } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers'
 import LoadingPage from '@/app/loading'
-import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
+import { FullScreenScanner } from '@/components/barcode/full-screen-scanner'
 
 interface Props {
   initialData: {
@@ -84,32 +84,10 @@ export default function SupplierList({ initialData, currentPage }: Props) {
       </div>
 
       {scanning && (
-        <div
-          className='
-           fixed inset-0
-           bg-black bg-opacity-75
-           flex flex-col items-center justify-center
-           z-50
-         '
-        >
-          {/* Buton de închidere */}
-          <button
-            onClick={() => setScanning(false)}
-            className='absolute top-4 right-4 p-2 bg-white rounded-full'
-          >
-            ✕
-          </button>
-
-          {/* Titlu */}
-          <p className='mb-4 text-white text-lg'>
-            Îndreaptă camera spre codul furnizorului
-          </p>
-
-          {/* Full-screen video */}
-          <div className='w-full h-full max-w-md max-h-md'>
-            <BarcodeScanner onDecode={handleDecode} />
-          </div>
-        </div>
+        <FullScreenScanner
+          onDecode={handleDecode}
+          onClose={() => setScanning(false)}
+        />
       )}
 
       {/* Conținutul principal: loader sau tabel + paginare */}
