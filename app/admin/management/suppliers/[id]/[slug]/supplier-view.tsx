@@ -7,6 +7,7 @@ import { ChevronLeft } from 'lucide-react'
 import { auth } from '@/auth'
 import { chunkString, toSlug } from '@/lib/utils'
 import SeparatorWithOr from '@/components/shared/separator-or'
+import { Barcode } from '@/components/barcode/barcode-image'
 
 export default async function SupplierView({
   params,
@@ -46,6 +47,7 @@ export default async function SupplierView({
             <p>
               <strong>ID:</strong> {supplier._id}
             </p>
+
             <p>
               <strong>Nume Furnizor:</strong> {supplier.name}
             </p>
@@ -59,6 +61,14 @@ export default async function SupplierView({
             </p>
             <p>
               <strong>Telefon:</strong> {supplier.phone}
+            </p>
+            <p className='my-2'>
+              <Barcode
+                text={supplier._id}
+                type='code128'
+                width={300}
+                height={80}
+              />
             </p>
           </div>
           {/* Informații Bancare */}

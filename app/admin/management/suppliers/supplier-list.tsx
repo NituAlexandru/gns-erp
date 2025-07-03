@@ -17,6 +17,7 @@ import { chunkString, formatError, formatId, toSlug } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers'
 import LoadingPage from '@/app/loading'
+import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
 
 interface Props {
   initialData: {
@@ -32,6 +33,7 @@ interface Props {
 export default function SupplierList({ initialData, currentPage }: Props) {
   const [page, setPage] = useState(currentPage)
   const [isPending, startTransition] = useTransition()
+  const [scanning, setScanning] = useState(false)
   const router = useRouter()
 
   const fetchPage = (newPage = 1) => {
@@ -57,15 +59,38 @@ export default function SupplierList({ initialData, currentPage }: Props) {
     }
   }
 
+  const handleDecode = (code: string) => {
+    setScanning(false)
+    // navigate to that supplier’s page
+    router.push(`/admin/management/suppliers/${code}/${toSlug(code)}`)
+  }
+
   return (
     <div className='p-6 space-y-4 mx-auto'>
       {/* Header-ul rămâne mereu vizibil */}
       <div className='flex justify-between items-center'>
         <h1 className='text-xl font-bold'>Furnizori</h1>
-        <Button asChild variant='default'>
-          <Link href='/admin/management/suppliers/new'>Adaugă furnizor</Link>
-        </Button>
+        <div className='flex items-center gap-2'>
+          {/* scan button */}
+          <Button variant='outline' onClick={() => setScanning((v) => !v)}>
+            {scanning ? 'Anulează căutarea' : 'Caută furnizor'}
+          </Button>
+
+          {/* existing “Adaugă” button */}
+          <Button asChild variant='default'>
+            <Link href='/admin/management/suppliers/new'>Adaugă furnizor</Link>
+          </Button>
+        </div>
       </div>
+
+      {scanning && (
+        <div className='border rounded-lg p-4 mb-4'>
+          <p className='mb-2 font-medium'>
+            Îndreaptă camera spre codul furnizorului
+          </p>
+          <BarcodeScanner onDecode={handleDecode} />
+        </div>
+      )}
 
       {/* Conținutul principal: loader sau tabel + paginare */}
       {isPending ? (
