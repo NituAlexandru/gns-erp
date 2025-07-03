@@ -84,11 +84,31 @@ export default function SupplierList({ initialData, currentPage }: Props) {
       </div>
 
       {scanning && (
-        <div className='border rounded-lg p-4 mb-4'>
-          <p className='mb-2 font-medium'>
+        <div
+          className='
+           fixed inset-0
+           bg-black bg-opacity-75
+           flex flex-col items-center justify-center
+           z-50
+         '
+        >
+          {/* Buton de închidere */}
+          <button
+            onClick={() => setScanning(false)}
+            className='absolute top-4 right-4 p-2 bg-white rounded-full'
+          >
+            ✕
+          </button>
+
+          {/* Titlu */}
+          <p className='mb-4 text-white text-lg'>
             Îndreaptă camera spre codul furnizorului
           </p>
-          <BarcodeScanner onDecode={handleDecode} />
+
+          {/* Full-screen video */}
+          <div className='w-full h-full max-w-md max-h-md'>
+            <BarcodeScanner onDecode={handleDecode} />
+          </div>
         </div>
       )}
 
