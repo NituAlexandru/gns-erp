@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       text,
       includetext: true,
       scale: 8,
-      height: 80,
+      height: 10,
       textsize: 13,
       textxalign: 'center',
       backgroundcolor,

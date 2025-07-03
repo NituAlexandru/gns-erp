@@ -62,15 +62,6 @@ export default async function SupplierView({
             <p>
               <strong>Telefon:</strong> {supplier.phone}
             </p>
-            <p className='my-2'>
-              <Barcode
-                text={supplier._id}
-                type='code128'
-                width={600}
-                height={200}
-                className='w-full h-auto'
-              />
-            </p>
           </div>
           {/* Informații Bancare */}
           <div className='w-1/3'>
@@ -151,6 +142,15 @@ export default async function SupplierView({
             </p>
           )}
         </div>
+        <p className='my-2'>
+          <Barcode
+            text={supplier._id}
+            type='code128'
+            width={600}
+            height={200}
+            className='w-full h-auto'
+          />
+        </p>
         <SeparatorWithOr> </SeparatorWithOr>
       </div>
     </div>

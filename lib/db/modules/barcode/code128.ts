@@ -18,7 +18,7 @@ export async function genCode128(
     text,
     includetext: true,
     scale: 5,
-    height: 50,
+    height: 20,
     textxalign: 'center',
     backgroundcolor: 'FFFFFF',
     barcolor: '000000',
