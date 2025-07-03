@@ -1,6 +1,5 @@
 'use client'
 import React, { useEffect } from 'react'
-import { DecodeHintType, BarcodeFormat } from '@zxing/library'
 import { useZxing } from 'react-zxing'
 
 interface FullScreenScannerProps {
@@ -10,12 +9,9 @@ interface FullScreenScannerProps {
 
 export function FullScreenScanner({ onDecode }: FullScreenScannerProps) {
   // 1) ZXing “try harder” + Code128 only
-  const hints = new Map()
-  hints.set(DecodeHintType.TRY_HARDER, true)
-  hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128])
+  
 
   const { ref: videoRef } = useZxing({
-    hints,
     constraints: {
       video: {
         // ideal rear-facing camera; fallback to front if none

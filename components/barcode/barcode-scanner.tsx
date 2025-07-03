@@ -1,6 +1,5 @@
 'use client'
 import React from 'react'
-import { DecodeHintType, BarcodeFormat } from '@zxing/library'
 import { useZxing } from 'react-zxing'
 
 interface BarcodeScannerProps {
@@ -8,15 +7,7 @@ interface BarcodeScannerProps {
 }
 
 export function BarcodeScanner({ onDecode }: BarcodeScannerProps) {
-  // 1) Tell ZXing to try harder & invert if needed
-  const hints = new Map()
-  hints.set(DecodeHintType.TRY_HARDER, true)
-  // optional: only decode Code128 (or add EAN_13, etc)
-  hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.CODE_128])
-
   const { ref } = useZxing({
-    // 2) pass our hints, and let the hook wire up its default reader
-    hints,
     // 3) constrain camera to back-facing
     constraints: { video: { facingMode: 'environment' } },
     // 4) callback when a result is found
