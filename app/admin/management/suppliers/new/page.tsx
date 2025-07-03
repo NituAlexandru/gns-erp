@@ -9,7 +9,7 @@ export default function NewSupplierPage() {
       <div className='flex items-center gap-4 mb-5'>
         {' '}
         <Button asChild variant='outline'>
-          <Link href='/admin/suppliers'>
+          <Link href='/admin/management/suppliers'>
             <ChevronLeft /> Înapoi
           </Link>
         </Button>{' '}

@@ -37,8 +37,8 @@ export async function PUT(
   const result = await updateSupplier(data)
   if (!result.success)
     return NextResponse.json({ message: result.message }, { status: 400 })
-  revalidatePath('/admin/suppliers')
-  revalidatePath(`/admin/suppliers/${id}`)
+  revalidatePath('/admin/management/suppliers')
+  revalidatePath(`/admin/management/suppliers/${id}`)
   return NextResponse.json(result)
 }
 
@@ -49,7 +49,7 @@ export async function DELETE(
   const { id } = await params
   try {
     const result = await deleteSupplier(id)
-    revalidatePath('/admin/suppliers')
+    revalidatePath('/admin/management/suppliers')
     return NextResponse.json(result)
   } catch (err: unknown) {
     return NextResponse.json(

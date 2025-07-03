@@ -98,7 +98,7 @@ export default function SupplierEditForm({ initialValues }: Props) {
         brand: brands,
         loadingAddress: loadingAddrs,
       }
-      const res = await fetch(`/api/admin/suppliers/${values._id}`, {
+      const res = await fetch(`/api/admin/management/suppliers/${values._id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -106,7 +106,7 @@ export default function SupplierEditForm({ initialValues }: Props) {
       const json = await res.json()
       if (!res.ok) throw new Error(json.message)
       toast.success('Furnizor actualizat.')
-      router.push('/admin/suppliers')
+      router.push('/admin/management/suppliers')
       router.refresh()
     } catch (err: unknown) {
       toast.error((err as Error).message)

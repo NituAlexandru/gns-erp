@@ -46,8 +46,27 @@ export async function middleware(req: NextRequest) {
 
   // 5) Protejare /admin doar pentru rolul admin:
   const userRole = ((token.role as string) || '').toLowerCase()
-  if (pathname.startsWith('/admin') && userRole !== 'admin') {
-    return NextResponse.redirect(new URL(`/`, origin))
+
+  // Definirea rolurilor permise (cu litere mici pentru comparație)
+  const SUPER_ADMIN_ROLES = ['administrator', 'admin']
+  const MANAGEMENT_ROLES = [...SUPER_ADMIN_ROLES, 'manager']
+
+  if (pathname.startsWith('/admin')) {
+    // Regula #1: Pentru rutele de management general (Admin + Manager)
+    // Orice se află în sub-folderul /management/ este pentru ei.
+    if (pathname.startsWith('/admin/management')) {
+      if (!MANAGEMENT_ROLES.includes(userRole)) {
+        return NextResponse.redirect(new URL('/', origin))
+      }
+      // Dacă are acces, middleware-ul și-a făcut treaba pentru această rută.
+      return NextResponse.next()
+    }
+
+    // Regula #2: Pentru orice altceva din /admin (ex: /admin/users)
+    // Doar rolurile de super-admin au voie.
+    if (!SUPER_ADMIN_ROLES.includes(userRole)) {
+      return NextResponse.redirect(new URL('/', origin))
+    }
   }
 
   // 6) Totul OK → continuă:

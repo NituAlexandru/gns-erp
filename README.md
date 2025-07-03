@@ -37,3 +37,6 @@
 │ └─ ui ← butoane, carduri etc. (shadcn)
 │
 └─ … alte foldere
+
+- Bugs
+- dupa crearea unui nou cont, apare notificare de eroare - de verificat

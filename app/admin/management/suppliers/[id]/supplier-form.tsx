@@ -83,7 +83,7 @@ export default function SupplierForm() {
         brand: brands,
         loadingAddress: loadingAddrs,
       }
-      const res = await fetch('/api/admin/suppliers', {
+      const res = await fetch('/api/admin/management/suppliers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -91,7 +91,7 @@ export default function SupplierForm() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.message)
       toast.success('Furnizor creat.')
-      router.push('/admin/suppliers')
+      router.push('/admin/management/suppliers')
       router.refresh()
     } catch (err: unknown) {
       toast.error((err as Error).message)

@@ -8,8 +8,11 @@ export default async function AdminSuppliersPage({
   searchParams: Promise<{ page?: string }>
 }) {
   const session = await auth()
-  if (session?.user.role !== 'Admin') {
-    throw new Error('Permisiune Admin necesară')
+  const allowedRoles = ['Administrator', 'Admin', 'Manager']
+  if (!session?.user?.role || !allowedRoles.includes(session.user.role)) {
+    throw new Error(
+      'Nu aveți permisiunea necesară pentru a accesa această pagină.'
+    )
   }
 
   // aștepți rezolvarea lui searchParams înainte de a citi .page

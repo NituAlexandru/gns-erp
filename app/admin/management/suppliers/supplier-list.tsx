@@ -36,14 +36,14 @@ export default function SupplierList({ initialData, currentPage }: Props) {
 
   const fetchPage = (newPage = 1) => {
     startTransition(() => {
-      router.replace(`/admin/suppliers?page=${newPage}`)
+      router.replace(`/admin/management/suppliers?page=${newPage}`)
       setPage(newPage)
     })
   }
 
   const handleDeleteAction = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/suppliers/${id}`, {
+      const res = await fetch(`/api/admin/management/suppliers/${id}`, {
         method: 'DELETE',
       })
       const json = await res.json()
@@ -63,7 +63,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
       <div className='flex justify-between items-center'>
         <h1 className='text-xl font-bold'>Furnizori</h1>
         <Button asChild variant='default'>
-          <Link href='/admin/suppliers/new'>Adaugă furnizor</Link>
+          <Link href='/admin/management/suppliers/new'>Adaugă furnizor</Link>
         </Button>
       </div>
 
@@ -75,7 +75,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className='w-24'>ID</TableHead>
+                <TableHead>ID</TableHead>
                 <TableHead>Nume</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Telefon</TableHead>
@@ -90,10 +90,9 @@ export default function SupplierList({ initialData, currentPage }: Props) {
               {initialData.data.map((s) => (
                 <TableRow key={s._id}>
                   <TableCell>{formatId(s._id)}</TableCell>
-                  {/* 1. Nume clickabil */}
                   <TableCell>
                     <Link
-                      href={`/admin/suppliers/${s._id}`}
+                      href={`/admin/management/suppliers/${s._id}`}
                       className='hover:underline'
                     >
                       {s.name}
@@ -101,7 +100,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
                   </TableCell>
                   <TableCell>{s.email}</TableCell>
                   <TableCell>{s.phone}</TableCell>
-                  <TableCell>{s.fiscalCode}</TableCell>{' '}
+                  <TableCell>{s.fiscalCode}</TableCell>
                   <TableCell>{s.regComNumber}</TableCell>
                   <TableCell>
                     {s.isVatPayer ? (
@@ -112,27 +111,25 @@ export default function SupplierList({ initialData, currentPage }: Props) {
                   </TableCell>
                   <TableCell>{chunkString(s.bankAccountLei, 4)}</TableCell>
                   <TableCell className='flex gap-2'>
-                    {/* 2. Buton Vizualizează */}
                     <Button
                       variant='outline'
                       size='sm'
                       onClick={() =>
                         startTransition(() => {
                           router.push(
-                            `/admin/suppliers/${s._id}/${toSlug(s.name)}`
+                            `/admin/management/suppliers/${s._id}/${toSlug(s.name)}`
                           )
                         })
                       }
                     >
                       Vizualizează
                     </Button>
-                    {/* 3. Buton Editează */}
                     <Button
                       variant='outline'
                       size='sm'
                       onClick={() =>
                         startTransition(() => {
-                          router.push(`/admin/suppliers/${s._id}`)
+                          router.push(`/admin/management/suppliers/${s._id}`)
                         })
                       }
                     >

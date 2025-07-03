@@ -50,11 +50,33 @@ export default async function UserButton() {
                 <DropdownMenuItem>Comenzile tale</DropdownMenuItem>
               </Link>
 
-              {session.user.role === 'Admin' && (
-                <Link className='w-full cursor-pointer' href='/admin/overview'>
-                  <DropdownMenuItem>Admin</DropdownMenuItem>
-                </Link>
-              )}
+              {(() => {
+                const userRole = session.user.role
+                // Dacă e super-admin, arată link-ul principal de admin
+                if (['Administrator', 'Admin'].includes(userRole)) {
+                  return (
+                    <Link
+                      className='w-full cursor-pointer'
+                      href='/admin/overview'
+                    >
+                      <DropdownMenuItem>Admin</DropdownMenuItem>
+                    </Link>
+                  )
+                }
+                // Dacă e manager, arată un link specific pentru el
+                if (userRole === 'Manager') {
+                  return (
+                    <Link
+                      className='w-full cursor-pointer'
+                      href='admin/management/overview'
+                    >
+                      <DropdownMenuItem>Management</DropdownMenuItem>
+                    </Link>
+                  )
+                }
+                // Pentru orice alt rol, nu afișa nimic
+                return null
+              })()}
             </DropdownMenuGroup>
             <DropdownMenuItem className='p-0 mb-1'>
               <form action={SignOut} className='w-full'>

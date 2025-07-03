@@ -19,7 +19,7 @@ const links = [
   },
   {
     title: 'Furnizori',
-    href: '/admin/suppliers',
+    href: '/admin/management/suppliers',
   },
   {
     title: 'Clienti',
