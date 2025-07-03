@@ -1,4 +1,4 @@
-import { Document, Model, model, models, Schema, Types } from 'mongoose'
+import { Document, Model, model, models, Schema } from 'mongoose'
 import { ISupplierInput } from './types'
 
 export interface ISupplier extends Document, ISupplierInput {
@@ -15,24 +15,22 @@ const supplierSchema = new Schema<ISupplier>(
     phone: { type: String },
     address: { type: String },
     fiscalCode: { type: String },
-    bankAccount: { type: String },
+    regComNumber: { type: String },
+    bankAccountLei: { type: String },
+    bankAccountEuro: { type: String },
     externalTransport: { type: Boolean, default: false },
-    transportCosts: { type: Number, default: 0 },
-    loadingAddress: { type: String },
-    productCatalog: [{ type: Types.ObjectId, ref: 'Product' }],
-    supplierDriver: { type: String },
-    // Transport extern: dacă este adevărat, se va folosi un sofer furnizat de furnizor
+    loadingAddress: { type: [String], default: [] },
     externalTransportCosts: { type: Number, default: 0 },
-    // Costuri de transport generale (poate fi folosit pentru costuri interne sau externe, după necesitate)
     internalTransportCosts: { type: Number, default: 0 },
     brand: { type: [String], default: [] },
+    mentions: { type: String },
+    isVatPayer: { type: Boolean, default: false },
   },
   {
     timestamps: true,
   }
 )
 
-// Index pe câmpul name pentru interogări rapide
 supplierSchema.index({ name: 1 })
 
 const Supplier: Model<ISupplier> =

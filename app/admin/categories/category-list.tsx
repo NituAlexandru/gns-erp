@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/table'
 import { formatError, formatId } from '@/lib/utils'
 import { ICategoryDoc } from '@/lib/db/modules/category'
-import { toast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import LoadingPage from '@/app/loading'
 
 type CategoryListData = {
@@ -41,9 +41,7 @@ export default function CategoryList() {
         const res = await response.json()
         setData(res)
       } catch (error) {
-        toast({
-          description: formatError(error),
-        })
+        toast.error(formatError(error))
       }
     })
   }
@@ -69,7 +67,7 @@ export default function CategoryList() {
       if (!response.ok) {
         return { success: false, message: result.message }
       }
-      toast({ description: 'Categoria a fost ștearsă.' })
+      toast.success('Categoria a fost ștearsă.')
       return { success: true, message: 'Categoria a fost ștearsă.' }
     } catch (error) {
       return { success: false, message: formatError(error) }

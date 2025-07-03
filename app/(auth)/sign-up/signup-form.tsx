@@ -17,7 +17,7 @@ import {
   registerUser,
   signInWithCredentials,
 } from '@/lib/db/modules/user/user.actions'
-import { toast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Separator } from '@/components/ui/separator'
 import { isRedirectError } from 'next/dist/client/components/redirect-error'
@@ -55,10 +55,7 @@ export default function SignUpForm() {
     try {
       const res = await registerUser(data)
       if (!res.success) {
-        toast({
-          title: 'Eroare',
-          description: res.error,
-        })
+        toast.error('eroare')
         return
       }
       await signInWithCredentials({
@@ -70,11 +67,7 @@ export default function SignUpForm() {
       if (isRedirectError(error)) {
         throw error
       }
-      toast({
-        title: 'Eroare',
-        description:
-          'Ceva nu a funcționat corect. Te rugăm să încerci din nou.',
-      })
+      toast.error('Ceva nu a funcționat corect. Te rugăm să încerci din nou.')
     }
   }
 

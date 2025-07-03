@@ -217,3 +217,8 @@ export function calculatePastDate(days: number) {
   currentDate.setDate(currentDate.getDate() - days)
   return currentDate
 }
+
+export function chunkString(str: string, size = 4): string {
+  return (str.match(new RegExp(`.{1,${size}}`, 'g')) || []).join(' ')
+}
+

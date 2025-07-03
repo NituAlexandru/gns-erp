@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { toast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { useEffect, useState } from 'react'
 import { toSlug } from '@/lib/utils'
 import { CategoryUpdateSchema } from '@/lib/db/modules/category/validator'
@@ -70,8 +70,8 @@ export default function EditCategoryView({ categoryId }: Props) {
           mainCategoriesData.filter((c: ICategoryDoc) => c._id !== categoryId)
         )
       } catch (err: unknown) {
-        toast({ description: (err as Error).message })
-        router.push('/admin/categories') 
+        toast.error((err as Error).message)
+        router.push('/admin/categories')
       } finally {
         setLoading(false)
       }
@@ -108,11 +108,11 @@ export default function EditCategoryView({ categoryId }: Props) {
       const result = await response.json()
       if (!response.ok) throw new Error(result.message)
 
-      toast({ description: 'Categoria a fost actualizată.' })
+      toast('Categoria a fost actualizată.')
       router.push('/admin/categories')
       router.refresh()
     } catch (err: unknown) {
-      toast({ description: (err as Error).message })
+      toast.error((err as Error).message)
     }
   }
 

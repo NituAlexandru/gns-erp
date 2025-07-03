@@ -29,7 +29,7 @@ import useCartStore from '@/hooks/use-cart-store'
 import ProductPrice from '@/components/shared/product/product-price'
 import { APP_NAME } from '@/lib/constants'
 import { createOrder } from '@/lib/db/modules/order/order.actions'
-import { toast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 import { OrderItem, ShippingAddress } from '@/lib/db/modules/order/types'
 import { ShippingAddressSchema } from '@/lib/db/modules/order/validator'
@@ -90,28 +90,23 @@ const OrderForm = () => {
     // console.log('Submitting address:', values)
     try {
       await setShippingAddress(values)
-      toast({
-        description: 'Adresa s-a salvat cu succes.',
-      })
+      toast.success('Adresa s-a salvat cu succes.')
       setIsAddressSelected(true)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       if (msg.toLowerCase().includes('livrarea în județul')) {
-        toast({
-          description: (
-            <div className='flex flex-col items-start'>
-              <span className='font-bold'>{msg}</span>
-              <Link
-                href='/page/oferta-personalizata'
-                className='mt-2 underline font-semibold'
-              >
-                Cere ofertă personalizată →
-              </Link>
-            </div>
-          ),
-
-          duration: 5000,
-        })
+        toast.error(
+          <div className='flex flex-col items-start'>
+            <span className='font-bold'>{msg}</span>
+            <Link
+              href='/page/oferta-personalizata'
+              className='mt-2 underline font-semibold'
+            >
+              Cere ofertă personalizată →
+            </Link>
+          </div>,
+          { duration: 5000 }
+        )
 
         // redirecționăm clientul spre pagina de ofertă personalizată
         setTimeout(() => {
@@ -121,9 +116,7 @@ const OrderForm = () => {
       } else {
         // orice altă eroare o afișăm ca eroare critică
         console.error('Unexpected error in setShippingAddress:', err)
-        toast({
-          description: msg || 'A apărut o eroare neașteptată.',
-        })
+        toast.error(msg || 'A apărut o eroare neașteptată.')
         setIsAddressSelected(false)
       }
     }
@@ -159,13 +152,9 @@ const OrderForm = () => {
     const res = await createOrder(cart)
 
     if (!res.success) {
-      toast({
-        description: res.message,
-      })
+      toast.error(res.message)
     } else {
-      toast({
-        description: res.message,
-      })
+      toast.success(res.message)
       clearCart()
       router.push(`/checkout/${res.data?.orderId}`)
       setIsPlacingOrder(false)

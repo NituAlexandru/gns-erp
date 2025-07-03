@@ -18,6 +18,10 @@ const links = [
     href: '/admin/categories',
   },
   {
+    title: 'Furnizori',
+    href: '/admin/suppliers',
+  },
+  {
     title: 'Clienti',
     href: '/admin/clients',
   },

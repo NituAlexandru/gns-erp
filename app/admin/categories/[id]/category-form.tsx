@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { toast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { useEffect, useState } from 'react'
 import { toSlug } from '@/lib/utils'
 import { CategoryInputSchema } from '@/lib/db/modules/category/validator'
@@ -85,11 +85,15 @@ export default function CategoryForm() {
       const result = await response.json()
       if (!response.ok) throw new Error(result.message)
 
-      toast({ description: 'Categoria a fost creată.' })
+      toast('Categoria creată!', {
+        description: 'A fost adăugată cu succes.',
+      })
       router.push('/admin/categories')
       router.refresh()
     } catch (err: unknown) {
-      toast({ description: (err as Error).message })
+      toast('', {
+        description: (err as Error).message,
+      })
     }
   }
 
