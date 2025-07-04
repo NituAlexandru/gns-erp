@@ -37,6 +37,7 @@
     "date-holidays": "^3.24.3",
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.515.0",
     "mongodb": "^6.17.0",
     "mongoose": "^8.16.0",

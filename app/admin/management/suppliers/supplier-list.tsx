@@ -17,7 +17,7 @@ import { chunkString, formatError, formatId, toSlug } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers'
 import LoadingPage from '@/app/loading'
-import { FullScreenScanner } from '@/components/barcode/full-screen-scanner'
+import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
 
 interface Props {
   initialData: {
@@ -59,12 +59,6 @@ export default function SupplierList({ initialData, currentPage }: Props) {
     }
   }
 
-  const handleDecode = (code: string) => {
-    setScanning(false)
-    // navigate to that supplier’s page
-    router.push(`/admin/management/suppliers/${code}/${toSlug(code)}`)
-  }
-
   return (
     <div className='p-6 space-y-4 mx-auto'>
       {/* Header-ul rămâne mereu vizibil */}
@@ -72,7 +66,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
         <h1 className='text-xl font-bold'>Furnizori</h1>
         <div className='flex items-center gap-2'>
           {/* scan button */}
-          <Button variant='outline' onClick={() => setScanning((v) => !v)}>
+          <Button variant='outline' onClick={() => setScanning(true)}>
             {scanning ? 'Anulează căutarea' : 'Caută furnizor'}
           </Button>
 
@@ -84,8 +78,15 @@ export default function SupplierList({ initialData, currentPage }: Props) {
       </div>
 
       {scanning && (
-        <FullScreenScanner
-          onDecode={handleDecode}
+        <BarcodeScanner
+          onDecode={(code) => {
+            setScanning(false)
+            router.push(`/admin/management/suppliers/${code}/${toSlug(code)}`)
+          }}
+          onError={() => {
+            toast.error('Failed to start camera')
+            setScanning(false)
+          }}
           onClose={() => setScanning(false)}
         />
       )}

@@ -1,17 +1,15 @@
-// components/barcode/Barcode.tsx
 'use client'
-import React from 'react'
+import React, { MouseEvent } from 'react'
 import Image from 'next/image'
 import { useTheme } from 'next-themes'
 
 export type BarcodeType = 'code128' | 'ean13' | 'upca' | 'itf14' | 'gs1128'
 
 interface BarcodeProps {
-  text: string // the data to encode
-  type?: BarcodeType // defaults to code128
+  text: string
+  type?: BarcodeType
   width?: number
   height?: number
-  className?: string
 }
 
 export function Barcode({
@@ -19,20 +17,39 @@ export function Barcode({
   type = 'code128',
   width = 200,
   height = 80,
-  className,
 }: BarcodeProps) {
   const { theme } = useTheme()
-  // build the API URL with all params
   const src = `/api/barcode?text=${encodeURIComponent(text)}&type=${type}&theme=${theme}`
 
+  const handlePrint = (e: MouseEvent) => {
+    e.stopPropagation()
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+
+    // Scriem un HTML MINIMAL, cu <img> care își declanșează singur print() când e gata
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+      <body style="margin:0; padding:0;">
+        <img
+          src="${src}"
+          width="${width}"
+          height="${height}"
+          style="border:none; display:block;"
+          onload="window.focus(); window.print(); window.close();"
+        />
+      </body>
+      </html>
+    `)
+    printWindow.document.close()
+  }
+
   return (
-    <Image
-      src={src}
-      alt={`Barcode ${type} for ${text}`}
-      width={width}
-      height={height}
-      className={className}
-      unoptimized // since we’re fetching from our own API
-    />
+    <div
+      onClick={handlePrint}
+      style={{ display: 'inline-block', cursor: 'pointer' }}
+    >
+      <Image src={src} alt='' width={width} height={height} unoptimized />
+    </div>
   )
 }

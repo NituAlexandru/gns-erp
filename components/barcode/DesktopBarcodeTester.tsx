@@ -31,12 +31,12 @@ export function DesktopBarcodeTester() {
       <input type='file' accept='image/*' onChange={handleFile} />
       {file && (
         <>
-          <img
+          {/* <img
             ref={imgRef}
             src={URL.createObjectURL(file)}
             alt='barcode to decode'
             className='max-w-xs border'
-          />
+          /> */}
 
           <div className='space-x-2'>
             <button

@@ -146,9 +146,8 @@ export default async function SupplierView({
           <Barcode
             text={supplier._id}
             type='code128'
-            width={600}
-            height={200}
-            className='w-full h-auto'
+            width={700}
+            height={100}
           />
         </p>
         <SeparatorWithOr> </SeparatorWithOr>
