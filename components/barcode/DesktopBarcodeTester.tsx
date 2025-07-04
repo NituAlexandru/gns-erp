@@ -1,4 +1,4 @@
-// components/barcode/DesktopBarcodeTester.tsx
+
 'use client'
 import React, { useState, useRef } from 'react'
 import { BrowserMultiFormatReader } from '@zxing/library'

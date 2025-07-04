@@ -1,4 +1,3 @@
-// app/api/barcode/route.ts
 import { NextResponse } from 'next/server'
 import bwipjs from 'bwip-js'
 

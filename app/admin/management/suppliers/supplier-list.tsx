@@ -61,16 +61,12 @@ export default function SupplierList({ initialData, currentPage }: Props) {
 
   return (
     <div className='p-6 space-y-4 mx-auto'>
-      {/* Header-ul rămâne mereu vizibil */}
       <div className='flex justify-between items-center'>
         <h1 className='text-xl font-bold'>Furnizori</h1>
         <div className='flex items-center gap-2'>
-          {/* scan button */}
           <Button variant='outline' onClick={() => setScanning(true)}>
             {scanning ? 'Anulează căutarea' : 'Caută furnizor'}
           </Button>
-
-          {/* existing “Adaugă” button */}
           <Button asChild variant='default'>
             <Link href='/admin/management/suppliers/new'>Adaugă furnizor</Link>
           </Button>
@@ -91,7 +87,6 @@ export default function SupplierList({ initialData, currentPage }: Props) {
         />
       )}
 
-      {/* Conținutul principal: loader sau tabel + paginare */}
       {isPending ? (
         <LoadingPage />
       ) : (
@@ -159,7 +154,6 @@ export default function SupplierList({ initialData, currentPage }: Props) {
                     >
                       Editează
                     </Button>
-                    {/* 4. Ștergere */}
                     <DeleteDialog
                       id={s._id}
                       action={handleDeleteAction}

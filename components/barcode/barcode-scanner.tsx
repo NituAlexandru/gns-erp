@@ -1,4 +1,3 @@
-// components/barcode/barcode-scanner.tsx
 'use client'
 
 import React, { useEffect, useRef } from 'react'
@@ -22,10 +21,9 @@ export function BarcodeScanner({
     const scanner = new Html5Qrcode(qrRegionId, /* verbose= */ false)
     scannerRef.current = scanner
 
-    // 1) start with minimal constraints so it never fails:
     scanner
       .start(
-        { facingMode: 'environment' }, // ← only 1 key here!
+        { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 600, height: 300 } },
         (decodedText) => {
           onDecode(decodedText)
@@ -45,7 +43,6 @@ export function BarcodeScanner({
         })()
       )
       .then(async () => {
-        // 2) now that the stream is live, bump it to 1080p
         try {
           await scanner.applyVideoConstraints({
             width: { ideal: 1920 },
@@ -54,6 +51,18 @@ export function BarcodeScanner({
           console.log('Upgraded camera to 1920×1080')
         } catch (e) {
           console.warn('Could not apply 1080p, falling back', e)
+        }
+
+        try {
+          const settings = scanner.getRunningTrackSettings()
+          console.log(
+            `Actual video resolution: ${settings.width}×${settings.height}`
+          )
+
+          const caps = scanner.getRunningTrackCapabilities()
+          console.log('Camera capabilities:', caps)
+        } catch (e) {
+          console.warn('Could not read track settings/capabilities', e)
         }
       })
       .catch((err) => {

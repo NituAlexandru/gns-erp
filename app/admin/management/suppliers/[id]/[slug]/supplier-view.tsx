@@ -31,14 +31,25 @@ export default async function SupplierView({
 
   return (
     <div>
-      <div className='flex items-center gap-4 mb-5'>
-        {' '}
-        <Button asChild variant='outline'>
-          <Link href='/admin/management/suppliers'>
-            <ChevronLeft /> Înapoi
-          </Link>
-        </Button>{' '}
-        <h1 className='text-2xl font-bold'>Detalii furnizor {supplier.name}</h1>
+      <div className='flex items-center justify-between gap-4 mb-5 mr-20'>
+        <div className='flex items-center gap-4 mb-5'>
+          <Button asChild variant='outline'>
+            <Link href='/admin/management/suppliers'>
+              <ChevronLeft /> Înapoi
+            </Link>
+          </Button>{' '}
+          <h1 className='text-2xl font-bold'>
+            Detalii furnizor {supplier.name}
+          </h1>
+        </div>
+        <p className='my-2'>
+          <Barcode
+            text={supplier._id}
+            type='code128'
+            width={500}
+            height={100}
+          />
+        </p>
       </div>
       <div className='p-6'>
         <div className=' flex gap-3'>
@@ -142,14 +153,6 @@ export default async function SupplierView({
             </p>
           )}
         </div>
-        <p className='my-2'>
-          <Barcode
-            text={supplier._id}
-            type='code128'
-            width={700}
-            height={100}
-          />
-        </p>
         <SeparatorWithOr> </SeparatorWithOr>
       </div>
     </div>

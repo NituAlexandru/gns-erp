@@ -26,19 +26,33 @@ export function Barcode({
     const printWindow = window.open('', '_blank')
     if (!printWindow) return
 
-    // Scriem un HTML MINIMAL, cu <img> care își declanșează singur print() când e gata
     printWindow.document.write(`
       <!doctype html>
       <html>
-      <body style="margin:0; padding:0;">
-        <img
-          src="${src}"
-          width="${width}"
-          height="${height}"
-          style="border:none; display:block;"
-          onload="window.focus(); window.print(); window.close();"
-        />
-      </body>
+        <head>
+          <style>
+            /* Eliminăm marginile implicite ale paginii */
+            @page { margin: 0 }
+            html, body { margin: 0; padding: 0; }
+            /* Spacer alb de 1cm pentru a ascunde header-ul */
+            .spacer {
+              height: 1cm;
+              background: #fff;
+            }
+          </style>
+        </head>
+        <body>
+          <!-- Div-ul care „închide” zona de header -->
+          <div class="spacer"></div>
+          <!-- Imaginea ta de cod de bare la dimensiunile tale -->
+          <img
+            src="${src}"
+            width="${width}"
+            height="${height}"
+            style="border:none; display:block; margin:0 auto;"
+            onload="window.focus(); window.print(); window.close();"
+          />
+        </body>
       </html>
     `)
     printWindow.document.close()
