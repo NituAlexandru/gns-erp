@@ -474,7 +474,7 @@ export const AVAILABLE_DELIVERY_DATES = [
     message: 'Nu implica costuri extra',
   },
 ]
-export const ADMIN_PAGE_SIZE = 15
+export const ADMIN_PAGE_SIZE = 14
 export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 16)
 export const AVAILABLE_TAGS = [
   'best-seller',
@@ -482,5 +482,11 @@ export const AVAILABLE_TAGS = [
   'todays-deal',
   'new-arrival',
 ] as const
-export const USER_ROLES = ['Administrator', 'Admin', 'Manager', 'User', 'Agent-vanzari']
+export const USER_ROLES = [
+  'Administrator',
+  'Admin',
+  'Manager',
+  'User',
+  'Agent-vanzari',
+]
 export const THEMES = ['Light', 'Dark', 'System']

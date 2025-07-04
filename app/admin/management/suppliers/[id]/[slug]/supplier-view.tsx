@@ -31,7 +31,7 @@ export default async function SupplierView({
 
   return (
     <div>
-      <div className='flex items-center justify-between gap-4 mb-5 mr-20'>
+      <div className='flex items-center justify-between gap-4 mr-20 px-6'>
         <div className='flex items-center gap-4 mb-5'>
           <Button asChild variant='outline'>
             <Link href='/admin/management/suppliers'>
@@ -42,14 +42,14 @@ export default async function SupplierView({
             Detalii furnizor {supplier.name}
           </h1>
         </div>
-        <p className='my-2'>
+        <div className='my-2'>
           <Barcode
             text={supplier._id}
             type='code128'
             width={500}
             height={100}
           />
-        </p>
+        </div>
       </div>
       <div className='p-6'>
         <div className=' flex gap-3'>
@@ -73,6 +73,11 @@ export default async function SupplierView({
             <p>
               <strong>Telefon:</strong> {supplier.phone}
             </p>
+            {supplier.brand && supplier.brand.length > 0 && (
+              <p>
+                <strong>Branduri:</strong> {supplier.brand.join(', ')}
+              </p>
+            )}
           </div>
           {/* Informații Bancare */}
           <div className='w-1/3'>
@@ -136,14 +141,9 @@ export default async function SupplierView({
               </>
             )}
           </div>
-        </div>{' '}
+        </div>
         {/* Branduri și Mențiuni */}
         <div className='w-full flex'>
-          {supplier.brand && supplier.brand.length > 0 && (
-            <p className='w-1/3'>
-              <strong>Branduri:</strong> {supplier.brand.join(', ')}
-            </p>
-          )}
           {supplier.mentions && (
             <p className='w-2/3'>
               <strong>Mențiuni:</strong>{' '}

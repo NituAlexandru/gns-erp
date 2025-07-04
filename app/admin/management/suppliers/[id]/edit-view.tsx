@@ -13,7 +13,7 @@ interface Props {
 
 export default function EditSupplierView({ initialValues }: Props) {
   return (
-    <div className='max-w-5xl mx-auto p-6 space-y-6'>
+    <div className='max-w-5xl mx-auto p-6 space-y-6 pt-0'>
       <div className='flex items-center gap-4 mb-5'>
         <Button asChild variant='outline'>
           <Link href='/admin/management/suppliers'>
