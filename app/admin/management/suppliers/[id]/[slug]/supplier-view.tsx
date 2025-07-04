@@ -44,14 +44,14 @@ export default async function SupplierView({
         </div>
         <div className='my-2'>
           <Barcode
-            text={supplier._id}
+            text={supplier.fiscalCode}
             type='code128'
-            width={500}
+            width={300}
             height={100}
           />
         </div>
       </div>
-      <div className='p-6'>
+      <div className='p-6 pt-0'>
         <div className=' flex gap-3'>
           {/* Informații Generale */}
           <div className='w-1/3'>

@@ -129,9 +129,39 @@ export default function SupplierList({ initialData, currentPage }: Props) {
       </div>
       {scanning && (
         <BarcodeScanner
-          onDecode={(code) => {
+          onDecode={async (code: string) => {
             setScanning(false)
-            router.push(`/admin/management/suppliers/${code}/${toSlug(code)}`)
+            try {
+              // 1) Apelezi endpoint-ul de search (rămâne acelaşi)
+              const res = await fetch(
+                `/api/admin/management/suppliers/search?q=${encodeURIComponent(code)}`
+              )
+              if (!res.ok) throw new Error('Furnizor inexistent')
+
+              // 2) Parsezi răspunsul ca pe un array de ISupplierDoc
+              const items = (await res.json()) as ISupplierDoc[]
+
+              // 3) Găseşti exact furnizorul după codFiscal sau, dacă nu, după _id
+              const match =
+                items.find((s) => s.fiscalCode === code) ||
+                items.find((s) => s._id === code)
+
+              if (!match) {
+                toast.error(`Furnizor cu cod fiscal „${code}” nu a fost găsit.`)
+                return
+              }
+
+              // 4) Redirect către URL‐ul standard cu _id şi numele slug-uit
+              router.push(
+                `/admin/management/suppliers/${match._id}/${toSlug(match.name)}`
+              )
+            } catch (err) {
+              toast.error(
+                err instanceof Error
+                  ? err.message
+                  : 'A apărut o eroare la căutarea furnizorului'
+              )
+            }
           }}
           onError={() => {
             toast.error('Failed to start camera')
