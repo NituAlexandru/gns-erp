@@ -108,40 +108,42 @@ export default function SupplierList({ initialData, currentPage }: Props) {
   }
 
   return (
-    <div className='p-6 space-y-4 mx-auto pt-0'>
-      <div className='flex justify-between items-center'>
-        <h1 className='text-2xl font-bold'>Furnizori</h1>
+    <div className='p-0 sm:p-6 space-y-4 mx-auto max-w-full'>
+      <div className='grid grid-cols-1 items-center gap-4 lg:grid-cols-3 lg:items-center w-full'>
+        <h1 className='justify-self-start text-2xl font-bold'>Furnizori</h1>
         <input
           type='text'
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder='Caută după nume sau cod fiscal'
-          className='h-9 w-90 px-4 py-2 text-sm font-medium rounded-md border border-slate-700 bg-transparenttext-white hover:bg-white/10 focus:outline-none focus:bg-white/10'
+          className='w-full lg:w-80 h-10 px-4 text-sm sm:text-base rounded-md border focus:outline-none focus:ring bg-background hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 justify-self-center'
         />
-        <div className='flex items-center gap-2'>
-          <Button variant='outline' onClick={() => setScanning(true)}>
-            {scanning ? 'Anulează căutarea' : 'Scanează cod furnizor'}
+        <div className='flex flex-col sm:flex-row sm:items-center gap-2 w-full lg:w-auto justify-self-end'>
+          <Button
+            className='w-full sm:w-auto'
+            variant='outline'
+            onClick={() => setScanning(true)}
+          >
+            {scanning ? 'Anulează' : 'Scanează cod'}
           </Button>
-          <Button asChild variant='default'>
+          <Button className='w-full sm:w-auto' asChild variant='default'>
             <Link href='/admin/management/suppliers/new'>Adaugă furnizor</Link>
           </Button>
         </div>
       </div>
+
       {scanning && (
         <BarcodeScanner
           onDecode={async (code: string) => {
             setScanning(false)
             try {
-              // 1) Apelezi endpoint-ul de search (rămâne acelaşi)
               const res = await fetch(
                 `/api/admin/management/suppliers/search?q=${encodeURIComponent(code)}`
               )
               if (!res.ok) throw new Error('Furnizor inexistent')
 
-              // 2) Parsezi răspunsul ca pe un array de ISupplierDoc
               const items = (await res.json()) as ISupplierDoc[]
 
-              // 3) Găseşti exact furnizorul după codFiscal sau, dacă nu, după _id
               const match =
                 items.find((s) => s.fiscalCode === code) ||
                 items.find((s) => s._id === code)
@@ -151,7 +153,6 @@ export default function SupplierList({ initialData, currentPage }: Props) {
                 return
               }
 
-              // 4) Redirect către URL‐ul standard cu _id şi numele slug-uit
               router.push(
                 `/admin/management/suppliers/${match._id}/${toSlug(match.name)}`
               )
@@ -173,16 +174,18 @@ export default function SupplierList({ initialData, currentPage }: Props) {
       {isPending ? (
         <LoadingPage />
       ) : (
-        <>
+        <div className='overflow-x-auto'>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>ID</TableHead>
+                <TableHead className='hidden sm:table-cell'>ID</TableHead>
                 <TableHead>Nume</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Telefon</TableHead>
                 <TableHead>Cod Fiscal</TableHead>
-                <TableHead>Nr. Reg. Com.</TableHead>
+                <TableHead className='hidden sm:table-cell'>
+                  Nr. Reg. Com.
+                </TableHead>
                 <TableHead className='break-words whitespace-normal'>
                   Platitor de TVA
                 </TableHead>
@@ -192,11 +195,13 @@ export default function SupplierList({ initialData, currentPage }: Props) {
             <TableBody>
               {displayList.map((s) => (
                 <TableRow key={s._id}>
-                  <TableCell>{formatId(s._id)}</TableCell>
+                  <TableCell className='hidden sm:table-cell'>
+                    {formatId(s._id)}
+                  </TableCell>
                   <TableCell>
                     <Link
                       href={`/admin/management/suppliers/${s._id}/${toSlug(s.name)}`}
-                      className='hover:underline'
+                      className='hover:underline '
                     >
                       {s.name}
                     </Link>
@@ -204,7 +209,9 @@ export default function SupplierList({ initialData, currentPage }: Props) {
                   <TableCell>{s.email}</TableCell>
                   <TableCell>{s.phone}</TableCell>
                   <TableCell>{s.fiscalCode}</TableCell>
-                  <TableCell>{s.regComNumber}</TableCell>
+                  <TableCell className='hidden sm:table-cell'>
+                    {s.regComNumber}
+                  </TableCell>
                   <TableCell>
                     {s.isVatPayer ? (
                       <span className='text-green-600 font-semibold'>DA</span>
@@ -298,7 +305,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
           </Table>
           {/* ascunde butoanele de paginare când e search activ */}
           {totalPagesDisplay > 1 && (
-            <div className='flex justify-center items-center gap-2'>
+            <div className='flex justify-center items-center gap-2 mt-4'>
               <Button
                 variant='outline'
                 onClick={() => {
@@ -325,7 +332,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
               </Button>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   )
