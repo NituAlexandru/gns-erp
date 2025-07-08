@@ -174,7 +174,7 @@ export default function SupplierForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Cod Fiscal<span className='text-red-500'>*</span>
+                  Cod Fiscal (CUI)<span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
                   <Input placeholder='RO123456' {...field} />
@@ -396,7 +396,11 @@ export default function SupplierForm() {
           Câmpurile marcate cu <span className='text-red-500'>*</span> sunt
           obligatorii.
         </p>
-        <Button type='submit' disabled={isSubmitting} className='w-full bg-red-500'>
+        <Button
+          type='submit'
+          disabled={isSubmitting}
+          className='w-full bg-red-500'
+        >
           Adaugă furnizor
         </Button>
       </form>

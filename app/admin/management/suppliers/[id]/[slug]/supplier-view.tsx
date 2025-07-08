@@ -153,6 +153,18 @@ export default async function SupplierView({
             </p>
           )}
         </div>
+
+        {/* Timestamps */}
+        <div className='mb-0 text-sm text-muted-foreground space-y-1 flex flex-row gap-20 justify-end'>
+          <p>
+            <strong>Creat la:</strong>{' '}
+            {new Date(supplier.createdAt).toLocaleString()}
+          </p>
+          <p>
+            <strong>Actualizat la:</strong>{' '}
+            {new Date(supplier.updatedAt).toLocaleString()}
+          </p>
+        </div>
         <SeparatorWithOr> </SeparatorWithOr>
       </div>
     </div>

@@ -22,8 +22,8 @@ const links = [
     href: '/admin/management/suppliers',
   },
   {
-    title: 'Clienti',
-    href: '/admin/clients',
+    title: 'Clienți',
+    href: '/clients',
   },
   {
     title: 'NIR',

@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import DeleteDialog from '@/components/shared/delete-dialog'
-import { formatError, formatId, toSlug } from '@/lib/utils'
+import { formatError, toSlug } from '@/lib/utils'
 import { toast } from 'sonner'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers'
 import LoadingPage from '@/app/loading'
@@ -108,7 +108,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
   }
 
   return (
-    <div className='p-0 sm:p-6 space-y-4 mx-auto max-w-full'>
+    <div className='p-0 space-y-4 mx-auto max-w-full'>
       <div className='grid grid-cols-1 items-center gap-4 lg:grid-cols-3 lg:items-center w-full'>
         <h1 className='justify-self-start text-2xl font-bold'>Furnizori</h1>
         <input
@@ -171,14 +171,14 @@ export default function SupplierList({ initialData, currentPage }: Props) {
           onClose={() => setScanning(false)}
         />
       )}
+
       {isPending ? (
         <LoadingPage />
       ) : (
         <div className='overflow-x-auto'>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className='hidden sm:table-cell'>ID</TableHead>
+              <TableRow className='bg-muted'>
                 <TableHead>Nume</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Telefon</TableHead>
@@ -194,10 +194,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
             </TableHeader>
             <TableBody>
               {displayList.map((s) => (
-                <TableRow key={s._id}>
-                  <TableCell className='hidden sm:table-cell'>
-                    {formatId(s._id)}
-                  </TableCell>
+                <TableRow key={s._id} className='hover:bg-muted/50'>
                   <TableCell>
                     <Link
                       href={`/admin/management/suppliers/${s._id}/${toSlug(s.name)}`}

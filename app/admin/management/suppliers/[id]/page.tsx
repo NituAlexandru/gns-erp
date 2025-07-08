@@ -9,7 +9,9 @@ export default async function EditSupplierPage({
   params: Promise<{ id: string }>
 }) {
   const session = await auth()
+
   const allowedRoles = ['Administrator', 'Admin', 'Manager']
+
   if (!session?.user?.role || !allowedRoles.includes(session.user.role)) {
     throw new Error(
       'Nu aveți permisiunea necesară pentru a accesa această pagină.'
@@ -17,5 +19,6 @@ export default async function EditSupplierPage({
   }
   const { id } = await params
   const supplier = await getSupplierById(id)
+
   return <EditSupplierView initialValues={supplier} />
 }

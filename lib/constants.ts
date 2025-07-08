@@ -475,7 +475,7 @@ export const AVAILABLE_DELIVERY_DATES = [
   },
 ]
 export const ADMIN_PAGE_SIZE = 14
-export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 16)
+export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 12)
 export const AVAILABLE_TAGS = [
   'best-seller',
   'featured',

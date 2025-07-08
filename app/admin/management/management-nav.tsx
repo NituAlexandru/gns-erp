@@ -14,6 +14,10 @@ const links = [
     title: 'Furnizori',
     href: '/admin/management/suppliers',
   },
+  {
+    title: 'Clienți',
+    href: '/clients',
+  },
 ]
 
 export function ManagementNav({
