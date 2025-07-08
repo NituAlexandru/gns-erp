@@ -2,52 +2,39 @@ import { APP_NAME } from '@/lib/constants'
 import Image from 'next/image'
 import Link from 'next/link'
 import Menu from './menu'
-import data from '@/lib/data'
-import Sidebar from './sidebar'
-
+import { MainNav } from './main-nav'
 import MobileMainMenuDropdown from './mobile-main-menu'
-import { getAllCategories } from '@/lib/db/modules/product'
 
-export default async function Header() {
-  const categories = await getAllCategories()
+export default function Header() {
   return (
-    <header className='bg-black  text-white '>
+    <header className='bg-black text-white'>
       <div className='px-2'>
         <div className='flex items-center justify-between'>
-          <div className='flex items-center'>
-            <Link
-              href='/'
-              className='flex items-center header-button font-extrabold text-2xl m-1 '
-            >
-              <Image
-                src='/icons/logo-light.svg'
-                width={160}
-                height={160}
-                alt={`${APP_NAME} logo`}
-                priority
-              />
-            </Link>
-          </div>
-
+          <Link
+            href='/'
+            className='flex items-center header-button font-extrabold text-2xl m-1'
+          >
+            <Image
+              src='/icons/logo-light.svg'
+              width={160}
+              height={160}
+              alt={`${APP_NAME} logo`}
+              priority
+            />
+          </Link>
           <Menu />
         </div>
       </div>
-      <div className='flex items-center px-3 mb-[1px] bg-gray-800 overflow-hidden'>
-        <Sidebar categories={categories} />
-        <div className='lg:hidden'>
-          <MobileMainMenuDropdown menuItems={data.headerMenus} />
+
+      {/* Navigația principală */}
+      <div className='flex items-center justify-end min-[850px]:justify-start px-3 bg-gray-800 overflow-x-auto'>
+        <div className='hidden min-[850px]:flex'>
+          <MainNav />
         </div>
-        <div className='hidden lg:flex items-center flex-wrap gap-3 max-h-[42px]'>
-          {' '}
-          {data.headerMenus.map((menu) => (
-            <Link
-              href={menu.href}
-              key={menu.href}
-              className='header-button p-2'
-            >
-              {menu.name}
-            </Link>
-          ))}
+
+        {/* Dropdown pentru Mobil - afișat până la 678px */}
+        <div className='min-[850px]:hidden'>
+          <MobileMainMenuDropdown />
         </div>
       </div>
     </header>
