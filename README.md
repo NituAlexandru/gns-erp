@@ -40,3 +40,8 @@
 
 - Bugs
 - dupa crearea unui nou cont, apare notificare de eroare - de verificat
+- de facut form add / edit product
+- de facut modificare marja TVA + de oferit posibilitatea afisarii pretului cu TVA inclus
+- la catalog + admin products - de adaugat posibilitatea afisarii pretului cu TVA
+- de facut modificare 
+- Searchul de la clienti merge daor dupa nume - de adaugat cui, cnp

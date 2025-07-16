@@ -14,13 +14,13 @@ import { auth } from '@/auth'
 // } from '@/emails'
 import { revalidatePath } from 'next/cache'
 import { DateRange } from 'react-day-picker'
-import { ERPProductModel } from '@/lib/db/modules/product'
 import mongoose from 'mongoose'
 import User from '../user/user.model'
 import { addBusinessDays } from '../../../deliveryDates'
 import Order, { IOrder } from './order.model'
 import { Cart, IOrderList, OrderItem, ShippingAddress } from './types'
 import { OrderInputSchema } from './validator'
+import ERPProductModel from '../product/product.model'
 
 export async function updateOrderToPaid(orderId: string) {
   try {
@@ -83,12 +83,12 @@ const updateProductStock = async (orderId: string) => {
       )
       if (!product) throw new Error('Product not found')
 
-      product.currentStock! -= item.quantity
-      await ERPProductModel.updateOne(
-        { _id: product._id },
-        { currentStock: product.currentStock },
-        opts
-      )
+      // product.currentStock! -= item.quantity
+      // await ERPProductModel.updateOne(
+      //   { _id: product._id },
+      //   { currentStock: product.currentStock },
+      //   opts
+      // )
     }
     await session.commitTransaction()
     session.endSession()

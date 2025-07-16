@@ -10,10 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { deleteOrder, getAllOrders } from '@/lib/db/modules/order/order.actions'
+import { getAllOrders } from '@/lib/db/modules/order/order.actions'
 import { formatDateTime, formatId } from '@/lib/utils'
 import ProductPrice from '@/components/shared/product/product-price'
-import DeleteDialog from '../delete-dialog'
+// import DeleteDialog from '../delete-dialog'
 import { IOrderList } from '@/lib/db/modules/order/types'
 
 export default async function OrdersPage(props: {
@@ -84,7 +84,7 @@ export default async function OrdersPage(props: {
                   <Button asChild variant='outline' size='sm'>
                     <Link href={`/admin/orders/${order._id}`}>Detalii</Link>
                   </Button>
-                  <DeleteDialog id={order._id} action={deleteOrder} />
+                  {/* <DeleteDialog id={order._id} action={deleteOrder} /> */}
                 </TableCell>
               </TableRow>
             ))}

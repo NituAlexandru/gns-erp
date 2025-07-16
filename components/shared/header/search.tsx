@@ -12,7 +12,7 @@ export default async function Search() {
         className='
         flex-1 
          focus-visible:ring-0 focus-visible:shadow-none
-         rounded-none dark:border-gray-200 bg-gray-100 text-black text-base h-full
+         rounded-none rounded-l-xl bg-gray-100 text-base h-full
   '
         placeholder='Cauta produs'
         name='q'

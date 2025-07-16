@@ -8,7 +8,7 @@ import React from 'react'
 export const links = [
   { title: 'Acasă', href: '/' },
   { title: 'Clienți', href: '/clients' },
-  { title: 'Produse', href: '/products' },
+  { title: 'Produse', href: '/catalog-produse' },
   { title: 'NIR', href: '/nir' },
   { title: 'Comenzi', href: '/orders' },
   { title: 'Proforme', href: '/proforme' },

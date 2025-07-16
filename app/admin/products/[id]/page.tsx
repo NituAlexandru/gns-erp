@@ -1,12 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import ProductForm from '../product-form'
-import { Metadata } from 'next'
-import { getProductById } from '@/lib/db/modules/product'
-
-export const metadata: Metadata = {
-  title: 'Edit Product',
-}
+import { getProductById } from '@/lib/db/modules/product/product.actions'
 
 type UpdateProductProps = {
   params: Promise<{
@@ -30,7 +24,7 @@ const UpdateProduct = async (props: UpdateProductProps) => {
       </div>
 
       <div className='my-8'>
-        <ProductForm type='Update' product={product} productId={product._id} />
+        {/* <ProductForm type='Update' product={product} productId={product._id} /> */}
       </div>
     </main>
   )

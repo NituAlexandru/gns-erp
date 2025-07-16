@@ -2,11 +2,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import React from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import Rating from './rating'
-import { formatCurrency, formatNumber } from '@/lib/utils'
-import ProductPrice from './product-price'
+import { formatCurrency } from '@/lib/utils'
 import ImageHover from './image-hover'
-import { IProductDoc } from '@/lib/db/modules/product'
+import { IProductDoc } from '@/lib/db/modules/product/types'
 
 const ProductCard = ({
   product,
@@ -60,17 +58,7 @@ const ProductCard = ({
       >
         {product.name}
       </Link>
-      <div className='flex gap-2 justify-center'>
-        <Rating rating={product.avgRating} />
-        <span>({formatNumber(product.numReviews)})</span>
-      </div>
 
-      <ProductPrice
-        isDeal={product.tags.includes('todays-deal')}
-        price={product.price}
-        listPrice={product.listPrice}
-        forListing
-      />
       {/* only show per-unit price if packagingQuantity > 1 */}
       {product.packagingQuantity && product.packagingQuantity > 1 && (
         <div className='flex flex-direction-row justify-center gap-1'>

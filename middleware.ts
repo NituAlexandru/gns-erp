@@ -1,6 +1,10 @@
 // middleware.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
+import {
+  MANAGEMENT_ROLES,
+  SUPER_ADMIN_ROLES,
+} from './lib/db/modules/user/user-roles'
 
 // Rute care oricum trebuie accesibile fără login:
 const publicPages = ['/sign-in', '/sign-up']
@@ -46,10 +50,6 @@ export async function middleware(req: NextRequest) {
 
   // 5) Protejare /admin doar pentru rolul admin:
   const userRole = ((token.role as string) || '').toLowerCase()
-
-  // Definirea rolurilor permise (cu litere mici pentru comparație)
-  const SUPER_ADMIN_ROLES = ['administrator', 'admin']
-  const MANAGEMENT_ROLES = [...SUPER_ADMIN_ROLES, 'manager']
 
   if (pathname.startsWith('/admin')) {
     // Regula #1: Pentru rutele de management general (Admin + Manager)

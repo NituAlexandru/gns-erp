@@ -1,52 +1,54 @@
 import { z } from 'zod'
 import { ProductInputSchema, ProductUpdateSchema } from './validator'
-import { ClientMarkup } from '@/types'
+import { IERPProductDoc } from './product.model'
 
 export type IProductInput = z.infer<typeof ProductInputSchema>
 export type IProductUpdate = z.infer<typeof ProductUpdateSchema>
-
-export interface IProductDoc extends IProductInput {
+export type IProductDoc = IProductInput & {
   _id: string
   createdAt: Date
   updatedAt: Date
+  category: string | IPopulatedCategory
+  mainCategory: string | IPopulatedCategory
 }
-export interface IERPProductInput {
+export type PopulatedProduct = IERPProductDoc & {
+  category: IPopulatedCategory
+  mainCategory: IPopulatedCategory
+}
+export type AdminProductDoc = IProductDoc & {
+  defaultMarkups: {
+    markupDirectDeliveryPrice: number
+    markupFullTruckPrice: number
+    markupSmallDeliveryBusinessPrice: number
+    markupRetailPrice: number
+  }
+  image: string
+  barCode: string
+}
+
+export interface IPopulatedCategory {
+  _id: string
   name: string
   slug: string
-  category: string // ObjectId categoria
-  barCode: string
+}
+export interface MarkupPatch {
+  markupDirectDeliveryPrice?: number
+  markupFullTruckPrice?: number
+  markupSmallDeliveryBusinessPrice?: number
+  markupRetailPrice?: number
+}
+export interface AdminProductSearchResult {
+  _id: string
+  name: string
   productCode: string
-  images?: string[]
-  description?: string
-  mainSupplier: string // ObjectId furnizor
-  brand?: string
-  directDeliveryPrice: number
-  fullTruckPrice: number
-  smallDeliveryBusinessPrice: number
-  retailPrice: number
-  minStock?: number
-  currentStock?: number
-  firstOrderDate?: Date
-  lastOrderDate?: Date
-  numSales?: number
   averagePurchasePrice: number
-  defaultMarkups?: {
-    markupDirectDeliveryPrice?: number
-    markupFullTruckPrice?: number
-    markupSmallDeliveryBusinessPrice?: number
-    markupRetailPrice?: number
+  defaultMarkups: {
+    markupDirectDeliveryPrice: number
+    markupFullTruckPrice: number
+    markupSmallDeliveryBusinessPrice: number
+    markupRetailPrice: number
   }
-  clientMarkups?: ClientMarkup[]
-  unit: string
-  packagingUnit?: string
-  packagingQuantity?: number
-  length: number
-  width: number
-  height: number
-  volume: number
-  weight: number
-  specifications: string[]
-  palletTypeId?: string
-  itemsPerPallet?: number
-  isActive?: boolean
+  image: string | null
+  category: string | null
+  barCode: string | null
 }

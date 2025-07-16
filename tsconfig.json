@@ -29,6 +29,6 @@
     "**/*.tsx",
     "declarations.d.ts",
     ".next/types/**/*.ts"
-  ],
+, "migrate-categories.js"  ],
   "exclude": ["node_modules"]
 }

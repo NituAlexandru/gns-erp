@@ -1,7 +1,7 @@
 import { Data } from '@/types'
 import bcrypt from 'bcryptjs'
-import { IProductDoc } from './db/modules/product'
 import { IUserInput } from './db/modules/user/types'
+import { IProductDoc } from './db/modules/product/types'
 
 const products: IProductDoc[] = []
 const users: IUserInput[] = [

@@ -124,6 +124,7 @@ export function formatId(id: string) {
 export const getFilterUrl = ({
   params,
   category,
+  mainCategory,
   tag,
   sort,
   price,
@@ -132,12 +133,14 @@ export const getFilterUrl = ({
   params: {
     q?: string
     category?: string
+    mainCategory?: string
     tag?: string
     price?: string
     sort?: string
     page?: string
   }
   category?: string
+  mainCategory?: string
   tag?: string
   sort?: string
   price?: string
@@ -150,6 +153,10 @@ export const getFilterUrl = ({
   // Detectăm dacă se schimbă vreun filtru
   let isFiltering = false
 
+  if (mainCategory) {
+    newParams.mainCategory = mainCategory
+    isFiltering = true
+  }
   if (category) {
     newParams.category = category
     isFiltering = true
@@ -221,4 +228,3 @@ export function calculatePastDate(days: number) {
 export function chunkString(str: string, size = 4): string {
   return (str.match(new RegExp(`.{1,${size}}`, 'g')) || []).join(' ')
 }
-

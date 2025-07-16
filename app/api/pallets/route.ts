@@ -1,5 +1,5 @@
+import ERPProductModel from '@/lib/db/modules/product/product.model'
 import { NextResponse } from 'next/server'
-import { ERPProductModel } from '@/lib/db/modules/product'
 
 export async function GET() {
   const pallets = await ERPProductModel.find({ category: 'Paleti' })

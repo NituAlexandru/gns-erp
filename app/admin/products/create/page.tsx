@@ -1,10 +1,4 @@
 import Link from 'next/link'
-import ProductForm from '../product-form'
-import { Metadata } from 'next'
-
-export const metadata: Metadata = {
-  title: 'Create Product',
-}
 
 const CreateProductPage = () => {
   return (
@@ -15,9 +9,7 @@ const CreateProductPage = () => {
         <Link href='/admin/products/create'>Create</Link>
       </div>
 
-      <div className='my-8'>
-        <ProductForm type='Create' />
-      </div>
+      <div className='my-8'>{/* <ProductForm type='Create' /> */}</div>
     </main>
   )
 }

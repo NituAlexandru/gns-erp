@@ -1,208 +1,385 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
-import Link from 'next/link'
-import DeleteDialog from '@/components/shared/delete-dialog'
-import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { deleteProduct, getAllProductsForAdmin } from '@/lib/db/modules/product'
-import type { IProductDoc } from '@/lib/db/modules/product'
 
 import React, { useEffect, useState, useTransition } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import Image from 'next/image'
+import {
+  Table,
+  TableHeader,
+  TableRow,
+  TableHead,
+  TableBody,
+  TableCell,
+} from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
-import { formatDateTime, formatId } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { formatCurrency, toSlug } from '@/lib/utils'
+import {
+  AdminProductDoc,
+  AdminProductSearchResult,
+} from '@/lib/db/modules/product/types'
+import { updateProductMarkup } from '@/lib/db/modules/product/product.actions'
+import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
+import { toast } from 'sonner'
 
-type ProductListDataProps = {
-  products: IProductDoc[]
+type RowState = {
+  direct: number
+  fullTruck: number
+  smallBiz: number
+  retail: number
+}
+
+type DisplayItem = AdminProductDoc | AdminProductSearchResult
+
+export default function AdminProductsList({
+  products,
+  currentPage,
+  totalPages,
+  totalProducts,
+  from,
+  to,
+}: {
+  products: AdminProductDoc[]
+  currentPage: number
   totalPages: number
   totalProducts: number
-  to: number
   from: number
-}
-const ProductList = () => {
-  const [page, setPage] = useState<number>(1)
-  const [inputValue, setInputValue] = useState<string>('')
-  const [data, setData] = useState<ProductListDataProps>()
-  const [isPending, startTransition] = useTransition()
+  to: number
+}) {
+  const [page, setPage] = useState(currentPage)
+  const [items, setItems] = useState<DisplayItem[]>(products)
+  const [query, setQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<DisplayItem[] | null>(null)
+  const [rows, setRows] = useState<Record<string, RowState>>({})
+  const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
+  const [, startTransition] = useTransition()
+  const router = useRouter()
 
-  const handlePageChange = (changeType: 'next' | 'prev') => {
-    const newPage = changeType === 'next' ? page + 1 : page - 1
-    if (changeType === 'next') {
-      setPage(newPage)
-    } else {
-      setPage(newPage)
-    }
-    startTransition(async () => {
-      const data = await getAllProductsForAdmin({
-        query: inputValue,
-        page: newPage,
-      })
-      setData(data)
-    })
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
-    setInputValue(value)
-    if (value) {
-      clearTimeout((window as any).debounce)
-      ;(window as any).debounce = setTimeout(() => {
-        startTransition(async () => {
-          const data = await getAllProductsForAdmin({ query: value, page: 1 })
-          setData(data)
-        })
-      }, 500)
-    } else {
-      startTransition(async () => {
-        const data = await getAllProductsForAdmin({ query: '', page })
-        setData(data)
-      })
-    }
-  }
+  // Reset to first page on new search
   useEffect(() => {
-    startTransition(async () => {
-      const data = await getAllProductsForAdmin({ query: '' })
-      setData(data)
+    setPage(1)
+  }, [query])
+
+  // Debounced search
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const q = query.trim()
+      if (!q) {
+        setSearchResults(null)
+        return
+      }
+      try {
+        const res = await fetch(
+          `/api/admin/products/search?q=${encodeURIComponent(q)}`
+        )
+        const data = res.ok ? await res.json() : []
+        setSearchResults(Array.isArray(data) ? data : [])
+      } catch {
+        setSearchResults([])
+      }
+    }, 300)
+    return () => clearTimeout(t)
+  }, [query])
+
+  const handlePage = (dir: 'prev' | 'next') => {
+    const np = dir === 'next' ? page + 1 : page - 1
+    if (np < 1 || np > totalPages) return
+    startTransition(() => {
+      if (!searchResults) router.replace(`/admin/products?page=${np}`)
+      setPage(np)
     })
-  }, [])
+  }
+
+  const onMarkupChange = (
+    id: string,
+    key: keyof RowState,
+    val: number,
+    fallback: RowState
+  ) => {
+    setRows((prev) => {
+      const base = prev[id] ?? fallback
+      return { ...prev, [id]: { ...base, [key]: val } }
+    })
+    setDirtyRows((prev) => ({ ...prev, [id]: true }))
+  }
+
+  const onUpdate = async (id: string) => {
+    const row = rows[id]
+    if (!row) return
+
+    const res = await updateProductMarkup(id, {
+      markupDirectDeliveryPrice: row.direct,
+      markupFullTruckPrice: row.fullTruck,
+      markupSmallDeliveryBusinessPrice: row.smallBiz,
+      markupRetailPrice: row.retail,
+    })
+
+    if (res.success) {
+      toast.success('Prețurile au fost actualizate cu succes!')
+      setDirtyRows((prev) => {
+        const c = { ...prev }
+        delete c[id]
+        return c
+      })
+
+      setItems((prev) =>
+        prev.map((item) =>
+          (item as AdminProductDoc)._id === id
+            ? {
+                ...(item as AdminProductDoc),
+                defaultMarkups: {
+                  markupDirectDeliveryPrice: row.direct,
+                  markupFullTruckPrice: row.fullTruck,
+                  markupSmallDeliveryBusinessPrice: row.smallBiz,
+                  markupRetailPrice: row.retail,
+                },
+              }
+            : item
+        )
+      )
+      setRows((prev) => ({
+        ...prev,
+        [id]: {
+          direct: row.direct,
+          fullTruck: row.fullTruck,
+          smallBiz: row.smallBiz,
+          retail: row.retail,
+        },
+      }))
+    } else {
+      toast.error('Eroare la salvare: ' + res.message)
+    }
+  }
+
+  const displayList = (searchResults ?? items).slice(
+    (page - 1) * ADMIN_PRODUCT_PAGE_SIZE,
+    page * ADMIN_PRODUCT_PAGE_SIZE
+  )
 
   return (
-    <div>
-      <div className='space-y-2'>
-        <div className='flex-between flex-wrap gap-2'>
-          <div className='flex flex-wrap items-center gap-2 '>
-            <h1 className='font-bold text-lg'>Produse</h1>
-            <div className='flex flex-wrap items-center  gap-2 '>
-              <Input
-                className='w-auto'
-                type='text '
-                value={inputValue}
-                onChange={handleInputChange}
-                placeholder='Caută nume produs...'
-              />
+    <div className='p-0 max-w-full'>
+      {/* HEADER */}
+      <div className='grid mb-4 grid-cols-1 gap-4 lg:grid-cols-4 items-center'>
+        <h1 className='text-2xl font-bold'>Marja profit</h1>
+        <div className='lg:col-span-2 flex items-center space-x-2 justify-center'>
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder='Caută după cod, nume sau cod de bare'
+            className='w-full lg:w-80'
+          />
+          <span className='text-sm text-gray-400'>
+            {`${from}–${to} din ${totalProducts} produse`}
+          </span>
+        </div>
+        <Button asChild variant='default' className='justify-self-end'>
+          <Link href='/admin/products/create'>Crează Produs</Link>
+        </Button>
+      </div>
 
-              {isPending ? (
-                <p>Caută...</p>
-              ) : (
-                <p>
-                  {data?.totalProducts === 0
-                    ? 'No'
-                    : `${data?.from}-${data?.to} of ${data?.totalProducts}`}
-                  {' results'}
-                </p>
-              )}
-            </div>
-          </div>
+      {/* TABEL */}
+      <Table>
+        <TableHeader>
+          <TableRow className='bg-muted'>
+            <TableHead>Cod</TableHead>
+            <TableHead>Imagine</TableHead>
+            <TableHead>Produs</TableHead>
+            <TableHead>Preț Intrare</TableHead>
+            <TableHead>
+              Adaos Livrare <br />
+              Directă (%)
+            </TableHead>
+            <TableHead>
+              Livrare <br />
+              Directă
+            </TableHead>
+            <TableHead>
+              Adaos Macara / <br />
+              Tir Complete (%)
+            </TableHead>
+            <TableHead>
+              Macara / Tir <br />
+              Complete
+            </TableHead>
+            <TableHead>
+              Adaos Livrare <br />
+              mica PJ (%)
+            </TableHead>
+            <TableHead>
+              Livrare
+              <br /> mica PJ
+            </TableHead>
+            <TableHead>
+              Adaos Retail
+              <br /> PF (%)
+            </TableHead>
+            <TableHead>
+              Retail <br />
+              PF
+            </TableHead>
+            <TableHead>Cod Bare</TableHead>
+            <TableHead>Acțiune</TableHead>
+          </TableRow>
+        </TableHeader>
 
-          <Button asChild variant='default'>
-            <Link href='/admin/products/create'>Crează Produs</Link>
+        <TableBody>
+          {displayList.map((item) => {
+            const prod = item as AdminProductDoc
+            // fallback valori din DB
+            const fallback: RowState = {
+              direct: prod.defaultMarkups?.markupDirectDeliveryPrice ?? 0,
+              fullTruck: prod.defaultMarkups?.markupFullTruckPrice ?? 0,
+              smallBiz:
+                prod.defaultMarkups?.markupSmallDeliveryBusinessPrice ?? 0,
+              retail: prod.defaultMarkups?.markupRetailPrice ?? 0,
+            }
+            // preluăm fie editarea locală, fie DB
+            const rowVals = rows[prod._id] ?? fallback
+            // calcule directe inline
+            const base = prod.averagePurchasePrice ?? 0
+            const directMarkup = rowVals.direct
+            const fullTruckMarkup = rowVals.fullTruck
+            const smallBizMarkup = rowVals.smallBiz
+            const retailMarkup = rowVals.retail
+            const directPrice = base * (1 + directMarkup / 100)
+            const fullTruckPrice = base * (1 + fullTruckMarkup / 100)
+            const smallBizPrice = base * (1 + smallBizMarkup / 100)
+            const retailPrice = base * (1 + retailMarkup / 100)
+
+            return (
+              <TableRow key={prod._id} className='hover:bg-muted/50'>
+                <TableCell>{prod.productCode}</TableCell>
+                <TableCell className='p-0 h-10 w-12'>
+                  {prod.image ? (
+                    <Image
+                      src={prod.image}
+                      alt={prod.name}
+                      priority
+                      width={45}
+                      height={45}
+                      style={{ width: '45px', height: '45px' }}
+                      className='ml-3 object-contain'
+                    />
+                  ) : (
+                    '-'
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Link
+                    href={`/admin/products/${prod._id}/${toSlug(prod.name)}`}
+                  >
+                    {prod.name}
+                  </Link>
+                </TableCell>
+                <TableCell>{formatCurrency(base)}</TableCell>
+                {/* Adaos Direct */}
+                <TableCell className='text-right'>
+                  <Input
+                    type='number'
+                    value={String(directMarkup)}
+                    onChange={(e) =>
+                      onMarkupChange(
+                        prod._id,
+                        'direct',
+                        Number(e.target.value),
+                        fallback
+                      )
+                    }
+                    className='w-20'
+                  />
+                </TableCell>
+                <TableCell>{formatCurrency(directPrice)}</TableCell>
+                {/* Adaos Camion */}
+                <TableCell className='text-right'>
+                  <Input
+                    type='number'
+                    value={String(fullTruckMarkup)}
+                    onChange={(e) =>
+                      onMarkupChange(
+                        prod._id,
+                        'fullTruck',
+                        Number(e.target.value),
+                        fallback
+                      )
+                    }
+                    className='w-20'
+                  />
+                </TableCell>
+                <TableCell>{formatCurrency(fullTruckPrice)}</TableCell>
+                {/* Adaos Business */}
+                <TableCell className='text-right'>
+                  <Input
+                    type='number'
+                    value={String(smallBizMarkup)}
+                    onChange={(e) =>
+                      onMarkupChange(
+                        prod._id,
+                        'smallBiz',
+                        Number(e.target.value),
+                        fallback
+                      )
+                    }
+                    className='w-20'
+                  />
+                </TableCell>
+                <TableCell>{formatCurrency(smallBizPrice)}</TableCell>
+                {/* Adaos Retail */}
+                <TableCell className='text-right'>
+                  <Input
+                    type='number'
+                    value={String(retailMarkup)}
+                    onChange={(e) =>
+                      onMarkupChange(
+                        prod._id,
+                        'retail',
+                        Number(e.target.value),
+                        fallback
+                      )
+                    }
+                    className='w-20'
+                  />
+                </TableCell>
+                <TableCell>{formatCurrency(retailPrice)}</TableCell>
+                <TableCell>{prod.barCode || '-'}</TableCell>
+                <TableCell>
+                  <Button
+                    size='sm'
+                    variant={dirtyRows[prod._id] ? 'default' : 'outline'}
+                    onClick={() => onUpdate(prod._id)}
+                  >
+                    Salvează
+                  </Button>
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+
+      {/* PAGINAȚIE */}
+      {totalPages > 1 && (
+        <div className='flex justify-center items-center gap-2 mt-4'>
+          <Button
+            variant='outline'
+            onClick={() => handlePage('prev')}
+            disabled={page <= 1}
+          >
+            <ChevronLeft /> Anterior
+          </Button>
+          <span>
+            Pagina {page} din {totalPages}
+          </span>
+          <Button
+            variant='outline'
+            onClick={() => handlePage('next')}
+            disabled={page >= totalPages}
+          >
+            Următor <ChevronRight />
           </Button>
         </div>
-        <div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID</TableHead>
-                <TableHead>Nume</TableHead>
-                <TableHead>Etichetă</TableHead>
-                <TableHead className='text-right'>Preț</TableHead>
-                <TableHead>Categorie</TableHead>
-                <TableHead>Stoc</TableHead>
-                <TableHead>Evaluare</TableHead>
-                <TableHead>Publicat</TableHead>
-                <TableHead>Ultimul Update</TableHead>
-                <TableHead className='w-[100px]'>Acțiuni</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data?.products.map((product: IProductDoc) => (
-                <TableRow key={product._id}>
-                  <TableCell>{formatId(product._id)}</TableCell>
-                  <TableCell>
-                    <Link href={`/admin/products/${product._id}`}>
-                      {product.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className='max-w-[195px] lg:max-w-[220px]'>
-                    <div className='flex flex-wrap gap-1'>
-                      {product.tags?.map((tag) => (
-                        <span
-                          key={tag}
-                          className=' w-[80px] px-1 py-0.5 bg-red-600 text-white text-xs rounded text-center'
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className='text-right'>${product.price}</TableCell>
-                  <TableCell>{product.category}</TableCell>
-                  <TableCell>{product.countInStock}</TableCell>
-                  <TableCell>{product.avgRating}</TableCell>
-                  <TableCell>{product.isPublished ? 'Yes' : 'No'}</TableCell>
-                  <TableCell>
-                    {formatDateTime(product.updatedAt).dateTime}
-                  </TableCell>
-                  <TableCell className='flex gap-1'>
-                    <Button asChild variant='outline' size='sm'>
-                      <Link href={`/admin/products/${product._id}`}>
-                        Editează
-                      </Link>
-                    </Button>
-                    <Button asChild variant='outline' size='sm'>
-                      <Link target='_blank' href={`/product/${product.slug}`}>
-                        Vezi
-                      </Link>
-                    </Button>
-                    <DeleteDialog
-                      id={product._id}
-                      action={deleteProduct}
-                      callbackAction={() => {
-                        startTransition(async () => {
-                          const data = await getAllProductsForAdmin({
-                            query: inputValue,
-                          })
-                          setData(data)
-                        })
-                      }}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {(data?.totalPages ?? 0) > 1 && (
-            <div className='flex items-center gap-2'>
-              <Button
-                variant='outline'
-                onClick={() => handlePageChange('prev')}
-                disabled={Number(page) <= 1}
-                className='w-24'
-              >
-                <ChevronLeft /> Anterior
-              </Button>
-              Pagină {page} din {data?.totalPages}
-              <Button
-                variant='outline'
-                onClick={() => handlePageChange('next')}
-                disabled={Number(page) >= (data?.totalPages ?? 0)}
-                className='w-24'
-              >
-                Următor <ChevronRight />
-              </Button>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   )
 }
-
-export default ProductList

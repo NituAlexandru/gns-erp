@@ -1,46 +1,45 @@
 import { Document, Model, model, models, Schema, Types } from 'mongoose'
 import { UNITS } from '@/lib/constants'
-import { IERPProductInput } from './types'
+import { IProductInput } from './types'
 
-export interface IERPProductDoc extends Document, IERPProductInput {
+export interface IERPProductDoc extends Document, IProductInput {
   _id: string
   createdAt: Date
   updatedAt: Date
 }
 
-// Schema pentru documentul "ERPProduct" – aici stocăm tot ce ţine de ERP: stocuri,
-// prețuri multiple, markup-uri, istoricul comenzilor ş.a.
 const erpProductSchema = new Schema(
   {
     name: { type: String, required: true },
     slug: { type: String, required: true, unique: true },
     category: { type: Types.ObjectId, ref: 'Category', required: false },
-    barCode: { type: String },
+    mainCategory: { type: Types.ObjectId, ref: 'Category', required: false },
+    barCode: { type: String, required: false },
     productCode: { type: String, required: true },
     images: [String],
     description: { type: String },
     mainSupplier: { type: Types.ObjectId, ref: 'Supplier', required: false },
     brand: { type: String },
-    directDeliveryPrice: { type: Number, required: true },
-    fullTruckPrice: { type: Number, required: true },
-    smallDeliveryBusinessPrice: { type: Number, required: true },
-    retailPrice: { type: Number, required: true },
-    minStock: { type: Number, default: 0 },
-    currentStock: { type: Number, default: 0 },
-    firstOrderDate: { type: Date },
-    lastOrderDate: { type: Date },
-    numSales: { type: Number, required: true, default: 0 },
+    minStock: { type: Number, required: false, default: 0 },
+    countInStock: { type: Number, required: false, default: 0 },
+    firstOrderDate: { type: Date, required: false },
+    lastOrderDate: { type: Date, required: false },
+    numSales: { type: Number, required: false, default: 0 },
     // Preț mediu de achiziție - se calculeaza automat. medie ponderata
-    averagePurchasePrice: { type: Number, default: 0 },
+    averagePurchasePrice: { type: Number, required: false, default: 0 },
     defaultMarkups: {
-      markupDirectDeliveryPrice: { type: Number, default: 0 },
-      markupFullTruckPrice: { type: Number, default: 0 },
-      markupSmallDeliveryBusinessPrice: { type: Number, default: 0 },
-      markupRetailPrice: { type: Number, default: 0 },
+      markupDirectDeliveryPrice: { type: Number, required: false, default: 0 },
+      markupFullTruckPrice: { type: Number, required: false, default: 0 },
+      markupSmallDeliveryBusinessPrice: {
+        type: Number,
+        required: false,
+        default: 0,
+      },
+      markupRetailPrice: { type: Number, required: false, default: 0 },
     },
     clientMarkups: [
       {
-        clientId: { type: Types.ObjectId, ref: 'Client', required: true },
+        clientId: { type: Types.ObjectId, ref: 'Client', required: false },
         markups: {
           markupDirectDeliveryPrice: { type: Number, required: false },
           markupFullTruckPrice: { type: Number, required: false },
@@ -59,7 +58,7 @@ const erpProductSchema = new Schema(
     specifications: { type: [String], required: true },
     palletTypeId: { type: String, required: false },
     itemsPerPallet: { type: Number, required: false, default: 1 },
-    isActive: { type: Boolean, default: true },
+    isPublished: { type: Boolean, default: true },
   },
   {
     timestamps: true,

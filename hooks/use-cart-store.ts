@@ -12,9 +12,10 @@ import {
 import { calculateFutureDate, normalizeStringForComparison } from '@/lib/utils'
 import { getDistanceInKm } from '@/lib/maps'
 import { allocateVehicleTrips, VehicleChoice } from '@/lib/vehicle'
-import { getProductsDetailsForCart } from '@/lib/db/modules/product'
+
 import { VehicleType } from '@/lib/db/modules/vehicle/types'
 import { Cart, OrderItem, ShippingAddress } from '@/lib/db/modules/order/types'
+import { getProductsDetailsForCart } from '@/lib/db/modules/product/product.actions'
 
 interface CartVehicleAllocation {
   vehicle: VehicleType
