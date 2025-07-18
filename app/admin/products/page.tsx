@@ -1,6 +1,10 @@
-import { AdminProductDoc } from '@/lib/db/modules/product/types'
-import { getAllProductsForAdmin } from '@/lib/db/modules/product/product.actions'
-import AdminProductsList from './product-list'
+'use server'
+
+import {
+  getAdminCatalogPage,
+  IAdminCatalogPage,
+} from '@/lib/db/modules/catalog/admin-catalog.actions'
+import AdminProductsList, { CatalogShape } from './product-list'
 import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
 
 export default async function AdminProductsPage({
@@ -11,24 +15,19 @@ export default async function AdminProductsPage({
   const { page: p } = await searchParams
   const page = Number(p) || 1
 
-  // 1) fetch
-  const {
-    products: rawProducts,
-    totalPages,
-    totalProducts,
-    from,
-    to,
-  } = await getAllProductsForAdmin({
-    query: '',
-    page,
-    limit: ADMIN_PRODUCT_PAGE_SIZE,
-  })
+  // This returns the union‐of‐products‐and‐packagings paged
+  const { data, total, totalPages, from, to }: IAdminCatalogPage =
+    await getAdminCatalogPage({ page, limit: ADMIN_PRODUCT_PAGE_SIZE })
 
-  // 2) map la AdminProductDoc[]
-  const products: AdminProductDoc[] = rawProducts.map((p) => ({
-    ...p,
-    image: p.images[0] ?? '',
-    barCode: p.barCode ?? '',
+  // Map *only* into the minimal shape that AdminProductsList expects
+  const products: CatalogShape[] = data.map((i) => ({
+    _id: i._id,
+    productCode: i.productCode,
+    name: i.name,
+    averagePurchasePrice: i.averagePurchasePrice,
+    defaultMarkups: i.defaultMarkups,
+    image: i.image ?? '',
+    barCode: i.barCode ?? '',
   }))
 
   return (
@@ -36,7 +35,7 @@ export default async function AdminProductsPage({
       products={products}
       currentPage={page}
       totalPages={totalPages}
-      totalProducts={totalProducts}
+      totalProducts={total}
       from={from}
       to={to}
     />

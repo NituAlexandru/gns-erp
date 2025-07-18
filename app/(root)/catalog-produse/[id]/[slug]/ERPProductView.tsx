@@ -10,12 +10,13 @@ import { Barcode, BarcodeType } from '@/components/barcode/barcode-image'
 import { Button } from '@/components/ui/button'
 import { computeSalePrices } from '@/lib/db/modules/product/utils'
 
-function detectBarcodeType(code: string): BarcodeType {
-  if (/^\d{13}$/.test(code)) return 'ean13'
-  if (/^\d{12}$/.test(code)) return 'upca'
-  if (/^\d{14}$/.test(code)) return 'itf14'
-  // GS1-128 folosește paranteze AIs, ex "(01)..."
-  if (/^\(\d+\)/.test(code)) return 'gs1128'
+//eslint-disable-next-line
+function detectBarcodeType(_code: string): BarcodeType {
+  // if (/^\d{13}$/.test(code)) return 'ean13'
+  // if (/^\d{12}$/.test(code)) return 'upca'
+  // if (/^\d{14}$/.test(code)) return 'itf14'
+  // // GS1-128 folosește paranteze AIs, ex "(01)..."
+  // if (/^\(\d+\)/.test(code)) return 'gs1128'
   // fallback alfanumeric/general
   return 'code128'
 }

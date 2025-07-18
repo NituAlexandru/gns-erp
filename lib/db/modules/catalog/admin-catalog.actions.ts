@@ -1,17 +1,15 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-import ERPProductModel from '../product/product.model'
+import ERPProductModel from '@/lib/db/modules/product/product.model'
 import type { PipelineStage } from 'mongoose'
-import { Types } from 'mongoose'
-import { PRODUCT_PAGE_SIZE } from '../product/constants'
+import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
 
-export interface ICatalogItem {
+export interface IAdminCatalogItem {
   _id: string
   productCode: string
   image: string | null
   name: string
-  category: string | null
   averagePurchasePrice: number
   defaultMarkups: {
     markupDirectDeliveryPrice: number
@@ -19,50 +17,35 @@ export interface ICatalogItem {
     markupSmallDeliveryBusinessPrice: number
     markupRetailPrice: number
   }
-  countInStock: number | null
   barCode: string | null
-  isPublished: boolean
+  createdAt: Date
 }
-
-export interface ICatalogPage {
-  data: ICatalogItem[]
+export interface IAdminCatalogPage {
+  data: IAdminCatalogItem[]
   total: number
   totalPages: number
   from: number
   to: number
 }
 
-export async function getCatalogPage({
+export async function getAdminCatalogPage({
   page = 1,
-  limit = PRODUCT_PAGE_SIZE,
+  limit = ADMIN_PRODUCT_PAGE_SIZE,
 }: {
   page?: number
   limit?: number
-}): Promise<ICatalogPage> {
+}): Promise<IAdminCatalogPage> {
   await connectToDatabase()
   const skip = (page - 1) * limit
 
   const agg: PipelineStage[] = [
-    { $match: { isPublished: true } },
-    // 1) Lookup categorie pentru produse
-    {
-      $lookup: {
-        from: 'categories',
-        localField: 'category',
-        foreignField: '_id',
-        as: 'categoryDoc',
-      },
-    },
-    { $unwind: { path: '$categoryDoc', preserveNullAndEmptyArrays: true } },
-
-    // 2) Proiectăm produsul
+    // proiectare produse
     {
       $project: {
         _id: 1,
         productCode: 1,
         image: { $arrayElemAt: ['$images', 0] },
         name: 1,
-        category: '$categoryDoc.name',
         averagePurchasePrice: { $ifNull: ['$averagePurchasePrice', 0] },
         defaultMarkups: {
           $ifNull: [
@@ -75,39 +58,22 @@ export async function getCatalogPage({
             },
           ],
         },
-        countInStock: 1,
         barCode: 1,
         createdAt: 1,
       },
     },
-
-    // 3) UnionWith ambalaje (cu lookup pentru mainCategory)
+    // union cu ambalajele
     {
       $unionWith: {
         coll: 'packagings',
         pipeline: [
           {
-            $lookup: {
-              from: 'categories',
-              localField: 'mainCategory',
-              foreignField: '_id',
-              as: 'categoryDoc',
-            },
-          },
-          {
-            $unwind: { path: '$categoryDoc', preserveNullAndEmptyArrays: true },
-          },
-          {
             $project: {
               _id: 1,
-              productCode: 1,
+              productCode: '$productCode',
               image: { $arrayElemAt: ['$images', 0] },
               name: 1,
-              category: '$categoryDoc.name',
-
-              averagePurchasePrice: {
-                $ifNull: ['$averagePurchasePrice', 0],
-              },
+              averagePurchasePrice: { $ifNull: ['$averagePurchasePrice', 0] },
               defaultMarkups: {
                 $ifNull: [
                   '$defaultMarkups',
@@ -119,17 +85,14 @@ export async function getCatalogPage({
                   },
                 ],
               },
-
-              countInStock: '$countInStock',
-              barCode: 1,
+              barCode: '$productCode',
               createdAt: 1,
             },
           },
         ],
       },
     },
-
-    // 4) Sortare + facet pentru paginare
+    // sort + paginate
     { $sort: { createdAt: -1 } },
     {
       $facet: {
@@ -143,37 +106,18 @@ export async function getCatalogPage({
 
   const [res] = await ERPProductModel.aggregate(agg)
   const total = res?.total ?? 0
+  //eslint-disable-next-line
+  const raw = (res?.data ?? []) as any[]
 
-  type RawDoc = {
-    _id: Types.ObjectId
-    productCode: string
-    image: string | null
-    name: string
-    category: string | null
-    averagePurchasePrice: number
-    defaultMarkups: {
-      markupDirectDeliveryPrice: number
-      markupFullTruckPrice: number
-      markupSmallDeliveryBusinessPrice: number
-      markupRetailPrice: number
-    }
-    countInStock: number | null
-    barCode: string | null
-    isPublished: boolean
-  }
-  const raw = (res?.data ?? []) as RawDoc[]
-
-  const data: ICatalogItem[] = raw.map((doc) => ({
+  const data: IAdminCatalogItem[] = raw.map((doc) => ({
     _id: doc._id.toString(),
     productCode: doc.productCode,
-    image: doc.image,
+    image: doc.image ?? null,
     name: doc.name,
-    category: doc.category ?? null,
     averagePurchasePrice: doc.averagePurchasePrice,
     defaultMarkups: doc.defaultMarkups,
-    countInStock: doc.countInStock,
-    barCode: doc.barCode,
-    isPublished: doc.isPublished,
+    barCode: doc.barCode ?? null,
+    createdAt: doc.createdAt,
   }))
 
   return {

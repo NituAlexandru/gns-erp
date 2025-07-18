@@ -56,4 +56,5 @@ clientSchema.index({ email: 1 }, { sparse: true })
 clientSchema.index({ vatId: 1 }, { sparse: true })
 
 const ClientModel = models.Client || model<IClientDoc>('Client', clientSchema)
+
 export default ClientModel

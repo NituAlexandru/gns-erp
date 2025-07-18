@@ -24,6 +24,16 @@ import { updateProductMarkup } from '@/lib/db/modules/product/product.actions'
 import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
 import { toast } from 'sonner'
 
+export type CatalogShape = {
+  _id: string
+  productCode: string
+  name: string
+  averagePurchasePrice: number
+  defaultMarkups: AdminProductDoc['defaultMarkups']
+  image: string
+  barCode: string
+}
+
 type RowState = {
   direct: number
   fullTruck: number
@@ -31,7 +41,7 @@ type RowState = {
   retail: number
 }
 
-type DisplayItem = AdminProductDoc | AdminProductSearchResult
+type DisplayItem = AdminProductDoc | CatalogShape | AdminProductSearchResult
 
 export default function AdminProductsList({
   products,
@@ -41,7 +51,7 @@ export default function AdminProductsList({
   from,
   to,
 }: {
-  products: AdminProductDoc[]
+  products: DisplayItem[]
   currentPage: number
   totalPages: number
   totalProducts: number
@@ -57,12 +67,17 @@ export default function AdminProductsList({
   const [, startTransition] = useTransition()
   const router = useRouter()
 
-  // Reset to first page on new search
+  // keep items in sync with server props
+  useEffect(() => {
+    setItems(products)
+  }, [products])
+
+  // reset page when query changes
   useEffect(() => {
     setPage(1)
   }, [query])
 
-  // Debounced search
+  // debounced search…
   useEffect(() => {
     const t = setTimeout(async () => {
       const q = query.trim()
@@ -83,13 +98,34 @@ export default function AdminProductsList({
     return () => clearTimeout(t)
   }, [query])
 
-  const handlePage = (dir: 'prev' | 'next') => {
-    const np = dir === 'next' ? page + 1 : page - 1
-    if (np < 1 || np > totalPages) return
+  //  total pages based on search vs server
+  const totalPagesDisplay = searchResults
+    ? Math.ceil(searchResults.length / ADMIN_PRODUCT_PAGE_SIZE)
+    : totalPages
+
+  //  only slice when it's the un-paged searchResults
+  const displayList = searchResults
+    ? searchResults.slice(
+        (page - 1) * ADMIN_PRODUCT_PAGE_SIZE,
+        page * ADMIN_PRODUCT_PAGE_SIZE
+      )
+    : items
+
+  // navigation for server-fetched pages
+  const fetchPage = (newPage: number) => {
     startTransition(() => {
-      if (!searchResults) router.replace(`/admin/products?page=${np}`)
-      setPage(np)
+      router.replace(`/admin/products?page=${newPage}`)
+      setPage(newPage)
     })
+  }
+  // decide search vs server
+  const changePage = (newPage: number) => {
+    if (newPage < 1 || newPage > totalPagesDisplay) return
+    if (searchResults) {
+      setPage(newPage)
+    } else {
+      fetchPage(newPage)
+    }
   }
 
   const onMarkupChange = (
@@ -123,7 +159,6 @@ export default function AdminProductsList({
         delete c[id]
         return c
       })
-
       setItems((prev) =>
         prev.map((item) =>
           (item as AdminProductDoc)._id === id
@@ -153,11 +188,6 @@ export default function AdminProductsList({
     }
   }
 
-  const displayList = (searchResults ?? items).slice(
-    (page - 1) * ADMIN_PRODUCT_PAGE_SIZE,
-    page * ADMIN_PRODUCT_PAGE_SIZE
-  )
-
   return (
     <div className='p-0 max-w-full'>
       {/* HEADER */}
@@ -171,11 +201,15 @@ export default function AdminProductsList({
             className='w-full lg:w-80'
           />
           <span className='text-sm text-gray-400'>
-            {`${from}–${to} din ${totalProducts} produse`}
+            {searchResults
+              ? `Vezi ${(page - 1) * ADMIN_PRODUCT_PAGE_SIZE + 1}–${
+                  (page - 1) * ADMIN_PRODUCT_PAGE_SIZE + displayList.length
+                } din ${searchResults.length}`
+              : `${from}–${to} din ${totalProducts} produse`}
           </span>
         </div>
         <Button asChild variant='default' className='justify-self-end'>
-          <Link href='/admin/products/create'>Crează Produs</Link>
+          <Link href='/admin/management/products/create'>Crează Produs</Link>
         </Button>
       </div>
 
@@ -208,12 +242,12 @@ export default function AdminProductsList({
               mica PJ (%)
             </TableHead>
             <TableHead>
-              Livrare
-              <br /> mica PJ
+              Livrare <br />
+              mica PJ
             </TableHead>
             <TableHead>
-              Adaos Retail
-              <br /> PF (%)
+              Adaos Retail <br />
+              PF (%)
             </TableHead>
             <TableHead>
               Retail <br />
@@ -223,11 +257,9 @@ export default function AdminProductsList({
             <TableHead>Acțiune</TableHead>
           </TableRow>
         </TableHeader>
-
         <TableBody>
           {displayList.map((item) => {
             const prod = item as AdminProductDoc
-            // fallback valori din DB
             const fallback: RowState = {
               direct: prod.defaultMarkups?.markupDirectDeliveryPrice ?? 0,
               fullTruck: prod.defaultMarkups?.markupFullTruckPrice ?? 0,
@@ -235,18 +267,13 @@ export default function AdminProductsList({
                 prod.defaultMarkups?.markupSmallDeliveryBusinessPrice ?? 0,
               retail: prod.defaultMarkups?.markupRetailPrice ?? 0,
             }
-            // preluăm fie editarea locală, fie DB
             const rowVals = rows[prod._id] ?? fallback
-            // calcule directe inline
             const base = prod.averagePurchasePrice ?? 0
-            const directMarkup = rowVals.direct
-            const fullTruckMarkup = rowVals.fullTruck
-            const smallBizMarkup = rowVals.smallBiz
-            const retailMarkup = rowVals.retail
-            const directPrice = base * (1 + directMarkup / 100)
-            const fullTruckPrice = base * (1 + fullTruckMarkup / 100)
-            const smallBizPrice = base * (1 + smallBizMarkup / 100)
-            const retailPrice = base * (1 + retailMarkup / 100)
+
+            const directPrice = base * (1 + rowVals.direct / 100)
+            const fullTruckPrice = base * (1 + rowVals.fullTruck / 100)
+            const smallBizPrice = base * (1 + rowVals.smallBiz / 100)
+            const retailPrice = base * (1 + rowVals.retail / 100)
 
             return (
               <TableRow key={prod._id} className='hover:bg-muted/50'>
@@ -268,17 +295,17 @@ export default function AdminProductsList({
                 </TableCell>
                 <TableCell>
                   <Link
-                    href={`/admin/products/${prod._id}/${toSlug(prod.name)}`}
+                    href={`/catalog-produse/${prod._id}/${toSlug(prod.name)}`}
                   >
                     {prod.name}
                   </Link>
                 </TableCell>
                 <TableCell>{formatCurrency(base)}</TableCell>
-                {/* Adaos Direct */}
+
                 <TableCell className='text-right'>
                   <Input
                     type='number'
-                    value={String(directMarkup)}
+                    value={String(rowVals.direct)}
                     onChange={(e) =>
                       onMarkupChange(
                         prod._id,
@@ -291,11 +318,11 @@ export default function AdminProductsList({
                   />
                 </TableCell>
                 <TableCell>{formatCurrency(directPrice)}</TableCell>
-                {/* Adaos Camion */}
+
                 <TableCell className='text-right'>
                   <Input
                     type='number'
-                    value={String(fullTruckMarkup)}
+                    value={String(rowVals.fullTruck)}
                     onChange={(e) =>
                       onMarkupChange(
                         prod._id,
@@ -308,11 +335,11 @@ export default function AdminProductsList({
                   />
                 </TableCell>
                 <TableCell>{formatCurrency(fullTruckPrice)}</TableCell>
-                {/* Adaos Business */}
+
                 <TableCell className='text-right'>
                   <Input
                     type='number'
-                    value={String(smallBizMarkup)}
+                    value={String(rowVals.smallBiz)}
                     onChange={(e) =>
                       onMarkupChange(
                         prod._id,
@@ -325,11 +352,11 @@ export default function AdminProductsList({
                   />
                 </TableCell>
                 <TableCell>{formatCurrency(smallBizPrice)}</TableCell>
-                {/* Adaos Retail */}
+
                 <TableCell className='text-right'>
                   <Input
                     type='number'
-                    value={String(retailMarkup)}
+                    value={String(rowVals.retail)}
                     onChange={(e) =>
                       onMarkupChange(
                         prod._id,
@@ -342,6 +369,7 @@ export default function AdminProductsList({
                   />
                 </TableCell>
                 <TableCell>{formatCurrency(retailPrice)}</TableCell>
+
                 <TableCell>{prod.barCode || '-'}</TableCell>
                 <TableCell>
                   <Button
@@ -359,22 +387,22 @@ export default function AdminProductsList({
       </Table>
 
       {/* PAGINAȚIE */}
-      {totalPages > 1 && (
+      {totalPagesDisplay > 1 && (
         <div className='flex justify-center items-center gap-2 mt-4'>
           <Button
             variant='outline'
-            onClick={() => handlePage('prev')}
+            onClick={() => changePage(page - 1)}
             disabled={page <= 1}
           >
             <ChevronLeft /> Anterior
           </Button>
           <span>
-            Pagina {page} din {totalPages}
+            Pagina {page} din {totalPagesDisplay}
           </span>
           <Button
             variant='outline'
-            onClick={() => handlePage('next')}
-            disabled={page >= totalPages}
+            onClick={() => changePage(page + 1)}
+            disabled={page >= totalPagesDisplay}
           >
             Următor <ChevronRight />
           </Button>

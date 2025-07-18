@@ -10,11 +10,12 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { computeSalePrices } from '@/lib/db/modules/product/utils' // ← import helper
 
-function detectBarcodeType(code: string): BarcodeType {
-  if (/^\d{13}$/.test(code)) return 'ean13'
-  if (/^\d{12}$/.test(code)) return 'upca'
-  if (/^\d{14}$/.test(code)) return 'itf14'
-  if (/^\(\d+\)/.test(code)) return 'gs1128'
+// eslint-disable-next-line
+function detectBarcodeType(_code: string): BarcodeType {
+  // if (/^\d{13}$/.test(code)) return 'ean13'
+  // if (/^\d{12}$/.test(code)) return 'upca'
+  // if (/^\d{14}$/.test(code)) return 'itf14'
+  // if (/^\(\d+\)/.test(code)) return 'gs1128'
   return 'code128'
 }
 
@@ -26,7 +27,7 @@ export default function PackagingView({
   const rawCode = packaging.productCode || packaging._id
   const type = detectBarcodeType(rawCode)
 
-  // ——— Compute sale prices from averagePurchasePrice + defaultMarkups
+  // Compute sale prices from averagePurchasePrice + defaultMarkups
   const sale = computeSalePrices(
     packaging.averagePurchasePrice,
     packaging.defaultMarkups

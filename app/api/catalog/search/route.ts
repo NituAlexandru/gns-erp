@@ -126,6 +126,7 @@ export async function GET(request: NextRequest) {
       defaultMarkups: p.defaultMarkups,
       countInStock: p.countInStock,
       barCode: p.barCode ?? null,
+      isPublished: p.isPublished,
     })),
     ...packages.map((p) => ({
       _id: p._id.toString(),
@@ -137,6 +138,7 @@ export async function GET(request: NextRequest) {
       defaultMarkups: p.defaultMarkups,
       countInStock: p.countInStock,
       barCode: p.barCode ?? null,
+      isPublished: p.isPublished,
     })),
   ]
 

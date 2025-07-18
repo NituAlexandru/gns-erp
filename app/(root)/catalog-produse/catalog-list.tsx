@@ -37,6 +37,7 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog'
 import { computeSalePrices } from '@/lib/db/modules/product/utils'
+import { toast } from 'sonner'
 
 interface Props {
   initialData: ICatalogPage
@@ -148,7 +149,9 @@ export default function CatalogList({
           </Button>
           {canManageProducts && (
             <Button asChild variant='default' className='w-full sm:w-auto'>
-              <Link href='/catalog-produse/new'>Adaugă produs</Link>
+              <Link href='/admin/management/products/create'>
+                Crează Produs
+              </Link>
             </Button>
           )}
         </div>
@@ -157,17 +160,32 @@ export default function CatalogList({
       {/* ————————— SCANNER OVERLAY ————————— */}
       {scanning && (
         <BarcodeScanner
-          onDecode={(code) => {
+          onDecode={async (code) => {
             setScanning(false)
-            // handle code → navigate to product detail, etc.
-            router.push(`/catalog-produse/${code}`)
+            try {
+              // 1️⃣ Caută produsul după cod
+              const res = await fetch(
+                `/api/catalog/search?q=${encodeURIComponent(code)}`
+              )
+              if (!res.ok) throw new Error('Produs inexistent')
+              const items = (await res.json()) as ICatalogItem[]
+              //  Găsește match după barCode, altfel primul element
+              const match = items.find((p) => p.barCode === code) || items[0]
+              if (!match) {
+                toast.error(`Produs cu cod „${code}” nu a fost găsit.`)
+                return
+              }
+              router.push(`/catalog-produse/${match._id}/${toSlug(match.name)}`)
+              //eslint-disable-next-line
+            } catch (err: any) {
+              toast.error(err.message || 'Eroare la căutarea produsului')
+            }
           }}
-          onError={() => {
-            setScanning(false)
-          }}
+          onError={() => setScanning(false)}
           onClose={() => setScanning(false)}
         />
       )}
+
       <div className='overflow-x-auto'>
         <Table>
           <TableHeader>

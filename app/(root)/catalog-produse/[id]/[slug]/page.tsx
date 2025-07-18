@@ -1,4 +1,3 @@
-// app/(root)/catalog-produse/[id]/[slug]/page.tsx
 import { getProductBySlug } from '@/lib/db/modules/product/product.actions'
 import { getPackagingById } from '@/lib/db/modules/packaging-products/packaging.actions'
 import type { IPackagingDoc } from '@/lib/db/modules/packaging-products/types'
@@ -16,12 +15,15 @@ export default async function ProductDetails({
   searchParams,
 }: PageProps) {
   const { id, slug } = await params
+  console.log('findOne filter →', { slug, isPublished: true })
 
   await searchParams
 
   let erp: PopulatedProduct | null = null
   try {
+    console.log('[DBG] Fetching product slug=', JSON.stringify(slug))
     erp = (await getProductBySlug(slug)) as PopulatedProduct
+    console.log('[DBG] Found product _id=', erp._id)
   } catch {
     erp = null
   }

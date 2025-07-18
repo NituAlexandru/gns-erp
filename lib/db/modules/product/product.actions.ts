@@ -1,5 +1,6 @@
 'use server'
 
+import '@/lib/db/modules/client/client.model'
 import { connectToDatabase } from '@/lib/db'
 import type {
   IProductInput,
@@ -188,22 +189,36 @@ export async function getProductsRandomByTag({
 // GET PRODUCT BY SLUG
 export async function getProductBySlug(slug: string): Promise<IProductDoc> {
   await connectToDatabase()
+  console.log('[DBG] getProductBySlug filter:', { slug, isPublished: true })
 
-  const doc = await ERPProductModel.findOne({ slug, isPublished: true })
-    .populate('category')
-    .populate('mainCategory')
-    .populate('mainSupplier')
-    .populate({
-      path: 'clientMarkups',
-      populate: {
-        path: 'clientId',
-      },
-    })
-    .lean()
+  let doc
+  try {
+    doc = await ERPProductModel.findOne({ slug, isPublished: true })
+      .populate('category')
+      .populate('mainCategory')
+      .populate('mainSupplier')
+      .populate({
+        path: 'clientMarkups',
+        populate: { path: 'clientId' },
+      })
+      .lean()
 
-  if (!doc) throw new Error('Product not found')
+    console.log(
+      '[DBG] findOne result:',
+      doc && { _id: doc._id, slug: doc.slug, isPublished: doc.isPublished }
+    )
+  } catch (popErr) {
+    console.error('[DBG] populate error:', popErr)
+    throw popErr // ca să nu mai fie înecată eroarea
+  }
+
+  if (!doc) {
+    console.log('[DBG] no document found for slug:', slug)
+    throw new Error('Product not found')
+  }
   return JSON.parse(JSON.stringify(doc)) as IProductDoc
 }
+
 // GET RELATED PRODUCTS BY CATEGORY
 export async function getRelatedProductsByCategory({
   category,

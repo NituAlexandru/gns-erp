@@ -2,7 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import React from 'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { formatCurrency } from '@/lib/utils'
+// import { formatCurrency } from '@/lib/utils'
 import ImageHover from './image-hover'
 import { IProductDoc } from '@/lib/db/modules/product/types'
 
@@ -63,7 +63,7 @@ const ProductCard = ({
       {product.packagingQuantity && product.packagingQuantity > 1 && (
         <div className='flex flex-direction-row justify-center gap-1'>
           <p className='text-sm text-white-600'>
-            {formatCurrency(product.price / product.packagingQuantity)} /{' '}
+            {/* {formatCurrency(product.price / product.packagingQuantity)} /{' '} */}
             {product.unit}
           </p>
           <span className='text-sm text-muted-foreground'>TVA inclus</span>
