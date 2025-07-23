@@ -9,13 +9,13 @@ export const links = [
   { title: 'Acasă', href: '/' },
   { title: 'Clienți', href: '/clients' },
   { title: 'Produse', href: '/catalog-produse' },
-  { title: 'NIR', href: '/nir' },
   { title: 'Comenzi', href: '/orders' },
+  { title: 'Livrări', href: '/deliveries' },
+  { title: 'NIR', href: '/nir' },
   { title: 'Proforme', href: '/proforme' },
   { title: 'Avize', href: '/avize' },
   { title: 'Facturi', href: '/facturi' },
   { title: 'Storno', href: '/storno' },
-  { title: 'Livrări', href: '/deliveries' },
 ]
 
 export function MainNav({
