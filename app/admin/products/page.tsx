@@ -28,6 +28,7 @@ export default async function AdminProductsPage({
     defaultMarkups: i.defaultMarkups,
     image: i.image ?? '',
     barCode: i.barCode ?? '',
+    isPublished: i.isPublished,
   }))
 
   return (

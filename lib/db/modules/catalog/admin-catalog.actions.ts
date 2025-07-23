@@ -18,6 +18,7 @@ export interface IAdminCatalogItem {
     markupRetailPrice: number
   }
   barCode: string | null
+  isPublished: boolean
   createdAt: Date
 }
 export interface IAdminCatalogPage {
@@ -59,6 +60,7 @@ export async function getAdminCatalogPage({
           ],
         },
         barCode: 1,
+        isPublished: 1,
         createdAt: 1,
       },
     },
@@ -86,6 +88,7 @@ export async function getAdminCatalogPage({
                 ],
               },
               barCode: '$productCode',
+              isPublished: 1,
               createdAt: 1,
             },
           },
@@ -118,6 +121,7 @@ export async function getAdminCatalogPage({
     defaultMarkups: doc.defaultMarkups,
     barCode: doc.barCode ?? null,
     createdAt: doc.createdAt,
+    isPublished: doc.isPublished ?? false,
   }))
 
   return {

@@ -4,11 +4,9 @@ import ProductGallery from '@/components/shared/product/product-gallery'
 import { Separator } from '@/components/ui/separator'
 import { formatCurrency } from '@/lib/utils'
 import { PopulatedProduct } from '@/lib/db/modules/product/types'
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
 import { Barcode, BarcodeType } from '@/components/barcode/barcode-image'
-import { Button } from '@/components/ui/button'
 import { computeSalePrices } from '@/lib/db/modules/product/utils'
+import { ProductsBackBtn } from '@/components/ui/custom/products-back-btn'
 
 //eslint-disable-next-line
 function detectBarcodeType(_code: string): BarcodeType {
@@ -38,11 +36,7 @@ export default function ERPProductView({
     <>
       <div className='flex items-center justify-between gap-4 px-6'>
         <div className='flex items-center gap-4 mb-5'>
-          <Button asChild variant='outline'>
-            <Link href='/catalog-produse'>
-              <ChevronLeft /> Înapoi
-            </Link>
-          </Button>
+          <ProductsBackBtn defaultHref='/admin/products' />
           <h1 className='text-2xl font-bold'>Detalii {product.name}</h1>
         </div>
         <div className='my-2'>

@@ -23,6 +23,21 @@ import {
 import { updateProductMarkup } from '@/lib/db/modules/product/product.actions'
 import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
 import { toast } from 'sonner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export type CatalogShape = {
   _id: string
@@ -32,6 +47,7 @@ export type CatalogShape = {
   defaultMarkups: AdminProductDoc['defaultMarkups']
   image: string
   barCode: string
+  isPublished: boolean
 }
 
 type RowState = {
@@ -66,6 +82,86 @@ export default function AdminProductsList({
   const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
   const [, startTransition] = useTransition()
   const router = useRouter()
+  const [deactivateOpen, setDeactivateOpen] = useState(false)
+  const [deactivateTarget, setDeactivateTarget] = useState<DisplayItem | null>(
+    null
+  )
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<DisplayItem | null>(null)
+  const [activateOpen, setActivateOpen] = useState(false)
+  const [activateTarget, setActivateTarget] = useState<DisplayItem | null>(null)
+
+  // Funcție pentru activare produs
+  async function handleActivateConfirm() {
+    if (!activateTarget) return
+    try {
+      const res = await fetch(
+        `/api/admin/products/${activateTarget._id}/publish`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isPublished: true }),
+        }
+      )
+      if (!res.ok) throw new Error('Eroare la server')
+      // actualizez starea locală
+      setItems((prev) =>
+        prev.map((i) =>
+          i._id === activateTarget._id ? { ...i, isPublished: true } : i
+        )
+      )
+      toast.success('Produs activat cu succes!')
+    } catch {
+      toast.error('Nu am putut activa produsul.')
+    } finally {
+      setActivateOpen(false)
+      setActivateTarget(null)
+    }
+  }
+  // Funcție pentru dezactivare produs
+  async function handleDeactivateConfirm() {
+    if (!deactivateTarget) return
+    try {
+      const res = await fetch(
+        `/api/admin/products/${deactivateTarget._id}/publish`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isPublished: false }),
+        }
+      )
+      if (!res.ok) throw new Error('Eroare la server')
+      setItems((prev) =>
+        prev.map((i) =>
+          i._id === deactivateTarget._id ? { ...i, isPublished: false } : i
+        )
+      )
+      toast.success('Produs dezactivat cu succes!')
+    } catch {
+      toast.error('Nu am putut dezactiva produsul.')
+    } finally {
+      setDeactivateOpen(false)
+      setDeactivateTarget(null)
+    }
+  }
+  // Funcție pentru stergere produs
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return
+
+    try {
+      const res = await fetch(`/api/admin/products/${deleteTarget._id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Server error')
+      setItems((prev) => prev.filter((i) => i._id !== deleteTarget._id))
+      toast.success('Produs șters definitiv!')
+    } catch {
+      toast.error('Eroare la ștergere.')
+    } finally {
+      setDeleteOpen(false)
+      setDeleteTarget(null)
+    }
+  }
 
   // keep items in sync with server props
   useEffect(() => {
@@ -253,8 +349,11 @@ export default function AdminProductsList({
               Retail <br />
               PF
             </TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Cod Bare</TableHead>
-            <TableHead>Acțiune</TableHead>
+            <TableHead colSpan={2} className='text-center'>
+              Acțiuni
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -369,7 +468,13 @@ export default function AdminProductsList({
                   />
                 </TableCell>
                 <TableCell>{formatCurrency(retailPrice)}</TableCell>
-
+                <TableCell>
+                  {prod.isPublished ? (
+                    <span className='text-green-500'>Activ</span>
+                  ) : (
+                    <span className='text-red-500'>Inactiv</span>
+                  )}
+                </TableCell>
                 <TableCell>{prod.barCode || '-'}</TableCell>
                 <TableCell>
                   <Button
@@ -380,11 +485,134 @@ export default function AdminProductsList({
                     Salvează
                   </Button>
                 </TableCell>
+                {/* Acțiuni cell */}
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant='outline' size='sm'>
+                        Acțiuni
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      {/* Vizualizează */}
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          router.push(
+                            `/catalog-produse/${prod._id}/${toSlug(prod.name)}`
+                          )
+                        }
+                      >
+                        Vizualizează
+                      </DropdownMenuItem>
+
+                      {/* Editează */}
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          router.push(
+                            `/admin/management/products/edit/${prod._id}`
+                          )
+                        }
+                      >
+                        Editează
+                      </DropdownMenuItem>
+
+                      {/* Activează / Dezactivează */}
+                      {prod.isPublished ? (
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setDeactivateTarget(prod)
+                            setDeactivateOpen(true)
+                          }}
+                        >
+                          Dezactivează
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setActivateTarget(prod)
+                            setActivateOpen(true)
+                          }}
+                        >
+                          Activează
+                        </DropdownMenuItem>
+                      )}
+
+                      {/* Șterge definitiv */}
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          setDeleteTarget(prod)
+                          setDeleteOpen(true)
+                        }}
+                      >
+                        Șterge definitiv
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
               </TableRow>
             )
           })}
         </TableBody>
       </Table>
+
+      {/* Activare produs dialog */}
+      {activateTarget && (
+        <AlertDialog open={activateOpen} onOpenChange={setActivateOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmare Activare</AlertDialogTitle>
+              <AlertDialogDescription>
+                Produsul “<strong>{activateTarget.name}</strong>” va fi vizibil
+                clienților. Sigur dorești să continui?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Renunță</AlertDialogCancel>
+              <Button onClick={handleActivateConfirm}>Activează</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {/* Dezactivare produs dialog */}
+      {deactivateTarget && (
+        <AlertDialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmare Dezactivare</AlertDialogTitle>
+              <AlertDialogDescription>
+                Produsul “<strong>{deactivateTarget.name}</strong>” va fi ascuns
+                clienților. Sigur dorești să continui?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Renunță</AlertDialogCancel>
+              <Button onClick={handleDeactivateConfirm}>Dezactivează</Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+      {/* Șterge definitiv dialog */}
+      {deleteTarget && (
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Confirmare Ștergere Definitivă
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Produsul “<strong>{deleteTarget.name}</strong>” va fi șters
+                definitiv din baza de date. Această acțiune nu poate fi anulată.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Renunță</AlertDialogCancel>
+              <Button variant='destructive' onClick={handleDeleteConfirm}>
+                Șterge definitiv
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
 
       {/* PAGINAȚIE */}
       {totalPagesDisplay > 1 && (

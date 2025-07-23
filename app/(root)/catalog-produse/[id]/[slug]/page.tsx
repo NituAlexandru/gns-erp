@@ -22,7 +22,9 @@ export default async function ProductDetails({
   let erp: PopulatedProduct | null = null
   try {
     console.log('[DBG] Fetching product slug=', JSON.stringify(slug))
-    erp = (await getProductBySlug(slug)) as PopulatedProduct
+    erp = (await getProductBySlug(slug, {
+      includeUnpublished: true,
+    })) as PopulatedProduct
     console.log('[DBG] Found product _id=', erp._id)
   } catch {
     erp = null

@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
   const products = await ProductModel.aggregate([
     {
       $match: {
-        isPublished: true,
         $or: [
           { name: { $regex: q, $options: 'i' } },
           { productCode: { $regex: q, $options: 'i' } },
@@ -45,6 +44,7 @@ export async function GET(request: NextRequest) {
         image: { $arrayElemAt: ['$images', 0] },
         category: '$cat.name',
         barCode: 1,
+        isPublished: 1,
       },
     },
     { $limit: 50 },
@@ -53,7 +53,6 @@ export async function GET(request: NextRequest) {
   const packages = await PackagingModel.aggregate([
     {
       $match: {
-        isPublished: true,
         $or: [
           { name: { $regex: q, $options: 'i' } },
           { productCode: { $regex: q, $options: 'i' } },
@@ -80,6 +79,7 @@ export async function GET(request: NextRequest) {
         image: { $arrayElemAt: ['$images', 0] },
         category: '$cat.name',
         barCode: 1,
+        isPublished: 1,
       },
     },
     { $limit: 50 },
@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
       image: p.image ?? null,
       category: p.category ?? null,
       barCode: p.barCode ?? null,
+      isPublished: p.isPublished,
     })),
     ...packages.map((pkg) => ({
       _id: pkg._id.toString(),
@@ -119,6 +120,7 @@ export async function GET(request: NextRequest) {
       image: pkg.image ?? null,
       category: pkg.category ?? null,
       barCode: pkg.barCode ?? null,
+      isPublished: pkg.isPublished,
     })),
   ]
 

@@ -14,7 +14,7 @@ import { formatError } from '@/lib/utils'
 import { ADMIN_PAGE_SIZE, PAGE_SIZE } from '@/lib/constants'
 import { CategoryModel } from '../category'
 import '@/lib/db/modules/suppliers/supplier.model'
-import { Types } from 'mongoose'
+import { FilterQuery, Types } from 'mongoose'
 import { PRODUCT_PAGE_SIZE } from './constants'
 import ERPProductModel from './product.model'
 
@@ -187,35 +187,34 @@ export async function getProductsRandomByTag({
   return JSON.parse(JSON.stringify(products)) as IProductDoc[]
 }
 // GET PRODUCT BY SLUG
-export async function getProductBySlug(slug: string): Promise<IProductDoc> {
+export async function getProductBySlug(
+  slug: string,
+  options?: { includeUnpublished: boolean }
+): Promise<IProductDoc> {
   await connectToDatabase()
-  console.log('[DBG] getProductBySlug filter:', { slug, isPublished: true })
 
-  let doc
-  try {
-    doc = await ERPProductModel.findOne({ slug, isPublished: true })
-      .populate('category')
-      .populate('mainCategory')
-      .populate('mainSupplier')
-      .populate({
-        path: 'clientMarkups',
-        populate: { path: 'clientId' },
-      })
-      .lean()
-
-    console.log(
-      '[DBG] findOne result:',
-      doc && { _id: doc._id, slug: doc.slug, isPublished: doc.isPublished }
-    )
-  } catch (popErr) {
-    console.error('[DBG] populate error:', popErr)
-    throw popErr // ca să nu mai fie înecată eroarea
+  // build a typed filter
+  const filter: FilterQuery<IProductDoc> = { slug }
+  if (!options?.includeUnpublished) {
+    filter.isPublished = true
   }
+  console.log('[DBG] getProductBySlug filter:', filter)
+
+  const doc = await ERPProductModel.findOne(filter)
+    .populate('category')
+    .populate('mainCategory')
+    .populate('mainSupplier')
+    .populate({
+      path: 'clientMarkups',
+      populate: { path: 'clientId' },
+    })
+    .lean()
 
   if (!doc) {
     console.log('[DBG] no document found for slug:', slug)
     throw new Error('Product not found')
   }
+
   return JSON.parse(JSON.stringify(doc)) as IProductDoc
 }
 
@@ -441,7 +440,8 @@ export async function getAllProductsForAdmin({
             ? { avgRating: -1 }
             : { _id: -1 }
 
-  const products = await ERPProductModel.find({ ...queryFilter })
+  // Fetch raw docs (this still includes `isPublished` plus every other DB field)
+  const rawDocs = await ERPProductModel.find({ ...queryFilter })
     .populate('category')
     .populate('mainCategory')
     .populate('mainSupplier')
@@ -450,16 +450,23 @@ export async function getAllProductsForAdmin({
     .limit(pageSize)
     .lean()
 
+  // JSON-roundtrip + force-cast so TS stops complaining,
+  // but now the JS objects really do have isPublished on them.
+  const products = JSON.parse(
+    JSON.stringify(rawDocs)
+  ) as unknown as IProductDoc[]
+
   const countProducts = await ERPProductModel.countDocuments({ ...queryFilter })
 
   return {
-    products: JSON.parse(JSON.stringify(products)) as IProductDoc[],
+    products, // <–– now each products[i].isPublished === true|false
     totalPages: Math.ceil(countProducts / pageSize),
     totalProducts: countProducts,
     from: pageSize * (Number(page) - 1) + 1,
     to: pageSize * (Number(page) - 1) + products.length,
   }
 }
+
 export async function updateProductMarkup(
   id: string,
   defaultMarkups: MarkupPatch

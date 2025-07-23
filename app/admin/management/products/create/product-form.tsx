@@ -774,7 +774,9 @@ const ProductForm = ({
             name='description'
             render={({ field }) => (
               <FormItem className='w-full'>
-                <FormLabel>Descriere</FormLabel>
+                <FormLabel>
+                  Descriere <span className='text-red-500'>*</span>
+                </FormLabel>
                 <FormControl>
                   <Textarea
                     placeholder='Introduceți o descriere detaliată a produsului...'
@@ -822,7 +824,9 @@ const ProductForm = ({
             disabled={form.formState.isSubmitting}
             className='button col-span-2 w-full'
           >
-            {form.formState.isSubmitting ? 'Se trimite...' : `${type} Product `}
+            {form.formState.isSubmitting
+              ? 'Se crează produs…'
+              : 'Crează Produs'}
           </Button>
         </div>
       </form>

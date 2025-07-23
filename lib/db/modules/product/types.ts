@@ -10,6 +10,7 @@ export type IProductDoc = IProductInput & {
   updatedAt: Date
   category: string | IPopulatedCategory
   mainCategory: string | IPopulatedCategory
+  isPublished: boolean
 }
 export type PopulatedProduct = IERPProductDoc & {
   category: IPopulatedCategory
@@ -24,6 +25,7 @@ export type AdminProductDoc = IProductDoc & {
   }
   image: string
   barCode: string
+  isPublished: boolean
 }
 
 export interface IPopulatedCategory {
@@ -51,4 +53,5 @@ export interface AdminProductSearchResult {
   image: string | null
   category: string | null
   barCode: string | null
+  isPublished: boolean
 }
