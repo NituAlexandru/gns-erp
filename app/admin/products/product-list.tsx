@@ -509,7 +509,7 @@ export default function AdminProductsList({
                       <DropdownMenuItem
                         onSelect={() =>
                           router.push(
-                            `/admin/management/products/edit/${prod._id}`
+                            `/admin/management/products/${prod._id}/edit`
                           )
                         }
                       >

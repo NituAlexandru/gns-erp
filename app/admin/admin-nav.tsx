@@ -14,34 +14,14 @@ const links = [
     href: '/admin/products',
   },
   {
-    title: 'Categorii Produse',
-    href: '/admin/categories',
-  },
-  {
     title: 'Furnizori',
     href: '/admin/management/suppliers',
   },
   {
-    title: 'Clienți',
-    href: '/clients',
-  },
-  {
-    title: 'NIR',
-    href: '/admin/nir',
-  },
-  {
-    title: 'Comenzi',
-    href: '/admin/orders',
+    title: 'Categorii Produse',
+    href: '/admin/categories',
   },
 
-  {
-    title: 'Avize',
-    href: '/admin/avize',
-  },
-  {
-    title: 'Facturi',
-    href: '/admin/facturi',
-  },
   {
     title: 'Utilizatori',
     href: '/admin/users',
