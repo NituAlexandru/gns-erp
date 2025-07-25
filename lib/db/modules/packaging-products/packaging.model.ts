@@ -14,6 +14,7 @@ const packagingSchema = new Schema(
     name: { type: String, required: true },
     description: { type: String },
     supplier: { type: Types.ObjectId, ref: 'Supplier', required: true },
+    category: { type: Types.ObjectId, ref: 'Category', required: false },
     mainCategory: { type: Types.ObjectId, ref: 'Category', default: null },
     countInStock: { type: Number, required: false, default: 0 },
     images: { type: [String], default: [] },

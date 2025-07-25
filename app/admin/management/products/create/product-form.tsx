@@ -117,6 +117,23 @@ const productDefaultValues: IProductInput =
         clientMarkups: [],
       }
 
+// Funcție ajutătoare pentru a extrage ID-ul în mod sigur
+const getIdFromStringOrObject = (value: unknown): string => {
+  // Dacă valoarea este deja un string (ID), îl returnăm
+  if (typeof value === 'string') {
+    return value
+  }
+  // Dacă este un obiect care are o proprietate _id de tip string, returnăm acel _id
+  if (typeof value === 'object' && value !== null && '_id' in value) {
+    const id = (value as { _id: unknown })._id
+    if (typeof id === 'string') {
+      return id
+    }
+  }
+  // În orice alt caz, returnăm un string gol
+  return ''
+}
+
 const ProductForm = ({
   type,
   product,
@@ -135,15 +152,37 @@ const ProductForm = ({
   const [subCategories, setSubCategories] = useState<ICategoryDoc[]>([])
 
   const form = useForm<IProductInput>({
-    resolver:
-      type === 'Update'
-        ? zodResolver(ProductUpdateSchema)
-        : zodResolver(ProductInputSchema),
+    resolver: zodResolver(ProductInputSchema),
     defaultValues:
       product && type === 'Update'
         ? {
-            ...productDefaultValues,
-            ...product,
+            name: product.name,
+            slug: product.slug,
+            images: product.images,
+            brand: product.brand ?? '',
+            description: product.description,
+            numSales: product.numSales,
+            isPublished: product.isPublished,
+            productCode: product.productCode,
+            barCode: product.barCode ?? '',
+            unit: product.unit,
+            packagingUnit: product.packagingUnit,
+            packagingQuantity: product.packagingQuantity,
+            length: product.length,
+            width: product.width,
+            height: product.height,
+            weight: product.weight,
+            volume: product.volume,
+            specifications: product.specifications,
+            itemsPerPallet: product.itemsPerPallet,
+            minStock: product.minStock,
+            countInStock: product.countInStock,
+            averagePurchasePrice: product.averagePurchasePrice,
+            defaultMarkups: product.defaultMarkups,
+            clientMarkups: product.clientMarkups,
+            mainSupplier: getIdFromStringOrObject(product.mainSupplier),
+            mainCategory: getIdFromStringOrObject(product.mainCategory),
+            category: getIdFromStringOrObject(product.category),
             palletTypeId: product.palletTypeId ?? NO_PALLET,
           }
         : {
@@ -189,7 +228,13 @@ const ProductForm = ({
   useEffect(() => {
     fetch('/api/admin/categories/main')
       .then((r) => r.json())
-      .then(setMainCategories)
+      .then((categories: ICategoryDoc[]) => {
+        // Filtrez array-ul pentru a exclude categoria cu numele "Ambalaje"
+        const filteredCategories = categories.filter(
+          (cat) => cat.name !== 'Ambalaje'
+        ) // Setez în state doar lista filtrată
+        setMainCategories(filteredCategories)
+      })
       .catch(console.error)
   }, [])
 
@@ -227,12 +272,28 @@ const ProductForm = ({
     }
   }, [nameValue, setValue])
 
+  useEffect(() => {
+    // Acest efect rulează doar în modul 'Update' pentru a seta numele furnizorului
+    if (type === 'Update' && product?.mainSupplier) {
+      if (
+        typeof product.mainSupplier === 'object' &&
+        product.mainSupplier !== null &&
+        'name' in product.mainSupplier 
+      ) {
+
+        const supplierName = (product.mainSupplier as ISupplierDoc).name
+
+        if (typeof supplierName === 'string') {
+          setSupplierQuery(supplierName)
+        }
+      }
+    }
+  }, [product, type])
+
   const { toast } = useToast()
 
   async function onSubmit(values: IProductInput) {
-    const payload: IProductInput = {
-      ...values,
-    }
+    const payload: IProductInput = values
 
     if (type === 'Create') {
       const res = await createProduct(payload)
@@ -242,20 +303,57 @@ const ProductForm = ({
         toast({ description: res.message })
         router.push(`/admin/products`)
       }
+      return
     }
 
     if (type === 'Update') {
-      if (!productId) return router.push(`/admin/products`)
-      const res = await updateProduct({ ...payload, _id: productId })
+      if (!productId) {
+        console.error('Product ID is missing for update')
+        return
+      }
+
+      // Construim obiectul final pentru update, adăugând ID-ul
+      const dataToUpdate = { ...payload, _id: productId }
+
+      // Validăm manual acest obiect cu schema de UPDATE
+      const result = ProductUpdateSchema.safeParse(dataToUpdate)
+
+      // Verificăm dacă validarea manuală a eșuat
+      if (!result.success) {
+        console.error('Update validation failed:', result.error.flatten())
+        toast({
+          title: 'Eroare de validare la salvare',
+          description: 'Datele finale nu sunt corecte.',
+        })
+        return 
+      }
+
+      // Dacă totul e OK, trimitem datele validate la server
+      const res = await updateProduct(result.data)
       if (!res.success) {
         toast({ description: res.message })
       } else {
+        toast({ description: res.message })
         router.push(`/admin/products`)
       }
     }
   }
 
   const images = form.watch('images')
+
+  const buttonText =
+    type === 'Create' ? 'Crează Produs' : 'Salvează Modificările'
+  const submittingText =
+    type === 'Create' ? 'Se crează produsul…' : 'Se salvează…'
+
+  //eslint-disable-next-line
+  const onFormError = (errors: any) => {
+    console.error('Erori de validare formular:', errors)
+    toast({
+      title: 'Formular invalid',
+      description: 'Te rog verifică câmpurile marcate cu erori.',
+    })
+  }
 
   return (
     <Form {...form}>
@@ -265,7 +363,7 @@ const ProductForm = ({
       </p>
       <form
         method='post'
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(onSubmit, onFormError)}
         className='space-y-4'
       >
         {/* câmp slug ascuns, generat automat */}
@@ -378,7 +476,6 @@ const ProductForm = ({
                     <ul
                       className='absolute z-10 mt-1 w-full max-h-[200px] overflow-auto rounded border bg-popover top-14'
                       onMouseDown={(e) => {
-                        // prevent the blur handler when clicking inside the list
                         e.preventDefault()
                       }}
                     >
@@ -824,9 +921,7 @@ const ProductForm = ({
             disabled={form.formState.isSubmitting}
             className='button col-span-2 w-full'
           >
-            {form.formState.isSubmitting
-              ? 'Se crează produs…'
-              : 'Crează Produs'}
+            {form.formState.isSubmitting ? submittingText : buttonText}
           </Button>
         </div>
       </form>
