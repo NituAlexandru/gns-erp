@@ -38,6 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
 
 export type CatalogShape = {
   _id: string
@@ -90,6 +91,7 @@ export default function AdminProductsList({
   const [deleteTarget, setDeleteTarget] = useState<DisplayItem | null>(null)
   const [activateOpen, setActivateOpen] = useState(false)
   const [activateTarget, setActivateTarget] = useState<DisplayItem | null>(null)
+  const [scanning, setScanning] = useState(false)
 
   // Funcție pentru activare produs
   async function handleActivateConfirm() {
@@ -304,10 +306,46 @@ export default function AdminProductsList({
               : `${from}–${to} din ${totalProducts} produse`}
           </span>
         </div>
-        <Button asChild variant='default' className='justify-self-end'>
-          <Link href='/admin/management/products/create'>Crează Produs</Link>
-        </Button>
+        <div className='flex justify-self-end gap-2'>
+          <Button variant='outline' onClick={() => setScanning((x) => !x)}>
+            {scanning ? 'Anulează' : 'Scanează'}
+          </Button>
+          <Button asChild variant='default'>
+            <Link href='/admin/management/products/create'>Crează Produs</Link>
+          </Button>
+        </div>
       </div>
+
+      {scanning && (
+        <BarcodeScanner
+          onDecode={async (code) => {
+            setScanning(false)
+            try {
+              // Căutăm în API-ul de admin
+              const res = await fetch(
+                `/api/admin/products/search?q=${encodeURIComponent(code)}`
+              )
+              if (!res.ok) throw new Error('Produs inexistent')
+              const items = (await res.json()) as AdminProductSearchResult[]
+
+              // Găsim produsul scanat
+              const match = items.find((p) => p.barCode === code) || items[0]
+
+              if (!match) {
+                toast.error(`Produs cu cod „${code}” nu a fost găsit.`)
+                return
+              }
+
+              // MODIFICARE CHEIE: Redirect la pagina de EDITARE
+              router.push(`/admin/management/products/${match._id}/edit`)
+            } catch {
+              toast.error('Eroare la căutarea produsului')
+            }
+          }}
+          onError={() => setScanning(false)}
+          onClose={() => setScanning(false)}
+        />
+      )}
 
       {/* TABEL */}
       <Table>
