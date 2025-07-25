@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
         $or: [
           { name: { $regex: q, $options: 'i' } },
           { productCode: { $regex: q, $options: 'i' } },
-          { slug: { $regex: q, $options: 'i' } },
+          { barCode: { $regex: q, $options: 'i' } },
         ],
       },
     },
