@@ -16,6 +16,7 @@
 - la catalog + admin products - de adaugat posibilitatea afisarii pretului cu TVA
 - de facut form edit product
 - Modul plafoane clienti (sa includa limita pt fiecare client, sumele restante ale acestora, daca sunt sau nu blocati de la livrari)
-- Modul autorizatii necesare livrare (sa includa zonele cu restrictii, taxele necesare de plata, alte mentiuni)
+- Modul autorizatii necesare livrare (sa includa zonele cu restrictii -numele de strazi, comune, orase, drumuri etc, taxele necesare de plata, alte mentiuni)
+- Modul Proiecte (aici pot fi grupati 2-3-4 sau orice alt nr de clienti pe un proiect (adica o singura adresa unde se livreaza marfa), in cote egale sau diferite. structura trebuie asemnatoare ca la client, deoarece in comenzi/livrari se vor putea selecta clienti individuali, sau proiecte, care vor contine in ele 1-2-3 etc clienti individuali). facturile trb sa se poata genera pe comanda, fiecarui client, in functie de procentul pe care il are in acel proiect. precum si restul documentelor trebuiesc emise la fel.
 - De facut CRUD + forms pentru packagings - momentan se gestioneaza manual din DB
 - de modificat btn de stergere la produse ca sa distinga intre paleti si produse

@@ -6,10 +6,11 @@ import StockMovementModel, { IStockMovementDoc } from './movement.model'
 import {
   InventoryItemAdjustInput,
   InventoryItemAdjustSchema,
+  StockMovementInput,
   StockMovementSchema,
 } from './validator'
-import type { StockMovementInput } from './types'
-import { FilterQuery } from 'mongoose'
+import { FilterQuery, startSession } from 'mongoose'
+import { IN_TYPES } from './constants'
 
 export async function adjustInventory(input: InventoryItemAdjustInput) {
   const { product, location, quantityOnHandDelta, quantityReservedDelta } =
@@ -31,48 +32,65 @@ export async function adjustInventory(input: InventoryItemAdjustInput) {
 
 export async function recordStockMovement(input: StockMovementInput) {
   const payload = StockMovementSchema.parse(input)
-  await connectToDatabase()
+  const session = await startSession()
 
-  // 1) read "before" balance
-  const fromDoc = payload.locationFrom
-    ? await InventoryItemModel.findOne({
+  try {
+    let movementDoc
+    await session.withTransaction(async () => {
+      const isInput = IN_TYPES.has(payload.movementType)
+
+      // Locația relevantă pentru audit (unde se întâmplă mișcarea principală)
+      const auditLocation = isInput ? payload.locationTo : payload.locationFrom
+
+      if (!auditLocation) {
+        throw new Error('Audit location is missing for the movement type.')
+      }
+
+      // 1) Citește soldul "before" din locația relevantă
+      const auditDoc = await InventoryItemModel.findOne({
         product: payload.product,
-        location: payload.locationFrom,
-      })
-    : null
-  const beforeQty = fromDoc?.quantityOnHand ?? 0
+        location: auditLocation,
+      }).session(session)
+      const balanceBefore = auditDoc?.quantityOnHand ?? 0
 
-  // 2) adjust "from" and "to"
-  if (payload.locationFrom) {
-    await InventoryItemModel.findOneAndUpdate(
-      { product: payload.product, location: payload.locationFrom },
-      { $inc: { quantityOnHand: -payload.quantity } },
-      { upsert: true }
-    )
+      // 2) Calculează soldul "after" corect, în funcție de tipul mișcării
+      const balanceAfter = isInput
+        ? balanceBefore + payload.quantity
+        : balanceBefore - payload.quantity
+
+      // 3) Ajustează stocurile "from" și "to"
+      if (payload.locationFrom) {
+        await InventoryItemModel.findOneAndUpdate(
+          { product: payload.product, location: payload.locationFrom },
+          { $inc: { quantityOnHand: -payload.quantity } },
+          { upsert: true, session }
+        )
+      }
+      if (payload.locationTo) {
+        await InventoryItemModel.findOneAndUpdate(
+          { product: payload.product, location: payload.locationTo },
+          { $inc: { quantityOnHand: +payload.quantity } },
+          { upsert: true, session }
+        )
+      }
+
+      // 4) Înregistrează mișcarea cu audit complet
+      const [createdMovement] = await StockMovementModel.create(
+        [
+          {
+            ...payload,
+            balanceBefore: balanceBefore,
+            balanceAfter: balanceAfter,
+          },
+        ],
+        { session }
+      )
+      movementDoc = createdMovement
+    })
+    return movementDoc
+  } finally {
+    await session.endSession()
   }
-  if (payload.locationTo) {
-    await InventoryItemModel.findOneAndUpdate(
-      { product: payload.product, location: payload.locationTo },
-      { $inc: { quantityOnHand: +payload.quantity } },
-      { upsert: true }
-    )
-  }
-
-  // 3) read "after" balance
-  const afterDoc = payload.locationFrom
-    ? await InventoryItemModel.findOne({
-        product: payload.product,
-        location: payload.locationFrom,
-      })
-    : null
-  const afterQty = afterDoc?.quantityOnHand ?? beforeQty
-
-  // 4) persist one movement with full audit
-  return await StockMovementModel.create({
-    ...payload,
-    balanceBefore: beforeQty,
-    balanceAfter: afterQty,
-  })
 }
 
 export async function getInventoryLedger(productId: string, location?: string) {

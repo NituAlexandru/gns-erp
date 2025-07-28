@@ -1,32 +1,32 @@
-import { InventoryLocation } from './constants'
+// types.ts
 
+import { IInventoryItemDoc } from './inventory.model'
+import { IStockMovementDoc } from './movement.model'
 
-
-export interface IInventoryItem {
+/**
+ * Reprezintă un obiect simplu (DTO - Data Transfer Object) pentru un articol
+ * din stoc, așa cum ar fi trimis către client (browser), fără metodele Mongoose.
+ */
+export type InventoryItemDTO = Omit<
+  IInventoryItemDoc,
+  keyof Document | 'product'
+> & {
   _id: string
-  product: string // ObjectId of ERPProduct
-  location: InventoryLocation
-  quantityOnHand: number
-  quantityReserved: number
-  createdAt: Date
-  updatedAt: Date
+  product: string // Suprascriem product pentru a fi un string simplu
 }
 
-export interface IStockMovement {
+/**
+ * Reprezintă un obiect simplu (DTO) pentru o mișcare de stoc,
+ * așa cum ar fi trimis către client (browser).
+ */
+export type StockMovementDTO = Omit<
+  IStockMovementDoc,
+  keyof Document | 'product'
+> & {
   _id: string
-  product: string // ObjectId of ERPProduct
-  movementType: string
-  quantity: number
-  locationFrom?: InventoryLocation
-  locationTo?: InventoryLocation
-  referenceId?: string // e.g. orderId or PO id
-  note?: string
-  timestamp: Date
-  createdAt: Date
-  updatedAt: Date
+  product: string // Suprascriem product pentru a fi un string simplu
 }
 
-export type StockMovementInput = Omit<
-  IStockMovement,
-  '_id' | 'createdAt' | 'updatedAt'
-> & { movementType: string }
+// Nu mai este nevoie să definim aici tipurile de input.
+// Acestea vor fi importate direct din './validator.ts' unde sunt definite cu Zod.
+// Exemplu: import { StockMovementInput } from './validator'
