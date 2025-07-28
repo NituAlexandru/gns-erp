@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { FieldErrors, useForm } from 'react-hook-form'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -117,7 +117,7 @@ const productDefaultValues: IProductInput =
         clientMarkups: [],
       }
 
-// Funcție ajutătoare pentru a extrage ID-ul în mod sigur
+// extrage ID-ul în mod sigur
 const getIdFromStringOrObject = (value: unknown): string => {
   // Dacă valoarea este deja un string (ID), îl returnăm
   if (typeof value === 'string') {
@@ -150,6 +150,30 @@ const ProductForm = ({
   const [mainCategories, setMainCategories] = useState<ICategoryDoc[]>([])
   const [allSubCategories, setAllSubCategories] = useState<ICategoryDoc[]>([])
   const [subCategories, setSubCategories] = useState<ICategoryDoc[]>([])
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false)
+
+  async function handleGenerateCode() {
+    setIsGeneratingCode(true)
+    try {
+      const res = await fetch('/api/admin/products/generate-code')
+      const data = await res.json()
+      if (data.success) {
+        form.setValue('productCode', data.code, { shouldValidate: true })
+      } else {
+        toast({
+          title: 'Eroare',
+          description: data.message,
+        })
+      }
+    } catch {
+      toast({
+        title: 'Eroare',
+        description: 'Nu s-a putut genera codul.',
+      })
+    } finally {
+      setIsGeneratingCode(false)
+    }
+  }
 
   const form = useForm<IProductInput>({
     resolver: zodResolver(ProductInputSchema),
@@ -192,7 +216,7 @@ const ProductForm = ({
           },
   })
 
-  const { watch, setValue, control } = form
+  const { watch, setValue, control, setError, clearErrors } = form
 
   const [length, width, height] = watch(['length', 'width', 'height'])
 
@@ -238,7 +262,6 @@ const ProductForm = ({
       .catch(console.error)
   }, [])
 
-  // Fetch *all* categories once (we'll filter them below):
   useEffect(() => {
     fetch('/api/admin/categories')
       .then((r) => r.json())
@@ -278,9 +301,8 @@ const ProductForm = ({
       if (
         typeof product.mainSupplier === 'object' &&
         product.mainSupplier !== null &&
-        'name' in product.mainSupplier 
+        'name' in product.mainSupplier
       ) {
-
         const supplierName = (product.mainSupplier as ISupplierDoc).name
 
         if (typeof supplierName === 'string') {
@@ -292,13 +314,102 @@ const ProductForm = ({
 
   const { toast } = useToast()
 
+  const images = form.watch('images')
+
+  const buttonText =
+    type === 'Create' ? 'Crează Produs' : 'Salvează Modificările'
+  const submittingText =
+    type === 'Create' ? 'Se crează produsul…' : 'Se salvează…'
+
+  const onFormError = (errors: FieldErrors<IProductInput>) => {
+    console.error('Erori de validare formular:', errors)
+    toast({
+      title: 'Formular invalid',
+      description: 'Te rog verifică câmpurile marcate cu erori.',
+    })
+  }
+
+  const checkProductCodeUniqueness = async (
+    e: React.FocusEvent<HTMLInputElement>
+  ) => {
+    const code = e.target.value.trim()
+    if (!code || type !== 'Create') {
+      clearErrors('productCode')
+      return
+    }
+    const res = await fetch(
+      `/api/admin/products/check-code?code=${encodeURIComponent(code)}`
+    )
+    const data = await res.json()
+    if (!data.isAvailable) {
+      setError('productCode', {
+        type: 'manual',
+        message: 'Acest cod de produs este deja utilizat.',
+      })
+    } else {
+      clearErrors('productCode')
+    }
+  }
+
+  const checkBarCodeUniqueness = async (
+    e: React.FocusEvent<HTMLInputElement>
+  ) => {
+    const code = e.target.value.trim()
+    if (!code || type !== 'Create') {
+      clearErrors('barCode')
+      return
+    }
+    const res = await fetch(
+      `/api/admin/products/check-barcode?code=${encodeURIComponent(code)}`
+    )
+    const data = await res.json()
+    if (!data.isAvailable) {
+      setError('barCode', {
+        type: 'manual',
+        message: 'Acest cod de bare este deja utilizat.',
+      })
+    } else {
+      clearErrors('barCode')
+    }
+  }
   async function onSubmit(values: IProductInput) {
     const payload: IProductInput = values
+    // --- Verificare de unicitate pe client, înainte de submit ---
+    if (type === 'Create') {
+      // 1. Verificăm codul de produs
+      const codeRes = await fetch(
+        `/api/admin/products/check-code?code=${encodeURIComponent(values.productCode)}`
+      )
+      const codeData = await codeRes.json()
+      if (!codeData.isAvailable) {
+        toast({
+          title: 'Eroare',
+          description: 'Acest cod de produs este deja utilizat.',
+        })
+        return
+      }
+
+      // 2. Verificăm codul de bare, doar dacă a fost introdus
+      if (values.barCode) {
+        const barcodeRes = await fetch(
+          `/api/admin/products/check-barcode?code=${encodeURIComponent(values.barCode)}`
+        )
+        const barcodeData = await barcodeRes.json()
+        if (!barcodeData.isAvailable) {
+          toast({
+            title: 'Eroare',
+            description: 'Acest cod de bare este deja utilizat.',
+          })
+          return 
+        }
+      }
+    }
+    // --- Sfârșitul verificării pe client ---
 
     if (type === 'Create') {
       const res = await createProduct(payload)
       if (!res.success) {
-        toast({ description: res.message })
+        toast({ title: 'Eroare la creare', description: res.message })
       } else {
         toast({ description: res.message })
         router.push(`/admin/products`)
@@ -325,34 +436,18 @@ const ProductForm = ({
           title: 'Eroare de validare la salvare',
           description: 'Datele finale nu sunt corecte.',
         })
-        return 
+        return
       }
 
       // Dacă totul e OK, trimitem datele validate la server
       const res = await updateProduct(result.data)
       if (!res.success) {
-        toast({ description: res.message })
+        toast({ title: 'Eroare la actualizare', description: res.message })
       } else {
         toast({ description: res.message })
         router.push(`/admin/products`)
       }
     }
-  }
-
-  const images = form.watch('images')
-
-  const buttonText =
-    type === 'Create' ? 'Crează Produs' : 'Salvează Modificările'
-  const submittingText =
-    type === 'Create' ? 'Se crează produsul…' : 'Se salvează…'
-
-  //eslint-disable-next-line
-  const onFormError = (errors: any) => {
-    console.error('Erori de validare formular:', errors)
-    toast({
-      title: 'Formular invalid',
-      description: 'Te rog verifică câmpurile marcate cu erori.',
-    })
   }
 
   return (
@@ -379,12 +474,23 @@ const ProductForm = ({
                 <FormLabel>
                   Cod Produs<span className='text-red-500'>*</span>
                 </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder='Introduceți codul produsului'
-                    {...field}
-                  />
-                </FormControl>
+                <div className='flex gap-2'>
+                  <FormControl>
+                    <Input
+                      placeholder='Cod produs'
+                      {...field}
+                      onBlur={checkProductCodeUniqueness}
+                    />
+                  </FormControl>
+                  <Button
+                    className='w-[75px] text-xs'
+                    type='button'
+                    onClick={handleGenerateCode}
+                    disabled={isGeneratingCode}
+                  >
+                    {isGeneratingCode ? '...' : 'Generează'}
+                  </Button>
+                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -399,7 +505,11 @@ const ProductForm = ({
                   Cod de bare<span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
-                  <Input placeholder='Introduceți codul de bare' {...field} />
+                  <Input
+                    placeholder='Introduceți codul de bare'
+                    {...field}
+                    onBlur={checkBarCodeUniqueness}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -816,7 +926,9 @@ const ProductForm = ({
             name='images'
             render={() => (
               <FormItem className='w-3/5 flex flex-col gap-2'>
-                <FormLabel>Imagine</FormLabel>
+                <FormLabel>
+                  Imagine<span className='text-red-500'>*</span>
+                </FormLabel>
                 <Card className='p-0 pt-2 flex'>
                   <CardContent className='space-y-2 h-38 p-2 py-0'>
                     <div className='flex justify-start items-center space-x-1'>
@@ -848,8 +960,10 @@ const ProductForm = ({
                         <UploadButton
                           endpoint='imageUploader'
                           className='bg-red-500 text-white pb-2 rounded red:bg-blue-600'
-                          onClientUploadComplete={(res: { url: string }[]) => {
-                            form.setValue('images', [...images, res[0].url])
+                          onClientUploadComplete={(
+                            res: { ufsUrl: string }[]
+                          ) => {
+                            form.setValue('images', [...images, res[0].ufsUrl])
                           }}
                           onUploadError={(error: Error) => {
                             toast({

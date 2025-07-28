@@ -14,7 +14,7 @@ export const ProductInputSchema = z
         /^[0-9a-fA-F]{24}$/,
         'Categoria principală trebuie să fie un ObjectID valid'
       ),
-    barCode: z.string().optional(),
+    barCode: z.string().min(1, 'Codul de bare este obligatoriu'),
     productCode: z.string().min(1, 'Codul de produs este obligatoriu'),
     images: z
       .array(z.string())

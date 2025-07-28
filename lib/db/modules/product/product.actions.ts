@@ -23,6 +23,40 @@ export async function createProduct(data: IProductInput) {
   try {
     const payload = ProductInputSchema.parse(data)
     await connectToDatabase()
+
+    // --- VERIFICAREA DE SIGURANȚĂ ---
+    const existingProduct = await ERPProductModel.findOne({
+      productCode: payload.productCode,
+    }).lean()
+
+    // Dacă găsim un produs cu același cod, oprim procesul și returnăm eroare.
+    if (existingProduct) {
+      return {
+        success: false,
+        message: 'Acest cod de produs este deja utilizat.',
+      }
+    }
+
+    if (existingProduct) {
+      return {
+        success: false,
+        message: 'Acest cod de produs este deja utilizat.',
+      }
+    }
+
+    // VERIFICARE PENTRU CODUL DE BARE
+    if (payload.barCode) {
+      const existingBarcode = await ERPProductModel.findOne({
+        barCode: payload.barCode,
+      }).lean()
+      if (existingBarcode) {
+        return {
+          success: false,
+          message: 'Acest cod de bare este deja utilizat.',
+        }
+      }
+    }
+
     await ERPProductModel.create(payload)
     revalidatePath('/admin/products')
     return { success: true, message: 'Product created successfully' }
@@ -35,6 +69,41 @@ export async function updateProduct(data: IProductUpdate) {
   try {
     const payload = ProductUpdateSchema.parse(data)
     await connectToDatabase()
+
+    // --- VERIFICAREA DE SIGURANȚĂ PENTRU UPDATE ---
+    // Căutăm un produs care are același cod, dar un ID diferit.
+    const existingProduct = await ERPProductModel.findOne({
+      productCode: payload.productCode,
+      _id: { $ne: payload._id }, // Condiția cheie: ID-ul trebuie să fie diferit
+    }).lean()
+
+    // Dacă găsim un astfel de produs, înseamnă că se încearcă crearea unui duplicat.
+    if (existingProduct) {
+      return {
+        success: false,
+        message: 'Acest cod de produs este deja utilizat de un alt produs.',
+      }
+    }
+
+    if (existingProduct) {
+      return {
+        success: false,
+        message: 'Acest cod de produs este deja utilizat de un alt produs.',
+      }
+    }
+
+    if (payload.barCode) {
+      const existingBarcode = await ERPProductModel.findOne({
+        barCode: payload.barCode,
+        _id: { $ne: payload._id },
+      }).lean()
+      if (existingBarcode) {
+        return {
+          success: false,
+          message: 'Acest cod de bare este deja utilizat de un alt produs.',
+        }
+      }
+    }
     await ERPProductModel.findByIdAndUpdate(payload._id, payload)
     revalidatePath('/admin/products')
     return { success: true, message: 'Product updated successfully' }
