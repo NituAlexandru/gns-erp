@@ -1,7 +1,8 @@
 import { Schema, model, models, Document, Model, Types } from 'mongoose'
 
 export interface IStockMovementDoc extends Document {
-  product: Types.ObjectId
+  stockableItem: Types.ObjectId
+  stockableItemType: 'Product' | 'Packaging'
   movementType: string
   quantity: number
   locationFrom?: string
@@ -17,7 +18,16 @@ export interface IStockMovementDoc extends Document {
 
 const StockMovementSchema = new Schema<IStockMovementDoc>(
   {
-    product: { type: Schema.Types.ObjectId, ref: 'ERPProduct', required: true },
+    stockableItemType: {
+      type: String,
+      required: true,
+      enum: ['Product', 'Packaging'],
+    },
+    stockableItem: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      refPath: 'stockableItemType',
+    },
     movementType: { type: String, required: true, index: true },
     quantity: { type: Number, required: true },
     locationFrom: { type: String },

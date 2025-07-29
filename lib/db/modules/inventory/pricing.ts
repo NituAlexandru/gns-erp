@@ -1,51 +1,46 @@
+// pricing.ts
 import { connectToDatabase } from '@/lib/db'
 import InventoryItemModel from './inventory.model'
-import { Types } from 'mongoose'
 
-/** Returns the current weighted‐average cost for one product/location. */
-export async function getWeightedCost(
-  productId: string,
+/**
+ * Returns the highest purchase price for an item currently in stock at a specific location.
+ */
+export async function getHighestCostInStock(
+  stockableItemId: string,
   location: string
 ): Promise<number> {
   await connectToDatabase()
   const doc = await InventoryItemModel.findOne({
-    product: new Types.ObjectId(productId),
+    stockableItem: stockableItemId,
     location,
   })
-  return doc?.averageCost ?? 0
+
+  if (!doc || doc.batches.length === 0) {
+    return 0 // Fără stoc, fără preț
+  }
+
+  // Găsește costul maxim din toate loturile existente
+  return Math.max(...doc.batches.map((batch) => batch.unitCost))
 }
 
 /**
- * Returns the overall weighted‐average cost of stock across *all*
- * locations for a given product.
+ * Returns the overall highest purchase price of an item across *all* locations.
  */
-export async function getGlobalWeightedCost(
-  productId: string
+export async function getGlobalHighestCostInStock(
+  stockableItemId: string
 ): Promise<number> {
   await connectToDatabase()
-  const agg = await InventoryItemModel.aggregate([
-    { $match: { product: new Types.ObjectId(productId) } },
-    {
-      $group: {
-        _id: null,
-        totalUnits: { $sum: '$quantityOnHand' },
-        totalValue: {
-          $sum: { $multiply: ['$quantityOnHand', '$averageCost'] },
-        },
-      },
-    },
-    {
-      $project: {
-        overallAvgCost: {
-          $cond: [
-            { $eq: ['$totalUnits', 0] },
-            0,
-            { $divide: ['$totalValue', '$totalUnits'] },
-          ],
-        },
-      },
-    },
-  ])
+  const docs = await InventoryItemModel.find({
+    stockableItem: stockableItemId,
+  })
 
-  return (agg[0]?.overallAvgCost as number) ?? 0
+  const allCosts = docs.flatMap((doc) =>
+    doc.batches.map((batch) => batch.unitCost)
+  )
+
+  if (allCosts.length === 0) {
+    return 0
+  }
+
+  return Math.max(...allCosts)
 }

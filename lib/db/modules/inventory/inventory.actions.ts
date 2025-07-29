@@ -1,88 +1,106 @@
+// inventory/inventory.actions.ts
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
 import InventoryItemModel, { IInventoryItemDoc } from './inventory.model'
 import StockMovementModel, { IStockMovementDoc } from './movement.model'
-import {
-  InventoryItemAdjustInput,
-  InventoryItemAdjustSchema,
-  StockMovementInput,
-  StockMovementSchema,
-} from './validator'
+import { StockMovementInput, StockMovementSchema } from './validator'
 import { FilterQuery, startSession } from 'mongoose'
 import { IN_TYPES } from './constants'
 
-export async function adjustInventory(input: InventoryItemAdjustInput) {
-  const { product, location, quantityOnHandDelta, quantityReservedDelta } =
-    InventoryItemAdjustSchema.parse(input)
-
-  await connectToDatabase()
-
-  await InventoryItemModel.findOneAndUpdate(
-    { product, location },
-    {
-      $inc: {
-        quantityOnHand: quantityOnHandDelta,
-        quantityReserved: quantityReservedDelta,
-      },
-    },
-    { upsert: true }
-  )
-}
+/**
+ * Înregistrează o mișcare de stoc (IN/OUT) conform logicii FIFO.
+ * Gestionează adăugarea și consumarea de loturi.
+ * Câmpurile `locationTo` și `locationFrom` pot fi locații predefinite (ex: 'DEPOZIT')
+ * sau ID-ul unui Proiect, pentru gestiunea stocurilor pe proiecte.
+ * Această operație este tranzacțională.
+ * @param input Detaliile mișcării de stoc.
+ * @returns Documentul de mișcare de stoc creat.
+ */
 
 export async function recordStockMovement(input: StockMovementInput) {
   const payload = StockMovementSchema.parse(input)
   const session = await startSession()
-
   try {
     let movementDoc
     await session.withTransaction(async () => {
       const isInput = IN_TYPES.has(payload.movementType)
-
-      // Locația relevantă pentru audit (unde se întâmplă mișcarea principală)
       const auditLocation = isInput ? payload.locationTo : payload.locationFrom
-
       if (!auditLocation) {
         throw new Error('Audit location is missing for the movement type.')
       }
 
-      // 1) Citește soldul "before" din locația relevantă
-      const auditDoc = await InventoryItemModel.findOne({
-        product: payload.product,
+      // Găsim sau creăm documentul de stoc pentru articolul/locația respectivă
+      let inventoryItem = await InventoryItemModel.findOne({
+        stockableItem: payload.stockableItem,
+        stockableItemType: payload.stockableItemType,
         location: auditLocation,
       }).session(session)
-      const balanceBefore = auditDoc?.quantityOnHand ?? 0
 
-      // 2) Calculează soldul "after" corect, în funcție de tipul mișcării
-      const balanceAfter = isInput
-        ? balanceBefore + payload.quantity
-        : balanceBefore - payload.quantity
-
-      // 3) Ajustează stocurile "from" și "to"
-      if (payload.locationFrom) {
-        await InventoryItemModel.findOneAndUpdate(
-          { product: payload.product, location: payload.locationFrom },
-          { $inc: { quantityOnHand: -payload.quantity } },
-          { upsert: true, session }
-        )
-      }
-      if (payload.locationTo) {
-        await InventoryItemModel.findOneAndUpdate(
-          { product: payload.product, location: payload.locationTo },
-          { $inc: { quantityOnHand: +payload.quantity } },
-          { upsert: true, session }
-        )
+      if (!inventoryItem) {
+        inventoryItem = new InventoryItemModel({
+          stockableItem: payload.stockableItem,
+          stockableItemType: payload.stockableItemType,
+          location: auditLocation,
+          batches: [],
+        })
       }
 
-      // 4) Înregistrează mișcarea cu audit complet
+      const balanceBefore = inventoryItem.batches.reduce(
+        (sum, batch) => sum + batch.quantity,
+        0
+      )
+
+      if (isInput) {
+        // La INTRARE: Adăugăm un nou lot
+        if (payload.unitCost === undefined) {
+          throw new Error('Unit cost is required for IN movements.')
+        }
+        inventoryItem.batches.push({
+          quantity: payload.quantity,
+          unitCost: payload.unitCost,
+          entryDate: payload.timestamp,
+        })
+        // Sortăm pentru a ne asigura că loturile vechi sunt primele (FIFO)
+        inventoryItem.batches.sort(
+          (a, b) => a.entryDate.getTime() - b.entryDate.getTime()
+        )
+      } else {
+        // La IEȘIRE: Consumăm din loturi (logica FIFO)
+        let quantityToDecrease = payload.quantity
+        if (quantityToDecrease > balanceBefore) {
+          throw new Error('Stoc insuficient.')
+        }
+
+        const newBatches = []
+        for (const batch of inventoryItem.batches) {
+          if (quantityToDecrease <= 0) {
+            newBatches.push(batch)
+            continue
+          }
+          if (batch.quantity > quantityToDecrease) {
+            newBatches.push({
+              ...batch,
+              quantity: batch.quantity - quantityToDecrease,
+            })
+            quantityToDecrease = 0
+          } else {
+            quantityToDecrease -= batch.quantity
+            // Lotul este consumat complet, nu îl mai adăugăm
+          }
+        }
+        inventoryItem.batches = newBatches
+      }
+
+      await inventoryItem.save({ session })
+
+      const balanceAfter = inventoryItem.batches.reduce(
+        (sum, batch) => sum + batch.quantity,
+        0
+      )
+
       const [createdMovement] = await StockMovementModel.create(
-        [
-          {
-            ...payload,
-            balanceBefore: balanceBefore,
-            balanceAfter: balanceAfter,
-          },
-        ],
+        [{ ...payload, balanceBefore, balanceAfter }],
         { session }
       )
       movementDoc = createdMovement
@@ -93,40 +111,43 @@ export async function recordStockMovement(input: StockMovementInput) {
   }
 }
 
-export async function getInventoryLedger(productId: string, location?: string) {
+export async function getInventoryLedger(
+  stockableItemId: string,
+  location?: string
+) {
   await connectToDatabase()
-
-  // now `filter` is strongly typed to what Mongoose expects
-  const filter: FilterQuery<IStockMovementDoc> = { product: productId }
-
+  const filter: FilterQuery<IStockMovementDoc> = {
+    stockableItem: stockableItemId,
+  }
   if (location) {
     filter.$or = [{ locationFrom: location }, { locationTo: location }]
   }
-
   return StockMovementModel.find(filter).sort({ timestamp: 1 }).lean()
 }
-export async function getCurrentStock(productId: string, locations?: string[]) {
+
+export async function getCurrentStock(
+  stockableItemId: string,
+  locations?: string[]
+) {
   await connectToDatabase()
-
-  // build a strongly-typed filter
-  const filter: FilterQuery<IInventoryItemDoc> = { product: productId }
-
+  const filter: FilterQuery<IInventoryItemDoc> = {
+    stockableItem: stockableItemId,
+  }
   if (locations && locations.length) {
-    // only include these locations
     filter.location = { $in: locations }
   }
-
-  // fetch matching InventoryItem docs
   const docs = await InventoryItemModel.find(filter).lean()
 
-  // fold into per-location subtotals + grand total
   const byLocation: Record<string, number> = {}
   let grandTotal = 0
 
   for (const doc of docs) {
-    const qty = doc.quantityOnHand
-    byLocation[doc.location] = (byLocation[doc.location] || 0) + qty
-    grandTotal += qty
+    const locationTotal = doc.batches.reduce(
+      (sum, batch) => sum + batch.quantity,
+      0
+    )
+    byLocation[doc.location] = (byLocation[doc.location] || 0) + locationTotal
+    grandTotal += locationTotal
   }
 
   return { byLocation, grandTotal }

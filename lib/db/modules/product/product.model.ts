@@ -21,7 +21,7 @@ const erpProductSchema = new Schema(
     mainSupplier: { type: Types.ObjectId, ref: 'Supplier', required: false },
     brand: { type: String },
     minStock: { type: Number, required: false, default: 0 },
-    countInStock: { type: Number, required: false, default: 0 },
+    // countInStock: { type: Number, required: false, default: 0 },
     firstOrderDate: { type: Date, required: false },
     lastOrderDate: { type: Date, required: false },
     numSales: { type: Number, required: false, default: 0 },

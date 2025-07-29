@@ -10,6 +10,7 @@ import { ADMIN_PAGE_SIZE } from '@/lib/constants'
 import { PRODUCT_PAGE_SIZE } from '../product/constants'
 import { Types } from 'mongoose'
 import { CategoryModel } from '../category'
+import { getGlobalHighestCostInStock } from '../inventory/pricing'
 
 export async function getAllPackagings({
   query,
@@ -116,11 +117,35 @@ export async function getAllPackagings({
   }
 }
 
+// Funcție helper similară cu cea de la Produse
+async function checkForDuplicateCodes(payload: {
+  productCode: string
+  _id?: string
+}) {
+  const { productCode, _id } = payload
+  const commonQuery = _id ? { _id: { $ne: _id } } : {}
+
+  const existingPackaging = await PackagingModel.findOne({
+    productCode,
+    ...commonQuery,
+  }).lean()
+  if (existingPackaging) {
+    return 'Acest cod de ambalaj este deja utilizat.'
+  }
+  return null // Nicio eroare
+}
+
 // CREATE
 export async function createPackaging(data: IPackagingInput) {
   try {
     const payload = packagingZod.parse(data)
     await connectToDatabase()
+
+    const duplicateError = await checkForDuplicateCodes(payload)
+    if (duplicateError) {
+      return { success: false, message: duplicateError }
+    }
+
     await PackagingModel.create(payload)
     revalidatePath('/admin/packagings')
     return { success: true, message: 'Packaging created successfully' }
@@ -134,6 +159,12 @@ export async function updatePackaging(data: IPackagingUpdate) {
   try {
     const payload = packagingUpdateZod.parse(data)
     await connectToDatabase()
+
+    const duplicateError = await checkForDuplicateCodes(payload)
+    if (duplicateError) {
+      return { success: false, message: duplicateError }
+    }
+
     await PackagingModel.findByIdAndUpdate(payload._id, payload)
     revalidatePath('/admin/packagings')
     return { success: true, message: 'Packaging updated successfully' }
@@ -205,4 +236,18 @@ export async function getAllPackagingsForAdmin({
     from: pageSize * (Number(page) - 1) + 1,
     to: pageSize * (Number(page) - 1) + packagings.length,
   }
+}
+
+export async function updatePackagingAveragePurchasePrice(packagingId: string) {
+  // 1. Calculăm cel mai mare cost din stocul curent
+  const highestCost = await getGlobalHighestCostInStock(packagingId) // <-- Schimbă numele funcției aici
+
+  // 2. Actualizăm câmpul pe documentul de ambalaj
+  await PackagingModel.findByIdAndUpdate(packagingId, {
+    averagePurchasePrice: highestCost, // Folosim noul cost
+  })
+
+  console.log(
+    `Updated averagePurchasePrice for packaging ${packagingId} to HIGHEST cost: ${highestCost}`
+  )
 }

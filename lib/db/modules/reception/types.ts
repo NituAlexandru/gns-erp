@@ -1,24 +1,11 @@
-import { Document } from 'mongoose'
+import { z } from 'zod'
+import {
+  ReceptionCreateSchema,
+  ReceptionProductSchema,
+  ReceptionUpdateSchema,
+} from './validator'
 
-export interface ReceptionProduct {
-  product: string // ObjectId produs
-  quantity: number
-  unitMeasure: string
-  priceAtReception?: number | null
-}
-
-export interface IReceptionInput {
-  createdBy: string // ObjectId user
-  supplier: string // ObjectId supplier
-  products: ReceptionProduct[]
-  receptionDate: Date
-  driverName?: string
-  carNumber?: string
-  status: 'Draft' | 'Final'
-}
-
-export interface IReceptionDoc extends Document, IReceptionInput {
-  _id: string
-  createdAt: Date
-  updatedAt: Date
-}
+// Acum acest fișier este sursa de adevăr pentru TIPURI
+export type ReceptionProductInput = z.infer<typeof ReceptionProductSchema>
+export type ReceptionCreateInput = z.infer<typeof ReceptionCreateSchema>
+export type ReceptionUpdateInput = z.infer<typeof ReceptionUpdateSchema>

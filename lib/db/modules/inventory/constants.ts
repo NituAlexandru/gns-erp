@@ -15,10 +15,11 @@ export const STOCK_MOVEMENT_TYPES = [
   'VANZARE_DIRECTA', // OUT
   'VANZARE_DEPOZIT', // OUT
   'RETUR_FURNIZOR', // OUT
-  'AJUSTARE_STOC_OUT', // OUT
+  'PIERDERE', // OUT
+  'DETERIORARE', // OUT
   'RECEPTIE', // IN
   'RETUR_CLIENT', // IN
-  'AJUSTARE_STOC_IN', // IN
+  'PLUS_INVENTAR', // Pentru plusuri la inventar, marfă găsită.
 ] as const
 
 export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number]
@@ -28,11 +29,12 @@ export const OUT_TYPES = new Set<StockMovementType>([
   'VANZARE_DIRECTA',
   'VANZARE_DEPOZIT',
   'RETUR_FURNIZOR',
-  'AJUSTARE_STOC_OUT',
+  'PIERDERE',
+  'DETERIORARE',
 ])
 
 export const IN_TYPES = new Set<StockMovementType>([
   'RECEPTIE',
   'RETUR_CLIENT',
-  'AJUSTARE_STOC_IN',
+  'PLUS_INVENTAR',
 ])

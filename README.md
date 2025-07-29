@@ -20,3 +20,5 @@
 - Modul Proiecte (aici pot fi grupati 2-3-4 sau orice alt nr de clienti pe un proiect (adica o singura adresa unde se livreaza marfa), in cote egale sau diferite. structura trebuie asemnatoare ca la client, deoarece in comenzi/livrari se vor putea selecta clienti individuali, sau proiecte, care vor contine in ele 1-2-3 etc clienti individuali). facturile trb sa se poata genera pe comanda, fiecarui client, in functie de procentul pe care il are in acel proiect. precum si restul documentelor trebuiesc emise la fel.
 - De facut CRUD + forms pentru packagings - momentan se gestioneaza manual din DB
 - de modificat btn de stergere la produse ca sa distinga intre paleti si produse
+
+- comenzile care se tin mai mult de 30 zile in curte se percepe taxa de custodie. % din pretul total/luna

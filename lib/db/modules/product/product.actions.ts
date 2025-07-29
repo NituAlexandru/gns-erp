@@ -17,44 +17,46 @@ import '@/lib/db/modules/suppliers/supplier.model'
 import { FilterQuery, Types } from 'mongoose'
 import { PRODUCT_PAGE_SIZE } from './constants'
 import ERPProductModel from './product.model'
+import { getGlobalHighestCostInStock } from '../inventory/pricing'
 
+// O funcție helper pentru a verifica duplicatele
+async function checkForDuplicateCodes(payload: {
+  productCode: string
+  barCode?: string
+  _id?: string
+}) {
+  const { productCode, barCode, _id } = payload
+  const commonQuery = _id ? { _id: { $ne: _id } } : {}
+
+  const existingProduct = await ERPProductModel.findOne({
+    productCode,
+    ...commonQuery,
+  }).lean()
+  if (existingProduct) {
+    return 'Acest cod de produs este deja utilizat.'
+  }
+
+  if (barCode) {
+    const existingBarcode = await ERPProductModel.findOne({
+      barCode,
+      ...commonQuery,
+    }).lean()
+    if (existingBarcode) {
+      return 'Acest cod de bare este deja utilizat.'
+    }
+  }
+
+  return null // Nicio eroare
+}
 // CREATE
 export async function createProduct(data: IProductInput) {
   try {
     const payload = ProductInputSchema.parse(data)
     await connectToDatabase()
 
-    // --- VERIFICAREA DE SIGURANȚĂ ---
-    const existingProduct = await ERPProductModel.findOne({
-      productCode: payload.productCode,
-    }).lean()
-
-    // Dacă găsim un produs cu același cod, oprim procesul și returnăm eroare.
-    if (existingProduct) {
-      return {
-        success: false,
-        message: 'Acest cod de produs este deja utilizat.',
-      }
-    }
-
-    if (existingProduct) {
-      return {
-        success: false,
-        message: 'Acest cod de produs este deja utilizat.',
-      }
-    }
-
-    // VERIFICARE PENTRU CODUL DE BARE
-    if (payload.barCode) {
-      const existingBarcode = await ERPProductModel.findOne({
-        barCode: payload.barCode,
-      }).lean()
-      if (existingBarcode) {
-        return {
-          success: false,
-          message: 'Acest cod de bare este deja utilizat.',
-        }
-      }
+    const duplicateError = await checkForDuplicateCodes(payload)
+    if (duplicateError) {
+      return { success: false, message: duplicateError }
     }
 
     await ERPProductModel.create(payload)
@@ -64,46 +66,18 @@ export async function createProduct(data: IProductInput) {
     return { success: false, message: formatError(error) }
   }
 }
+
 // UPDATE
 export async function updateProduct(data: IProductUpdate) {
   try {
     const payload = ProductUpdateSchema.parse(data)
     await connectToDatabase()
 
-    // --- VERIFICAREA DE SIGURANȚĂ PENTRU UPDATE ---
-    // Căutăm un produs care are același cod, dar un ID diferit.
-    const existingProduct = await ERPProductModel.findOne({
-      productCode: payload.productCode,
-      _id: { $ne: payload._id }, // Condiția cheie: ID-ul trebuie să fie diferit
-    }).lean()
-
-    // Dacă găsim un astfel de produs, înseamnă că se încearcă crearea unui duplicat.
-    if (existingProduct) {
-      return {
-        success: false,
-        message: 'Acest cod de produs este deja utilizat de un alt produs.',
-      }
+    const duplicateError = await checkForDuplicateCodes(payload)
+    if (duplicateError) {
+      return { success: false, message: duplicateError }
     }
 
-    if (existingProduct) {
-      return {
-        success: false,
-        message: 'Acest cod de produs este deja utilizat de un alt produs.',
-      }
-    }
-
-    if (payload.barCode) {
-      const existingBarcode = await ERPProductModel.findOne({
-        barCode: payload.barCode,
-        _id: { $ne: payload._id },
-      }).lean()
-      if (existingBarcode) {
-        return {
-          success: false,
-          message: 'Acest cod de bare este deja utilizat de un alt produs.',
-        }
-      }
-    }
     await ERPProductModel.findByIdAndUpdate(payload._id, payload)
     revalidatePath('/admin/products')
     return { success: true, message: 'Product updated successfully' }
@@ -556,4 +530,18 @@ export async function updateProductMarkup(
   } catch (error) {
     return { success: false, message: formatError(error) }
   }
+}
+
+export async function updateProductAveragePurchasePrice(productId: string) {
+  // 1. Calculăm cel mai mare cost din stocul curent
+  const highestCost = await getGlobalHighestCostInStock(productId) // <-- Schimbă numele funcției aici
+
+  // 2. Actualizăm câmpul pe documentul de produs
+  await ERPProductModel.findByIdAndUpdate(productId, {
+    averagePurchasePrice: highestCost, // Folosim noul cost
+  })
+
+  console.log(
+    `Updated averagePurchasePrice for product ${productId} to HIGHEST cost: ${highestCost}`
+  )
 }
