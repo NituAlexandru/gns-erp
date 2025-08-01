@@ -21,7 +21,10 @@ const links = [
     title: 'Categorii Produse',
     href: '/admin/categories',
   },
-
+  {
+    title: 'Receptie',
+    href: '/admin/management/reception',
+  },
   {
     title: 'Utilizatori',
     href: '/admin/users',

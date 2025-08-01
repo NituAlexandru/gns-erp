@@ -15,6 +15,10 @@ const links = [
     href: '/admin/management/suppliers',
   },
   {
+    title: 'Receptie',
+    href: '/admin/management/reception',
+  },
+  {
     title: 'Clienți',
     href: '/clients',
   },

@@ -93,7 +93,6 @@ export default function AdminProductsList({
   const [activateTarget, setActivateTarget] = useState<DisplayItem | null>(null)
   const [scanning, setScanning] = useState(false)
 
-  // Funcție pentru activare produs
   async function handleActivateConfirm() {
     if (!activateTarget) return
     try {
@@ -106,7 +105,6 @@ export default function AdminProductsList({
         }
       )
       if (!res.ok) throw new Error('Eroare la server')
-      // actualizez starea locală
       setItems((prev) =>
         prev.map((i) =>
           i._id === activateTarget._id ? { ...i, isPublished: true } : i

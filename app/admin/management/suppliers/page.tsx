@@ -15,7 +15,6 @@ export default async function AdminSuppliersPage({
     )
   }
 
-  // aștepți rezolvarea lui searchParams înainte de a citi .page
   const { page: pageParam } = await searchParams
   const page = Number(pageParam) || 1
 

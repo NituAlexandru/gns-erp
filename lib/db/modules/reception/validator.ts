@@ -1,6 +1,6 @@
-// reception/validator.ts
 import { z } from 'zod'
 import { MongoId } from '@/lib/validator'
+import { LocationOrProjectIdSchema } from '../inventory/validator'
 
 export const ReceptionProductSchema = z.object({
   product: MongoId,
@@ -16,41 +16,57 @@ export const ReceptionPackagingSchema = z.object({
   priceAtReception: z.number().nonnegative().nullable().optional(),
 })
 
-// Definim o schemă de bază fără .refine()
+export const DeliverySchema = z.object({
+  dispatchNoteSeries: z.string().optional(),
+  dispatchNoteNumber: z.string().min(1, 'Numărul avizului este obligatoriu.'),
+  dispatchNoteDate: z.coerce.date({
+    required_error: 'Data avizului este obligatorie.',
+  }),
+  driverName: z.string().optional(),
+  carNumber: z.string().optional(),
+  notes: z.string().optional(),
+})
+
+export const InvoiceSchema = z.object({
+  series: z.string().optional(),
+  number: z.string().min(1, 'Numărul facturii este obligatoriu.'),
+  date: z.coerce.date({ required_error: 'Data facturii este obligatorie.' }),
+  amount: z.number().min(0, 'Suma trebuie să fie ≥ 0'),
+})
+
 const BaseReceptionSchema = z.object({
   createdBy: MongoId,
   supplier: MongoId,
+  destinationLocation: LocationOrProjectIdSchema.default('DEPOZIT'),
+  destinationProject: MongoId.optional().nullable(),
   products: z.array(ReceptionProductSchema).optional(),
   packagingItems: z.array(ReceptionPackagingSchema).optional(),
-  receptionDate: z.date().default(() => new Date()),
-  driverName: z.string().optional(),
-  carNumber: z.string().optional(),
+  receptionDate: z.coerce.date().default(() => new Date()),
+  deliveries: z.array(DeliverySchema).optional(),
+  invoices: z.array(InvoiceSchema).optional(),
   // Placeholder-ele pentru Proiecte
   destinationType: z.enum(['DEPOZIT', 'PROIECT']).optional().default('DEPOZIT'),
   destinationId: MongoId.optional(),
 })
 
-// Acum aplicăm .refine() pentru a crea schema de creare
 export const ReceptionCreateSchema = BaseReceptionSchema.refine(
   (data) => data.products?.length || data.packagingItems?.length,
   {
     message: 'Recepția trebuie să conțină cel puțin un produs sau ambalaj.',
   }
-)
-  // Adăugăm o validare condițională
-  .refine(
-    (data) => {
-      if (data.destinationType === 'PROIECT') {
-        return !!data.destinationId // Dacă e proiect, ID-ul trebuie să existe
-      }
-      return true // Altfel, e valid
-    },
-    {
-      message:
-        'ID-ul de Proiect este obligatoriu pentru destinația de tip PROIECT.',
-      path: ['destinationId'], // Specificăm câmpul care a cauzat eroarea
+).refine(
+  (data) => {
+    if (data.destinationType === 'PROIECT') {
+      return !!data.destinationId
     }
-  )
+    return true
+  },
+  {
+    message:
+      'ID-ul de Proiect este obligatoriu pentru destinația de tip PROIECT.',
+    path: ['destinationId'],
+  }
+)
 
 export const ReceptionUpdateSchema = BaseReceptionSchema.extend({
   _id: MongoId,
