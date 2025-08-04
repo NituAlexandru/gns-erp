@@ -153,7 +153,7 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                             {d.dispatchNoteDate &&
                               `- ${format(
                                 new Date(d.dispatchNoteDate),
-                                'dd/MM/yyyy HH:mm'
+                                'dd/MM/yyyy'
                               )}`}
                           </div>
                         ))
@@ -167,10 +167,7 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                           <div key={i}>
                             {inv.series?.toUpperCase()} - {inv.number}{' '}
                             {inv.date &&
-                              `- ${format(
-                                new Date(inv.date),
-                                'dd/MM/yyyy HH:mm'
-                              )}`}
+                              `- ${format(new Date(inv.date), 'dd/MM/yyyy')}`}
                           </div>
                         ))
                       : '–'}
