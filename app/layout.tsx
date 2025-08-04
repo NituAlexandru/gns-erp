@@ -5,7 +5,6 @@ import './globals.css'
 import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import ClientProviders from '@/components/shared/client-providers'
-import { Toaster } from 'sonner'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -35,10 +34,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ClientProviders>
-          <Toaster />
-          {children}
-        </ClientProviders>
+        <ClientProviders>{children}</ClientProviders>
         <Analytics />
         <SpeedInsights />
       </body>

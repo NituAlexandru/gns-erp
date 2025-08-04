@@ -209,7 +209,9 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
               <FormLabel className='flex justify-between items-center'>
                 <div>
                   {itemName === 'product' ? 'Produs' : 'Ambalaj'}{' '}
-                  <span className='text-red-500'>*</span>
+                  <span>
+                    * <span className='text-red-500'>*</span>
+                  </span>
                 </div>
                 {lastPrice !== null && (
                   <p className=' mt-1 text-muted-foreground text-xs'>
@@ -262,7 +264,10 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                Cantitate <span className='text-red-500'>*</span>
+                Cantitate{' '}
+                <span>
+                  * <span className='text-red-500'>*</span>
+                </span>
               </FormLabel>
               <FormControl>
                 <Input
@@ -287,7 +292,10 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                UM <span className='text-red-500'>*</span>
+                UM{' '}
+                <span>
+                  * <span className='text-red-500'>*</span>
+                </span>
               </FormLabel>
               <Select
                 onValueChange={field.onChange}

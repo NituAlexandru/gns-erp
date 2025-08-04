@@ -154,11 +154,11 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
 
   const watchedProducts = form.watch('products')
   const watchedPackagingItems = form.watch('packagingItems')
-
+  const watchedInvoices = form.watch('invoices')
   const productsDependency = JSON.stringify(watchedProducts)
   const packagingDependency = JSON.stringify(watchedPackagingItems)
+  const invoicesDependency = JSON.stringify(watchedInvoices)
 
-  // `useMemo` va folosi "amprenta" text pentru a decide când să recalculeze.
   const summaryTotals = useMemo(() => {
     const productsTotal = (watchedProducts || []).reduce((sum, item) => {
       const price = item.priceAtReception ?? 0
@@ -180,11 +180,37 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productsDependency, packagingDependency])
 
+  const invoicesTotal = useMemo(() => {
+    return (watchedInvoices || []).reduce(
+      (sum, invoice) => sum + (invoice.amount || 0),
+      0
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoicesDependency])
+
   // Urmărim valoarea din selectorul de destinație
   const destinationLocation = form.watch('destinationLocation')
 
   async function onSubmit(values: ReceptionCreateInput, isFinal: boolean) {
     setIsSubmitting(true)
+
+    if (isFinal) {
+      const itemsGrandTotal = summaryTotals.grandTotal
+
+      // Rotunjim la 2 zecimale pentru a evita erorile de calcul cu numere zecimale
+      if (invoicesTotal.toFixed(2) !== itemsGrandTotal.toFixed(2)) {
+        toast.error('Verificare eșuată', {
+          description: `Suma totală a facturilor introduse (${formatCurrency(
+            invoicesTotal
+          )}) nu corespunde cu valoarea totală a articolelor adăugate (${formatCurrency(
+            itemsGrandTotal
+          )}). Vă rugăm corectați.`,
+          duration: 8000,
+        })
+        setIsSubmitting(false)
+        return 
+      }
+    }
 
     // Construim payload-ul și URL-ul corect
     const payload = { ...values, isFinal }
@@ -240,7 +266,10 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                   render={({ field }) => (
                     <FormItem className='flex flex-col'>
                       <FormLabel>
-                        Furnizor <span className='text-red-500'>*</span>
+                        Furnizor
+                        <span>
+                          * <span className='text-red-500'>*</span>
+                        </span>
                       </FormLabel>
                       <AutocompleteSearch
                         searchType='supplier'
@@ -263,7 +292,10 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                   render={({ field }) => (
                     <FormItem className='flex flex-col'>
                       <FormLabel>
-                        Data Recepției <span className='text-red-500'>*</span>
+                        Data Recepției{' '}
+                        <span>
+                          * <span className='text-red-500'>*</span>
+                        </span>
                       </FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -308,7 +340,9 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                     <FormItem>
                       <FormLabel>
                         Destinația Stocului{' '}
-                        <span className='text-red-500'>*</span>
+                        <span>
+                          * <span className='text-red-500'>*</span>
+                        </span>
                       </FormLabel>
                       <Select
                         onValueChange={(value) => {
@@ -416,7 +450,12 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                       name={`deliveries.${index}.dispatchNoteNumber`}
                       render={({ field }) => (
                         <FormItem className='flex-1'>
-                          <FormLabel>Număr Aviz *</FormLabel>
+                          <FormLabel>
+                            Număr Aviz{' '}
+                            <span>
+                              * <span className='text-red-500'>*</span>
+                            </span>
+                          </FormLabel>
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
@@ -428,7 +467,12 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                       name={`deliveries.${index}.dispatchNoteDate`}
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Data Aviz *</FormLabel>
+                          <FormLabel>
+                            Data Aviz{' '}
+                            <span>
+                              * <span className='text-red-500'>*</span>
+                            </span>
+                          </FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
@@ -556,7 +600,9 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                   name={`invoices.${index}.series`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Serie Factură</FormLabel>
+                      <FormLabel>
+                        Serie Factură <span className='text-red-500'>*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input {...field} value={field.value ?? ''} />
                       </FormControl>
@@ -567,7 +613,9 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                   name={`invoices.${index}.number`}
                   render={({ field }) => (
                     <FormItem className='flex-1'>
-                      <FormLabel>Număr Factură *</FormLabel>
+                      <FormLabel>
+                        Număr Factură <span className='text-red-500'>*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input {...field} />
                       </FormControl>
@@ -579,7 +627,9 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                   name={`invoices.${index}.date`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Data Factură *</FormLabel>
+                      <FormLabel>
+                        Data Factură <span className='text-red-500'>*</span>
+                      </FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
@@ -619,7 +669,9 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
                   control={form.control}
                   render={({ field }) => (
                     <FormItem className='flex-1'>
-                      <FormLabel>Suma Factură *</FormLabel>
+                      <FormLabel>
+                        Suma Factură <span className='text-red-500'>*</span>
+                      </FormLabel>
                       <FormControl>
                         <Input
                           type='number'
@@ -670,23 +722,37 @@ export function ReceptionForm({ initialData }: ReceptionFormProps) {
           <CardHeader>
             <CardTitle className='flex justify-between items-center'>
               <span>Articole Recepționate</span>
-              <div className='text-sm font-normal text-muted-foreground space-x-4'>
+              <div className='text-sm font-normal text-muted-foreground space-x-4 flex items-center'>
                 <span>
-                  Total Produse:{' '}
+                  Produse:{' '}
                   <strong className='text-foreground'>
                     {formatCurrency(summaryTotals.productsTotal)}
                   </strong>
                 </span>
                 <span>
-                  Total Ambalaje:{' '}
+                  Ambalaje:{' '}
                   <strong className='text-foreground'>
                     {formatCurrency(summaryTotals.packagingTotal)}
                   </strong>
                 </span>
-                <span className='text-base font-semibold'>
+                <span className='text-base'>
                   TOTAL:{' '}
                   <strong className='text-foreground'>
                     {formatCurrency(summaryTotals.grandTotal)}
+                  </strong>
+                </span>
+                <span className='text-base font-semibold border-l pl-4'>
+                  TOTAL Facturi introduse:{' '}
+                  <strong
+                    className={cn(
+                      'transition-colors',
+                      invoicesTotal.toFixed(2) ===
+                        summaryTotals.grandTotal.toFixed(2)
+                        ? 'text-green-600' // Verde dacă sumele sunt egale
+                        : 'text-red-500' // Roșu dacă sunt diferite
+                    )}
+                  >
+                    {formatCurrency(invoicesTotal)}
                   </strong>
                 </span>
               </div>

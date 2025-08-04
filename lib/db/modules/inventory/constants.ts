@@ -16,6 +16,7 @@ export const STOCK_MOVEMENT_TYPES = [
   'VANZARE_DEPOZIT', // OUT
   'RETUR_FURNIZOR', // OUT
   'PIERDERE', // OUT
+  'ANULARE_RECEPTIE', // OUT
   'DETERIORARE', // OUT
   'RECEPTIE', // IN
   'RETUR_CLIENT', // IN
@@ -31,6 +32,7 @@ export const OUT_TYPES = new Set<StockMovementType>([
   'RETUR_FURNIZOR',
   'PIERDERE',
   'DETERIORARE',
+  'ANULARE_RECEPTIE',
 ])
 
 export const IN_TYPES = new Set<StockMovementType>([

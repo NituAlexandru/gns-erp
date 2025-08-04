@@ -96,9 +96,9 @@ export async function updateReception(data: ReceptionUpdateInput) {
         'Recepția pe care încerci să o modifici nu a fost găsită.'
       )
     }
-    if (receptionToUpdate.status === 'CONFIRMAT') {
-      throw new Error('O recepție confirmată nu poate fi modificată.')
-    }
+    // if (receptionToUpdate.status === 'CONFIRMAT') {
+    //   throw new Error('O recepție confirmată nu poate fi modificată.')
+    // }
 
     const updatedReception = await ReceptionModel.findByIdAndUpdate(
       _id,
@@ -132,12 +132,15 @@ export async function updateReception(data: ReceptionUpdateInput) {
   }
 }
 
+// TODO (Proiecte): De refactorizat când Proiectele au sub-locații.
+// Locația ar trebui să fie o combinație, ex: `proiectId_DEPOZIT`.
 export async function confirmReception(receptionId: string) {
   const session = await mongoose.startSession()
   try {
     const result = await session.withTransaction(async () => {
-      const reception =
-        await ReceptionModel.findById(receptionId).session(session)
+      const reception = await ReceptionModel.findById(receptionId)
+        .populate<{ supplier: { name: string } }>('supplier', 'name')
+        .session(session)
 
       // --- Verificări Globale ---
       if (!reception)
@@ -250,7 +253,7 @@ export async function confirmReception(receptionId: string) {
           quantity: baseQuantity,
           locationTo: targetLocation,
           referenceId: reception._id.toString(),
-          note: `Recepție PRODUSE de la furnizor ${reception.supplier.toString()}`,
+          note: `Recepție PRODUSE de la furnizor ${reception.supplier.name}`,
           unitCost: pricePerBaseUnit,
           timestamp: reception.receptionDate,
         })
@@ -310,7 +313,7 @@ export async function confirmReception(receptionId: string) {
           quantity: baseQuantity,
           locationTo: targetLocation,
           referenceId: reception._id.toString(),
-          note: `Recepție AMBALAJE de la furnizor ${reception.supplier.toString()}`,
+          note: `Recepție AMBALAJE de la furnizor ${reception.supplier.name}`,
           unitCost: pricePerBaseUnit,
           timestamp: reception.receptionDate,
         })
@@ -332,6 +335,156 @@ export async function confirmReception(receptionId: string) {
     return { success: false, message: (error as Error).message }
   } finally {
     await session.endSession()
+  }
+}
+
+// TODO (Proiecte): De refactorizat când Proiectele au sub-locații.
+// Logica trebuie să fie identică cu cea de la confirmReception.
+export async function revokeConfirmation(receptionId: string) {
+  const session = await mongoose.startSession()
+  try {
+    const result = await session.withTransaction(async () => {
+      const reception = await ReceptionModel.findById(receptionId)
+        .populate<{ supplier: { name: string } }>('supplier', 'name')
+        .session(session)
+
+      if (!reception) {
+        return { success: false, message: 'Recepția nu a fost găsită.' }
+      }
+      if (reception.status !== 'CONFIRMAT') {
+        return {
+          success: false,
+          message: 'Doar o recepție confirmată poate fi revocată.',
+        }
+      }
+
+      // Inversăm mișcările de stoc
+      const allItems = [
+        ...(reception.products || []).map((p) => ({
+          product: p.product,
+          quantity: p.quantity,
+          unitMeasure: p.unitMeasure,
+          priceAtReception: p.priceAtReception,
+          type: 'Product',
+          itemId: p.product,
+        })),
+        ...(reception.packagingItems || []).map((p) => ({
+                  packaging: p.packaging,
+          quantity: p.quantity,
+          unitMeasure: p.unitMeasure,
+          priceAtReception: p.priceAtReception,
+                  type: 'Packaging',
+          itemId: p.packaging,
+        })),
+      ]
+
+      for (const item of allItems) {
+        if (!item.unitMeasure) {
+          throw new Error(
+            `Date corupte: Articolul cu ID ${item.itemId} de pe recepție nu are o unitate de măsură specificată.`
+          )
+        }
+
+        const details = await getStockableItemDetails(
+          item.itemId.toString(),
+          item.type as 'Product' | 'Packaging'
+        )
+        let baseQuantity = 0
+
+        switch (item.unitMeasure) {
+          case details.unit:
+            baseQuantity = item.quantity
+            break
+          case details.packagingUnit:
+            if (!details.packagingQuantity || details.packagingQuantity <= 0)
+              throw new Error(
+                `Factor de conversie invalid pentru ${item.itemId}.`
+              )
+            baseQuantity = item.quantity * details.packagingQuantity
+            break
+          case 'palet':
+            if (!details.itemsPerPallet || details.itemsPerPallet <= 0)
+              throw new Error(
+                `Factor de conversie pe palet invalid pentru ${item.itemId}.`
+              )
+            const totalBaseUnitsPerPallet = details.packagingQuantity
+              ? details.itemsPerPallet * details.packagingQuantity
+              : details.itemsPerPallet
+            if (totalBaseUnitsPerPallet <= 0)
+              throw new Error(
+                `Calculul unităților pe palet a eșuat pentru ${item.itemId}.`
+              )
+            baseQuantity = item.quantity * totalBaseUnitsPerPallet
+            break
+          default:
+            throw new Error(
+              `Unitate de măsură '${item.unitMeasure}' invalidă pentru ${item.itemId}.`
+            )
+        }
+
+        const sourceLocation =
+          reception.destinationType === 'PROIECT'
+            ? reception.destinationId!.toString()
+            : reception.destinationLocation
+
+        // Înregistrăm mișcarea cu cantitate negativă pentru a anula intrarea
+        await recordStockMovement({
+          stockableItem: item.itemId.toString(),
+          stockableItemType: item.type as 'Product' | 'Packaging',
+          movementType: 'ANULARE_RECEPTIE',
+          quantity: baseQuantity,
+          locationFrom: sourceLocation,
+          referenceId: reception._id.toString(),
+          note: `Anulare recepție de la furnizor ${reception.supplier.name}`,
+          unitCost: 0, // Costul este anulat, nu adăugat
+          timestamp: new Date(),
+        })
+      }
+
+      // Schimbăm statusul înapoi în DRAFT
+      reception.status = 'DRAFT'
+      await reception.save({ session })
+
+      return {
+        success: true,
+        message: 'Confirmarea recepției a fost revocată cu succes.',
+        data: JSON.parse(JSON.stringify(reception)),
+      }
+    })
+    return result
+  } catch (error) {
+    console.error('Eroare la revocarea confirmării:', error)
+    return { success: false, message: (error as Error).message }
+  } finally {
+    await session.endSession()
+  }
+}
+
+export async function deleteReception(receptionId: string) {
+  try {
+    await connectToDatabase()
+
+    const receptionToDelete = await ReceptionModel.findById(receptionId)
+
+    if (!receptionToDelete) {
+      return { success: false, message: 'Recepția nu a fost găsită.' }
+    }
+
+    // REGULA DE BUSINESS: Permitem ștergerea doar pentru recepțiile DRAFT.
+    if (receptionToDelete.status !== 'DRAFT') {
+      return {
+        success: false,
+        message:
+          'Doar recepțiile în starea "Ciornă" (Draft) pot fi șterse. Cele confirmate trebuie mai întâi revocate.',
+      }
+    }
+
+    await ReceptionModel.findByIdAndDelete(receptionId)
+
+    return { success: true, message: 'Recepția a fost ștearsă cu succes.' }
+  } catch (error) {
+    console.error('Eroare la ștergerea recepției:', error)
+    return { success: false, message: (error as Error).message }
   }
 }
 

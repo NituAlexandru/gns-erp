@@ -1,12 +1,11 @@
-// inventory/inventory.actions.ts
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
 import InventoryItemModel, { IInventoryItemDoc } from './inventory.model'
 import StockMovementModel, { IStockMovementDoc } from './movement.model'
 import { StockMovementInput, StockMovementSchema } from './validator'
-import { FilterQuery, startSession } from 'mongoose'
-import { IN_TYPES } from './constants'
+import { FilterQuery, startSession, Types } from 'mongoose'
+import { IN_TYPES, OUT_TYPES } from './constants'
 
 /**
  * Înregistrează o mișcare de stoc (IN/OUT) conform logicii FIFO.
@@ -24,13 +23,24 @@ export async function recordStockMovement(input: StockMovementInput) {
   try {
     let movementDoc
     await session.withTransaction(async () => {
-      const isInput = IN_TYPES.has(payload.movementType)
-      const auditLocation = isInput ? payload.locationTo : payload.locationFrom
-      if (!auditLocation) {
-        throw new Error('Audit location is missing for the movement type.')
+      let isInput: boolean
+      if (IN_TYPES.has(payload.movementType)) {
+        isInput = true
+      } else if (OUT_TYPES.has(payload.movementType)) {
+        isInput = false
+      } else {
+        throw new Error(
+          `Tipul de mișcare '${payload.movementType}' este necunoscut și neclasificat ca IN sau OUT.`
+        )
       }
 
-      // Găsim sau creăm documentul de stoc pentru articolul/locația respectivă
+      const auditLocation = isInput ? payload.locationTo : payload.locationFrom
+      if (!auditLocation) {
+        throw new Error(
+          'Locația pentru audit lipsește pentru acest tip de mișcare.'
+        )
+      }
+
       let inventoryItem = await InventoryItemModel.findOne({
         stockableItem: payload.stockableItem,
         stockableItemType: payload.stockableItemType,
@@ -51,22 +61,28 @@ export async function recordStockMovement(input: StockMovementInput) {
         0
       )
 
+      const movement = new StockMovementModel({
+        ...payload,
+        balanceBefore,
+        balanceAfter: 0,
+      })
+
       if (isInput) {
-        // La INTRARE: Adăugăm un nou lot
         if (payload.unitCost === undefined) {
-          throw new Error('Unit cost is required for IN movements.')
+          throw new Error(
+            'Costul unitar este obligatoriu pentru mișcările de intrare.'
+          )
         }
         inventoryItem.batches.push({
           quantity: payload.quantity,
           unitCost: payload.unitCost,
           entryDate: payload.timestamp,
+          movementId: movement._id as Types.ObjectId,
         })
-        // Sortăm pentru a ne asigura că loturile vechi sunt primele (FIFO)
         inventoryItem.batches.sort(
           (a, b) => a.entryDate.getTime() - b.entryDate.getTime()
         )
       } else {
-        // La IEȘIRE: Consumăm din loturi (logica FIFO)
         let quantityToDecrease = payload.quantity
         if (quantityToDecrease > balanceBefore) {
           throw new Error('Stoc insuficient.')
@@ -80,13 +96,14 @@ export async function recordStockMovement(input: StockMovementInput) {
           }
           if (batch.quantity > quantityToDecrease) {
             newBatches.push({
-              ...batch,
               quantity: batch.quantity - quantityToDecrease,
+              unitCost: batch.unitCost,
+              entryDate: batch.entryDate,
+              movementId: batch.movementId,
             })
             quantityToDecrease = 0
           } else {
             quantityToDecrease -= batch.quantity
-            // Lotul este consumat complet, nu îl mai adăugăm
           }
         }
         inventoryItem.batches = newBatches
@@ -98,12 +115,10 @@ export async function recordStockMovement(input: StockMovementInput) {
         (sum, batch) => sum + batch.quantity,
         0
       )
+      movement.balanceAfter = balanceAfter
+      await movement.save({ session })
 
-      const [createdMovement] = await StockMovementModel.create(
-        [{ ...payload, balanceBefore, balanceAfter }],
-        { session }
-      )
-      movementDoc = createdMovement
+      movementDoc = movement
     })
     return movementDoc
   } finally {

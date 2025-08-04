@@ -19,11 +19,14 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
+  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -35,6 +38,7 @@ import type {
 } from '@/lib/db/modules/reception/types'
 import { SearchFilters } from '@/components/shared/receptions/search-filters'
 import { PAGE_SIZE } from '@/lib/constants'
+import { toast } from 'sonner'
 
 type ReceptionRow = PopulatedReception & {
   createdBy?: { _id: string; name: string }
@@ -50,14 +54,17 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
   const router = useRouter()
   const [filters, setFilters] = useState<ReceptionFilters>({
     q: '',
-    status: 'ALL', 
-    createdBy: 'ALL', 
+    status: 'ALL',
+    createdBy: 'ALL',
     page: 1,
     pageSize: PAGE_SIZE,
   })
   const [page, setPage] = useState(currentPage)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ReceptionRow | null>(null)
+  const [revokeTarget, setRevokeTarget] = useState<ReceptionRow | null>(null)
+  const [isRevoking] = useState(false)
+
   const handleFiltersChange = useCallback((newFilters: ReceptionFilters) => {
     setFilters(newFilters)
     setPage(newFilters.page ?? 1)
@@ -128,19 +135,79 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
 
   async function handleDeleteConfirm() {
     if (!deleteTarget) return
-    try {
+
+    const promise = new Promise(async (resolve, reject) => {
       const res = await fetch(
-        `/api/admin/management/reception/${deleteTarget._id}`,
+        `/api/admin/management/receptions/${deleteTarget._id}`,
         { method: 'DELETE' }
       )
-      if (!res.ok) throw new Error('Eroare la server')
-      router.replace('/admin/management/reception')
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setDeleteOpen(false)
-      setDeleteTarget(null)
-    }
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        return reject(new Error(errorData.message || 'Eroare la server'))
+      }
+
+      // Nu avem nevoie să procesăm un răspuns JSON la succes
+      resolve(res)
+    })
+
+    toast.promise(promise, {
+      loading: 'Se șterge recepția...',
+      success: () => {
+        router.refresh()
+        setDeleteOpen(false)
+        setDeleteTarget(null)
+        return 'Recepția a fost ștearsă cu succes!'
+      },
+      error: (err) => {
+        setDeleteOpen(false) // <-- Închide dialogul la eroare
+        setDeleteTarget(null)
+        return err.message
+      },
+    })
+  }
+
+  async function handleRevokeConfirm() {
+    if (!revokeTarget) return
+
+    const targetId = revokeTarget._id
+
+    const promise = new Promise(async (resolve, reject) => {
+      const response = await fetch(
+        `/api/admin/management/receptions/${targetId}/revoke`,
+        { method: 'POST' }
+      )
+      if (!response.ok) {
+        const result = await response.json()
+        return reject(
+          new Error(result.message || 'A apărut o eroare la revocare.')
+        )
+      }
+      resolve(true)
+    })
+
+    toast.promise(promise, {
+      loading: 'Se revocă confirmarea...',
+      success: () => {
+        router.refresh() // Reîmprospătează lista
+
+        toast.success('Recepție revocată!', {
+          description: 'Recepția a fost adusă în starea "Ciornă" (Draft).',
+          action: {
+            label: 'Editează Acum',
+            onClick: () =>
+              router.push(`/admin/management/reception/${targetId}/edit`),
+          },
+          duration: 20000,
+        })
+
+        return 'Operațiune finalizată.'
+      },
+      error: (err) => err.message,
+    })
+
+    setRevokeTarget(null) // Închide dialogul de confirmare
+    setDeleteOpen(false)
   }
 
   return (
@@ -269,6 +336,7 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align='end'>
                         <DropdownMenuItem
+                          className='cursor-pointer'
                           onSelect={() =>
                             router.push(
                               `/admin/management/reception/${rec._id}`
@@ -278,19 +346,34 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                           Vizualizează
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          className='cursor-pointer'
                           onSelect={() =>
                             router.push(
                               `/admin/management/reception/${rec._id}/edit`
                             )
                           }
+                          disabled={rec.status === 'CONFIRMAT'}
                         >
                           Editează
                         </DropdownMenuItem>
+
                         <DropdownMenuItem
+                          className='text-orange-400 focus:text-yellow-500 cursor-pointer'
+                          onSelect={() => setRevokeTarget(rec)}
+                          disabled={rec.status !== 'CONFIRMAT'}
+                        >
+                          Revocă Confirmarea
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator />
+
+                        <DropdownMenuItem
+                          className='text-red-500 focus:text-red-600 cursor-pointer'
                           onSelect={() => {
                             setDeleteTarget(rec)
                             setDeleteOpen(true)
                           }}
+                          disabled={rec.status === 'CONFIRMAT'}
                         >
                           Șterge
                         </DropdownMenuItem>
@@ -316,12 +399,46 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirmare Ștergere</AlertDialogTitle>
+              <AlertDialogDescription>
+                Această acțiune este ireversibilă și va șterge definitiv
+                recepția. Ești sigur că vrei să continui?
+              </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Renunță</AlertDialogCancel>
-              <Button variant='destructive' onClick={handleDeleteConfirm}>
-                Șterge
-              </Button>
+              <AlertDialogAction asChild>
+                <Button variant='destructive' onClick={handleDeleteConfirm}>
+                  Șterge
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
+      {/* --- DIALOG NOU PENTRU REVOCARE --- */}
+      {revokeTarget && (
+        <AlertDialog
+          open={!!revokeTarget}
+          onOpenChange={() => setRevokeTarget(null)}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmi revocarea?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Această acțiune va anula mișcările de stoc corespunzătoare și va
+                readuce recepția la starea (Draft), permițând modificarea ei.
+                Ești sigur?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Anulează</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleRevokeConfirm}
+                disabled={isRevoking}
+              >
+                {isRevoking ? 'Se revocă...' : 'Da, revocă'}
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

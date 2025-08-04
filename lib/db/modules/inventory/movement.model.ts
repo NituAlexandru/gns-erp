@@ -7,7 +7,7 @@ export interface IStockMovementDoc extends Document {
   quantity: number
   locationFrom?: string
   locationTo?: string
-  referenceId?: string
+  referenceId?: Types.ObjectId
   note?: string
   timestamp: Date
   balanceBefore: number
@@ -32,7 +32,11 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     quantity: { type: Number, required: true },
     locationFrom: { type: String },
     locationTo: { type: String },
-    referenceId: { type: String },
+    referenceId: {
+      type: Schema.Types.ObjectId, 
+      ref: 'Reception', 
+      required: true, 
+    },
     note: { type: String },
     timestamp: { type: Date, default: () => new Date() },
     balanceBefore: { type: Number, required: true },

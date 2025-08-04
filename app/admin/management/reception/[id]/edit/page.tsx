@@ -1,5 +1,5 @@
 import { getReceptionById } from '@/lib/db/modules/reception/reception.actions'
-import { ReceptionForm } from '../../reception-form' 
+import { ReceptionForm } from '../../reception-form'
 
 const EditReceptionPage = async ({
   params,
@@ -14,13 +14,21 @@ const EditReceptionPage = async ({
     return <div>Recepție negăsită.</div>
   }
 
-  if (reception.status === 'CONFIRMAT') {
-    return <div>O recepție confirmată nu mai poate fi modificată.</div>
-  }
-
   return (
     <div>
-      <h1 className='text-2xl font-bold mb-4'>Modifică Recepție</h1>
+      <div className='flex justify-between'>
+        <h1 className='text-2xl font-bold'>Modifică Recepție</h1>{' '}
+        <div className='text-sm mb-2 text-muted-foreground px-4 py-2 bg-muted/50 rounded-lg flex items-center gap-4'>
+          <span className='font-semibold'>
+            <span className='text-foreground'>*</span> Obligatoriu pentru
+            Salvare Ciornă
+          </span>
+          <span className='font-semibold'>
+            <span className='text-red-500'>*</span> Obligatoriu pentru Salvare
+            și Finalizare
+          </span>
+        </div>
+      </div>
       <ReceptionForm initialData={reception} />
     </div>
   )

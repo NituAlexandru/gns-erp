@@ -4,6 +4,7 @@ export interface IInventoryBatch {
   quantity: number
   unitCost: number
   entryDate: Date
+  movementId: Types.ObjectId
 }
 
 export interface IInventoryItemDoc extends Document {
@@ -21,6 +22,11 @@ const InventoryBatchSchema = new Schema<IInventoryBatch>(
     quantity: { type: Number, required: true },
     unitCost: { type: Number, required: true },
     entryDate: { type: Date, required: true },
+    movementId: {
+      type: Schema.Types.ObjectId,
+      ref: 'StockMovement', 
+      required: true,
+    },
   },
   { _id: false }
 )
@@ -35,7 +41,7 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
     stockableItem: {
       type: Schema.Types.ObjectId,
       required: true,
-      refPath: 'stockableItemType', // Aici este magia Mongoose
+      refPath: 'stockableItemType',
     },
     location: { type: String, required: true, index: true },
     batches: [InventoryBatchSchema],

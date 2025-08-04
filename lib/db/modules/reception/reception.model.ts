@@ -22,6 +22,12 @@ export interface IReceptionDoc extends Document {
   supplier: Types.ObjectId
   destinationType: 'DEPOZIT' | 'PROIECT'
   destinationId?: Types.ObjectId
+  // TODO (Proiecte): Refactorizează logica de destinație.
+  // Viitorul model ar trebui să permită ca un Proiect (destinationId)
+  // să aibă propria sa sub-locație (destinationLocation).
+  // De exemplu: destinationId: 'ID_PROIECT_1', destinationLocation: 'DEPOZIT_PROIECT'.
+  // Câmpul `location` din modelul de Inventar va trebui să stocheze
+  // acest identificator compozit sau să aibă câmpuri separate.
   destinationLocation: string
   products: {
     product: Types.ObjectId
