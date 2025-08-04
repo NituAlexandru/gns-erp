@@ -46,3 +46,11 @@ export type PopulatedReception = Omit<
   invoices?: z.infer<typeof InvoiceSchema>[]
   amount: number
 }
+
+export interface ReceptionFilters {
+  q?: string // text liber
+  status?: string // "DRAFT", "CONFIRMAT" etc.
+  createdBy?: string // ObjectId al utilizatorului
+  page?: number
+  pageSize: number
+}

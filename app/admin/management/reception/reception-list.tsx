@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useMemo, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/utils'
@@ -29,10 +29,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import Link from 'next/link'
-import type { PopulatedReception } from '@/lib/db/modules/reception/types'
+import type {
+  PopulatedReception,
+  ReceptionFilters,
+} from '@/lib/db/modules/reception/types'
+import { SearchFilters } from '@/components/shared/receptions/search-filters'
+import { PAGE_SIZE } from '@/lib/constants'
 
 type ReceptionRow = PopulatedReception & {
-  createdBy?: { name: string }
+  createdBy?: { _id: string; name: string }
   createdAt?: string
 }
 
@@ -43,19 +48,79 @@ interface Props {
 
 export default function ReceptionList({ initialData, currentPage }: Props) {
   const router = useRouter()
+  const [filters, setFilters] = useState<ReceptionFilters>({
+    q: '',
+    status: 'ALL', 
+    createdBy: 'ALL', 
+    page: 1,
+    pageSize: PAGE_SIZE,
+  })
   const [page, setPage] = useState(currentPage)
-  const pageSize = 10
-  const totalPages = Math.ceil(initialData.length / pageSize)
-
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ReceptionRow | null>(null)
+  const handleFiltersChange = useCallback((newFilters: ReceptionFilters) => {
+    setFilters(newFilters)
+    setPage(newFilters.page ?? 1)
+  }, [])
 
-  const displayList = (initialData as ReceptionRow[]).slice(
-    (page - 1) * pageSize,
-    page * pageSize
+  const filteredData = useMemo(() => {
+    return initialData.filter((rec) => {
+      const deliveries = rec.deliveries ?? []
+      const invoices = rec.invoices ?? []
+
+      // Construim un șir de caractere în care căutăm q
+      const haystack = [
+        rec.supplier?.name,
+        rec.createdBy?.name,
+        format(new Date(rec.receptionDate), 'dd/MM/yyyy HH:mm'),
+        ...deliveries.map((d) => d.dispatchNoteNumber),
+        ...invoices.map((i) => i.number),
+        (
+          (rec.products ?? []).reduce(
+            (s, p) => s + (p.priceAtReception ?? 0) * (p.quantity ?? 0),
+            0
+          ) +
+          (rec.packagingItems ?? []).reduce(
+            (s, p) => s + (p.priceAtReception ?? 0) * (p.quantity ?? 0),
+            0
+          )
+        ).toFixed(2),
+      ]
+        .join(' ')
+        .toLowerCase()
+
+      //  text liber
+      if (filters.q && !haystack.includes(filters.q.toLowerCase())) {
+        return false
+      }
+      //  status
+      if (
+        filters.status &&
+        filters.status !== 'ALL' &&
+        rec.status !== filters.status
+      ) {
+        return false
+      }
+      // creat de
+      if (
+        filters.createdBy &&
+        filters.createdBy !== 'ALL' &&
+        rec.createdBy?._id !== filters.createdBy
+      ) {
+        return false
+      }
+
+      return true
+    })
+  }, [initialData, filters])
+
+  const totalPages = Math.ceil(filteredData.length / filters.pageSize)
+  const displayList = filteredData.slice(
+    (page - 1) * filters.pageSize,
+    page * filters.pageSize
   )
 
-  const fetchPage = (newPage: number) => {
+  function fetchPage(newPage: number) {
     if (newPage < 1 || newPage > totalPages) return
     router.replace(`/admin/management/reception?page=${newPage}`)
     setPage(newPage)
@@ -80,9 +145,28 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
 
   return (
     <div className='space-y-4'>
-      {/* Header */}
-      <div className='flex justify-between items-center'>
+      {/* Header + filtre */}
+      <div className='flex flex-wrap items-end justify-between gap-4'>
         <h1 className='text-2xl font-bold'>Recepții</h1>
+
+        <div className='flex gap-2'>
+          <SearchFilters initial={filters} onChange={handleFiltersChange} />
+          <Button
+            variant='outline'
+            onClick={() =>
+              handleFiltersChange({
+                q: '',
+                status: 'ALL',
+                createdBy: 'ALL',
+                page: 1,
+                pageSize: filters.pageSize,
+              })
+            }
+          >
+            Resetează
+          </Button>
+        </div>
+
         <Button asChild variant='default'>
           <Link href='/admin/management/reception/create'>
             Adaugă Recepție Nouă
@@ -92,9 +176,9 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
 
       {/* Info paginare */}
       <p className='text-sm text-muted-foreground'>
-        Afișez {(page - 1) * pageSize + 1}–
-        {Math.min(page * pageSize, initialData.length)} din {initialData.length}{' '}
-        recepții
+        Afișez {(page - 1) * filters.pageSize + 1}–
+        {Math.min(page * filters.pageSize, filteredData.length)} din{' '}
+        {filteredData.length} recepții
       </p>
 
       {/* Tabel */}
@@ -104,8 +188,8 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
             <TableRow className='bg-muted'>
               <TableHead>Furnizor</TableHead>
               <TableHead>Data Recepție</TableHead>
-              <TableHead>Avize (serie / nr. / dată / oră)</TableHead>
-              <TableHead>Facturi (serie / nr. / dată / oră)</TableHead>
+              <TableHead>Avize</TableHead>
+              <TableHead>Facturi</TableHead>
               <TableHead>Total</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Creat de</TableHead>
@@ -115,10 +199,8 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
           </TableHeader>
           <TableBody>
             {displayList.map((rec) => {
-              const userName = rec.createdBy?.name ?? '–'
-              const createdAtRaw = rec.createdAt
-
-              // calculează totalul
+              const deliveries = rec.deliveries ?? []
+              const invoices = rec.invoices ?? []
               const productsSum = (rec.products ?? []).reduce(
                 (s, p) => s + (p.priceAtReception ?? 0) * (p.quantity ?? 0),
                 0
@@ -136,47 +218,31 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                       {rec.supplier?.name || '–'}
                     </Link>
                   </TableCell>
-
-                  {/* Data Recepției */}
                   <TableCell>
                     {format(new Date(rec.receptionDate), 'dd/MM/yyyy HH:mm')}
                   </TableCell>
-
-                  {/* Avize */}
                   <TableCell>
-                    {(rec.deliveries ?? []).length > 0
-                      ? rec.deliveries!.map((d, i) => (
+                    {deliveries.length > 0
+                      ? deliveries.map((d, i) => (
                           <div key={i}>
-                            {d.dispatchNoteSeries?.toUpperCase()}
-                            {' - '}
-                            {d.dispatchNoteNumber}{' '}
-                            {d.dispatchNoteDate &&
-                              `- ${format(
-                                new Date(d.dispatchNoteDate),
-                                'dd/MM/yyyy'
-                              )}`}
+                            {d.dispatchNoteSeries?.toUpperCase()} –{' '}
+                            {d.dispatchNoteNumber} –{' '}
+                            {format(new Date(d.dispatchNoteDate), 'dd/MM/yyyy')}
                           </div>
                         ))
                       : '–'}
                   </TableCell>
-
-                  {/* Facturi */}
                   <TableCell>
-                    {(rec.invoices ?? []).length > 0
-                      ? rec.invoices!.map((inv, i) => (
+                    {invoices.length > 0
+                      ? invoices.map((inv, i) => (
                           <div key={i}>
-                            {inv.series?.toUpperCase()} - {inv.number}{' '}
-                            {inv.date &&
-                              `- ${format(new Date(inv.date), 'dd/MM/yyyy')}`}
+                            {inv.series?.toUpperCase()} – {inv.number} –{' '}
+                            {format(new Date(inv.date), 'dd/MM/yyyy')}
                           </div>
                         ))
                       : '–'}
                   </TableCell>
-
-                  {/* Total */}
                   <TableCell>{formatCurrency(totalSum)}</TableCell>
-
-                  {/* Status */}
                   <TableCell>
                     <Badge
                       variant={rec.status === 'DRAFT' ? 'secondary' : 'default'}
@@ -184,18 +250,12 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                       {rec.status}
                     </Badge>
                   </TableCell>
-
-                  {/* Creat de */}
-                  <TableCell>{userName}</TableCell>
-
-                  {/* Creat la */}
+                  <TableCell>{rec.createdBy?.name || '–'}</TableCell>
                   <TableCell>
-                    {createdAtRaw
-                      ? format(new Date(createdAtRaw), 'dd/MM/yyyy HH:mm')
+                    {rec.createdAt
+                      ? format(new Date(rec.createdAt), 'dd/MM/yyyy HH:mm')
                       : '–'}
                   </TableCell>
-
-                  {/* Acțiuni */}
                   <TableCell className='text-center'>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -209,7 +269,6 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align='end'>
                         <DropdownMenuItem
-                          className='cursor-pointer'
                           onSelect={() =>
                             router.push(
                               `/admin/management/reception/${rec._id}`
@@ -219,7 +278,6 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                           Vizualizează
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          className='cursor-pointer'
                           onSelect={() =>
                             router.push(
                               `/admin/management/reception/${rec._id}/edit`
@@ -229,7 +287,6 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                           Editează
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          className='cursor-pointer'
                           onSelect={() => {
                             setDeleteTarget(rec)
                             setDeleteOpen(true)
