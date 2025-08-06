@@ -2,18 +2,25 @@ import { z } from 'zod'
 import { MongoId } from '@/lib/validator'
 import { LocationOrProjectIdSchema } from '../inventory/validator'
 
+export const TertiaryTransporterSchema = z.object({
+  name: z.string().optional(),
+  cui: z.string().optional(),
+  regCom: z.string().optional(),
+  address: z.string().optional(),
+})
+
 export const ReceptionProductSchema = z.object({
   product: MongoId,
-  quantity: z.number().int().positive(),
+  quantity: z.number().positive('Cantitatea trebuie să fie mai mare ca 0.'),
   unitMeasure: z.string().min(1),
-  priceAtReception: z.number().nonnegative().nullable().optional(),
+  invoicePricePerUnit: z.number().nonnegative().nullable().optional(),
 })
 
 export const ReceptionPackagingSchema = z.object({
   packaging: MongoId,
-  quantity: z.number().int().positive(),
+  quantity: z.number().positive('Cantitatea trebuie să fie mai mare ca 0.'),
   unitMeasure: z.string().min(1),
-  priceAtReception: z.number().nonnegative().nullable().optional(),
+  invoicePricePerUnit: z.number().nonnegative().nullable().optional(),
 })
 
 export const DeliverySchema = z.object({
@@ -25,6 +32,13 @@ export const DeliverySchema = z.object({
   driverName: z.string().optional(),
   carNumber: z.string().optional(),
   notes: z.string().optional(),
+  transportType: z.enum(['INTERN', 'EXTERN_FURNIZOR', 'TERT'], {
+    required_error: 'Tipul transportului este obligatoriu.',
+  }),
+  transportCost: z
+    .number()
+    .nonnegative('Costul trebuie să fie un număr pozitiv.'),
+  tertiaryTransporterDetails: TertiaryTransporterSchema.optional(),
 })
 
 export const InvoiceSchema = z.object({

@@ -40,3 +40,5 @@ export async function getStockableItemDetails(
     itemsPerPallet: doc.itemsPerPallet || null,
   }
 }
+
+

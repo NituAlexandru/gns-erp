@@ -84,13 +84,14 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
         ...invoices.map((i) => i.number),
         (
           (rec.products ?? []).reduce(
-            (s, p) => s + (p.priceAtReception ?? 0) * (p.quantity ?? 0),
+            (s, p) => s + (p.invoicePricePerUnit ?? 0) * p.quantity,
             0
           ) +
           (rec.packagingItems ?? []).reduce(
-            (s, p) => s + (p.priceAtReception ?? 0) * (p.quantity ?? 0),
+            (s, p) => s + (p.invoicePricePerUnit ?? 0) * p.quantity,
             0
-          )
+          ) +
+          (rec.deliveries ?? []).reduce((s, d) => s + (d.transportCost || 0), 0)
         ).toFixed(2),
       ]
         .join(' ')
@@ -147,7 +148,6 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
         return reject(new Error(errorData.message || 'Eroare la server'))
       }
 
-      // Nu avem nevoie să procesăm un răspuns JSON la succes
       resolve(res)
     })
 
@@ -160,7 +160,7 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
         return 'Recepția a fost ștearsă cu succes!'
       },
       error: (err) => {
-        setDeleteOpen(false) // <-- Închide dialogul la eroare
+        setDeleteOpen(false)
         setDeleteTarget(null)
         return err.message
       },
@@ -189,7 +189,7 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
     toast.promise(promise, {
       loading: 'Se revocă confirmarea...',
       success: () => {
-        router.refresh() // Reîmprospătează lista
+        router.refresh()
 
         toast.success('Recepție revocată!', {
           description: 'Recepția a fost adusă în starea "Ciornă" (Draft).',
@@ -206,7 +206,7 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
       error: (err) => err.message,
     })
 
-    setRevokeTarget(null) // Închide dialogul de confirmare
+    setRevokeTarget(null)
     setDeleteOpen(false)
   }
 
@@ -267,16 +267,20 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
           <TableBody>
             {displayList.map((rec) => {
               const deliveries = rec.deliveries ?? []
-              const invoices = rec.invoices ?? []
+              const invoices = rec.invoices ?? [] // Calculăm valoarea mărfii pe baza prețului de factură
               const productsSum = (rec.products ?? []).reduce(
-                (s, p) => s + (p.priceAtReception ?? 0) * (p.quantity ?? 0),
+                (s, p) => s + (p.invoicePricePerUnit ?? 0) * p.quantity,
                 0
               )
               const packagingSum = (rec.packagingItems ?? []).reduce(
-                (s, p) => s + (p.priceAtReception ?? 0) * (p.quantity ?? 0),
+                (s, p) => s + (p.invoicePricePerUnit ?? 0) * p.quantity,
                 0
-              )
-              const totalSum = productsSum + packagingSum
+              ) // Adăugăm și costul total al transportului
+              const transportSum = deliveries.reduce(
+                (s, d) => s + (d.transportCost || 0),
+                0
+              ) // Totalul real este marfa + transportul
+              const totalSum = productsSum + packagingSum + transportSum
 
               return (
                 <TableRow key={rec._id}>

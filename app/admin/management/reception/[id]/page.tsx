@@ -181,7 +181,7 @@ export default async function ReceptionDetailPage({ params }: Props) {
                     name: p.product.name,
                     quantity: p.quantity,
                     unit: p.unitMeasure,
-                    price: p.priceAtReception,
+                    price: p.invoicePricePerUnit,
                   })),
                   // map ambalaje
                   ...packages.map((p, i) => ({
@@ -190,7 +190,7 @@ export default async function ReceptionDetailPage({ params }: Props) {
                     name: p.packaging.name,
                     quantity: p.quantity,
                     unit: p.unitMeasure,
-                    price: p.priceAtReception,
+                    price: p.invoicePricePerUnit,
                   })),
                 ].map(({ key, type, name, quantity, unit, price }) => (
                   <TableRow key={key}>

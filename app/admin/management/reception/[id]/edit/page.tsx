@@ -1,5 +1,6 @@
 import { getReceptionById } from '@/lib/db/modules/reception/reception.actions'
 import { ReceptionForm } from '../../reception-form'
+import { auth } from '@/auth'
 
 const EditReceptionPage = async ({
   params,
@@ -9,6 +10,13 @@ const EditReceptionPage = async ({
   const { id } = await params
 
   const reception = await getReceptionById(id)
+
+  const session = await auth()
+  const currentUserId = session?.user?.id
+
+  if (!currentUserId) {
+    return <div>Eroare: Utilizator neautentificat. Vă rugăm să vă logați.</div>
+  }
 
   if (!reception) {
     return <div>Recepție negăsită.</div>
@@ -29,7 +37,7 @@ const EditReceptionPage = async ({
           </span>
         </div>
       </div>
-      <ReceptionForm initialData={reception} />
+      <ReceptionForm initialData={reception} currentUserId={currentUserId} />
     </div>
   )
 }

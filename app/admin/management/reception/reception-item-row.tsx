@@ -28,10 +28,44 @@ type ReceptionItemRowProps = {
   index: number
   onRemove: () => void
   initialItemData?: { _id: string; name: string }
+  distributedTransportCost: number
 } & ({ itemType: 'products' } | { itemType: 'packagingItems' })
 
+function convertBasePriceToDisplay(
+  basePrice: number,
+  unitMeasure: string,
+  itemDetails: {
+    unit: string
+    packagingUnit?: string
+    packagingQuantity?: number
+    itemsPerPallet?: number
+  }
+): number {
+  const { unit, packagingUnit, packagingQuantity, itemsPerPallet } = itemDetails
+
+  if (unitMeasure === unit) {
+    return basePrice
+  }
+  if (unitMeasure === packagingUnit && packagingQuantity) {
+    return basePrice * packagingQuantity
+  }
+  if (unitMeasure === 'palet' && itemsPerPallet) {
+    const perPackage = packagingQuantity || 1
+    return basePrice * itemsPerPallet * perPackage
+  }
+  // fallback: dacă nu știm cum, arătăm baza
+  return basePrice
+}
+
 export function ReceptionItemRow(props: ReceptionItemRowProps) {
-  const { form, itemType, index, onRemove, initialItemData } = props
+  const {
+    form,
+    itemType,
+    index,
+    onRemove,
+    initialItemData,
+    distributedTransportCost,
+  } = props
 
   const { itemName, itemNamePath, quantityPath, unitMeasurePath, pricePath } =
     itemType === 'products'
@@ -40,22 +74,24 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           itemNamePath: `products.${index}.product` as const,
           quantityPath: `products.${index}.quantity` as const,
           unitMeasurePath: `products.${index}.unitMeasure` as const,
-          pricePath: `products.${index}.priceAtReception` as const,
+          pricePath: `products.${index}.invoicePricePerUnit` as const,
         }
       : {
           itemName: 'packaging' as const,
           itemNamePath: `packagingItems.${index}.packaging` as const,
           quantityPath: `packagingItems.${index}.quantity` as const,
           unitMeasurePath: `packagingItems.${index}.unitMeasure` as const,
-          pricePath: `packagingItems.${index}.priceAtReception` as const,
+          pricePath: `packagingItems.${index}.invoicePricePerUnit` as const,
         }
 
   const selectedItemId = form.watch(itemNamePath)
-  const currentPrice = form.watch(pricePath)
+  const invoicePrice = form.watch(pricePath)
   const quantity = form.watch(quantityPath)
   const selectedUM = form.watch(unitMeasurePath)
 
   const [lastPrice, setLastPrice] = useState<number | null>(null)
+  const [isLoadingPrice, setIsLoadingPrice] = useState(false)
+  const [priceNotFound, setPriceNotFound] = useState(false)
   const [itemDetails, setItemDetails] = useState<SearchResult | null>(null)
 
   useEffect(() => {
@@ -65,128 +101,186 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
   }, [initialItemData])
 
   useEffect(() => {
-    if (selectedItemId) {
-      fetch(`/api/admin/products/${selectedItemId}/last-price`)
-        .then((res) => res.json())
-        .then((data) => setLastPrice(data.price || null))
-        .catch((err) => console.error('Failed to fetch last price:', err))
-    } else {
-      setLastPrice(null)
-      setItemDetails(null)
-    }
-  }, [selectedItemId])
+    if (!selectedItemId) return
+
+    setIsLoadingPrice(true)
+    setLastPrice(null)
+    setPriceNotFound(false)
+
+    // Alege ruta în funcție de itemType
+    const url =
+      itemType === 'products'
+        ? `/api/admin/management/receptions/last-price/${selectedItemId}`
+        : `/api/admin/management/receptions/last-price-packaging/${selectedItemId}`
+
+    fetch(url)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Status ${res.status}`)
+        return res.json()
+      })
+      .then((data) => {
+        setIsLoadingPrice(false)
+        if (typeof data.price === 'number') {
+          setLastPrice(data.price)
+        } else {
+          setPriceNotFound(true)
+        }
+      })
+      .catch(() => {
+        setIsLoadingPrice(false)
+        setPriceNotFound(true)
+      })
+  }, [selectedItemId, itemType])
 
   const priceDifferencePercentage = useMemo(() => {
+    console.log('🛠 priceDifference check:', {
+      lastPrice,
+      invoicePrice,
+      selectedUM,
+      hasDetails: !!itemDetails,
+    })
     if (
       lastPrice === null ||
       lastPrice === 0 ||
-      typeof currentPrice !== 'number' || // Verificare explicită pentru număr
+      typeof invoicePrice !== 'number' ||
       !itemDetails ||
       !selectedUM
     ) {
       return null
     }
 
-    let currentPricePerBaseUnit = 0
     const { unit, packagingUnit, packagingQuantity, itemsPerPallet } =
       itemDetails
+    let currentPricePerBaseUnit = 0
 
     if (selectedUM === unit) {
-      currentPricePerBaseUnit = currentPrice
-    } else if (selectedUM === packagingUnit && packagingQuantity) {
-      currentPricePerBaseUnit = currentPrice / packagingQuantity
-    } else if (selectedUM === 'palet' && itemsPerPallet) {
-      const pricePerPackage = currentPrice / itemsPerPallet
-      currentPricePerBaseUnit = packagingQuantity
-        ? pricePerPackage / packagingQuantity
-        : pricePerPackage
+      currentPricePerBaseUnit = invoicePrice
+    } else if (
+      selectedUM === packagingUnit &&
+      packagingQuantity &&
+      packagingQuantity > 0
+    ) {
+      currentPricePerBaseUnit = invoicePrice / packagingQuantity
+    } else if (selectedUM === 'palet' && itemsPerPallet && itemsPerPallet > 0) {
+      const pricePerPackage = invoicePrice / itemsPerPallet
+      currentPricePerBaseUnit =
+        packagingQuantity && packagingQuantity > 0
+          ? pricePerPackage / packagingQuantity
+          : pricePerPackage
+    } else {
+      return null
     }
 
-    if (isNaN(currentPricePerBaseUnit) || !isFinite(currentPricePerBaseUnit)) {
+    if (
+      isNaN(currentPricePerBaseUnit) ||
+      !isFinite(currentPricePerBaseUnit) ||
+      currentPricePerBaseUnit <= 0
+    ) {
       return null
     }
 
     const difference = ((currentPricePerBaseUnit - lastPrice) / lastPrice) * 100
-
-    if (Math.abs(difference) < 0.01) {
-      return null
-    }
-
-    return difference
-  }, [currentPrice, lastPrice, selectedUM, itemDetails])
+    return Math.abs(difference) < 0.01 ? null : difference
+  }, [invoicePrice, lastPrice, selectedUM, itemDetails])
 
   const calculatedValues = useMemo(() => {
     if (
       !itemDetails ||
       !quantity ||
       !selectedUM ||
-      typeof currentPrice !== 'number' // Verificare explicită pentru număr
+      typeof invoicePrice !== 'number'
     ) {
       return null
     }
 
     const { unit, packagingUnit, packagingQuantity, itemsPerPallet } =
       itemDetails
+    const totalBaseUnitsPerPallet =
+      itemsPerPallet && itemsPerPallet > 0
+        ? packagingQuantity
+          ? itemsPerPallet * packagingQuantity
+          : itemsPerPallet
+        : 0
 
-    let pricePerBaseUnit = 0
-    if (selectedUM === unit) {
-      pricePerBaseUnit = currentPrice
-    } else if (selectedUM === packagingUnit && packagingQuantity) {
-      pricePerBaseUnit = currentPrice / packagingQuantity
-    } else if (selectedUM === 'palet' && itemsPerPallet) {
-      const pricePerPackage = currentPrice / itemsPerPallet
-      pricePerBaseUnit = packagingQuantity
-        ? pricePerPackage / packagingQuantity
-        : pricePerPackage
+    let baseQuantity = 0
+    let invoicePricePerBaseUnit = 0
+
+    switch (selectedUM) {
+      case unit:
+        baseQuantity = quantity
+        invoicePricePerBaseUnit = invoicePrice
+        break
+      case packagingUnit:
+        if (!packagingQuantity) return null
+        baseQuantity = quantity * packagingQuantity
+        invoicePricePerBaseUnit = invoicePrice / packagingQuantity
+        break
+      case 'palet':
+        if (totalBaseUnitsPerPallet <= 0) return null
+        baseQuantity = quantity * totalBaseUnitsPerPallet
+        invoicePricePerBaseUnit = invoicePrice / totalBaseUnitsPerPallet
+        break
+      default:
+        return null
     }
 
-    if (isNaN(pricePerBaseUnit) || !isFinite(pricePerBaseUnit)) {
+    if (
+      isNaN(invoicePricePerBaseUnit) ||
+      !isFinite(invoicePricePerBaseUnit) ||
+      baseQuantity === 0
+    ) {
       return null
     }
 
-    const pricePerPackagingUnit = packagingQuantity
-      ? pricePerBaseUnit * packagingQuantity
+    const invoicePricePerPackagingUnit = packagingQuantity
+      ? invoicePricePerBaseUnit * packagingQuantity
       : null
-    const pricePerPallet =
-      itemsPerPallet && itemsPerPallet > 0 && pricePerPackagingUnit
-        ? pricePerPackagingUnit * itemsPerPallet
-        : itemsPerPallet && itemsPerPallet > 0
-          ? pricePerBaseUnit * itemsPerPallet
-          : null
+    const invoicePricePerPallet =
+      totalBaseUnitsPerPallet > 0
+        ? invoicePricePerBaseUnit * totalBaseUnitsPerPallet
+        : null
+    const invoiceTotalPrice = quantity * invoicePrice
 
-    let totalBaseUnit = 0
-    if (selectedUM === unit) {
-      totalBaseUnit = quantity
-    } else if (selectedUM === packagingUnit && packagingQuantity) {
-      totalBaseUnit = quantity * packagingQuantity
-    } else if (selectedUM === 'palet' && itemsPerPallet) {
-      const totalPackages = quantity * itemsPerPallet
-      totalBaseUnit = packagingQuantity
-        ? totalPackages * packagingQuantity
-        : totalPackages
-    }
+    const transportCostPerBaseUnit = distributedTransportCost / baseQuantity
+    const landedCostPerBaseUnit =
+      invoicePricePerBaseUnit + transportCostPerBaseUnit
+    const landedCostPerPackagingUnit = packagingQuantity
+      ? landedCostPerBaseUnit * packagingQuantity
+      : null
+    const landedCostPerPallet =
+      totalBaseUnitsPerPallet > 0
+        ? landedCostPerBaseUnit * totalBaseUnitsPerPallet
+        : null
+    const landedTotalPrice = invoiceTotalPrice + distributedTransportCost
 
     const totalPackagingUnit = packagingQuantity
-      ? totalBaseUnit / packagingQuantity
+      ? baseQuantity / packagingQuantity
       : null
     const totalPallets =
-      itemsPerPallet && itemsPerPallet > 0 && totalPackagingUnit
-        ? totalPackagingUnit / itemsPerPallet
-        : itemsPerPallet && itemsPerPallet > 0
-          ? totalBaseUnit / itemsPerPallet
-          : null
-    const totalPrice = quantity * currentPrice
+      totalBaseUnitsPerPallet > 0
+        ? baseQuantity / totalBaseUnitsPerPallet
+        : null
 
     return {
-      totalBase: totalBaseUnit.toFixed(2),
+      totalBase: baseQuantity.toFixed(2),
       totalPackaging: totalPackagingUnit ? totalPackagingUnit.toFixed(2) : null,
       totalPallets: totalPallets ? totalPallets.toFixed(2) : null,
-      priceBase: pricePerBaseUnit,
-      pricePackaging: pricePerPackagingUnit,
-      pricePallet: pricePerPallet,
-      totalPrice: totalPrice,
+      invoicePricePerBaseUnit,
+      invoicePricePerPackagingUnit,
+      invoicePricePerPallet,
+      landedCostPerBaseUnit,
+      landedCostPerPackagingUnit,
+      landedCostPerPallet,
+      invoiceTotalPrice,
+      landedTotalPrice,
     }
-  }, [quantity, selectedUM, currentPrice, itemDetails])
+  }, [
+    quantity,
+    selectedUM,
+    invoicePrice,
+    itemDetails,
+    distributedTransportCost,
+  ])
 
   const uniqueUmOptions = useMemo(() => {
     if (!itemDetails) return []
@@ -208,33 +302,46 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
             <FormItem>
               <FormLabel className='flex justify-between items-center'>
                 <div>
-                  {itemName === 'product' ? 'Produs' : 'Ambalaj'}{' '}
-                  <span>
-                    * <span className='text-red-500'>*</span>
-                  </span>
+                  {itemName === 'product' ? 'Produs' : 'Ambalaj'} <span>*</span>
                 </div>
-                {lastPrice !== null && (
-                  <p className=' mt-1 text-muted-foreground text-xs'>
-                    Ultimul preț de receptie: {formatCurrency(lastPrice)} /{' '}
-                    {itemDetails?.unit}
-                  </p>
-                )}
-                <div>
-                  {' '}
-                  {priceDifferencePercentage !== null && (
-                    <p
-                      className={cn(
-                        'text-xs mt-1 text-right',
-                        priceDifferencePercentage > 0
-                          ? 'text-red-500'
-                          : 'text-green-600'
-                      )}
-                    >
-                      {priceDifferencePercentage > 0 ? '+' : ''}
-                      {priceDifferencePercentage.toFixed(2)}% față de ultimul
-                      preț
+                <div className='text-right text-xs'>
+                  {isLoadingPrice ? (
+                    <p className='mt-1 text-muted-foreground animate-pulse'>
+                      Se verifică...
                     </p>
-                  )}
+                  ) : priceNotFound ? (
+                    <p className='mt-1 text-amber-600 font-medium'>
+                      Nu există recepții anterioare pentru acest articol
+                    </p>
+                  ) : lastPrice !== null && itemDetails && selectedUM ? (
+                    <>
+                      <p className='mt-1 text-muted-foreground'>
+                        Ultimul preț:{' '}
+                        {formatCurrency(
+                          convertBasePriceToDisplay(lastPrice, selectedUM, {
+                            unit: itemDetails.unit!,
+                            packagingUnit: itemDetails.packagingUnit,
+                            packagingQuantity: itemDetails.packagingQuantity,
+                            itemsPerPallet: itemDetails.itemsPerPallet,
+                          })
+                        )}{' '}
+                        / {selectedUM}
+                      </p>
+                      {priceDifferencePercentage != null && (
+                        <p
+                          className={cn(
+                            'mt-1 font-semibold',
+                            priceDifferencePercentage > 0
+                              ? 'text-red-500'
+                              : 'text-green-600'
+                          )}
+                        >
+                          {priceDifferencePercentage > 0 ? '+' : ''}
+                          {priceDifferencePercentage.toFixed(2)}%
+                        </p>
+                      )}
+                    </>
+                  ) : null}
                 </div>
               </FormLabel>
               <AutocompleteSearch
@@ -264,10 +371,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                Cantitate{' '}
-                <span>
-                  * <span className='text-red-500'>*</span>
-                </span>
+                Cantitate <span>*</span>
               </FormLabel>
               <FormControl>
                 <Input
@@ -292,10 +396,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                UM{' '}
-                <span>
-                  * <span className='text-red-500'>*</span>
-                </span>
+                UM <span>*</span>
               </FormLabel>
               <Select
                 onValueChange={field.onChange}
@@ -326,7 +427,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                Preț intrare <span className='text-red-500'>*</span>{' '}
+                Preț intrare <span>*</span>
               </FormLabel>
               <FormControl>
                 <Input
@@ -345,6 +446,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
             </FormItem>
           )}
         />
+
         <Button
           type='button'
           size='icon'
@@ -358,8 +460,9 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
 
       {calculatedValues && itemDetails && (
         <div className='mt-2 space-y-3 border-t pt-2 text-xs'>
+          {/* Cantități totale */}
           <div>
-            <div className='font-semibold text-foreground mb-1 flex justify-between items-baseline'>
+            <div className='font-semibold text-foreground mb-1 flex justify-between'>
               <span>Cantități Totale:</span>
               <div className='text-xs font-normal text-muted-foreground space-x-3'>
                 {itemDetails.packagingQuantity && itemDetails.packagingUnit && (
@@ -368,13 +471,12 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                     {itemDetails.packagingQuantity} {itemDetails.unit})
                   </span>
                 )}
-                {itemDetails.itemsPerPallet &&
-                  itemDetails.itemsPerPallet > 0 && (
-                    <span>
-                      (1 palet = {itemDetails.itemsPerPallet}{' '}
-                      {itemDetails.packagingUnit || itemDetails.unit})
-                    </span>
-                  )}
+                {itemDetails.itemsPerPallet && (
+                  <span>
+                    (1 palet = {itemDetails.itemsPerPallet}{' '}
+                    {itemDetails.packagingUnit || itemDetails.unit})
+                  </span>
+                )}
               </div>
             </div>
             <div className='grid grid-cols-3 gap-2 text-center'>
@@ -384,7 +486,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                 </div>
                 <div className='font-bold'>{calculatedValues.totalBase}</div>
               </div>
-              {calculatedValues.totalPackaging && itemDetails.packagingUnit && (
+              {calculatedValues.totalPackaging != null && (
                 <div className='rounded bg-background p-1'>
                   <div className='text-muted-foreground'>
                     Total {itemDetails.packagingUnit}
@@ -394,7 +496,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                   </div>
                 </div>
               )}
-              {calculatedValues.totalPallets && (
+              {calculatedValues.totalPallets != null && (
                 <div className='rounded bg-background p-1'>
                   <div className='text-muted-foreground'>Total palet</div>
                   <div className='font-bold'>
@@ -405,39 +507,82 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
             </div>
           </div>
 
+          {/* Prețuri & costuri */}
           <div>
-            <div className='font-semibold text-foreground mb-1 flex items-center gap-3 justify-between'>
-              <div>Prețuri Echivalente:</div>
-              <div className='rounded text-center'>
-                <div className='font-bold text-lg text-muted-foreground'>
-                  Valoare Totală: {formatCurrency(calculatedValues.totalPrice)}
+            <div className='font-semibold text-foreground mb-1 flex justify-between'>
+              <span>Prețuri & Costuri:</span>
+              <div className='text-right'>
+                <div className='font-normal text-sm text-muted-foreground'>
+                  Valoare Factură:{' '}
+                  <span className='font-medium'>
+                    {formatCurrency(calculatedValues.invoiceTotalPrice)}
+                  </span>
+                </div>
+                <div className='font-bold text-lg text-primary'>
+                  Valoare cu Transport:{' '}
+                  {formatCurrency(calculatedValues.landedTotalPrice)}
                 </div>
               </div>
             </div>
             <div className='grid grid-cols-3 gap-2 text-center'>
-              <div className='rounded bg-background p-1'>
-                <div className='text-muted-foreground'>
-                  Preț / {itemDetails.unit}
-                </div>
-                <div className='font-bold'>
-                  {formatCurrency(calculatedValues.priceBase)}
-                </div>
-              </div>
-              {calculatedValues.pricePackaging && itemDetails.packagingUnit && (
+              {/* Bază */}
+              <div className='space-y-1'>
                 <div className='rounded bg-background p-1'>
                   <div className='text-muted-foreground'>
-                    Preț / {itemDetails.packagingUnit}
+                    Preț / {itemDetails.unit}
                   </div>
                   <div className='font-bold'>
-                    {formatCurrency(calculatedValues.pricePackaging)}
+                    {formatCurrency(calculatedValues.invoicePricePerBaseUnit)}
+                  </div>
+                </div>
+                <div className='rounded bg-lime-950 p-1'>
+                  <div className='text-lime-400'>Cost / {itemDetails.unit}</div>
+                  <div className='font-bold text-white'>
+                    {formatCurrency(calculatedValues.landedCostPerBaseUnit)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Ambalaj */}
+              {itemDetails.packagingUnit && (
+                <div className='space-y-1'>
+                  <div className='rounded bg-background p-1'>
+                    <div className='text-muted-foreground'>
+                      Preț / {itemDetails.packagingUnit}
+                    </div>
+                    <div className='font-bold'>
+                      {formatCurrency(
+                        calculatedValues.invoicePricePerPackagingUnit!
+                      )}
+                    </div>
+                  </div>
+                  <div className='rounded bg-lime-950 p-1'>
+                    <div className='text-lime-400'>
+                      Cost / {itemDetails.packagingUnit}
+                    </div>
+                    <div className='font-bold text-white'>
+                      {formatCurrency(
+                        calculatedValues.landedCostPerPackagingUnit!
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
-              {calculatedValues.pricePallet && (
-                <div className='rounded bg-background p-1'>
-                  <div className='text-muted-foreground'>Preț / palet</div>
-                  <div className='font-bold'>
-                    {formatCurrency(calculatedValues.pricePallet)}
+
+              {/* Palet */}
+              {itemDetails.itemsPerPallet && (
+                <div className='space-y-1'>
+                  <div className='rounded bg-background p-1'>
+                    <div className='text-muted-foreground'>Preț / palet</div>
+                    <div className='font-bold'>
+                      {formatCurrency(calculatedValues.invoicePricePerPallet!)}
+                    </div>
+                  </div>
+                  <div className='rounded bg-lime-950 p-1'>
+                    <div className='text-lime-400'>Cost / palet</div>
+                    <div className='font-bold text-white'>
+                      {formatCurrency(calculatedValues.landedCostPerPallet!)}
+                    </div>
                   </div>
                 </div>
               )}

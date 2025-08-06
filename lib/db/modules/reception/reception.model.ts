@@ -1,5 +1,12 @@
 import { Document, Model, models, model, Schema, Types } from 'mongoose'
 
+export interface ITertiaryTransporter {
+  name: string
+  cui?: string
+  regCom?: string
+  address?: string
+}
+
 export interface IDelivery {
   dispatchNoteSeries?: string
   dispatchNoteNumber: string
@@ -7,6 +14,9 @@ export interface IDelivery {
   driverName?: string
   carNumber?: string
   notes?: string
+  transportType: 'INTERN' | 'EXTERN_FURNIZOR' | 'TERT'
+  transportCost: number
+  tertiaryTransporterDetails?: ITertiaryTransporter
 }
 
 export interface IInvoice {
@@ -14,6 +24,18 @@ export interface IInvoice {
   number: string
   date: Date
   amount: number
+}
+
+// --- Structura pentru costurile unui articol ---
+export interface IReceptionItemCost {
+  // Prețul de pe factură (fără transport) - pentru contabilitate/NIR
+  invoicePricePerUnit: number
+  // Cota de transport alocată per unitatea de BAZĂ
+  distributedTransportCostPerUnit: number
+  // Costul TOTAL de transport alocat întregii cantități de pe această linie
+  totalDistributedTransportCost: number
+  // Costul final "de business" per unitatea de BAZĂ (invoicePrice + transportCost)
+  landedCostPerUnit: number
 }
 
 export interface IReceptionDoc extends Document {
@@ -29,18 +51,18 @@ export interface IReceptionDoc extends Document {
   // Câmpul `location` din modelul de Inventar va trebui să stocheze
   // acest identificator compozit sau să aibă câmpuri separate.
   destinationLocation: string
-  products: {
+  products: ({
+    _id: Types.ObjectId
     product: Types.ObjectId
     quantity: number
     unitMeasure: string
-    priceAtReception?: number | null
-  }[]
-  packagingItems: {
+  } & IReceptionItemCost)[] // Am combinat câmpurile
+  packagingItems: ({
+    _id: Types.ObjectId
     packaging: Types.ObjectId
     quantity: number
     unitMeasure: string
-    priceAtReception?: number | null
-  }[]
+  } & IReceptionItemCost)[] // Am combinat câmpurile
   receptionDate: Date
   status: 'DRAFT' | 'CONFIRMAT'
   deliveries: IDelivery[]
@@ -50,6 +72,17 @@ export interface IReceptionDoc extends Document {
 }
 
 // --- Scheme pentru Sub-documente ---
+
+const tertiaryTransporterSchema = new Schema<ITertiaryTransporter>(
+  {
+    name: { type: String, required: false },
+    cui: { type: String },
+    regCom: { type: String },
+    address: { type: String },
+  },
+  { _id: false }
+)
+
 const deliverySchema = new Schema<IDelivery>(
   {
     dispatchNoteSeries: { type: String, required: false },
@@ -58,6 +91,16 @@ const deliverySchema = new Schema<IDelivery>(
     driverName: { type: String, required: false },
     carNumber: { type: String, required: false },
     notes: { type: String, required: false },
+    transportType: {
+      type: String,
+      enum: ['INTERN', 'EXTERN_FURNIZOR', 'TERT'],
+      required: true,
+    },
+    transportCost: { type: Number, default: 0, required: true },
+    tertiaryTransporterDetails: {
+      type: tertiaryTransporterSchema,
+      required: false,
+    },
   },
   { _id: false }
 )
@@ -71,6 +114,13 @@ const invoiceSchema = new Schema<IInvoice>(
   },
   { _id: false }
 )
+
+const receptionItemCostSchema = {
+  invoicePricePerUnit: { type: Number, required: false, default: null },
+  distributedTransportCostPerUnit: { type: Number, default: 0 },
+  totalDistributedTransportCost: { type: Number, default: 0 },
+  landedCostPerUnit: { type: Number, required: false },
+}
 
 // --- Schema Principală ---
 const receptionSchema = new Schema<IReceptionDoc>(
@@ -103,7 +153,7 @@ const receptionSchema = new Schema<IReceptionDoc>(
         product: { type: Schema.Types.ObjectId, ref: 'ERPProduct' },
         quantity: { type: Number, required: true },
         unitMeasure: { type: String, required: true },
-        priceAtReception: { type: Number, default: null, required: false },
+        ...receptionItemCostSchema, // Am inclus câmpurile de cost
       },
     ],
     packagingItems: [
@@ -112,7 +162,7 @@ const receptionSchema = new Schema<IReceptionDoc>(
         packaging: { type: Schema.Types.ObjectId, ref: 'Packaging' },
         quantity: { type: Number, required: true },
         unitMeasure: { type: String, required: true },
-        priceAtReception: { type: Number, default: null, required: false },
+        ...receptionItemCostSchema, // Am inclus câmpurile de cost
       },
     ],
     receptionDate: {

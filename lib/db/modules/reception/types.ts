@@ -22,17 +22,22 @@ export type PopulatedReceptionProduct = Omit<
   ReceptionProductInput,
   'product'
 > & {
-  product: PopulatedItem
+  product: PopulatedProductDetails
+  distributedTransportCostPerUnit?: number
+  totalDistributedTransportCost?: number
+  landedCostPerUnit?: number
 }
 
 export type PopulatedReceptionPackaging = Omit<
   z.infer<typeof ReceptionPackagingSchema>,
   'packaging'
 > & {
-  packaging: PopulatedItem
+  packaging: PopulatedPackagingDetails
+  distributedTransportCostPerUnit?: number
+  totalDistributedTransportCost?: number
+  landedCostPerUnit?: number
 }
 
-// Tipul final pentru o recepție complet populată
 export type PopulatedReception = Omit<
   ReceptionUpdateInput,
   'products' | 'packagingItems' | 'supplier' | 'deliveries' | 'invoices'
@@ -53,4 +58,20 @@ export interface ReceptionFilters {
   createdBy?: string // ObjectId al utilizatorului
   page?: number
   pageSize: number
+}
+export type PopulatedProductDetails = {
+  _id: string
+  name: string
+  unit?: string
+  packagingUnit?: string
+  packagingQuantity?: number
+  itemsPerPallet?: number
+}
+
+export type PopulatedPackagingDetails = {
+  _id: string
+  name: string
+  unit?: string
+  packagingUnit?: string
+  packagingQuantity?: number
 }

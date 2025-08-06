@@ -1,6 +1,9 @@
 import mongoose from 'mongoose'
 import ReceptionModel from './reception.model'
-import { recordStockMovement } from '../inventory/inventory.actions'
+import {
+  recordStockMovement,
+  reverseStockMovementsByReference,
+} from '../inventory/inventory.actions'
 import { getStockableItemDetails } from './utils'
 import { ReceptionCreateSchema, ReceptionUpdateSchema } from './validator'
 import {
@@ -12,6 +15,7 @@ import z from 'zod'
 import { connectToDatabase } from '../..'
 import Supplier from '../suppliers/supplier.model'
 import User from '../user/user.model'
+import { distributeTransportCost } from './reception.helpers'
 
 export async function createReception(data: ReceptionCreateInput) {
   try {
@@ -137,41 +141,17 @@ export async function updateReception(data: ReceptionUpdateInput) {
 export async function confirmReception(receptionId: string) {
   const session = await mongoose.startSession()
   try {
-    const result = await session.withTransaction(async () => {
+    const result = await session.withTransaction(async (session) => {
       const reception = await ReceptionModel.findById(receptionId)
         .populate<{ supplier: { name: string } }>('supplier', 'name')
         .session(session)
 
-      // --- Verificări Globale ---
-      if (!reception)
+      if (!reception) {
         return { success: false, message: 'Recepția nu a fost găsită.' }
-      if (reception.status === 'CONFIRMAT')
+      }
+      if (reception.status === 'CONFIRMAT') {
         return { success: false, message: 'Recepția este deja confirmată.' }
-      if (!reception.supplier)
-        return {
-          success: false,
-          message: 'Finalizarea a eșuat: Trebuie să selectezi un furnizor.',
-        }
-      if (!reception.deliveries || reception.deliveries.length === 0)
-        return {
-          success: false,
-          message: 'Finalizarea a eșuat: Trebuie să adaugi cel puțin un aviz.',
-        }
-      if (!reception.invoices || reception.invoices.length === 0)
-        return {
-          success: false,
-          message:
-            'Finalizarea a eșuat: Trebuie să adaugi cel puțin o factură.',
-        }
-      const hasItems =
-        (reception.products && reception.products.length > 0) ||
-        (reception.packagingItems && reception.packagingItems.length > 0)
-      if (!hasItems)
-        return {
-          success: false,
-          message:
-            'Finalizarea a eșuat: Recepția trebuie să conțină cel puțin un produs sau ambalaj.',
-        }
+      }
 
       let targetLocation: string
       if (reception.destinationType === 'PROIECT') {
@@ -180,141 +160,114 @@ export async function confirmReception(receptionId: string) {
         targetLocation = reception.destinationId.toString()
       } else {
         targetLocation = reception.destinationLocation
-      }
+      } // --- NOUA LOGICĂ, SIMPLIFICATĂ ---
+      // 1. Calculăm costul total de transport
 
-      // === PROCESARE PRODUSE ===
-      for (const item of reception.products) {
+      const totalTransportCost = reception.deliveries.reduce(
+        (sum, delivery) => sum + (delivery.transportCost || 0),
+        0
+      ) // 2. Combinăm toate articolele într-un singur array
+
+      const allOriginalItems = [
+        ...(reception.products || []),
+        ...(reception.packagingItems || []),
+      ] // 3. Apelăm funcția ajutătoare. Ordinea articolelor va fi păstrată.
+
+      const itemsWithTransportCost = distributeTransportCost(
+        allOriginalItems,
+        totalTransportCost
+      ) // 4. Iterăm prin articole folosind indexul, NU o căutare după _id
+
+      for (let i = 0; i < allOriginalItems.length; i++) {
+        const item = allOriginalItems[i] // Articolul original
+        const transportData = itemsWithTransportCost[i] // Articolul corespunzător cu costul calculat
+
+        if (!transportData) {
+          throw new Error(
+            `Eroare de sincronizare a array-urilor la index ${i}.`
+          )
+        }
+
+        const totalDistributedTransport =
+          transportData.totalDistributedTransportCost || 0
+        const itemType = 'product' in item ? 'Product' : 'Packaging'
+        const itemId = 'product' in item ? item.product : item.packaging
+
+        // ... restul logicii de calcul pentru baseQuantity, landedCost etc. ...
+        // (această parte rămâne neschimbată)
+
         if (
-          item.priceAtReception === null ||
-          typeof item.priceAtReception === 'undefined' ||
-          item.priceAtReception < 0
+          item.invoicePricePerUnit === null ||
+          typeof item.invoicePricePerUnit === 'undefined' ||
+          item.invoicePricePerUnit < 0
         ) {
           return {
             success: false,
-            message:
-              'Finalizarea a eșuat: Prețul de recepție lipsește sau este invalid pentru cel puțin un produs.',
+            message: `Prețul de factură lipsește pentru cel puțin un articol.`,
           }
         }
 
         const details = await getStockableItemDetails(
-          item.product.toString(),
-          'Product'
+          itemId.toString(),
+          itemType as 'Product' | 'Packaging'
         )
-        let baseQuantity = 0
-        let pricePerBaseUnit = 0
 
+        let baseQuantity = 0
         switch (item.unitMeasure) {
           case details.unit:
             baseQuantity = item.quantity
-            pricePerBaseUnit = item.priceAtReception
             break
           case details.packagingUnit:
             if (!details.packagingQuantity || details.packagingQuantity <= 0)
-              return {
-                success: false,
-                message: `Factor de conversie 'packagingQuantity' invalid pentru produsul ${item.product}.`,
-              }
+              throw new Error(
+                `Factor de conversie 'packagingQuantity' invalid pentru ${itemId}.`
+              )
             baseQuantity = item.quantity * details.packagingQuantity
-            pricePerBaseUnit = item.priceAtReception / details.packagingQuantity
             break
           case 'palet':
             if (!details.itemsPerPallet || details.itemsPerPallet <= 0)
-              return {
-                success: false,
-                message: `Factor de conversie 'itemsPerPallet' invalid pentru produsul ${item.product}.`,
-              }
+              throw new Error(
+                `Factor de conversie 'itemsPerPallet' invalid pentru ${itemId}.`
+              )
             const totalBaseUnitsPerPallet = details.packagingQuantity
               ? details.itemsPerPallet * details.packagingQuantity
               : details.itemsPerPallet
             if (totalBaseUnitsPerPallet <= 0)
-              return {
-                success: false,
-                message: `Calculul unităților pe palet a eșuat pentru produsul ${item.product}.`,
-              }
+              throw new Error(
+                `Calculul unităților pe palet a eșuat pentru ${itemId}.`
+              )
             baseQuantity = item.quantity * totalBaseUnitsPerPallet
-            pricePerBaseUnit = item.priceAtReception / totalBaseUnitsPerPallet
             break
           default:
-            return {
-              success: false,
-              message: `Unitatea de măsură '${item.unitMeasure}' nu este validă pentru produsul ${item.product}.`,
-            }
+            throw new Error(
+              `Unitate de măsură '${item.unitMeasure}' invalidă pentru ${itemId}.`
+            )
         }
-        if (isNaN(pricePerBaseUnit) || !isFinite(pricePerBaseUnit))
-          return {
-            success: false,
-            message: `Calculul prețului de bază a eșuat pentru produsul ${item.product}.`,
-          }
+
+        if (baseQuantity === 0) continue
+
+        const conversionFactor = baseQuantity / item.quantity
+        const invoicePricePerBaseUnit =
+          item.invoicePricePerUnit / conversionFactor
+        const distributedTransportCostPerUnit =
+          totalDistributedTransport / baseQuantity
+        const landedCostPerUnit =
+          invoicePricePerBaseUnit + distributedTransportCostPerUnit
+
+        item.invoicePricePerUnit = invoicePricePerBaseUnit
+        item.distributedTransportCostPerUnit = distributedTransportCostPerUnit
+        item.totalDistributedTransportCost = totalDistributedTransport
+        item.landedCostPerUnit = landedCostPerUnit
 
         await recordStockMovement({
-          stockableItem: item.product.toString(),
-          stockableItemType: 'Product',
+          stockableItem: itemId.toString(),
+          stockableItemType: itemType,
           movementType: 'RECEPTIE',
           quantity: baseQuantity,
           locationTo: targetLocation,
           referenceId: reception._id.toString(),
-          note: `Recepție PRODUSE de la furnizor ${reception.supplier.name}`,
-          unitCost: pricePerBaseUnit,
-          timestamp: reception.receptionDate,
-        })
-      }
-
-      // === PROCESARE AMBALAJE ===
-      for (const item of reception.packagingItems) {
-        if (
-          item.priceAtReception === null ||
-          typeof item.priceAtReception === 'undefined' ||
-          item.priceAtReception < 0
-        ) {
-          return {
-            success: false,
-            message:
-              'Finalizarea a eșuat: Prețul de recepție lipsește sau este invalid pentru cel puțin un ambalaj.',
-          }
-        }
-
-        const details = await getStockableItemDetails(
-          item.packaging.toString(),
-          'Packaging'
-        )
-        let baseQuantity = 0
-        let pricePerBaseUnit = 0
-
-        switch (item.unitMeasure) {
-          case details.unit:
-            baseQuantity = item.quantity
-            pricePerBaseUnit = item.priceAtReception
-            break
-          case details.packagingUnit:
-            if (!details.packagingQuantity || details.packagingQuantity <= 0)
-              return {
-                success: false,
-                message: `Factor de conversie 'packagingQuantity' invalid pentru ambalajul ${item.packaging}.`,
-              }
-            baseQuantity = item.quantity * details.packagingQuantity
-            pricePerBaseUnit = item.priceAtReception / details.packagingQuantity
-            break
-          default:
-            return {
-              success: false,
-              message: `Unitatea de măsură '${item.unitMeasure}' nu este validă pentru ambalajul ${item.packaging}.`,
-            }
-        }
-        if (isNaN(pricePerBaseUnit) || !isFinite(pricePerBaseUnit))
-          return {
-            success: false,
-            message: `Calculul prețului de bază a eșuat pentru ambalajul ${item.packaging}.`,
-          }
-
-        await recordStockMovement({
-          stockableItem: item.packaging.toString(),
-          stockableItemType: 'Packaging',
-          movementType: 'RECEPTIE',
-          quantity: baseQuantity,
-          locationTo: targetLocation,
-          referenceId: reception._id.toString(),
-          note: `Recepție AMBALAJE de la furnizor ${reception.supplier.name}`,
-          unitCost: pricePerBaseUnit,
+          note: `Recepție ${itemType} de la furnizor ${reception.supplier.name}`,
+          unitCost: landedCostPerUnit,
           timestamp: reception.receptionDate,
         })
       }
@@ -343,9 +296,22 @@ export async function confirmReception(receptionId: string) {
 export async function revokeConfirmation(receptionId: string) {
   const session = await mongoose.startSession()
   try {
-    const result = await session.withTransaction(async () => {
+    const result = await session.withTransaction(async (session) => {
+      // 1. Inversează mișcările de stoc
+      await reverseStockMovementsByReference(receptionId, session)
+
+      // 2. Încarcă recepția cu detaliile necesare
       const reception = await ReceptionModel.findById(receptionId)
-        .populate<{ supplier: { name: string } }>('supplier', 'name')
+        .populate({
+          path: 'products.product',
+          model: 'ERPProduct',
+          select: 'packagingUnit packagingQuantity itemsPerPallet',
+        })
+        .populate({
+          path: 'packagingItems.packaging',
+          model: 'Packaging',
+          select: 'packagingQuantity',
+        })
         .session(session)
 
       if (!reception) {
@@ -358,103 +324,41 @@ export async function revokeConfirmation(receptionId: string) {
         }
       }
 
-      // Inversăm mișcările de stoc
-      const allItems = [
-        ...(reception.products || []).map((p) => ({
-          product: p.product,
-          quantity: p.quantity,
-          unitMeasure: p.unitMeasure,
-          priceAtReception: p.priceAtReception,
-          type: 'Product',
-          itemId: p.product,
-        })),
-        ...(reception.packagingItems || []).map((p) => ({
-                  packaging: p.packaging,
-          quantity: p.quantity,
-          unitMeasure: p.unitMeasure,
-          priceAtReception: p.priceAtReception,
-                  type: 'Packaging',
-          itemId: p.packaging,
-        })),
-      ]
-
-      for (const item of allItems) {
-        if (!item.unitMeasure) {
-          throw new Error(
-            `Date corupte: Articolul cu ID ${item.itemId} de pe recepție nu are o unitate de măsură specificată.`
-          )
+      // 3. Recalculăm o singură dată invoicePricePerUnit la UM-ul salvat
+      reception.products.forEach((item) => {
+        //eslint-disable-next-line
+        const det = item.product as any
+        let factor = 1
+        if (item.unitMeasure === det.packagingUnit && det.packagingQuantity) {
+          factor = det.packagingQuantity
+        } else if (item.unitMeasure === 'palet' && det.itemsPerPallet) {
+          const perPkg = det.packagingQuantity || 1
+          factor = det.itemsPerPallet * perPkg
         }
-
-        const details = await getStockableItemDetails(
-          item.itemId.toString(),
-          item.type as 'Product' | 'Packaging'
-        )
-        let baseQuantity = 0
-
-        switch (item.unitMeasure) {
-          case details.unit:
-            baseQuantity = item.quantity
-            break
-          case details.packagingUnit:
-            if (!details.packagingQuantity || details.packagingQuantity <= 0)
-              throw new Error(
-                `Factor de conversie invalid pentru ${item.itemId}.`
-              )
-            baseQuantity = item.quantity * details.packagingQuantity
-            break
-          case 'palet':
-            if (!details.itemsPerPallet || details.itemsPerPallet <= 0)
-              throw new Error(
-                `Factor de conversie pe palet invalid pentru ${item.itemId}.`
-              )
-            const totalBaseUnitsPerPallet = details.packagingQuantity
-              ? details.itemsPerPallet * details.packagingQuantity
-              : details.itemsPerPallet
-            if (totalBaseUnitsPerPallet <= 0)
-              throw new Error(
-                `Calculul unităților pe palet a eșuat pentru ${item.itemId}.`
-              )
-            baseQuantity = item.quantity * totalBaseUnitsPerPallet
-            break
-          default:
-            throw new Error(
-              `Unitate de măsură '${item.unitMeasure}' invalidă pentru ${item.itemId}.`
-            )
+        item.invoicePricePerUnit = item.invoicePricePerUnit * factor
+      })
+      reception.packagingItems.forEach((item) => {
+        //eslint-disable-next-line
+        const det = item.packaging as any
+        if (item.unitMeasure === det.packagingUnit && det.packagingQuantity) {
+          item.invoicePricePerUnit =
+            item.invoicePricePerUnit * det.packagingQuantity
         }
+      })
 
-        const sourceLocation =
-          reception.destinationType === 'PROIECT'
-            ? reception.destinationId!.toString()
-            : reception.destinationLocation
-
-        // Înregistrăm mișcarea cu cantitate negativă pentru a anula intrarea
-        await recordStockMovement({
-          stockableItem: item.itemId.toString(),
-          stockableItemType: item.type as 'Product' | 'Packaging',
-          movementType: 'ANULARE_RECEPTIE',
-          quantity: baseQuantity,
-          locationFrom: sourceLocation,
-          referenceId: reception._id.toString(),
-          note: `Anulare recepție de la furnizor ${reception.supplier.name}`,
-          unitCost: 0, // Costul este anulat, nu adăugat
-          timestamp: new Date(),
-        })
-      }
-
-      // Schimbăm statusul înapoi în DRAFT
+      // 4. Readuce statusul și salvează exact o singură dată
       reception.status = 'DRAFT'
       await reception.save({ session })
 
       return {
         success: true,
-        message: 'Confirmarea recepției a fost revocată cu succes.',
+        message:
+          'Confirmarea revocată, mișcările de stoc inversate și prețurile restaurate.',
         data: JSON.parse(JSON.stringify(reception)),
       }
     })
+
     return result
-  } catch (error) {
-    console.error('Eroare la revocarea confirmării:', error)
-    return { success: false, message: (error as Error).message }
   } finally {
     await session.endSession()
   }
@@ -506,6 +410,7 @@ export async function getReceptionById(
     await connectToDatabase()
     const reception = await ReceptionModel.findById(id)
       .populate({ path: 'supplier', model: Supplier, select: 'name' })
+      .populate({ path: 'createdBy', model: User, select: 'name' })
       .populate({
         path: 'products.product',
         model: 'ERPProduct',
@@ -525,6 +430,67 @@ export async function getReceptionById(
     return JSON.parse(JSON.stringify(reception))
   } catch (error) {
     console.error('Eroare la preluarea recepției:', error)
+    return null
+  }
+}
+
+export async function getLastReceptionPriceForProduct(productId: string) {
+  try {
+    await connectToDatabase()
+
+    if (!productId) {
+      console.warn('ID produs lipsă la căutarea prețului.')
+      return null
+    }
+
+    const latestConfirmedReception = await ReceptionModel.findOne({
+      'products.product': productId,
+      status: 'CONFIRMAT',
+    })
+      .sort({ receptionDate: -1 })
+      .lean()
+
+    if (!latestConfirmedReception) {
+      return null
+    }
+
+    const receptionItem = latestConfirmedReception.products.find(
+      (p) => p.product.toString() === productId
+    )
+
+    if (!receptionItem) {
+      return null
+    }
+
+    return receptionItem.invoicePricePerUnit
+  } catch (error) {
+    console.error(
+      `Eroare în getLastReceptionPriceForProduct pentru ID ${productId}:`,
+      error
+    )
+    return null
+  }
+}
+export async function getLastReceptionPriceForPackaging(packagingId: string) {
+  try {
+    await connectToDatabase()
+    const rec = await ReceptionModel.findOne({
+      'packagingItems.packaging': packagingId,
+      status: 'CONFIRMAT',
+    })
+      .sort({ receptionDate: -1 })
+      .lean()
+
+    if (!rec) return null
+    const item = rec.packagingItems.find(
+      (p) => p.packaging.toString() === packagingId
+    )
+    return item?.invoicePricePerUnit ?? null
+  } catch (err) {
+    console.error(
+      `Eroare în getLastReceptionPriceForPackaging pentru ID ${packagingId}:`,
+      err
+    )
     return null
   }
 }
