@@ -42,3 +42,4 @@ export const SettingInputSchema = z.object({
     .min(1),
   defaultDeliveryDate: z.string().min(1),
 })
+// Trebuie modificat

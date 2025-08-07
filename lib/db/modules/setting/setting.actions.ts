@@ -45,3 +45,4 @@ export const updateSetting = async (newSetting: ISettingInput) => {
     return { success: false, message: formatError(error) }
   }
 }
+// Trebuie modificat 

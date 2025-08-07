@@ -56,3 +56,4 @@ const Setting =
   model<ISetting>('Setting', settingSchema)
 
 export default Setting
+// Trebuie modificat 

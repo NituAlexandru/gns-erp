@@ -5,3 +5,4 @@ export type ISettingInput = z.infer<typeof SettingInputSchema>
 export type ClientSetting = ISettingInput & {
   currency: string
 }
+// Trebuie modificat 
