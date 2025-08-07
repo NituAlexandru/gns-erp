@@ -1,21 +1,59 @@
-import { Document, Model, model, models, Schema } from 'mongoose'
+import { Document, Model, models, model, Schema, Types } from 'mongoose'
 
-export interface IVatRate extends Document {
-  vatRate: number
+// --- Interfața pentru Cota de TVA ---
+export interface IVatRateDoc extends Document {
+  _id: Types.ObjectId
+  name: string
+  rate: number
+  isActive: boolean
+  isDefault: boolean
   createdAt: Date
   updatedAt: Date
 }
 
-const vatRateSchema = new Schema<IVatRate>(
+// --- Interfața pentru Istoricul Cotei Implicite ---
+export interface IDefaultVatHistoryDoc extends Document {
+  _id: Types.ObjectId
+  vatRateId: Types.ObjectId
+  rateValue: number
+  setAsDefaultAt: Date
+  setByUserId: Types.ObjectId
+}
+
+// --- Schema pentru Cota de TVA ---
+const vatRateSchema = new Schema<IVatRateDoc>(
   {
-    vatRate: { type: Number, required: true }, // ex: 0.19 pentru 19%
+    name: { type: String, required: true, trim: true },
+    rate: { type: Number, required: true, min: 0 },
+    isActive: { type: Boolean, default: true, index: true },
+    isDefault: { type: Boolean, default: false, index: true },
   },
-  {
-    timestamps: true, // pentru createdAt / updatedAt
-  }
+  { timestamps: true }
 )
 
-const VatRate: Model<IVatRate> =
-  models.VatRate || model<IVatRate>('VatRate', vatRateSchema)
+// --- Schema pentru Istoricul Cotei Implicite ---
+const defaultVatHistorySchema = new Schema<IDefaultVatHistoryDoc>(
+  {
+    vatRateId: {
+      type: Schema.Types.ObjectId,
+      ref: 'VatRate',
+      required: true,
+    },
+    rateValue: { type: Number, required: true },
+    setAsDefaultAt: { type: Date, default: Date.now },
+    setByUserId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+  },
+  { timestamps: false }
+)
 
-export default VatRate
+export const VatRateModel: Model<IVatRateDoc> =
+  (models.VatRate as Model<IVatRateDoc>) ||
+  model<IVatRateDoc>('VatRate', vatRateSchema)
+
+export const DefaultVatHistoryModel: Model<IDefaultVatHistoryDoc> =
+  (models.DefaultVatHistory as Model<IDefaultVatHistoryDoc>) ||
+  model<IDefaultVatHistoryDoc>('DefaultVatHistory', defaultVatHistorySchema)

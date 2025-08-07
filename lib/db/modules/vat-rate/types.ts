@@ -1,11 +1,33 @@
-import type { Document } from 'mongoose'
+import { z } from 'zod'
+import {
+  VatRateCreateSchema,
+  VatRateUpdateSchema,
+  SetDefaultVatRateSchema,
+} from './validator'
+import { IDefaultVatHistoryDoc } from './vatRate.model'
 
-export interface IVatRateInput {
-  vatRate: number // ex: 0.19 pentru 19%
+export type VatRateCreateInput = z.infer<typeof VatRateCreateSchema>
+export type VatRateUpdateInput = z.infer<typeof VatRateUpdateSchema>
+export type SetDefaultVatRateInput = z.infer<typeof SetDefaultVatRateSchema>
+
+export type VatRateDTO = {
+  _id: string
+  name: string
+  rate: number
+  isActive: boolean
+  isDefault: boolean
 }
 
-export interface IVatRateDoc extends Document, IVatRateInput {
-  _id: string
-  createdAt: Date
-  updatedAt: Date
+export type PopulatedDefaultVatHistory = Omit<
+  IDefaultVatHistoryDoc,
+  'vatRateId' | 'setByUserId'
+> & {
+  vatRateId: {
+    _id: string
+    name: string
+  } | null
+  setByUserId: {
+    _id: string
+    name: string
+  } | null
 }
