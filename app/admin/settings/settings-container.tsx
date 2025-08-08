@@ -5,7 +5,7 @@ import { VatRateDTO } from '@/lib/db/modules/vat-rate/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import React from 'react'
 import SettingNav from './setting-nav'
-import { VatRatesManager } from './vat-rates-manager'
+import { VatRatesManager } from './vat-rate/vat-rates-manager'
 
 interface SettingsContainerProps {
   initialVatRates: VatRateDTO[]

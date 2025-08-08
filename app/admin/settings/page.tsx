@@ -1,7 +1,7 @@
 import { auth } from '@/auth'
 import { getVatRates } from '@/lib/db/modules/vat-rate/vatRate.actions'
 import SettingsContainer from './settings-container'
-import { DefaultVatHistory } from './default-vat-history'
+import { DefaultVatHistory } from './vat-rate/default-vat-history'
 
 const SettingPage = async () => {
   const session = await auth()
