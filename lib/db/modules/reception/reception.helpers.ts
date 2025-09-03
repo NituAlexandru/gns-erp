@@ -1,3 +1,5 @@
+import { roundToTwoDecimals } from "@/lib/finance/money"
+
 interface DistributableItem {
   quantity: number
   invoicePricePerUnit?: number | null | undefined
@@ -14,36 +16,51 @@ export function distributeTransportCost<T extends DistributableItem>(
   items: T[],
   totalTransportCost: number
 ): (T & { totalDistributedTransportCost: number })[] {
-  // 1. Calculăm valoarea totală a tuturor articolelor (baza de calcul).
-  const totalItemsValue = items.reduce((sum, item) => {
-    const price = item.invoicePricePerUnit ?? 0
-    const quantity = item.quantity ?? 0
-    return sum + price * quantity
+  const totalItemsNetValue = items.reduce((sum, item) => {
+    const unitNet = item.invoicePricePerUnit ?? 0
+    const qty = item.quantity ?? 0
+    return sum + unitNet * qty
   }, 0)
 
-  // 2. Dacă nu există cost de transport sau valoare totală, returnăm articolele neschimbate.
-  if (totalTransportCost === 0 || totalItemsValue === 0) {
+  if (
+    roundToTwoDecimals(totalTransportCost) === 0 ||
+    roundToTwoDecimals(totalItemsNetValue) === 0
+  ) {
     return items.map((item) => ({
       ...item,
       totalDistributedTransportCost: 0,
     }))
   }
 
-  // 3. Iterăm prin fiecare articol și calculăm cota de transport.
-  return items.map((item) => {
-    const price = item.invoicePricePerUnit ?? 0
-    const quantity = item.quantity ?? 0
-    const itemValue = price * quantity
-
-    // Calculăm ponderea valorii acestui articol în total.
-    const valueWeight = itemValue / totalItemsValue
-
-    // Alocăm costul de transport proporțional cu ponderea.
-    const distributedCost = totalTransportCost * valueWeight
-
-    return {
-      ...item,
-      totalDistributedTransportCost: distributedCost,
-    }
+  const allocatedTransportCosts = items.map((item) => {
+    const unitNet = item.invoicePricePerUnit ?? 0
+    const qty = item.quantity ?? 0
+    const itemNetValue = unitNet * qty
+    const weightShare = itemNetValue / totalItemsNetValue
+    const rawAllocation = totalTransportCost * weightShare
+    return roundToTwoDecimals(rawAllocation)
   })
+
+  const allocatedSum = allocatedTransportCosts.reduce(
+    (s, v) => roundToTwoDecimals(s + v),
+    0
+  )
+  const allocationDifference = roundToTwoDecimals(
+    roundToTwoDecimals(totalTransportCost) - allocatedSum
+  )
+
+  if (
+    Math.abs(allocationDifference) > 0 &&
+    allocatedTransportCosts.length > 0
+  ) {
+    const lastIdx = allocatedTransportCosts.length - 1
+    allocatedTransportCosts[lastIdx] = roundToTwoDecimals(
+      allocatedTransportCosts[lastIdx] + allocationDifference
+    )
+  }
+
+  return items.map((item, idx) => ({
+    ...item,
+    totalDistributedTransportCost: allocatedTransportCosts[idx],
+  }))
 }

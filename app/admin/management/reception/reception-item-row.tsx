@@ -22,6 +22,7 @@ import {
 import { cn, formatCurrency } from '@/lib/utils'
 import { ReceptionCreateInput } from '@/lib/db/modules/reception/types'
 import { AutocompleteSearch, type SearchResult } from './autocomplete-search'
+import { VatRateDTO } from '@/lib/db/modules/vat-rate/types'
 
 type ReceptionItemRowProps = {
   form: UseFormReturn<ReceptionCreateInput>
@@ -29,6 +30,8 @@ type ReceptionItemRowProps = {
   onRemove: () => void
   initialItemData?: { _id: string; name: string }
   distributedTransportCost: number
+  vatRates: VatRateDTO[]
+  isVatPayer: boolean
 } & ({ itemType: 'products' } | { itemType: 'packagingItems' })
 
 function convertBasePriceToDisplay(
@@ -43,17 +46,25 @@ function convertBasePriceToDisplay(
 ): number {
   const { unit, packagingUnit, packagingQuantity, itemsPerPallet } = itemDetails
 
+  // Dacă UM selectat este unitatea de bază, returnăm prețul de bază
   if (unitMeasure === unit) {
     return basePrice
   }
+
+  // Dacă UM selectat este ambalajul și avem factor de conversie, calculăm
   if (unitMeasure === packagingUnit && packagingQuantity) {
     return basePrice * packagingQuantity
   }
+
+  // Dacă UM selectat este paletul, calculăm prețul total pe palet
   if (unitMeasure === 'palet' && itemsPerPallet) {
-    const perPackage = packagingQuantity || 1
-    return basePrice * itemsPerPallet * perPackage
+    const totalBaseUnitsPerPallet = packagingQuantity
+      ? itemsPerPallet * packagingQuantity
+      : itemsPerPallet
+    return basePrice * totalBaseUnitsPerPallet
   }
-  // fallback: dacă nu știm cum, arătăm baza
+
+  // Fallback: returnăm prețul de bază dacă nu știm cum să convertim
   return basePrice
 }
 
@@ -65,9 +76,18 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
     onRemove,
     initialItemData,
     distributedTransportCost,
+    vatRates,
+    isVatPayer,
   } = props
 
-  const { itemName, itemNamePath, quantityPath, unitMeasurePath, pricePath } =
+  const {
+    itemName,
+    itemNamePath,
+    quantityPath,
+    unitMeasurePath,
+    pricePath,
+    vatRatePath,
+  } =
     itemType === 'products'
       ? {
           itemName: 'product' as const,
@@ -75,6 +95,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           quantityPath: `products.${index}.quantity` as const,
           unitMeasurePath: `products.${index}.unitMeasure` as const,
           pricePath: `products.${index}.invoicePricePerUnit` as const,
+          vatRatePath: `products.${index}.vatRate` as const,
         }
       : {
           itemName: 'packaging' as const,
@@ -82,6 +103,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           quantityPath: `packagingItems.${index}.quantity` as const,
           unitMeasurePath: `packagingItems.${index}.unitMeasure` as const,
           pricePath: `packagingItems.${index}.invoicePricePerUnit` as const,
+          vatRatePath: `packagingItems.${index}.vatRate` as const,
         }
 
   const selectedItemId = form.watch(itemNamePath)
@@ -133,14 +155,8 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
   }, [selectedItemId, itemType])
 
   const priceDifferencePercentage = useMemo(() => {
-    console.log('🛠 priceDifference check:', {
-      lastPrice,
-      invoicePrice,
-      selectedUM,
-      hasDetails: !!itemDetails,
-    })
     if (
-      lastPrice === null ||
+      lastPrice === null || // lastPrice este garantat a fi prețul de bază
       lastPrice === 0 ||
       typeof invoicePrice !== 'number' ||
       !itemDetails ||
@@ -151,35 +167,36 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
 
     const { unit, packagingUnit, packagingQuantity, itemsPerPallet } =
       itemDetails
-    let currentPricePerBaseUnit = 0
 
-    if (selectedUM === unit) {
-      currentPricePerBaseUnit = invoicePrice
-    } else if (
-      selectedUM === packagingUnit &&
-      packagingQuantity &&
-      packagingQuantity > 0
-    ) {
-      currentPricePerBaseUnit = invoicePrice / packagingQuantity
-    } else if (selectedUM === 'palet' && itemsPerPallet && itemsPerPallet > 0) {
-      const pricePerPackage = invoicePrice / itemsPerPallet
-      currentPricePerBaseUnit =
-        packagingQuantity && packagingQuantity > 0
-          ? pricePerPackage / packagingQuantity
-          : pricePerPackage
-    } else {
-      return null
+    // Calculăm prețul de bază pentru prețul curent introdus
+    let currentPricePerBaseUnit = 0
+    switch (selectedUM) {
+      case unit:
+        currentPricePerBaseUnit = invoicePrice
+        break
+      case packagingUnit:
+        if (!packagingQuantity) return null
+        currentPricePerBaseUnit = invoicePrice / packagingQuantity
+        break
+      case 'palet':
+        if (!itemsPerPallet || itemsPerPallet <= 0) {
+          return null
+        }
+
+        const totalBaseUnits = (packagingQuantity ?? 1) * itemsPerPallet
+        if (totalBaseUnits === 0) return null
+        currentPricePerBaseUnit = invoicePrice / totalBaseUnits
+        break
+      default:
+        return null
     }
 
-    if (
-      isNaN(currentPricePerBaseUnit) ||
-      !isFinite(currentPricePerBaseUnit) ||
-      currentPricePerBaseUnit <= 0
-    ) {
+    if (isNaN(currentPricePerBaseUnit) || !isFinite(currentPricePerBaseUnit)) {
       return null
     }
 
     const difference = ((currentPricePerBaseUnit - lastPrice) / lastPrice) * 100
+
     return Math.abs(difference) < 0.01 ? null : difference
   }, [invoicePrice, lastPrice, selectedUM, itemDetails])
 
@@ -315,7 +332,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                     </p>
                   ) : lastPrice !== null && itemDetails && selectedUM ? (
                     <>
-                      <p className='mt-1 text-muted-foreground'>
+                      <p className=' text-muted-foreground flex justify-center align-middle gap-2'>
                         Ultimul preț:{' '}
                         {formatCurrency(
                           convertBasePriceToDisplay(lastPrice, selectedUM, {
@@ -325,21 +342,21 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                             itemsPerPallet: itemDetails.itemsPerPallet,
                           })
                         )}{' '}
-                        / {selectedUM}
+                        / {selectedUM}{' '}
+                        {priceDifferencePercentage != null && (
+                          <p
+                            className={cn(
+                              ' font-semibold',
+                              priceDifferencePercentage > 0
+                                ? 'text-red-500'
+                                : 'text-green-600'
+                            )}
+                          >
+                            {priceDifferencePercentage > 0 ? '+' : ''}
+                            {priceDifferencePercentage.toFixed(2)}%
+                          </p>
+                        )}
                       </p>
-                      {priceDifferencePercentage != null && (
-                        <p
-                          className={cn(
-                            'mt-1 font-semibold',
-                            priceDifferencePercentage > 0
-                              ? 'text-red-500'
-                              : 'text-green-600'
-                          )}
-                        >
-                          {priceDifferencePercentage > 0 ? '+' : ''}
-                          {priceDifferencePercentage.toFixed(2)}%
-                        </p>
-                      )}
                     </>
                   ) : null}
                 </div>
@@ -427,7 +444,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                Preț intrare <span>*</span>
+                Preț intrare (fără TVA) <span>*</span>
               </FormLabel>
               <FormControl>
                 <Input
@@ -446,6 +463,34 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
             </FormItem>
           )}
         />
+        {isVatPayer && (
+          <FormField
+            name={vatRatePath}
+            control={form.control}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>TVA</FormLabel>
+                <Select
+                  onValueChange={(val) => field.onChange(Number(val))}
+                  value={field.value?.toString()}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder='TVA...' />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {vatRates.map((rate) => (
+                      <SelectItem key={rate._id} value={rate.rate.toString()}>
+                        {rate.rate}%
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormItem>
+            )}
+          />
+        )}
 
         <Button
           type='button'

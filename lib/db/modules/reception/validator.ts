@@ -14,13 +14,17 @@ export const ReceptionProductSchema = z.object({
   quantity: z.number().positive('Cantitatea trebuie să fie mai mare ca 0.'),
   unitMeasure: z.string().min(1),
   invoicePricePerUnit: z.number().nonnegative().nullable().optional(),
+  unitMeasureCode: z.string().optional(),
+  vatRate: z.coerce.number().nonnegative().default(0),
 })
 
 export const ReceptionPackagingSchema = z.object({
   packaging: MongoId,
   quantity: z.number().positive('Cantitatea trebuie să fie mai mare ca 0.'),
   unitMeasure: z.string().min(1),
+  unitMeasureCode: z.string().optional(),
   invoicePricePerUnit: z.number().nonnegative().nullable().optional(),
+  vatRate: z.coerce.number().nonnegative().default(0),
 })
 
 export const DeliverySchema = z.object({
@@ -45,7 +49,11 @@ export const InvoiceSchema = z.object({
   series: z.string().optional(),
   number: z.string().min(1, 'Numărul facturii este obligatoriu.'),
   date: z.coerce.date({ required_error: 'Data facturii este obligatorie.' }),
-  amount: z.number().min(0, 'Suma trebuie să fie ≥ 0'),
+  dueDate: z.coerce.date().optional(),
+  currency: z.enum(['RON', 'EUR', 'USD']).default('RON'),
+  amount: z.number().nonnegative().nullable().optional(),
+  vatRate: z.coerce.number().nonnegative().default(0),
+  exchangeRateOnIssueDate: z.number().positive().optional(),
 })
 
 const BaseReceptionSchema = z.object({

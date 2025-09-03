@@ -11,6 +11,7 @@ export interface IStockMovementDoc extends Document {
   note?: string
   timestamp: Date
   balanceBefore: number
+  status: 'ACTIVE' | 'CANCELLED'
   balanceAfter: number
   createdAt: Date
   updatedAt: Date
@@ -33,12 +34,19 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     locationFrom: { type: String },
     locationTo: { type: String },
     referenceId: {
-      type: Schema.Types.ObjectId, 
-      ref: 'Reception', 
-      required: true, 
+      type: Schema.Types.ObjectId,
+      ref: 'Reception',
+      required: true,
     },
     note: { type: String },
     timestamp: { type: Date, default: () => new Date() },
+    status: {
+      type: String,
+      enum: ['ACTIVE', 'CANCELLED'],
+      default: 'ACTIVE',
+      required: true,
+      index: true,
+    },
     balanceBefore: { type: Number, required: true },
     balanceAfter: { type: Number, required: true },
   },

@@ -26,6 +26,7 @@ export async function POST(request: Request) {
 
     const newReceptionResult = await createReception(finalPayload)
 
+    // 1. Verificăm mai întâi dacă crearea a eșuat.
     if (!newReceptionResult.success) {
       return NextResponse.json(
         { message: newReceptionResult.message },
@@ -33,23 +34,29 @@ export async function POST(request: Request) {
       )
     }
 
+    // 2. Acum știm sigur că avem succes. Extragem datele într-o variabilă sigură.
+    const reception = newReceptionResult.data
+
+    // 3. Verificăm dacă trebuie să și confirmăm recepția.
     if (isFinal) {
-      const receptionId = newReceptionResult.data._id.toString()
+      const receptionId = reception._id.toString()
       const confirmationResult = await confirmReception(receptionId)
 
-      if (!confirmationResult.success) {
+      if (confirmationResult.success) {
+        // Dacă a avut succes confirmarea, returnăm datele confirmate
+        return NextResponse.json(confirmationResult.data, { status: 200 })
+      } else {
+        // Dacă a eșuat confirmarea, returnăm mesajul de eroare
         return NextResponse.json(
-          {
-            message: `Recepția a fost salvată ca ciornă, dar finalizarea a eșuat: ${confirmationResult.message}`,
-            data: newReceptionResult.data,
-          },
+          { message: confirmationResult.message },
           { status: 400 }
         )
       }
-      return NextResponse.json(confirmationResult.data, { status: 200 })
     }
 
-    return NextResponse.json(newReceptionResult.data, { status: 201 })
+    // 4. Dacă nu este "isFinal", înseamnă că doar am salvat ciorna.
+    // Returnăm direct datele recepției create.
+    return NextResponse.json(reception, { status: 201 })
     //eslint-disable-next-line
   } catch (error: any) {
     if (error.type === 'CredentialsSignin') {

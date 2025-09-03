@@ -18,8 +18,9 @@ export async function GET(
       )
     }
 
-    const price = await getLastReceptionPriceForProduct(productId)
-    return NextResponse.json({ price })
+    const priceInfo = await getLastReceptionPriceForProduct(productId)
+    
+    return NextResponse.json(priceInfo)
   } catch (error) {
     console.error(
       `Eroare în ruta API /last-price pentru ID-ul de produs "${productId || 'necunoscut'}":`,

@@ -38,11 +38,13 @@ import {
 } from '@/lib/db/modules/reception/types'
 import { INVENTORY_LOCATIONS } from '@/lib/db/modules/inventory/constants'
 import { ReceptionItemRow } from './reception-item-row'
-import { AutocompleteSearch } from './autocomplete-search'
+import { AutocompleteSearch, SearchResult } from './autocomplete-search'
 import { toast } from 'sonner'
 import { distributeTransportCost } from '@/lib/db/modules/reception/reception.helpers'
 import { ReceptionDeliveries } from './reception-deliveries'
 import { ReceptionInvoices } from './reception-invoices'
+import { VatRateDTO } from '@/lib/db/modules/vat-rate/types'
+import { roundToTwoDecimals } from '@/lib/finance/money'
 
 type Project = { _id: string; name: string }
 
@@ -61,14 +63,20 @@ const PROJECT_OPTION_VALUE = 'PROIECT'
 type ReceptionFormProps = {
   initialData?: PopulatedReception
   currentUserId: string
+  vatRates: VatRateDTO[]
+  defaultVatRate: VatRateDTO | null
 }
 
 export function ReceptionForm({
   initialData,
   currentUserId,
+  vatRates,
+  defaultVatRate,
 }: ReceptionFormProps) {
   const router = useRouter()
-
+  const [selectedSupplier, setSelectedSupplier] = useState<SearchResult | null>(
+    initialData?.supplier ? { ...initialData.supplier, isVatPayer: true } : null
+  )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [projects] = useState<Project[]>([
     { _id: 'proj1', name: 'Proiect Rezidențial Central' },
@@ -76,6 +84,7 @@ export function ReceptionForm({
   ])
 
   const isEditMode = !!initialData
+  const defaultVat = defaultVatRate?.rate ?? 0
 
   const form = useForm<ReceptionCreateInput>({
     defaultValues: initialData
@@ -92,6 +101,7 @@ export function ReceptionForm({
               quantity: p.quantity,
               unitMeasure: p.unitMeasure,
               invoicePricePerUnit: p.invoicePricePerUnit,
+              vatRate: p.vatRate,
             })) || [],
           packagingItems:
             initialData.packagingItems?.map((p) => ({
@@ -99,6 +109,7 @@ export function ReceptionForm({
               quantity: p.quantity,
               unitMeasure: p.unitMeasure,
               invoicePricePerUnit: p.invoicePricePerUnit,
+              vatRate: p.vatRate,
             })) || [],
           deliveries:
             initialData.deliveries?.map((d) => ({
@@ -109,6 +120,7 @@ export function ReceptionForm({
             initialData.invoices?.map((i) => ({
               ...i,
               date: new Date(i.date),
+              dueDate: i.dueDate ? new Date(i.dueDate) : undefined,
             })) || [],
         }
       : // Mod de creare:
@@ -142,70 +154,89 @@ export function ReceptionForm({
     name: 'packagingItems',
   })
 
-  // ---  LOGICĂ DE CALCUL ---
-  const watchedProducts = form.watch('products')
-  const watchedPackagingItems = form.watch('packagingItems')
-  const watchedInvoices = form.watch('invoices')
-  const watchedDeliveries = form.watch('deliveries')
-  const productsDependency = JSON.stringify(watchedProducts)
-  const packagingDependency = JSON.stringify(watchedPackagingItems)
-  const invoicesDependency = JSON.stringify(watchedInvoices)
-  const deliveriesDependency = JSON.stringify(watchedDeliveries)
+  const watchedValues = JSON.stringify(form.watch())
 
   const {
     summaryTotals,
-    invoicesTotal,
     transportTotal,
     grandLandedTotal,
     costsMap,
+    invoicesVatTotal,
+    invoicesGrandTotal,
+    isBalancedNoVat,
   } = useMemo(() => {
-    const localInvoicesTotal = (watchedInvoices || []).reduce(
-      (sum, invoice) => sum + (invoice.amount || 0),
+    const watchedData = form.getValues()
+
+    // 1) total marfă (fără TVA)
+    const productsTotal = (watchedData.products || []).reduce(
+      (sum, item) =>
+        sum + (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0),
       0
     )
-
-    const productsTotal = (watchedProducts || []).reduce((sum, item) => {
-      const price = item.invoicePricePerUnit ?? 0
-      const quantity = item.quantity ?? 0
-      return sum + price * quantity
-    }, 0)
-
-    const packagingTotal = (watchedPackagingItems || []).reduce((sum, item) => {
-      const price = item.invoicePricePerUnit ?? 0
-      const quantity = item.quantity ?? 0
-      return sum + price * quantity
-    }, 0)
-
+    const packagingTotal = (watchedData.packagingItems || []).reduce(
+      (sum, item) =>
+        sum + (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0),
+      0
+    )
+    const merchandiseTotal = productsTotal + packagingTotal
     const localSummaryTotals = {
       productsTotal,
       packagingTotal,
-      grandTotal: productsTotal + packagingTotal,
+      grandTotal: merchandiseTotal,
     }
 
-    const localTransportTotal = (watchedDeliveries || []).reduce(
-      (sum, delivery) => {
-        return sum + (delivery.transportCost || 0)
-      },
+    // 2) transport
+    const localTransportTotal = (watchedData.deliveries || []).reduce(
+      (sum, d) => sum + Number(d.transportCost || 0),
       0
     )
 
+    // 3) facturi în UI (fără conversii)
+    const localInvoicesTotal = (watchedData.invoices || []).reduce(
+      (sum, inv) => sum + (inv.amount || 0),
+      0
+    )
+    const localInvoicesVatTotal = (watchedData.invoices || []).reduce(
+      (sum, inv) => sum + (inv.amount || 0) * ((inv.vatRate || 0) / 100),
+      0
+    )
+    const localInvoicesGrandTotal = localInvoicesTotal + localInvoicesVatTotal
+
+    // 4) Σ facturi fără TVA convertit în RON pentru verificare (include curs)
+    const invoicesNoVatRON = (watchedData.invoices || []).reduce((sum, inv) => {
+      const amt = inv.amount ?? 0
+      const fx =
+        inv.currency === 'RON'
+          ? 1
+          : inv.exchangeRateOnIssueDate && inv.exchangeRateOnIssueDate > 0
+            ? inv.exchangeRateOnIssueDate
+            : 0
+      return sum + amt * fx
+    }, 0)
+
+    // 5) comparație corectă: (marfă + transport) vs Σ facturi fără TVA
+    const expectedNoVatRON = merchandiseTotal + localTransportTotal
+    const isBalanced =
+      Math.round((invoicesNoVatRON + Number.EPSILON) * 100) ===
+      Math.round((expectedNoVatRON + Number.EPSILON) * 100)
+
+    // 6) distribuția transportului (dacă o folosești pe rânduri)
     const allItems = [
-      ...(watchedProducts || []).map((p, i) => ({
+      ...(watchedData.products || []).map((p, i) => ({
         ...p,
         originalIndex: i,
-        type: 'product',
+        type: 'product' as const,
       })),
-      ...(watchedPackagingItems || []).map((p, i) => ({
+      ...(watchedData.packagingItems || []).map((p, i) => ({
         ...p,
         originalIndex: i,
-        type: 'packaging',
+        type: 'packaging' as const,
       })),
     ]
     const itemsWithCosts = distributeTransportCost(
       allItems,
       localTransportTotal
     )
-
     const localCostsMap = new Map<string, number>()
     itemsWithCosts.forEach((item) => {
       localCostsMap.set(
@@ -215,19 +246,18 @@ export function ReceptionForm({
     })
 
     return {
-      invoicesTotal: localInvoicesTotal,
       summaryTotals: localSummaryTotals,
       transportTotal: localTransportTotal,
-      grandLandedTotal: localSummaryTotals.grandTotal + localTransportTotal,
+      grandLandedTotal: merchandiseTotal + localTransportTotal,
       costsMap: localCostsMap,
+      invoicesTotal: localInvoicesTotal,
+      invoicesVatTotal: localInvoicesVatTotal,
+      invoicesGrandTotal: localInvoicesGrandTotal, // TOTAL General (cu TVA)
+      invoicesTotalNoVatRON: invoicesNoVatRON,
+      isBalancedNoVat: isBalanced, // <-- pentru culoare
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    productsDependency,
-    packagingDependency,
-    invoicesDependency,
-    deliveriesDependency,
-  ])
+  }, [watchedValues])
 
   // Urmărim valoarea din selectorul de destinație
   const destinationLocation = form.watch('destinationLocation')
@@ -236,16 +266,50 @@ export function ReceptionForm({
     setIsSubmitting(true)
 
     if (isFinal) {
-      // Comparam totalul facturilor cu totalul de pe factură al articolelor
-      const itemsInvoiceTotal = grandLandedTotal
+      // 1) Citim ce e în formular ACUM
+      const dataNow = form.getValues()
 
-      if (invoicesTotal.toFixed(2) !== itemsInvoiceTotal.toFixed(2)) {
+      // 2) Suma facturilor FĂRĂ TVA, în RON (dacă valuta ≠ RON, folosim exchangeRateOnIssueDate)
+      const invoicesTotalNoVatRON = roundToTwoDecimals(
+        (dataNow.invoices || []).reduce((sum, inv) => {
+          const amount = typeof inv.amount === 'number' ? inv.amount : 0
+          // Folosim "extras" ca să evităm any:
+          const extras = inv as unknown as {
+            currency?: string
+            exchangeRateOnIssueDate?: number
+            series?: string
+            number?: string
+          }
+          const currency = extras.currency ?? 'RON'
+          const fx = extras.exchangeRateOnIssueDate
+
+          if (currency !== 'RON') {
+            if (!fx || fx <= 0) {
+              // mesaj clar când lipsește cursul
+              throw new Error(
+                `Factura ${extras.series || ''} ${extras.number || ''}: lipsește exchangeRateOnIssueDate pentru ${currency}.`
+              )
+            }
+            return sum + amount * fx
+          }
+
+          return sum + amount
+        }, 0)
+      )
+
+      // 3) Valoarea mărfii FĂRĂ TVA (produse + ambalaje) + transport (TOT în RON)
+      const expectedNoVatRON = roundToTwoDecimals(
+        summaryTotals.grandTotal + transportTotal
+      )
+
+      // 4) Comparație strictă (după rotunjire)
+      if (invoicesTotalNoVatRON !== expectedNoVatRON) {
         toast.error('Verificare eșuată', {
-          description: `Suma totală a facturilor (${formatCurrency(
-            invoicesTotal
-          )}) nu corespunde cu valoarea de factură a articolelor (${formatCurrency(
-            itemsInvoiceTotal
-          )}). Vă rugăm corectați.`,
+          description: `Suma facturilor fără TVA (${formatCurrency(
+            invoicesTotalNoVatRON
+          )}) trebuie să fie egală cu (valoarea mărfii + transport) (${formatCurrency(
+            expectedNoVatRON
+          )}).`,
           duration: 8000,
         })
         setIsSubmitting(false)
@@ -303,6 +367,7 @@ export function ReceptionForm({
               </CardHeader>
               <CardContent className='space-y-4'>
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                  {/* Furnizor */}
                   <FormField
                     name='supplier'
                     control={form.control}
@@ -318,10 +383,12 @@ export function ReceptionForm({
                           searchType='supplier'
                           value={field.value}
                           initialSelectedItem={initialData?.supplier}
-                          onChange={(id) => {
+                          onChange={(id, item) => {
                             form.setValue('supplier', id, {
                               shouldValidate: true,
                             })
+
+                            setSelectedSupplier(item)
                           }}
                           placeholder='Caută furnizor...'
                         />
@@ -476,7 +543,11 @@ export function ReceptionForm({
             </div>
           </div>
           {/* CARD 2: Pentru Facturi */}
-          <ReceptionInvoices />
+          <ReceptionInvoices
+            vatRates={vatRates}
+            defaultVatRate={defaultVatRate}
+            isVatPayer={selectedSupplier?.isVatPayer ?? false}
+          />
           {/* CARD 3: Pentru Recepții */}
           <Card>
             <CardHeader>
@@ -495,26 +566,51 @@ export function ReceptionForm({
                       {formatCurrency(transportTotal)}
                     </strong>
                   </span>
+                  {selectedSupplier?.isVatPayer && (
+                    <span>
+                      TVA Facturi:{' '}
+                      <strong className='text-foreground'>
+                        {formatCurrency(invoicesVatTotal)}
+                      </strong>
+                    </span>
+                  )}
                   <span
                     className={cn(
-                      'text-base font-semibold border-l pl-4 ml-2 p-2 rounded-lg transition-colors',
-                      // Aplicăm clasele condiționat
-                      invoicesTotal.toFixed(2) === grandLandedTotal.toFixed(2)
-                        ? 'bg-lime-950/80'
-                        : 'bg-red-950/80'
+                      'text-base font-semibold border pl-4 ml-2 p-2 rounded-lg',
+                      isBalancedNoVat
+                        ? 'border-emerald-600/40 text-emerald-400 bg-emerald-600/10'
+                        : 'border-red-600/40 text-red-400 bg-red-600/10'
                     )}
+                    title={
+                      isBalancedNoVat
+                        ? 'Σ facturi fără TVA = marfă + transport'
+                        : 'Diferență între Σ facturi fără TVA și (marfă + transport)'
+                    }
                   >
                     TOTAL Intrare:{' '}
-                    <strong
-                      className={cn(
-                        invoicesTotal.toFixed(2) === grandLandedTotal.toFixed(2)
-                          ? 'text-green-400'
-                          : 'text-red-400'
-                      )}
-                    >
+                    <strong className='ml-1'>
                       {formatCurrency(grandLandedTotal)}
                     </strong>
                   </span>
+
+                  {selectedSupplier?.isVatPayer && (
+                    <span
+                      className={cn(
+                        'text-base font-semibold border pl-4 ml-2 p-2 rounded-lg', // Am pus 'border' complet pentru consistență vizuală
+                        isBalancedNoVat
+                          ? 'border-emerald-600/40 text-emerald-400 bg-emerald-600/10'
+                          : 'border-red-600/40 text-red-400 bg-red-600/10'
+                      )}
+                      title={
+                        isBalancedNoVat
+                          ? 'Balanța este corectă: Σ facturi fără TVA = marfă + transport'
+                          : 'Atenție: Σ facturi fără TVA este diferită de marfă + transport'
+                      }
+                    >
+                      TOTAL General:{' '}
+                      <strong>{formatCurrency(invoicesGrandTotal)}</strong>
+                    </span>
+                  )}
                 </div>
               </CardTitle>
             </CardHeader>
@@ -535,6 +631,8 @@ export function ReceptionForm({
                       distributedTransportCost={
                         costsMap.get(`product_${index}`) || 0
                       }
+                      vatRates={vatRates}
+                      isVatPayer={selectedSupplier?.isVatPayer ?? false}
                     />
                   )
                 })}
@@ -548,6 +646,7 @@ export function ReceptionForm({
                       quantity: 1,
                       unitMeasure: 'bucata',
                       invoicePricePerUnit: null,
+                      vatRate: defaultVat,
                     })
                   }
                 >
@@ -570,6 +669,8 @@ export function ReceptionForm({
                       distributedTransportCost={
                         costsMap.get(`packaging_${index}`) || 0
                       }
+                      vatRates={vatRates}
+                      isVatPayer={selectedSupplier?.isVatPayer ?? false}
                     />
                   )
                 })}
@@ -583,6 +684,7 @@ export function ReceptionForm({
                       quantity: 1,
                       unitMeasure: 'bucata',
                       invoicePricePerUnit: null,
+                      vatRate: defaultVat,
                     })
                   }
                 >

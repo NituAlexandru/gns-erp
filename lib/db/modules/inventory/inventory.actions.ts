@@ -76,7 +76,7 @@ export async function recordStockMovement(
       inventoryItem.batches.push({
         quantity: payload.quantity,
         unitCost: payload.unitCost,
-        entryDate: payload.timestamp,
+        entryDate: payload.timestamp ?? new Date(),
         movementId: movement._id as Types.ObjectId,
       })
       inventoryItem.batches.sort(
@@ -152,63 +152,84 @@ export async function reverseStockMovementsByReference(
   session: ClientSession
 ) {
   const movementsToReverse = await StockMovementModel.find({
-    referenceId: referenceId,
+    referenceId,
     movementType: 'RECEPTIE',
+    status: 'ACTIVE',
   }).session(session)
 
   if (movementsToReverse.length === 0) {
+    console.warn(
+      `[REVOC] Nu au fost găsite mișcări ACTIVE de tip RECEPTIE pentru referința ${referenceId}.`
+    )
     return
   }
 
   for (const movement of movementsToReverse) {
+    const movementIdStr = String(movement._id)
+
     const inventoryItem = await InventoryItemModel.findOne({
       stockableItem: movement.stockableItem,
       stockableItemType: movement.stockableItemType,
       location: movement.locationTo,
     }).session(session)
 
-    if (!inventoryItem) {
-      throw new Error(
-        `Stocul pentru articolul ${movement.stockableItem} în locația ${movement.locationTo} nu a fost găsit la anulare.`
+    let balanceBeforeReversal = 0
+    let balanceAfterReversal = 0
+
+    // Dacă inventarul nu mai există la locația respectivă (ex: consumat complet),
+    // înregistrăm doar mișcarea de anulare ca audit și trecem mai departe.
+    if (inventoryItem) {
+      balanceBeforeReversal = inventoryItem.batches.reduce(
+        (sum, b) => sum + b.quantity,
+        0
+      )
+
+      const initialBatchCount = inventoryItem.batches.length
+
+      // Încercăm să ștergem lotul corespunzător
+      inventoryItem.batches = inventoryItem.batches.filter(
+        (batch) => String(batch.movementId) !== movementIdStr
+      )
+
+      const removed = inventoryItem.batches.length < initialBatchCount
+
+      if (removed) {
+        await inventoryItem.save({ session })
+      } else {
+        console.warn(
+          `[REVOC] Lotul pentru mișcarea ${movementIdStr} nu a fost găsit în stoc (probabil consumat sau deja anulat).`
+        )
+      }
+
+      balanceAfterReversal = inventoryItem.batches.reduce(
+        (sum, b) => sum + b.quantity,
+        0
+      )
+    } else {
+      console.info(
+        `[REVOC] Articolul de inventar pentru mișcarea ${movementIdStr} nu a fost găsit. Se înregistrează doar audit.`
       )
     }
 
-    const balanceBeforeReversal = inventoryItem.batches.reduce(
-      (sum, b) => sum + b.quantity,
-      0
-    )
-
-    const initialBatchesCount = inventoryItem.batches.length
-    inventoryItem.batches = inventoryItem.batches.filter(
-      (batch) => String(batch.movementId) !== String(movement._id)
-    )
-
-    if (inventoryItem.batches.length === initialBatchesCount) {
-      console.warn(
-        `Lotul pentru mișcarea ${movement._id} nu a fost găsit pentru a fi anulat.`
-      )
-      continue
-    }
-
-    await inventoryItem.save({ session })
-    const balanceAfterReversal = inventoryItem.batches.reduce(
-      (sum, b) => sum + b.quantity,
-      0
-    )
-
+    // Creăm mișcarea de audit de tip "ANULARE_RECEPTIE" pentru istoric
     const reversalMovement = new StockMovementModel({
       stockableItem: movement.stockableItem,
       stockableItemType: movement.stockableItemType,
       movementType: 'ANULARE_RECEPTIE',
       quantity: movement.quantity,
       locationFrom: movement.locationTo,
-      referenceId: referenceId,
-      note: `Anulare mișcare de recepție originală ${movement._id}`,
+      referenceId,
+      note: `Anulare mișcare recepție originală ${movementIdStr}`,
       timestamp: new Date(),
       balanceBefore: balanceBeforeReversal,
       balanceAfter: balanceAfterReversal,
+      // Noua mișcare de anulare este mereu 'ACTIVE'
     })
     await reversalMovement.save({ session })
+
+    // PASUL 2: În loc să ștergem, ACTUALIZĂM statusul mișcării originale
+    movement.status = 'CANCELLED'
+    await movement.save({ session })
   }
 }
 
@@ -253,4 +274,3 @@ export async function getCurrentStock(
 
   return { byLocation, grandTotal }
 }
-

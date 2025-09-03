@@ -23,19 +23,23 @@ export interface IInvoice {
   series?: string
   number: string
   date: Date
+  dueDate?: Date
+  currency: 'RON' | 'EUR' | 'USD'
   amount: number
+  vatRate: number
+  vatValue: number
+  totalWithVat: number
+  exchangeRateOnIssueDate?: number
 }
 
 // --- Structura pentru costurile unui articol ---
 export interface IReceptionItemCost {
-  // Prețul de pe factură (fără transport) - pentru contabilitate/NIR
-  invoicePricePerUnit: number
-  // Cota de transport alocată per unitatea de BAZĂ
-  distributedTransportCostPerUnit: number
-  // Costul TOTAL de transport alocat întregii cantități de pe această linie
-  totalDistributedTransportCost: number
-  // Costul final "de business" per unitatea de BAZĂ (invoicePrice + transportCost)
-  landedCostPerUnit: number
+  invoicePricePerUnit: number // Prețul de pe factură (fără transport) - pentru contabilitate/NIR
+  distributedTransportCostPerUnit: number // Cota de transport alocată per unitatea de BAZĂ
+  totalDistributedTransportCost: number // Costul TOTAL de transport alocat întregii cantități de pe această linie
+  landedCostPerUnit: number // Costul final "de business" per unitatea de BAZĂ (invoicePrice + transportCost)
+  vatRate: number //  Cota de TVA a articolului
+  vatValuePerUnit: number //  Valoarea TVA per unitate de bază
 }
 
 export interface IReceptionDoc extends Document {
@@ -56,13 +60,21 @@ export interface IReceptionDoc extends Document {
     product: Types.ObjectId
     quantity: number
     unitMeasure: string
-  } & IReceptionItemCost)[] // Am combinat câmpurile
+    unitMeasureCode?: string
+    originalQuantity?: number
+    originalUnitMeasure?: string
+    originalInvoicePricePerUnit?: number
+  } & IReceptionItemCost)[]
   packagingItems: ({
     _id: Types.ObjectId
     packaging: Types.ObjectId
     quantity: number
     unitMeasure: string
-  } & IReceptionItemCost)[] // Am combinat câmpurile
+    unitMeasureCode?: string
+    originalQuantity?: number
+    originalUnitMeasure?: string
+    originalInvoicePricePerUnit?: number
+  } & IReceptionItemCost)[]
   receptionDate: Date
   status: 'DRAFT' | 'CONFIRMAT'
   deliveries: IDelivery[]
@@ -110,7 +122,18 @@ const invoiceSchema = new Schema<IInvoice>(
     series: { type: String, required: false },
     number: { type: String, required: true },
     date: { type: Date, required: true },
-    amount: { type: Number, required: true },
+    dueDate: { type: Date, required: false },
+    currency: {
+      type: String,
+      enum: ['RON', 'EUR', 'USD'],
+      required: true,
+      default: 'RON',
+    },
+    amount: { type: Number, required: false },
+    vatRate: { type: Number, required: true, default: 0 },
+    vatValue: { type: Number, required: true, default: 0 },
+    totalWithVat: { type: Number, required: true, default: 0 },
+    exchangeRateOnIssueDate: { type: Number, required: false },
   },
   { _id: false }
 )
@@ -120,6 +143,8 @@ const receptionItemCostSchema = {
   distributedTransportCostPerUnit: { type: Number, default: 0 },
   totalDistributedTransportCost: { type: Number, default: 0 },
   landedCostPerUnit: { type: Number, required: false },
+  vatRate: { type: Number, required: true, default: 0 },
+  vatValuePerUnit: { type: Number, required: true, default: 0 },
 }
 
 // --- Schema Principală ---
@@ -153,7 +178,11 @@ const receptionSchema = new Schema<IReceptionDoc>(
         product: { type: Schema.Types.ObjectId, ref: 'ERPProduct' },
         quantity: { type: Number, required: true },
         unitMeasure: { type: String, required: true },
-        ...receptionItemCostSchema, // Am inclus câmpurile de cost
+        unitMeasureCode: { type: String, required: false },
+        originalQuantity: { type: Number, required: false },
+        originalUnitMeasure: { type: String, required: false },
+        originalInvoicePricePerUnit: { type: Number, required: false },
+        ...receptionItemCostSchema, 
       },
     ],
     packagingItems: [
@@ -162,7 +191,11 @@ const receptionSchema = new Schema<IReceptionDoc>(
         packaging: { type: Schema.Types.ObjectId, ref: 'Packaging' },
         quantity: { type: Number, required: true },
         unitMeasure: { type: String, required: true },
-        ...receptionItemCostSchema, // Am inclus câmpurile de cost
+        unitMeasureCode: { type: String, required: false },
+        originalQuantity: { type: Number, required: false },
+        originalUnitMeasure: { type: String, required: false },
+        originalInvoicePricePerUnit: { type: Number, required: false },
+        ...receptionItemCostSchema, 
       },
     ],
     receptionDate: {

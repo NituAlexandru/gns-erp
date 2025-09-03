@@ -26,6 +26,7 @@ export type PopulatedReceptionProduct = Omit<
   distributedTransportCostPerUnit?: number
   totalDistributedTransportCost?: number
   landedCostPerUnit?: number
+  vatValuePerUnit?: number
 }
 
 export type PopulatedReceptionPackaging = Omit<
@@ -36,6 +37,7 @@ export type PopulatedReceptionPackaging = Omit<
   distributedTransportCostPerUnit?: number
   totalDistributedTransportCost?: number
   landedCostPerUnit?: number
+  vatValuePerUnit?: number
 }
 
 export type PopulatedReception = Omit<

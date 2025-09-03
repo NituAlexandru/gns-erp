@@ -40,6 +40,76 @@ import { SearchFilters } from '@/components/shared/receptions/search-filters'
 import { PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
 
+// ——— HELPER: calculează totalurile în RON pentru o recepție ———
+function computeReceptionTotals(rec: PopulatedReception) {
+  // 1) Dacă există facturi: folosim numai facturile (fără TVA + TVA), convertite în RON
+  if (rec.invoices && rec.invoices.length > 0) {
+    let invoicesNoVatRON = 0
+    let invoicesVatRON = 0
+
+    for (const inv of rec.invoices) {
+      const amount = inv.amount ?? 0
+      const rate = inv.vatRate ?? 0
+      const fx =
+        inv.currency === 'RON'
+          ? 1
+          : inv.exchangeRateOnIssueDate && inv.exchangeRateOnIssueDate > 0
+            ? inv.exchangeRateOnIssueDate
+            : 1 // dacă nu ai curs, îl tratăm ca 1 ca să nu-ți dea totaluri aiurea
+
+      invoicesNoVatRON += amount * fx
+      invoicesVatRON += amount * (rate / 100) * fx
+    }
+
+    return {
+      // pentru consistență, oferim și breakdown-ul
+      merchandiseRON: invoicesNoVatRON, // aici e "fără TVA", echivalent cu (produse+ambalaje+transport)
+      transportRON: 0, // deja inclus în facturi la nivel de "fără TVA"
+      vatRON: invoicesVatRON,
+      generalRON: invoicesNoVatRON + invoicesVatRON,
+    }
+  }
+
+  // 2) Fără facturi: calculăm (produse + ambalaje + transport + TVA linii) în RON
+  const productsSum =
+    (rec.products ?? []).reduce(
+      (s, p) => s + (p.invoicePricePerUnit ?? 0) * (p.quantity ?? 0),
+      0
+    ) || 0
+
+  const packagingSum =
+    (rec.packagingItems ?? []).reduce(
+      (s, p) => s + (p.invoicePricePerUnit ?? 0) * (p.quantity ?? 0),
+      0
+    ) || 0
+
+  const transportSum =
+    (rec.deliveries ?? []).reduce((s, d) => s + (d.transportCost || 0), 0) || 0
+
+  // Dacă nu ai TVA pe linii, lasă 0 (sau calculează dacă ai câmpurile pe item).
+  const vatSumRON = (rec.invoices ?? []).reduce((s, inv) => {
+    const amount = inv.amount ?? 0
+    const rate = inv.vatRate ?? 0
+    const fx =
+      inv.currency === 'RON'
+        ? 1
+        : inv.exchangeRateOnIssueDate && inv.exchangeRateOnIssueDate > 0
+          ? inv.exchangeRateOnIssueDate
+          : 1
+    return s + amount * (rate / 100) * fx
+  }, 0)
+
+  const merchandiseRON = productsSum + packagingSum + transportSum
+  const generalRON = merchandiseRON + vatSumRON
+
+  return {
+    merchandiseRON,
+    transportRON: transportSum,
+    vatRON: vatSumRON,
+    generalRON,
+  }
+}
+
 type ReceptionRow = PopulatedReception & {
   createdBy?: { _id: string; name: string }
   createdAt?: string
@@ -82,17 +152,7 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
         format(new Date(rec.receptionDate), 'dd/MM/yyyy HH:mm'),
         ...deliveries.map((d) => d.dispatchNoteNumber),
         ...invoices.map((i) => i.number),
-        (
-          (rec.products ?? []).reduce(
-            (s, p) => s + (p.invoicePricePerUnit ?? 0) * p.quantity,
-            0
-          ) +
-          (rec.packagingItems ?? []).reduce(
-            (s, p) => s + (p.invoicePricePerUnit ?? 0) * p.quantity,
-            0
-          ) +
-          (rec.deliveries ?? []).reduce((s, d) => s + (d.transportCost || 0), 0)
-        ).toFixed(2),
+        computeReceptionTotals(rec).generalRON.toFixed(2),
       ]
         .join(' ')
         .toLowerCase()
@@ -267,20 +327,8 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
           <TableBody>
             {displayList.map((rec) => {
               const deliveries = rec.deliveries ?? []
-              const invoices = rec.invoices ?? [] // Calculăm valoarea mărfii pe baza prețului de factură
-              const productsSum = (rec.products ?? []).reduce(
-                (s, p) => s + (p.invoicePricePerUnit ?? 0) * p.quantity,
-                0
-              )
-              const packagingSum = (rec.packagingItems ?? []).reduce(
-                (s, p) => s + (p.invoicePricePerUnit ?? 0) * p.quantity,
-                0
-              ) // Adăugăm și costul total al transportului
-              const transportSum = deliveries.reduce(
-                (s, d) => s + (d.transportCost || 0),
-                0
-              ) // Totalul real este marfa + transportul
-              const totalSum = productsSum + packagingSum + transportSum
+              const invoices = rec.invoices ?? []
+              const totals = computeReceptionTotals(rec)
 
               return (
                 <TableRow key={rec._id}>
@@ -313,7 +361,8 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
                         ))
                       : '–'}
                   </TableCell>
-                  <TableCell>{formatCurrency(totalSum)}</TableCell>
+                  <TableCell>{formatCurrency(totals.generalRON)}</TableCell>
+
                   <TableCell>
                     <Badge
                       variant={rec.status === 'DRAFT' ? 'secondary' : 'default'}

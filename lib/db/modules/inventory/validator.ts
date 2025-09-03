@@ -29,7 +29,7 @@ export const StockMovementSchema = z.object({
     .positive('Quantity must be > 0'),
   locationFrom: LocationOrProjectIdSchema.optional(),
   locationTo: LocationOrProjectIdSchema.optional(),
-  referenceId: z.string().optional(),
+  referenceId: z.string(),
   note: z.string().optional(),
   unitCost: z.number().nonnegative().optional(),
   timestamp: z

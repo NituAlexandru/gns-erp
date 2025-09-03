@@ -11,13 +11,14 @@ export type SearchResult = {
   packagingUnit?: string
   packagingQuantity?: number
   itemsPerPallet?: number
+  isVatPayer?: boolean
 }
 
 type AutocompleteSearchProps = {
   searchType: 'supplier' | 'product' | 'packaging'
   value: string
   initialSelectedItem?: SearchResult
-  onChange: (id: string, item?: SearchResult) => void
+  onChange: (id: string, item: SearchResult | null) => void
   placeholder?: string
 }
 
@@ -71,7 +72,7 @@ export function AutocompleteSearch({
         onChange={(e) => {
           setQuery(e.target.value)
           if (e.target.value === '') {
-            onChange('')
+            onChange('', null)
           }
           setIsOpen(true)
         }}
@@ -86,7 +87,7 @@ export function AutocompleteSearch({
           className='absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2 p-0 text-muted-foreground'
           onClick={() => {
             setQuery('')
-            onChange('')
+            onChange('', null)
             setOptions([])
           }}
         >

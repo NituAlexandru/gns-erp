@@ -1,6 +1,10 @@
 import { getReceptionById } from '@/lib/db/modules/reception/reception.actions'
 import { ReceptionForm } from '../../reception-form'
 import { auth } from '@/auth'
+import {
+  getDefaultVatRate,
+  getVatRates,
+} from '@/lib/db/modules/vat-rate/vatRate.actions'
 
 const EditReceptionPage = async ({
   params,
@@ -8,11 +12,15 @@ const EditReceptionPage = async ({
   params: Promise<{ id: string }>
 }) => {
   const { id } = await params
-
   const reception = await getReceptionById(id)
-
   const session = await auth()
   const currentUserId = session?.user?.id
+  const vatRatesResult = await getVatRates()
+  const defaultVatRateResult = await getDefaultVatRate()
+  const vatRates = vatRatesResult.success ? vatRatesResult.data || [] : []
+  const defaultVatRate = defaultVatRateResult.success
+    ? defaultVatRateResult.data
+    : null
 
   if (!currentUserId) {
     return <div>Eroare: Utilizator neautentificat. Vă rugăm să vă logați.</div>
@@ -37,7 +45,12 @@ const EditReceptionPage = async ({
           </span>
         </div>
       </div>
-      <ReceptionForm initialData={reception} currentUserId={currentUserId} />
+      <ReceptionForm
+        initialData={reception}
+        currentUserId={currentUserId}
+        vatRates={JSON.parse(JSON.stringify(vatRates))}
+        defaultVatRate={JSON.parse(JSON.stringify(defaultVatRate))}
+      />
     </div>
   )
 }
