@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useCallback } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/utils'
@@ -39,6 +39,7 @@ import type {
 import { SearchFilters } from '@/components/shared/receptions/search-filters'
 import { PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
+import { useDebounce } from '@/hooks/use-debounce'
 
 // ——— HELPER: calculează totalurile în RON pentru o recepție ———
 function computeReceptionTotals(rec: PopulatedReception) {
@@ -115,13 +116,13 @@ type ReceptionRow = PopulatedReception & {
   createdAt?: string
 }
 
-interface Props {
-  initialData: PopulatedReception[]
-  currentPage: number
-}
-
-export default function ReceptionList({ initialData, currentPage }: Props) {
+export default function ReceptionList() {
   const router = useRouter()
+  const [receptions, setReceptions] = useState<PopulatedReception[]>([])
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+
   const [filters, setFilters] = useState<ReceptionFilters>({
     q: '',
     status: 'ALL',
@@ -129,69 +130,56 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
     page: 1,
     pageSize: PAGE_SIZE,
   })
-  const [page, setPage] = useState(currentPage)
+
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ReceptionRow | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<ReceptionRow | null>(null)
-  const [isRevoking] = useState(false)
+  const [isRevoking, setIsRevoking] = useState(false)
+  const debouncedFilters = useDebounce(filters, 300)
 
-  const handleFiltersChange = useCallback((newFilters: ReceptionFilters) => {
-    setFilters(newFilters)
-    setPage(newFilters.page ?? 1)
-  }, [])
+  const fetchReceptions = useCallback(
+    async (currentFilters: ReceptionFilters) => {
+      setIsLoading(true)
+      const params = new URLSearchParams({
+        page: String(currentFilters.page),
+        pageSize: String(currentFilters.pageSize),
+        status: currentFilters.status || 'ALL',
+        createdBy: currentFilters.createdBy || 'ALL',
+      })
 
-  const filteredData = useMemo(() => {
-    return initialData.filter((rec) => {
-      const deliveries = rec.deliveries ?? []
-      const invoices = rec.invoices ?? []
+      try {
+        const response = await fetch(
+          `/api/admin/management/receptions/list?${params.toString()}`
+        )
+        if (!response.ok) throw new Error('Eroare la preluarea recepțiilor')
 
-      // Construim un șir de caractere în care căutăm q
-      const haystack = [
-        rec.supplier?.name,
-        rec.createdBy?.name,
-        format(new Date(rec.receptionDate), 'dd/MM/yyyy HH:mm'),
-        ...deliveries.map((d) => d.dispatchNoteNumber),
-        ...invoices.map((i) => i.number),
-        computeReceptionTotals(rec).generalRON.toFixed(2),
-      ]
-        .join(' ')
-        .toLowerCase()
-
-      //  text liber
-      if (filters.q && !haystack.includes(filters.q.toLowerCase())) {
-        return false
+        const result = await response.json()
+        setReceptions(result.data)
+        setTotal(result.total)
+        setTotalPages(result.totalPages)
+      } catch (error) {
+        toast.error((error as Error).message)
+      } finally {
+        setIsLoading(false)
       }
-      //  status
-      if (
-        filters.status &&
-        filters.status !== 'ALL' &&
-        rec.status !== filters.status
-      ) {
-        return false
-      }
-      // creat de
-      if (
-        filters.createdBy &&
-        filters.createdBy !== 'ALL' &&
-        rec.createdBy?._id !== filters.createdBy
-      ) {
-        return false
-      }
+    },
+    []
+  )
 
-      return true
-    })
-  }, [initialData, filters])
+  useEffect(() => {
+    fetchReceptions(debouncedFilters)
+  }, [debouncedFilters, fetchReceptions])
 
-  const totalPages = Math.ceil(filteredData.length / filters.pageSize)
-  const displayList = filteredData.slice(
-    (page - 1) * filters.pageSize,
-    page * filters.pageSize
+  const handleFiltersChange = useCallback(
+    (newFilters: Partial<ReceptionFilters>) => {
+      setFilters((prev) => ({ ...prev, ...newFilters, page: 1 }))
+    },
+    []
   )
 
   function fetchPage(newPage: number) {
     if (newPage < 1 || newPage > totalPages) return
-    router.replace(`/admin/management/reception?page=${newPage}`)
-    setPage(newPage)
+    setFilters((prev) => ({ ...prev, page: newPage }))
   }
 
   async function handleDeleteConfirm() {
@@ -230,44 +218,49 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
   async function handleRevokeConfirm() {
     if (!revokeTarget) return
 
-    const targetId = revokeTarget._id
+    setIsRevoking(true) // Setează starea de încărcare la început
+    const targetId = revokeTarget._id // Definim funcția de fetch pentru a o folosi cu toast.promise
 
-    const promise = new Promise(async (resolve, reject) => {
+    const revokePromise = async () => {
       const response = await fetch(
         `/api/admin/management/receptions/${targetId}/revoke`,
         { method: 'POST' }
       )
+
       if (!response.ok) {
-        const result = await response.json()
-        return reject(
-          new Error(result.message || 'A apărut o eroare la revocare.')
-        )
-      }
-      resolve(true)
-    })
+        const result = await response.json() // Aruncăm o eroare care va fi prinsă de 'error' din toast.promise
+        throw new Error(result.message || 'A apărut o eroare la revocare.')
+      } // Nu este neapărat nevoie să returnăm ceva, dar putem returna true
+      return true
+    }
 
-    toast.promise(promise, {
-      loading: 'Se revocă confirmarea...',
-      success: () => {
-        router.refresh()
+    try {
+      await toast.promise(revokePromise(), {
+        loading: 'Se revocă confirmarea...',
+        success: () => {
+          fetchReceptions(filters) // <-- Reîmprospătează lista automat
 
-        toast.success('Recepție revocată!', {
-          description: 'Recepția a fost adusă în starea "Ciornă" (Draft).',
-          action: {
-            label: 'Editează Acum',
-            onClick: () =>
-              router.push(`/admin/management/reception/${targetId}/edit`),
-          },
-          duration: 20000,
-        })
+          toast.success('Recepție revocată!', {
+            description: 'Recepția a fost adusă în starea "Ciornă" (Draft).',
+            action: {
+              label: 'Editează Acum',
+              onClick: () =>
+                router.push(`/admin/management/reception/${targetId}/edit`),
+            },
+            duration: 20000,
+          })
 
-        return 'Operațiune finalizată.'
-      },
-      error: (err) => err.message,
-    })
-
-    setRevokeTarget(null)
-    setDeleteOpen(false)
+          return 'Operațiune finalizată.'
+        },
+        error: (err) => err.message,
+      })
+    } catch (error) {
+      // Acest bloc prinde erori neașteptate, deși toast.promise le gestionează pe majoritatea
+      console.error('Revocarea a eșuat:', error)
+    } finally {
+      setIsRevoking(false) // Oprește starea de încărcare la final
+      setRevokeTarget(null) // Închide dialogul
+    }
   }
 
   return (
@@ -303,9 +296,9 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
 
       {/* Info paginare */}
       <p className='text-sm text-muted-foreground'>
-        Afișez {(page - 1) * filters.pageSize + 1}–
-        {Math.min(page * filters.pageSize, filteredData.length)} din{' '}
-        {filteredData.length} recepții
+        Afișez{' '}
+        {receptions.length > 0 ? (filters.page - 1) * filters.pageSize + 1 : 0}–
+        {Math.min(filters.page * filters.pageSize, total)} din {total} recepții
       </p>
 
       {/* Tabel */}
@@ -325,117 +318,136 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {displayList.map((rec) => {
-              const deliveries = rec.deliveries ?? []
-              const invoices = rec.invoices ?? []
-              const totals = computeReceptionTotals(rec)
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={9} className='h-24 text-center'>
+                  Se încarcă...
+                </TableCell>
+              </TableRow>
+            ) : receptions.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={9} className='h-24 text-center'>
+                  Nu s-au găsit recepții.
+                </TableCell>
+              </TableRow>
+            ) : (
+              receptions.map((rec) => {
+                // <-- Aici folosim 'receptions'
+                const deliveries = rec.deliveries ?? []
+                const invoices = rec.invoices ?? []
+                const totals = computeReceptionTotals(rec)
 
-              return (
-                <TableRow key={rec._id}>
-                  <TableCell>
-                    <Link href={`/admin/management/reception/${rec._id}`}>
-                      {rec.supplier?.name || '–'}
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(rec.receptionDate), 'dd/MM/yyyy HH:mm')}
-                  </TableCell>
-                  <TableCell>
-                    {deliveries.length > 0
-                      ? deliveries.map((d, i) => (
-                          <div key={i}>
-                            {d.dispatchNoteSeries?.toUpperCase()} –{' '}
-                            {d.dispatchNoteNumber} –{' '}
-                            {format(new Date(d.dispatchNoteDate), 'dd/MM/yyyy')}
-                          </div>
-                        ))
-                      : '–'}
-                  </TableCell>
-                  <TableCell>
-                    {invoices.length > 0
-                      ? invoices.map((inv, i) => (
-                          <div key={i}>
-                            {inv.series?.toUpperCase()} – {inv.number} –{' '}
-                            {format(new Date(inv.date), 'dd/MM/yyyy')}
-                          </div>
-                        ))
-                      : '–'}
-                  </TableCell>
-                  <TableCell>{formatCurrency(totals.generalRON)}</TableCell>
+                return (
+                  <TableRow key={rec._id}>
+                    <TableCell>
+                      <Link href={`/admin/management/reception/${rec._id}`}>
+                        {rec.supplier?.name || '–'}
+                      </Link>
+                    </TableCell>
+                    <TableCell>
+                      {format(new Date(rec.receptionDate), 'dd/MM/yyyy HH:mm')}
+                    </TableCell>
+                    <TableCell>
+                      {deliveries.length > 0
+                        ? deliveries.map((d, i) => (
+                            <div key={i}>
+                              {d.dispatchNoteSeries?.toUpperCase()} –{' '}
+                              {d.dispatchNoteNumber} –{' '}
+                              {format(
+                                new Date(d.dispatchNoteDate),
+                                'dd/MM/yyyy'
+                              )}
+                            </div>
+                          ))
+                        : '–'}
+                    </TableCell>
+                    <TableCell>
+                      {invoices.length > 0
+                        ? invoices.map((inv, i) => (
+                            <div key={i}>
+                              {inv.series?.toUpperCase()} – {inv.number} –{' '}
+                              {format(new Date(inv.date), 'dd/MM/yyyy')}
+                            </div>
+                          ))
+                        : '–'}
+                    </TableCell>
+                    <TableCell>{formatCurrency(totals.generalRON)}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          rec.status === 'DRAFT' ? 'secondary' : 'default'
+                        }
+                      >
+                        {rec.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{rec.createdBy?.name || '–'}</TableCell>
+                    <TableCell>
+                      {rec.createdAt
+                        ? format(new Date(rec.createdAt), 'dd/MM/yyyy HH:mm')
+                        : '–'}
+                    </TableCell>
+                    <TableCell className='text-center'>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            Acțiuni
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align='end'>
+                          <DropdownMenuItem
+                            className='cursor-pointer'
+                            onSelect={() =>
+                              router.push(
+                                `/admin/management/reception/${rec._id}`
+                              )
+                            }
+                          >
+                            Vizualizează
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className='cursor-pointer'
+                            onSelect={() =>
+                              router.push(
+                                `/admin/management/reception/${rec._id}/edit`
+                              )
+                            }
+                            disabled={rec.status === 'CONFIRMAT'}
+                          >
+                            Editează
+                          </DropdownMenuItem>
 
-                  <TableCell>
-                    <Badge
-                      variant={rec.status === 'DRAFT' ? 'secondary' : 'default'}
-                    >
-                      {rec.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{rec.createdBy?.name || '–'}</TableCell>
-                  <TableCell>
-                    {rec.createdAt
-                      ? format(new Date(rec.createdAt), 'dd/MM/yyyy HH:mm')
-                      : '–'}
-                  </TableCell>
-                  <TableCell className='text-center'>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Acțiuni
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align='end'>
-                        <DropdownMenuItem
-                          className='cursor-pointer'
-                          onSelect={() =>
-                            router.push(
-                              `/admin/management/reception/${rec._id}`
-                            )
-                          }
-                        >
-                          Vizualizează
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className='cursor-pointer'
-                          onSelect={() =>
-                            router.push(
-                              `/admin/management/reception/${rec._id}/edit`
-                            )
-                          }
-                          disabled={rec.status === 'CONFIRMAT'}
-                        >
-                          Editează
-                        </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className='text-orange-400 focus:text-yellow-500 cursor-pointer'
+                            onSelect={() => setRevokeTarget(rec)}
+                            disabled={rec.status !== 'CONFIRMAT'}
+                          >
+                            Revocă Confirmarea
+                          </DropdownMenuItem>
 
-                        <DropdownMenuItem
-                          className='text-orange-400 focus:text-yellow-500 cursor-pointer'
-                          onSelect={() => setRevokeTarget(rec)}
-                          disabled={rec.status !== 'CONFIRMAT'}
-                        >
-                          Revocă Confirmarea
-                        </DropdownMenuItem>
+                          <DropdownMenuSeparator />
 
-                        <DropdownMenuSeparator />
-
-                        <DropdownMenuItem
-                          className='text-red-500 focus:text-red-600 cursor-pointer'
-                          onSelect={() => {
-                            setDeleteTarget(rec)
-                            setDeleteOpen(true)
-                          }}
-                          disabled={rec.status === 'CONFIRMAT'}
-                        >
-                          Șterge
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+                          <DropdownMenuItem
+                            className='text-red-500 focus:text-red-600 cursor-pointer'
+                            onSelect={() => {
+                              setDeleteTarget(rec)
+                              setDeleteOpen(true)
+                            }}
+                            disabled={rec.status === 'CONFIRMAT'}
+                          >
+                            Șterge
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
           </TableBody>
         </Table>
       </div>
@@ -502,18 +514,18 @@ export default function ReceptionList({ initialData, currentPage }: Props) {
         <div className='flex justify-center items-center gap-4 mt-4'>
           <Button
             variant='outline'
-            onClick={() => fetchPage(page - 1)}
-            disabled={page <= 1}
+            onClick={() => fetchPage(filters.page - 1)}
+            disabled={filters.page <= 1 || isLoading}
           >
             Anterior
           </Button>
           <span>
-            Pagina {page} din {totalPages}
+            Pagina {filters.page} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => fetchPage(page + 1)}
-            disabled={page >= totalPages}
+            onClick={() => fetchPage(filters.page + 1)}
+            disabled={filters.page >= totalPages || isLoading}
           >
             Următor
           </Button>

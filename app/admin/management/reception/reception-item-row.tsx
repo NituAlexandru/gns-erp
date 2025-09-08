@@ -332,7 +332,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                     </p>
                   ) : lastPrice !== null && itemDetails && selectedUM ? (
                     <>
-                      <p className=' text-muted-foreground flex justify-center align-middle gap-2'>
+                      <div className=' text-muted-foreground flex justify-center align-middle gap-2'>
                         Ultimul preț:{' '}
                         {formatCurrency(
                           convertBasePriceToDisplay(lastPrice, selectedUM, {
@@ -344,7 +344,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                         )}{' '}
                         / {selectedUM}{' '}
                         {priceDifferencePercentage != null && (
-                          <p
+                          <div
                             className={cn(
                               ' font-semibold',
                               priceDifferencePercentage > 0
@@ -354,9 +354,9 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                           >
                             {priceDifferencePercentage > 0 ? '+' : ''}
                             {priceDifferencePercentage.toFixed(2)}%
-                          </p>
+                          </div>
                         )}
-                      </p>
+                      </div>
                     </>
                   ) : null}
                 </div>

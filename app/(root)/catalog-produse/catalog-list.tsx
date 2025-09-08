@@ -286,7 +286,9 @@ export default function CatalogList({
                         {canManageProducts && (
                           <DropdownMenuItem
                             onSelect={() =>
-                              router.push(`/catalog-produse/edit/${item._id}`)
+                              router.push(
+                                `/admin/management/products/${item._id}/edit`
+                              )
                             }
                           >
                             Editează

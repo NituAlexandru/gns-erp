@@ -58,7 +58,7 @@ export interface ReceptionFilters {
   q?: string // text liber
   status?: string // "DRAFT", "CONFIRMAT" etc.
   createdBy?: string // ObjectId al utilizatorului
-  page?: number
+  page: number
   pageSize: number
 }
 export type PopulatedProductDetails = {

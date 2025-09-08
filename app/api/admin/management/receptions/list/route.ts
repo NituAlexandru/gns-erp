@@ -3,6 +3,8 @@ import { connectToDatabase } from '@/lib/db'
 import ReceptionModel from '@/lib/db/modules/reception/reception.model'
 import mongoose from 'mongoose'
 import { PAGE_SIZE } from '@/lib/constants'
+import '@/lib/db/modules/suppliers/supplier.model'
+import '@/lib/db/modules/user/user.model'
 
 export async function GET(request: Request) {
   try {
