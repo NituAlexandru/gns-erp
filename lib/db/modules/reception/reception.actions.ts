@@ -136,9 +136,13 @@ export async function updateReception(
 
 // TODO (Proiecte): De refactorizat când Proiectele au sub-locații.
 // Locația ar trebui să fie o combinație, ex: `proiectId_DEPOZIT`.
-export async function confirmReception(
+export async function confirmReception({
+  receptionId,
+  userId,
+}: {
   receptionId: string
-): Promise<ActionResultWithData<PopulatedReception>> {
+  userId: string
+}): Promise<ActionResultWithData<PopulatedReception>> {
   const session = await mongoose.startSession()
   try {
     const result = await session.withTransaction(async (session) => {
@@ -245,7 +249,7 @@ export async function confirmReception(
           )
         }
 
-        const itemType = 'product' in item ? 'Product' : 'Packaging'
+        const itemType = 'product' in item ? 'ERPProduct' : 'Packaging'
         const itemId = 'product' in item ? item.product : item.packaging
         const details = await getStockableItemDetails(
           itemId.toString(),
@@ -328,11 +332,13 @@ export async function confirmReception(
             stockableItem: itemId.toString(),
             stockableItemType: itemType,
             movementType: 'RECEPTIE',
-            quantity: item.quantity, 
+            quantity: item.quantity,
+            unitMeasure: item.unitMeasure,
             locationTo: targetLocation,
             referenceId: reception._id.toString(),
-            note: `Recepție ${itemType} de la furnizor ${reception.supplier.name}`,
-            unitCost: item.landedCostPerUnit, 
+            note: `Recepție ${details.name} de la furnizor ${reception.supplier.name}`,
+            unitCost: item.landedCostPerUnit,
+            responsibleUser: userId,
             timestamp: reception.receptionDate,
           },
           session

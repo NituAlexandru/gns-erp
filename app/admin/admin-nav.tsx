@@ -34,6 +34,10 @@ const links = [
     href: '/admin/agenti',
   },
   {
+    title: 'Stocuri',
+    href: '/admin/management/inventory/stock',
+  },
+  {
     title: 'Setări',
     href: '/admin/settings',
   },

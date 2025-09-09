@@ -5,9 +5,11 @@ export interface IStockMovementDoc extends Document {
   stockableItemType: 'Product' | 'Packaging'
   movementType: string
   quantity: number
+  unitMeasure?: string
   locationFrom?: string
   locationTo?: string
   referenceId?: Types.ObjectId
+  responsibleUser?: Types.ObjectId
   note?: string
   timestamp: Date
   balanceBefore: number
@@ -22,7 +24,7 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     stockableItemType: {
       type: String,
       required: true,
-      enum: ['Product', 'Packaging'],
+      enum: ['ERPProduct', 'Packaging'],
     },
     stockableItem: {
       type: Schema.Types.ObjectId,
@@ -31,12 +33,18 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     },
     movementType: { type: String, required: true, index: true },
     quantity: { type: Number, required: true },
+    unitMeasure: { type: String },
     locationFrom: { type: String },
     locationTo: { type: String },
     referenceId: {
       type: Schema.Types.ObjectId,
       ref: 'Reception',
       required: true,
+    },
+    responsibleUser: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: false,
     },
     note: { type: String },
     timestamp: { type: Date, default: () => new Date() },

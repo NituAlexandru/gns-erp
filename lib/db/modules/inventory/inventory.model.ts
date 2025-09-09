@@ -9,7 +9,7 @@ export interface IInventoryBatch {
 
 export interface IInventoryItemDoc extends Document {
   stockableItem: Types.ObjectId // ID-ul documentului (poate fi Product sau Packaging)
-  stockableItemType: 'Product' | 'Packaging' // Numele modelului de referință
+  stockableItemType: 'ERPProduct' | 'Packaging' // Numele modelului de referință
   location: string
   batches: IInventoryBatch[]
   quantityReserved: number
@@ -24,7 +24,7 @@ const InventoryBatchSchema = new Schema<IInventoryBatch>(
     entryDate: { type: Date, required: true },
     movementId: {
       type: Schema.Types.ObjectId,
-      ref: 'StockMovement', 
+      ref: 'StockMovement',
       required: true,
     },
   },
@@ -36,7 +36,7 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
     stockableItemType: {
       type: String,
       required: true,
-      enum: ['Product', 'Packaging'], // Modelele pe care le permitem
+      enum: ['ERPProduct', 'Packaging'], // Modelele pe care le permitem
     },
     stockableItem: {
       type: Schema.Types.ObjectId,

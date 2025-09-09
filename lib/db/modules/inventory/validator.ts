@@ -11,7 +11,7 @@ export const LocationOrProjectIdSchema = z.union([
 
 export const InventoryItemAdjustSchema = z.object({
   stockableItem: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid item ID'),
-  stockableItemType: z.enum(['Product', 'Packaging']),
+  stockableItemType: z.enum(['ERPProduct', 'Packaging']),
   location: InventoryLocationSchema,
   quantityOnHandDelta: z.number(),
   quantityReservedDelta: z.number(),
@@ -19,19 +19,20 @@ export const InventoryItemAdjustSchema = z.object({
 
 export const StockMovementSchema = z.object({
   stockableItem: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid item ID'),
-  stockableItemType: z.enum(['Product', 'Packaging']),
+  stockableItemType: z.enum(['ERPProduct', 'Packaging']),
   movementType: z.enum(STOCK_MOVEMENT_TYPES, {
     errorMap: () => ({ message: 'Unknown movement type' }),
   }),
   quantity: z
     .number({ invalid_type_error: 'Quantity must be a number' })
-    .int('Quantity must be an integer')
     .positive('Quantity must be > 0'),
   locationFrom: LocationOrProjectIdSchema.optional(),
   locationTo: LocationOrProjectIdSchema.optional(),
   referenceId: z.string(),
   note: z.string().optional(),
   unitCost: z.number().nonnegative().optional(),
+  unitMeasure: z.string().optional(),
+  responsibleUser: z.string().optional(),
   timestamp: z
     .date()
     .optional()

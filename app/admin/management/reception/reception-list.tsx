@@ -202,7 +202,7 @@ export default function ReceptionList() {
     toast.promise(promise, {
       loading: 'Se șterge recepția...',
       success: () => {
-        router.refresh()
+        fetchReceptions(filters)
         setDeleteOpen(false)
         setDeleteTarget(null)
         return 'Recepția a fost ștearsă cu succes!'

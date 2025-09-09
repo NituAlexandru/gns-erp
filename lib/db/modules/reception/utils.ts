@@ -2,6 +2,7 @@ import ERPProductModel from '@/lib/db/modules/product/product.model' // VerificÄ
 import PackagingModel from '../packaging-products/packaging.model'
 
 export interface StockableItemDetails {
+  name: string
   unit: string | null
   packagingUnit: string | null
   packagingQuantity: number | null
@@ -15,12 +16,12 @@ export interface StockableItemDetails {
  */
 export async function getStockableItemDetails(
   id: string,
-  type: 'Product' | 'Packaging'
+  type: 'ERPProduct' | 'Packaging'
 ): Promise<StockableItemDetails> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let doc: any
 
-  if (type === 'Product') {
+  if (type === 'ERPProduct') {
     doc = await ERPProductModel.findById(id).lean()
   } else {
     const packagingDoc = await PackagingModel.findById(id).lean()
@@ -34,11 +35,10 @@ export async function getStockableItemDetails(
   }
 
   return {
+    name: doc.name,
     unit: doc.unit || null,
     packagingUnit: doc.packagingUnit || null,
     packagingQuantity: doc.packagingQuantity || null,
     itemsPerPallet: doc.itemsPerPallet || null,
   }
 }
-
-

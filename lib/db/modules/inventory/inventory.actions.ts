@@ -4,9 +4,18 @@ import { connectToDatabase } from '@/lib/db'
 import InventoryItemModel, { IInventoryItemDoc } from './inventory.model'
 import StockMovementModel, { IStockMovementDoc } from './movement.model'
 import { StockMovementInput, StockMovementSchema } from './validator'
-import { ClientSession, FilterQuery, startSession, Types } from 'mongoose'
+import mongoose, {
+  ClientSession,
+  FilterQuery,
+  startSession,
+  Types,
+} from 'mongoose'
 import { IN_TYPES, OUT_TYPES } from './constants'
-
+import { AggregatedStockItem, InventoryLocation } from './types'
+import '@/lib/db/modules/product/product.model'
+import '@/lib/db/modules/user/user.model'
+import '@/lib/db/modules/packaging-products/packaging.model'
+import { MovementsFiltersState } from '@/app/admin/management/inventory/movements/movements-filters'
 /**
  * Înregistrează o mișcare de stoc (IN/OUT) conform logicii FIFO.
  * Gestionează adăugarea și consumarea de loturi.
@@ -217,13 +226,14 @@ export async function reverseStockMovementsByReference(
       stockableItemType: movement.stockableItemType,
       movementType: 'ANULARE_RECEPTIE',
       quantity: movement.quantity,
+      unitMeasure: movement.unitMeasure,
+      responsibleUser: movement.responsibleUser,
       locationFrom: movement.locationTo,
       referenceId,
       note: `Anulare mișcare recepție originală ${movementIdStr}`,
       timestamp: new Date(),
       balanceBefore: balanceBeforeReversal,
       balanceAfter: balanceAfterReversal,
-      // Noua mișcare de anulare este mereu 'ACTIVE'
     })
     await reversalMovement.save({ session })
 
@@ -273,4 +283,236 @@ export async function getCurrentStock(
   }
 
   return { byLocation, grandTotal }
+}
+export async function getAggregatedStockStatus(): Promise<
+  AggregatedStockItem[]
+> {
+  try {
+    await connectToDatabase()
+
+    const stockStatus = await InventoryItemModel.aggregate([
+      // Grupează după 'stockableItem' și însumează cantitățile
+      {
+        $group: {
+          _id: '$stockableItem', // Grupează după ID-ul produsului
+          totalStock: { $sum: '$quantity' }, // Însumează cantitatea
+        },
+      },
+
+      {
+        $lookup: {
+          from: 'erpproducts',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'productDetails',
+        },
+      },
+
+      {
+        $unwind: '$productDetails',
+      },
+
+      {
+        $project: {
+          _id: 1, // Păstrează ID-ul produsului
+          totalStock: 1, // Păstrează cantitatea totală
+          name: '$productDetails.name',
+          unit: '$productDetails.unit',
+          productCode: '$productDetails.productCode',
+        },
+      },
+      {
+        $sort: {
+          name: 1,
+        },
+      },
+    ])
+
+    return JSON.parse(JSON.stringify(stockStatus))
+  } catch (error) {
+    console.error('Eroare la agregarea stocului:', error)
+    return []
+  }
+}
+
+export async function getStockByLocation(
+  locationId: InventoryLocation
+): Promise<AggregatedStockItem[]> {
+  try {
+    await connectToDatabase()
+
+    const stockStatus = await InventoryItemModel.aggregate([
+      // Pasul 1: Filtrează documentele după locație
+      {
+        $match: {
+          location: locationId,
+        },
+      },
+      // Pasul 2: Grupează după 'stockableItem' și însumează cantitățile
+      {
+        $group: {
+          _id: '$stockableItem',
+          totalStock: { $sum: '$quantity' },
+        },
+      },
+      // Pasul 3: Populează detaliile produsului
+      {
+        $lookup: {
+          from: 'erpproducts',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'productDetails',
+        },
+      },
+      // Pasul 4: Destructurează array-ul de detalii
+      {
+        $unwind: '$productDetails',
+      },
+      // Pasul 5: Formatează rezultatul final
+      {
+        $project: {
+          _id: 1,
+          totalStock: 1,
+          name: '$productDetails.name',
+          unit: '$productDetails.unit',
+          productCode: '$productDetails.productCode',
+        },
+      },
+      // Pasul 6: Sortează după nume
+      {
+        $sort: {
+          name: 1,
+        },
+      },
+    ])
+
+    return JSON.parse(JSON.stringify(stockStatus))
+  } catch (error) {
+    console.error(
+      `Eroare la agregarea stocului pentru locația ${locationId}:`,
+      error
+    )
+    return []
+  }
+}
+export async function getStockMovements(filters: MovementsFiltersState) {
+  try {
+    await connectToDatabase()
+
+    const pipeline: mongoose.PipelineStage[] = []
+
+    // Pas 1: Lookups pentru Produse și Ambalaje (rămân la fel)
+    pipeline.push({
+      $lookup: {
+        from: 'erpproducts',
+        localField: 'stockableItem',
+        foreignField: '_id',
+        as: 'erpProductDetails',
+      },
+    })
+    pipeline.push({
+      $unwind: { path: '$erpProductDetails', preserveNullAndEmptyArrays: true },
+    })
+
+    pipeline.push({
+      $lookup: {
+        from: 'packagings',
+        localField: 'stockableItem',
+        foreignField: '_id',
+        as: 'packagingDetails',
+      },
+    })
+    pipeline.push({
+      $unwind: { path: '$packagingDetails', preserveNullAndEmptyArrays: true },
+    })
+
+    // 👈 NOU: Adăugăm înapoi $lookup pentru Utilizatori
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'responsibleUser',
+        foreignField: '_id',
+        as: 'responsibleUserDetails',
+      },
+    })
+    pipeline.push({
+      $unwind: {
+        path: '$responsibleUserDetails',
+        preserveNullAndEmptyArrays: true,
+      },
+    })
+
+    // Pas 2: Logica de filtrare (rămâne la fel)
+    const matchConditions: mongoose.FilterQuery<IStockMovementDoc>[] = []
+
+    if (filters.dateRange?.from) {
+      matchConditions.push({
+        timestamp: {
+          $gte: filters.dateRange.from,
+          ...(filters.dateRange.to && { $lte: filters.dateRange.to }),
+        },
+      })
+    }
+
+    if (filters.q && filters.q.trim() !== '') {
+      const regex = new RegExp(filters.q, 'i')
+      matchConditions.push({
+        $or: [
+          { 'erpProductDetails.name': regex },
+          { 'packagingDetails.name': regex },
+          { note: regex },
+        ],
+      })
+    }
+    if (filters.location && filters.location !== 'ALL') {
+      matchConditions.push({
+        $or: [
+          { locationFrom: filters.location },
+          { locationTo: filters.location },
+        ],
+      })
+    }
+    if (filters.type && filters.type !== 'ALL') {
+      matchConditions.push({ movementType: filters.type })
+    }
+    if (matchConditions.length > 0) {
+      pipeline.push({ $match: { $and: matchConditions } })
+    }
+
+    // Pas 3: Sortarea (rămâne la fel)
+    pipeline.push({ $sort: { timestamp: -1 } })
+
+    // Pas 4: Formatarea finală (include acum și datele utilizatorului)
+    pipeline.push({
+      $project: {
+        _id: 1,
+        movementType: 1,
+        quantity: 1,
+        unitMeasure: 1,
+        timestamp: 1,
+        locationFrom: 1,
+        locationTo: 1,
+        note: 1,
+        balanceBefore: 1,
+        balanceAfter: 1,
+        // Re-structurează `responsibleUser` cu datele din $lookup
+        responsibleUser: {
+          _id: '$responsibleUserDetails._id',
+          name: '$responsibleUserDetails.name',
+        },
+        stockableItem: {
+          _id: '$stockableItem',
+          name: {
+            $ifNull: ['$erpProductDetails.name', '$packagingDetails.name'],
+          },
+        },
+      },
+    })
+
+    const movements = await StockMovementModel.aggregate(pipeline)
+    return JSON.parse(JSON.stringify(movements))
+  } catch (error) {
+    console.error('Eroare la preluarea mișcărilor de stoc:', error)
+    return []
+  }
 }

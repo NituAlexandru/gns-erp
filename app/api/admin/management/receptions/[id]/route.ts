@@ -15,12 +15,19 @@ export async function PUT(
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Neautorizat' }, { status: 401 })
     }
+    const userId = session.user.id // Avem nevoie de userId pentru confirmare
 
     const { id } = await params
     const body = await request.json()
-    const payload = { ...body, _id: id }
+    const { isFinal, ...receptionData } = body
 
-    // Actualizăm datele recepției
+    // Pasul 1: Prevenim suprascrierea accidentală a statusului.
+    // Scoatem 'status' din datele trimise pentru update.
+    delete receptionData.status
+
+    const payload = { ...receptionData, _id: id }
+
+    // Pasul 2: Actualizăm datele recepției (fără status)
     const updateResult = await updateReception(payload)
     if (!updateResult.success) {
       return NextResponse.json(
@@ -29,10 +36,17 @@ export async function PUT(
       )
     }
 
-    // Dacă este o salvare finală, o și confirmăm
-    if (body.isFinal) {
-      const confirmationResult = await confirmReception(id)
+    // Pasul 3: Dacă este o salvare finală, o și confirmăm
+    if (isFinal) {
+      // Apelăm 'confirmReception' cu formatul corect: un singur obiect
+      const confirmationResult = await confirmReception({
+        receptionId: id,
+        userId: userId,
+      })
+
       if (!confirmationResult.success) {
+        // Aici este problema ta: recepția apare ca fiind deja confirmată
+        // sau nu este găsită din cauza datelor învechite.
         return NextResponse.json(
           {
             message: `Datele au fost salvate, dar finalizarea a eșuat: ${confirmationResult.message}`,
@@ -42,17 +56,20 @@ export async function PUT(
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Recepție actualizată.',
-    })
-    //eslint-disable-next-line
-  } catch (error: any) {
+    // Returnăm datele actualizate
+    return NextResponse.json(updateResult.data)
+  } catch (error: unknown) {
+    // Am înlocuit 'any' cu 'unknown'
     console.error('[RECEPTION_PUT_ERROR]', error)
-    return NextResponse.json(
-      { message: error.message || 'A apărut o eroare internă' },
-      { status: 500 }
-    )
+
+    // Verificăm dacă eroarea este o instanță a clasei Error
+    // pentru a putea accesa proprietatea 'message' în siguranță.
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'A apărut o eroare internă neașteptată.'
+
+    return NextResponse.json({ message }, { status: 500 })
   }
 }
 

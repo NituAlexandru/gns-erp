@@ -22,6 +22,10 @@ const links = [
     title: 'Clienți',
     href: '/clients',
   },
+  {
+    title: 'Stocuri',
+    href: '/admin/management/inventory/stock',
+  },
 ]
 
 export function ManagementNav({
