@@ -1,15 +1,13 @@
-// types.ts
 import { INVENTORY_LOCATIONS, StockMovementType } from './constants'
 import { IInventoryItemDoc } from './inventory.model'
 import { IStockMovementDoc } from './movement.model'
 
-/** DTO for an inventory item, as sent to the client. */
 export type InventoryItemDTO = Omit<
   IInventoryItemDoc,
   keyof Document | 'stockableItem'
 > & {
   _id: string
-  stockableItem: string // a simple string ID
+  stockableItem: string 
 }
 
 /** DTO for a stock movement, as sent to the client. */
@@ -18,7 +16,7 @@ export type StockMovementDTO = Omit<
   keyof Document | 'stockableItem'
 > & {
   _id: string
-  stockableItem: string // a simple string ID
+  stockableItem: string 
 }
 
 export type AggregatedStockItem = {
@@ -27,13 +25,18 @@ export type AggregatedStockItem = {
   name: string
   unit: string
   productCode: string
+  averageCost: number
+  minPrice: number
+  maxPrice: number
+  lastPrice: number
+  packagingOptions: PackagingOption[]
 }
 
 export type InventoryLocation = (typeof INVENTORY_LOCATIONS)[number]
 
 export type PopulatedStockMovement = {
   _id: string
-  timestamp: string // sau Date
+  timestamp: string 
   movementType: StockMovementType
   quantity: number
   unitMeasure?: string
@@ -49,4 +52,30 @@ export type PopulatedStockMovement = {
     name: string
   } | null
   note?: string
+}
+export interface PackagingOption {
+  unitName: string
+  baseUnitEquivalent: number
+}
+
+export interface Batch {
+  quantity: number
+  unitCost: number
+  entryDate: string | Date
+  movementId: string
+}
+
+export interface StockLocationEntry {
+  location: InventoryLocation
+  batches: Batch[]
+}
+
+export interface ProductStockDetails {
+  _id: string
+  name: string
+  productCode?: string
+  unit?: string
+  packagingUnit?: string
+  locations: StockLocationEntry[]
+  packagingOptions: PackagingOption[]
 }

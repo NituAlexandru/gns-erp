@@ -53,7 +53,7 @@ export default function StockMovementsPage() {
   }, [fetchMovements])
 
   return (
-    <div className='h-[calc(100vh-8rem)] flex flex-col'>
+    <div className='h-[calc(100vh-7rem)] flex flex-col border-1 p-6 rounded-2xl'>
       <div className='flex justify-between'>
         <h3 className='font-bold pt-1'>Mișcări Stoc (Jurnal)</h3>
         <MovementsFilters initialState={filters} onFilterChange={setFilters} />

@@ -58,7 +58,7 @@ export function MovementsFilters({
   useEffect(() => {
     const timer = setTimeout(() => {
       onFilterChange(filters)
-    }, 300)
+    }, 700)
     return () => clearTimeout(timer)
   }, [filters, onFilterChange])
 
