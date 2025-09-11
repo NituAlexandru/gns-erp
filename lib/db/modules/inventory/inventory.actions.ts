@@ -16,13 +16,16 @@ import {
   InventoryLocation,
   PackagingOption,
   ProductStockDetails,
+  StockMovementDetails,
 } from './types'
 import '@/lib/db/modules/product/product.model'
 import '@/lib/db/modules/user/user.model'
+import '@/lib/db/modules/suppliers/supplier.model'
 import '@/lib/db/modules/packaging-products/packaging.model'
 import { MovementsFiltersState } from '@/app/admin/management/inventory/movements/movements-filters'
 import ERPProductModel from '@/lib/db/modules/product/product.model'
 import PackagingModel from '@/lib/db/modules/packaging-products/packaging.model'
+import ReceptionModel from '@/lib/db/modules/reception/reception.model'
 
 /**
  * Înregistrează o mișcare de stoc (IN/OUT) conform logicii FIFO.
@@ -647,6 +650,43 @@ export async function getStockMovements(filters: MovementsFiltersState) {
   } catch (error) {
     console.error('Eroare la preluarea mișcărilor de stoc:', error)
     return []
+  }
+}
+
+export async function getStockMovementDetails(
+  movementId: string
+): Promise<StockMovementDetails | null> {
+  try {
+    await connectToDatabase()
+
+    const movement = await StockMovementModel.findById(movementId)
+      .populate({ path: 'stockableItem', select: 'name productCode' })
+      .populate({ path: 'responsibleUser', select: 'name' })
+      .lean()
+
+    if (!movement) {
+      throw new Error('Mișcarea de stoc nu a fost găsită.')
+    }
+
+    let referenceDetails = null
+    if (movement.movementType === 'RECEPTIE' && movement.referenceId) {
+      referenceDetails = await ReceptionModel.findById(movement.referenceId)
+        .populate({ path: 'supplier', select: 'name' })
+        .populate({ path: 'createdBy', select: 'name' })
+        .populate({ path: 'products.product' })
+        .populate({ path: 'packagingItems.packaging' })
+        .lean()
+    }
+
+    const result = {
+      movement,
+      reference: referenceDetails,
+    }
+
+    return JSON.parse(JSON.stringify(result))
+  } catch (error) {
+    console.error('Eroare la preluarea detaliilor mișcării de stoc:', error)
+    return null
   }
 }
 

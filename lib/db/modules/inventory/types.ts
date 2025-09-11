@@ -1,3 +1,4 @@
+import { IDelivery, IInvoice } from '../reception/reception.model'
 import { INVENTORY_LOCATIONS, StockMovementType } from './constants'
 import { IInventoryItemDoc } from './inventory.model'
 import { IStockMovementDoc } from './movement.model'
@@ -7,7 +8,7 @@ export type InventoryItemDTO = Omit<
   keyof Document | 'stockableItem'
 > & {
   _id: string
-  stockableItem: string 
+  stockableItem: string
 }
 
 /** DTO for a stock movement, as sent to the client. */
@@ -16,7 +17,7 @@ export type StockMovementDTO = Omit<
   keyof Document | 'stockableItem'
 > & {
   _id: string
-  stockableItem: string 
+  stockableItem: string
 }
 
 export type AggregatedStockItem = {
@@ -36,8 +37,10 @@ export type InventoryLocation = (typeof INVENTORY_LOCATIONS)[number]
 
 export type PopulatedStockMovement = {
   _id: string
-  timestamp: string 
+  timestamp: string
   movementType: StockMovementType
+  balanceBefore: number
+  balanceAfter: number
   quantity: number
   unitMeasure?: string
   stockableItem: {
@@ -78,4 +81,43 @@ export interface ProductStockDetails {
   packagingUnit?: string
   locations: StockLocationEntry[]
   packagingOptions: PackagingOption[]
+}
+interface PopulatedReceptionItem {
+  _id: string
+  product?: {
+    _id: string
+    name: string
+    productCode?: string
+    unit: string
+    packagingUnit?: string | null
+    packagingQuantity?: number | null
+    itemsPerPallet?: number | null
+  }
+  packaging?: {
+    _id: string
+    name: string
+    productCode?: string
+    packagingUnit: string
+    packagingQuantity?: number | null
+    itemsPerPallet?: number | null
+  }
+  quantity: number
+  unitMeasure: string
+  landedCostPerUnit: number
+}
+
+export interface ReferenceDetails {
+  _id: string
+  supplier?: { name: string }
+  createdBy?: { name: string }
+  receptionDate: string | Date
+  products: PopulatedReceptionItem[]
+  packagingItems: PopulatedReceptionItem[]
+  invoices: IInvoice[]
+  deliveries: IDelivery[]
+}
+
+export interface StockMovementDetails {
+  movement: PopulatedStockMovement
+  reference: ReferenceDetails | null
 }

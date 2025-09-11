@@ -22,3 +22,8 @@
 - de modificat btn de stergere la produse ca sa distinga intre paleti si produse
 
 - comenzile care se tin mai mult de 30 zile in curte se percepe taxa de custodie. % din pretul total/luna
+
+
+-servicii
+- taxa administrare paleti
+- manipulare marfa - liza, macara etaj superior, multiple calari

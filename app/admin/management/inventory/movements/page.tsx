@@ -17,9 +17,10 @@ import {
   MOVEMENT_TYPE_DETAILS_MAP,
   IN_TYPES,
 } from '@/lib/db/modules/inventory/constants'
-import { cn } from '@/lib/utils'
+import { cn, formatId } from '@/lib/utils'
 import { useState, useEffect, useCallback } from 'react'
 import { MovementsFilters, MovementsFiltersState } from './movements-filters'
+import Link from 'next/link'
 
 export default function StockMovementsPage() {
   const [movements, setMovements] = useState<PopulatedStockMovement[]>([])
@@ -66,6 +67,7 @@ export default function StockMovementsPage() {
         <Table>
           <TableHeader className='sticky top-0 bg-card z-10'>
             <TableRow>
+              <TableHead>ID Mișcare</TableHead>
               <TableHead>Dată</TableHead>
               <TableHead>Tip (IN/OUT)</TableHead>
               <TableHead>Detalii Mișcare</TableHead>
@@ -95,6 +97,14 @@ export default function StockMovementsPage() {
 
               return (
                 <TableRow key={movement._id}>
+                  <TableCell>
+                    <Link
+                      href={`/admin/management/inventory/movements/${movement._id}`}
+                      className='underline hover:no-underline'
+                    >
+                      {formatId(movement._id)}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     {movement.timestamp
                       ? format(

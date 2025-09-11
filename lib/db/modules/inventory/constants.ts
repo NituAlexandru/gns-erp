@@ -1,4 +1,6 @@
+import { VariantProps } from 'class-variance-authority'
 import { InventoryLocation } from './types'
+import { badgeVariants } from '@/components/ui/badge'
 
 export const INVENTORY_LOCATIONS = [
   'DEPOZIT', // Fizic in depozit
@@ -35,18 +37,23 @@ export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number]
 
 export const MOVEMENT_TYPE_DETAILS_MAP: Record<
   StockMovementType,
-  { name: string }
+  { name: string; variant: VariantProps<typeof badgeVariants>['variant'] }
 > = {
-  BON_DE_CONSUM: { name: 'Bon de Consum' },
-  VANZARE_DIRECTA: { name: 'Vânzare Directă' },
-  VANZARE_DEPOZIT: { name: 'Vânzare din Depozit' },
-  RETUR_FURNIZOR: { name: 'Retur la Furnizor' },
-  PIERDERE: { name: 'Pierdere' },
-  ANULARE_RECEPTIE: { name: 'Anulare Recepție' },
-  DETERIORARE: { name: 'Deteriorare' },
-  RECEPTIE: { name: 'Recepție Marfă' },
-  RETUR_CLIENT: { name: 'Retur de la Client' },
-  PLUS_INVENTAR: { name: 'Plus la Inventar' },
+  // Intrări
+  RECEPTIE: { name: 'Recepție Marfă', variant: 'default' },
+  RETUR_CLIENT: { name: 'Retur de la Client', variant: 'default' },
+  PLUS_INVENTAR: { name: 'Plus la Inventar', variant: 'default' },
+
+  // Ieșiri
+  BON_DE_CONSUM: { name: 'Bon de Consum', variant: 'destructive' },
+  VANZARE_DIRECTA: { name: 'Vânzare Directă', variant: 'destructive' },
+  VANZARE_DEPOZIT: { name: 'Vânzare din Depozit', variant: 'destructive' },
+  RETUR_FURNIZOR: { name: 'Retur la Furnizor', variant: 'destructive' },
+  PIERDERE: { name: 'Pierdere', variant: 'destructive' },
+  DETERIORARE: { name: 'Deteriorare', variant: 'destructive' },
+
+  // Neutre sau speciale
+  ANULARE_RECEPTIE: { name: 'Anulare Recepție', variant: 'secondary' },
 }
 
 export const OUT_TYPES = new Set<StockMovementType>([
@@ -64,3 +71,9 @@ export const IN_TYPES = new Set<StockMovementType>([
   'RETUR_CLIENT',
   'PLUS_INVENTAR',
 ])
+
+export const TRANSPORT_TYPE_MAP = {
+  INTERN: 'Transport Intern',
+  EXTERN_FURNIZOR: 'Transport Extern (Furnizor)',
+  TERT: 'Transport Terț',
+} as const

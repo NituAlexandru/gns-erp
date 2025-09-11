@@ -6,8 +6,9 @@ import {
   CardContent,
   CardDescription,
 } from '@/components/ui/card'
-import { UnitDisplay } from '@/components/inventory/unit-display' // 👈 Importăm noua componentă de afișare
-import { BatchListTable } from '@/components/inventory/batch-list-table' // 👈 Importăm noul tabel interactiv
+import { UnitDisplay } from '@/components/inventory/unit-display'
+import { BatchListTable } from '@/components/inventory/batch-list-table'
+import { BackButton } from './back-button'
 
 export default async function ProductStockDetailsPage({
   params,
@@ -44,7 +45,9 @@ export default async function ProductStockDetailsPage({
     <div className='space-y-6'>
       <Card>
         <CardHeader>
-          <CardTitle>{productDetails.name}</CardTitle>
+          <CardTitle className='flex items-center justify-between'>
+            {productDetails.name} <BackButton />
+          </CardTitle>
           <CardDescription>
             Cod: {productDetails.productCode || '-'} | Stoc Total:{' '}
             <UnitDisplay
