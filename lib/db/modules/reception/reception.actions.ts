@@ -344,7 +344,7 @@ export async function confirmReception({
             note: `Recepție ${details.name} de la furnizor ${reception.supplier.name}`,
             unitCost: item.landedCostPerUnit,
             responsibleUser: userId,
-            timestamp: reception.receptionDate,
+            timestamp: new Date(),
           },
           session
         )
