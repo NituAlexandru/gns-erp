@@ -15,7 +15,10 @@ import z from 'zod'
 import { connectToDatabase } from '../..'
 import Supplier from '../suppliers/supplier.model'
 import User from '../user/user.model'
-import { distributeTransportCost } from './reception.helpers'
+import {
+  calculateInvoiceTotals,
+  distributeTransportCost,
+} from './reception.helpers'
 import {
   convertAmountToRON,
   roundToTwoDecimals,
@@ -178,6 +181,8 @@ export async function confirmReception({
         allOriginalItems,
         totalTransportCost
       )
+
+      reception.invoices = calculateInvoiceTotals(reception.invoices)
 
       // === VALIDARE FINALIZARE (fără TVA, în RON) ===
       const merchandiseTotalRON = roundToTwoDecimals(
@@ -427,6 +432,13 @@ export async function revokeConfirmation(
       reception.status = 'DRAFT'
 
       await reception.save({ session })
+
+      if (reception.invoices && reception.invoices.length > 0) {
+        for (const invoice of reception.invoices) {
+          invoice.vatValue = 0
+          invoice.totalWithVat = 0
+        }
+      }
 
       return {
         success: true,

@@ -359,7 +359,7 @@ export default function ReceptionList() {
                               )}
                             </div>
                           ))
-                        : '–'}
+                        : '-'}
                     </TableCell>
                     <TableCell>
                       {invoices.length > 0
@@ -369,7 +369,7 @@ export default function ReceptionList() {
                               {format(new Date(inv.date), 'dd/MM/yyyy')}
                             </div>
                           ))
-                        : '–'}
+                        : '-'}
                     </TableCell>
                     <TableCell>{formatCurrency(totals.generalRON)}</TableCell>
                     <TableCell>
@@ -385,7 +385,7 @@ export default function ReceptionList() {
                     <TableCell>
                       {rec.createdAt
                         ? format(new Date(rec.createdAt), 'dd/MM/yyyy HH:mm')
-                        : '–'}
+                        : '-'}
                     </TableCell>
                     <TableCell className='text-center'>
                       <DropdownMenu>

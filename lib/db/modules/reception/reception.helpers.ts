@@ -1,4 +1,5 @@
-import { roundToTwoDecimals } from "@/lib/finance/money"
+import { roundToTwoDecimals } from '@/lib/finance/money'
+import { IInvoice } from './reception.model'
 
 interface DistributableItem {
   quantity: number
@@ -63,4 +64,21 @@ export function distributeTransportCost<T extends DistributableItem>(
     ...item,
     totalDistributedTransportCost: allocatedTransportCosts[idx],
   }))
+}
+
+export function calculateInvoiceTotals(invoices: IInvoice[]): IInvoice[] {
+  return invoices.map((invoice) => {
+    const amount = invoice.amount ?? 0
+    const vatRate = invoice.vatRate ?? 0
+
+    const vatValue = roundToTwoDecimals(amount * (vatRate / 100))
+    const totalWithVat = roundToTwoDecimals(amount + vatValue)
+
+    // Returnăm un obiect nou pentru a evita mutațiile directe
+    return {
+      ...invoice,
+      vatValue,
+      totalWithVat,
+    }
+  })
 }
