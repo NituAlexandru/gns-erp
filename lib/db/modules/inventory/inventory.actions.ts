@@ -364,20 +364,80 @@ const getPackagingOptionsPipeline = (): mongoose.PipelineStage[] => [
     },
   },
 ]
+const createPackagingOptionsPipelineForPackaging =
+  (): mongoose.PipelineStage[] => {
+    return [
+      {
+        $lookup: {
+          from: 'packagings',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'packagingDetails',
+        },
+      },
+      { $unwind: '$packagingDetails' },
+      {
+        $lookup: {
+          from: 'packagings',
+          localField: 'packagingDetails.palletTypeId',
+          foreignField: '_id',
+          as: 'palletTypeDetails',
+        },
+      },
+      {
+        $unwind: {
+          path: '$palletTypeDetails',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          packagingOptions: {
+            $let: {
+              vars: {
+                palletUnitName: {
+                  $ifNull: ['$palletTypeDetails.name', 'Palet'],
+                },
+              },
+              in: {
+                $cond: {
+                  if: {
+                    $and: [
+                      '$packagingDetails.itemsPerPallet',
+                      {
+                        $ne: [
+                          '$packagingDetails.packagingUnit',
+                          '$$palletUnitName',
+                        ],
+                      },
+                    ],
+                  },
+                  then: [
+                    {
+                      unitName: '$$palletUnitName',
+                      baseUnitEquivalent: '$packagingDetails.itemsPerPallet',
+                    },
+                  ],
+                  else: [],
+                },
+              },
+            },
+          },
+        },
+      },
+    ]
+  }
 
 export async function getAggregatedStockStatus(
-  query?: string // 👈 MODIFICAREA 1: Adăugăm parametrul `query` aici
+  query?: string
 ): Promise<AggregatedStockItem[]> {
   try {
     await connectToDatabase()
 
-    const pipeline: mongoose.PipelineStage[] = [
-      // Am adăugat `pipeline` pentru a putea adăuga dinamic etape
-      // Pașii 1 & 2: Calculul stocurilor și prețurilor (rămân la fel)
+    // --- PIPELINE 1: PENTRU PRODUSE (Folosește funcția originală) ---
+    const productPipeline: mongoose.PipelineStage[] = [
+      { $match: { stockableItemType: 'ERPProduct' } },
       { $unwind: '$batches' },
-
-      { $sort: { 'batches.entryDate': 1 } },
-
       {
         $group: {
           _id: '$stockableItem',
@@ -390,27 +450,7 @@ export async function getAggregatedStockStatus(
           lastPrice: { $last: '$batches.unitCost' },
         },
       },
-
       ...getPackagingOptionsPipeline(),
-    ]
-
-    // 👇 MODIFICAREA 2: Adăugăm acest bloc pentru a filtra rezultatele 👇
-    if (query && query.trim() !== '') {
-      const regex = new RegExp(query, 'i')
-      pipeline.push({
-        $match: {
-          $or: [
-            { 'productDetails.name': regex },
-            { 'productDetails.productCode': regex },
-            { 'packagingDetails.name': regex },
-            { 'packagingDetails.productCode': regex },
-          ],
-        },
-      })
-    }
-
-    // Adăugăm etapele finale în pipeline
-    pipeline.push(
       {
         $project: {
           _id: 1,
@@ -421,29 +461,75 @@ export async function getAggregatedStockStatus(
           averageCost: {
             $ifNull: [{ $divide: ['$totalValue', '$totalStock'] }, 0],
           },
-          name: { $ifNull: ['$productDetails.name', '$packagingDetails.name'] },
-          unit: {
-            $ifNull: [
-              '$productDetails.unit',
-              '$packagingDetails.packagingUnit',
-            ],
-          },
-          productCode: {
-            $ifNull: [
-              '$productDetails.productCode',
-              '$packagingDetails.productCode',
-            ],
-          },
+          name: '$productDetails.name',
+          unit: '$productDetails.unit',
+          productCode: '$productDetails.productCode',
           packagingOptions: 1,
         },
       },
-      { $match: { name: { $ne: null } } },
-      { $sort: { name: 1 } }
+    ]
+
+    // --- PIPELINE 2: PENTRU AMBALAJE (Folosește NOUA funcție dedicată) ---
+    const packagingPipeline: mongoose.PipelineStage[] = [
+      { $match: { stockableItemType: 'Packaging' } },
+      { $unwind: '$batches' },
+      {
+        $group: {
+          _id: '$stockableItem',
+          totalStock: { $sum: '$batches.quantity' },
+          totalValue: {
+            $sum: { $multiply: ['$batches.quantity', '$batches.unitCost'] },
+          },
+          minPrice: { $min: '$batches.unitCost' },
+          maxPrice: { $max: '$batches.unitCost' },
+          lastPrice: { $last: '$batches.unitCost' },
+        },
+      },
+      ...createPackagingOptionsPipelineForPackaging(),
+      {
+        $project: {
+          _id: 1,
+          totalStock: 1,
+          minPrice: { $ifNull: ['$minPrice', 0] },
+          maxPrice: { $ifNull: ['$maxPrice', 0] },
+          lastPrice: { $ifNull: ['$lastPrice', 0] },
+          averageCost: {
+            $ifNull: [{ $divide: ['$totalValue', '$totalStock'] }, 0],
+          },
+          name: '$packagingDetails.name',
+          unit: '$packagingDetails.packagingUnit',
+          productCode: '$packagingDetails.productCode',
+          packagingOptions: 1,
+        },
+      },
+    ]
+
+    // --- Execuție și combinare ---
+    const [productStock, packagingStock] = await Promise.all([
+      InventoryItemModel.aggregate(productPipeline),
+      InventoryItemModel.aggregate(packagingPipeline),
+    ])
+
+    let combinedStock: AggregatedStockItem[] = [
+      ...productStock,
+      ...packagingStock,
+    ]
+
+    if (query && query.trim() !== '') {
+      const regex = new RegExp(query, 'i')
+      combinedStock = combinedStock.filter(
+        (item) =>
+          (item.name && regex.test(item.name)) ||
+          (item.productCode && regex.test(item.productCode))
+      )
+    }
+
+    combinedStock = combinedStock.filter(
+      (item) => item.name != null && item.totalStock > 0
     )
+    combinedStock.sort((a, b) => a.name.localeCompare(b.name))
 
-    const stockStatus = await InventoryItemModel.aggregate(pipeline)
-
-    return JSON.parse(JSON.stringify(stockStatus))
+    return JSON.parse(JSON.stringify(combinedStock))
   } catch (error) {
     console.error('Eroare la agregarea stocului:', error)
     return []
@@ -457,11 +543,9 @@ export async function getStockByLocation(
   try {
     await connectToDatabase()
 
-    const pipeline: mongoose.PipelineStage[] = [
-      // Pas 1: Filtrarea pe locație
-      { $match: { location: locationId } },
-
-      // Pașii 2 & 3: Calculul stocurilor și prețurilor
+    // ---------- PIPELINE pentru PRODUSE ----------
+    const productPipeline: mongoose.PipelineStage[] = [
+      { $match: { location: locationId, stockableItemType: 'ERPProduct' } },
       { $unwind: '$batches' },
       { $sort: { 'batches.entryDate': 1 } },
       {
@@ -476,26 +560,7 @@ export async function getStockByLocation(
           lastPrice: { $last: '$batches.unitCost' },
         },
       },
-
-      ...getPackagingOptionsPipeline(),
-    ]
-
-    // 👇 MODIFICAREA 2: Adăugăm acest bloc pentru a filtra rezultatele 👇
-    if (query && query.trim() !== '') {
-      const regex = new RegExp(query, 'i')
-      pipeline.push({
-        $match: {
-          $or: [
-            { 'productDetails.name': regex },
-            { 'productDetails.productCode': regex },
-            { 'packagingDetails.name': regex },
-            { 'packagingDetails.productCode': regex },
-          ],
-        },
-      })
-    }
-
-    pipeline.push(
+      ...getPackagingOptionsPipeline(), // (join în erpproducts + palet & opțiuni)
       {
         $project: {
           _id: 1,
@@ -506,29 +571,71 @@ export async function getStockByLocation(
           averageCost: {
             $ifNull: [{ $divide: ['$totalValue', '$totalStock'] }, 0],
           },
-          name: { $ifNull: ['$productDetails.name', '$packagingDetails.name'] },
-          unit: {
-            $ifNull: [
-              '$productDetails.unit',
-              '$packagingDetails.packagingUnit',
-            ],
-          },
-          productCode: {
-            $ifNull: [
-              '$productDetails.productCode',
-              '$packagingDetails.productCode',
-            ],
-          },
+          name: '$productDetails.name',
+          unit: '$productDetails.unit',
+          productCode: '$productDetails.productCode',
           packagingOptions: 1,
         },
       },
-      { $match: { name: { $ne: null } } },
-      { $sort: { name: 1 } }
-    )
+    ]
 
-    const stockStatus = await InventoryItemModel.aggregate(pipeline)
+    // ---------- PIPELINE pentru AMBALAJE ----------
+    const packagingPipeline: mongoose.PipelineStage[] = [
+      { $match: { location: locationId, stockableItemType: 'Packaging' } },
+      { $unwind: '$batches' },
+      { $sort: { 'batches.entryDate': 1 } },
+      {
+        $group: {
+          _id: '$stockableItem',
+          totalStock: { $sum: '$batches.quantity' },
+          totalValue: {
+            $sum: { $multiply: ['$batches.quantity', '$batches.unitCost'] },
+          },
+          minPrice: { $min: '$batches.unitCost' },
+          maxPrice: { $max: '$batches.unitCost' },
+          lastPrice: { $last: '$batches.unitCost' },
+        },
+      },
+      ...createPackagingOptionsPipelineForPackaging(), // (join în packagings + palet & opțiuni)
+      {
+        $project: {
+          _id: 1,
+          totalStock: 1,
+          minPrice: { $ifNull: ['$minPrice', 0] },
+          maxPrice: { $ifNull: ['$maxPrice', 0] },
+          lastPrice: { $ifNull: ['$lastPrice', 0] },
+          averageCost: {
+            $ifNull: [{ $divide: ['$totalValue', '$totalStock'] }, 0],
+          },
+          name: '$packagingDetails.name',
+          unit: '$packagingDetails.packagingUnit',
+          productCode: '$packagingDetails.productCode',
+          packagingOptions: 1,
+        },
+      },
+    ]
 
-    return JSON.parse(JSON.stringify(stockStatus))
+    const [productStock, packagingStock] = await Promise.all([
+      InventoryItemModel.aggregate(productPipeline),
+      InventoryItemModel.aggregate(packagingPipeline),
+    ])
+
+    // ---------- Combinare + filtrare ----------
+    let combined: AggregatedStockItem[] = [...productStock, ...packagingStock]
+
+    if (query && query.trim() !== '') {
+      const regex = new RegExp(query, 'i')
+      combined = combined.filter(
+        (i) =>
+          (i.name && regex.test(i.name)) ||
+          (i.productCode && regex.test(i.productCode))
+      )
+    }
+
+    combined = combined.filter((i) => i.name != null && i.totalStock > 0)
+    combined.sort((a, b) => a.name.localeCompare(b.name))
+
+    return JSON.parse(JSON.stringify(combined))
   } catch (error) {
     console.error(
       `Eroare la agregarea stocului pentru locația ${locationId}:`,
