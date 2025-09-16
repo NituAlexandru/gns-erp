@@ -219,24 +219,35 @@ export function ReceptionForm({
     const isBalanced =
       Math.round((invoicesNoVatRON + Number.EPSILON) * 100) ===
       Math.round((expectedNoVatRON + Number.EPSILON) * 100)
+    // 6) distribuția transportului 
+  
+    // Pas 1: Pregătim listele separat, adăugând metadatele necesare
 
-    // 6) distribuția transportului (dacă o folosești pe rânduri)
-    const allItems = [
-      ...(watchedData.products || []).map((p, i) => ({
-        ...p,
-        originalIndex: i,
-        type: 'product' as const,
-      })),
-      ...(watchedData.packagingItems || []).map((p, i) => ({
+    const productsToProcess = (watchedData.products || []).map((p, i) => ({
+      ...p,
+      originalIndex: i,
+      type: 'product' as const,
+    }))
+    const packagingsToProcess = (watchedData.packagingItems || []).map(
+      (p, i) => ({
         ...p,
         originalIndex: i,
         type: 'packaging' as const,
-      })),
-    ]
-    const itemsWithCosts = distributeTransportCost(
-      allItems,
+      })
+    ) // Pas 2: Distribuim costul DOAR pe produse.
+
+    const productsWithCosts = distributeTransportCost(
+      productsToProcess,
       localTransportTotal
-    )
+    ) // Pas 3: Creăm lista de ambalaje cu cost zero, păstrând structura.
+
+    const packagingsWithZeroCost = packagingsToProcess.map((p) => ({
+      ...p,
+      totalDistributedTransportCost: 0,
+    })) // Pas 4: Recombinăm listele. `itemsWithCosts` va avea aceeași structură ca înainte.
+
+    const itemsWithCosts = [...productsWithCosts, ...packagingsWithZeroCost]
+
     const localCostsMap = new Map<string, number>()
     itemsWithCosts.forEach((item) => {
       localCostsMap.set(

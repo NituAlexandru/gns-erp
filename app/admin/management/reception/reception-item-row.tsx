@@ -562,11 +562,17 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                   <span className='font-medium'>
                     {formatCurrency(calculatedValues.invoiceTotalPrice)}
                   </span>
-                </div>
-                <div className='font-bold text-lg text-primary'>
-                  Valoare cu Transport:{' '}
-                  {formatCurrency(calculatedValues.landedTotalPrice)}
-                </div>
+                </div>{' '}
+                {itemType === 'products' ? (
+                  <div className='font-bold text-lg text-primary'>
+                    Valoare cu Transport:
+                    {formatCurrency(calculatedValues.landedTotalPrice)}
+                  </div>
+                ) : (
+                  <div className='font-semibold text-sm text-muted-foreground italic'>
+                    Costul de transport nu se aplică pentru ambalaje.
+                  </div>
+                )}
               </div>
             </div>
             <div className='grid grid-cols-3 gap-2 text-center'>

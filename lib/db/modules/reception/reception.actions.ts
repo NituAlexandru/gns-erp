@@ -170,17 +170,35 @@ export async function confirmReception({
       const totalTransportCost = reception.deliveries.reduce(
         (sum, delivery) => sum + (delivery.transportCost || 0),
         0
-      )
+      ) // --- START MODIFICARE ---
+      // Pas 1: Izolăm produsele, care sunt singurele ce vor suporta costul de transport.
+
+      const productsToProcess = reception.products || [] // Pas 2: Distribuim costul total de transport PONDERAT doar pe lista de produse.
+
+      const productsWithTransportCost = distributeTransportCost(
+        productsToProcess,
+        totalTransportCost
+      ) // Pas 3: Creăm o listă pentru ambalaje cu cost de transport ZERO,
+      // menținând o structură compatibilă pentru bucla principală.
+      // Presupunem că `distributeTransportCost` returnează un array de obiecte
+      // cu o cheie `totalDistributedTransportCost`.
+
+      const packagingsWithZeroTransportCost = (
+        reception.packagingItems || []
+      ).map((item) => ({
+        originalItem: item, // Păstrăm referința la item-ul original
+        totalDistributedTransportCost: 0, // Setăm explicit costul la 0
+      })) // Pas 4: Reconstruim listele în ordinea inițială (produse, apoi ambalaje)
+      // pentru a asigura funcționarea corectă a buclei de mai jos.
 
       const allOriginalItems = [
-        ...(reception.products || []),
+        ...productsToProcess,
         ...(reception.packagingItems || []),
       ]
-
-      const itemsWithTransportCost = distributeTransportCost(
-        allOriginalItems,
-        totalTransportCost
-      )
+      const itemsWithTransportCost = [
+        ...productsWithTransportCost,
+        ...packagingsWithZeroTransportCost,
+      ]
 
       reception.invoices = calculateInvoiceTotals(reception.invoices)
 
