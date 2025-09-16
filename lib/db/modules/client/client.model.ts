@@ -39,6 +39,7 @@ const clientSchema = new Schema<IClientDoc>(
     bankAccountLei: { type: String },
     bankAccountEuro: { type: String },
     mentions: { type: String },
+    paymentTerm: { type: Number, default: 0 },
     defaultMarkups: {
       directDeliveryPrice: { type: Number, default: 0 },
       fullTruckPrice: { type: Number, default: 0 },

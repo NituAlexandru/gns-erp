@@ -109,6 +109,9 @@ export default async function ClientViewPage({
               <strong>Adresă fiscală:</strong>
               <p className='italic'>{client.address}</p>
             </div>
+            <div>
+              <strong>Termen de plată:</strong> {client.paymentTerm} zile
+            </div>
           </div>
 
           {/* Adrese și Markup-uri */}

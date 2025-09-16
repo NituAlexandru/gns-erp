@@ -38,6 +38,12 @@ const BaseClientSchema = z.object({
   bankAccountLei: z.string().optional(),
   bankAccountEuro: z.string().optional(),
   mentions: z.string().optional(),
+  paymentTerm: z
+    .number({ invalid_type_error: 'Trebuie să fie un număr' })
+    .int('Trebuie să fie un număr întreg')
+    .nonnegative('Numărul de zile nu poate fi negativ')
+    .optional()
+    .default(0),
   defaultMarkups: z
     .object({
       directDeliveryPrice: z.number().nonnegative().optional(),

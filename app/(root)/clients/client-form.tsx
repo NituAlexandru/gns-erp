@@ -49,6 +49,7 @@ export default function ClientForm() {
       bankAccountLei: '',
       bankAccountEuro: '',
       mentions: '',
+      paymentTerm: 0,
     },
   })
 
@@ -217,7 +218,7 @@ export default function ClientForm() {
           </div>
         )}
         {/* Contact */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-2'>
           <FormField
             control={control}
             name='email'
@@ -247,6 +248,26 @@ export default function ClientForm() {
                 </FormLabel>
                 <FormControl>
                   <Input placeholder='07xx xxx xxx' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name='paymentTerm'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Termen de plată (zile)</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    placeholder='Ex: 15'
+                    {...field}
+                    onChange={(e) =>
+                      field.onChange(parseInt(e.target.value, 10) || 0)
+                    }
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
