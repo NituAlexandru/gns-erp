@@ -21,19 +21,20 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  // 1. Apelezi auth() și obții fie un Session, fie null
   const session = await auth()
-  if (!session?.user?.id) {
+  if (!session?.user?.id || !session?.user?.name) {
+
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
   const userId = session.user.id
+  const userName = session.user.name
 
   try {
     const body = await request.json()
     const ip = request.headers.get('x-forwarded-for') || ''
     const userAgent = request.headers.get('user-agent') || ''
 
-    const result = await createClient(body, userId, ip, userAgent)
+    const result = await createClient(body, userId, userName, ip, userAgent)
     return NextResponse.json(result, { status: 201 })
   } catch (err) {
     return NextResponse.json(

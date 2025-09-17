@@ -9,6 +9,15 @@ import { getClientById } from '@/lib/db/modules/client/client.actions'
 import { Barcode } from '@/components/barcode/barcode-image'
 import { auth } from '@/auth'
 
+const formatMinutes = (minutes: number | undefined) => {
+  if (!minutes || minutes < 0) return 'N/A'
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  if (remainingMinutes === 0) return `${hours}h`
+  return `${hours}h ${remainingMinutes}min`
+}
+
 export default async function ClientViewPage({
   params,
 }: {
@@ -23,7 +32,6 @@ export default async function ClientViewPage({
     return notFound()
   }
 
-  // redirect to canonical slug
   const canonical = toSlug(client.name)
   if (slug !== canonical) {
     return redirect(`/clients/${id}/${canonical}`)
@@ -51,7 +59,6 @@ export default async function ClientViewPage({
       </div>
 
       <div className='px-6 space-y-6'>
-        {/* Cele trei coloane principale */}
         <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-0'>
           {/* Informații Generale */}
           <div className='space-y-2'>
@@ -66,22 +73,36 @@ export default async function ClientViewPage({
             </p>
             <p>
               <strong>Telefon:</strong> {client.phone || '—'}
-            </p>{' '}
-            {client.bankAccountLei && (
-              <p>
-                IBAN Lei:{' '}
-                <strong> {chunkString(client.bankAccountLei, 4)}</strong>
-              </p>
+            </p>
+
+            {/* 🔽 MODIFICAT: Afișare cont bancar structurat */}
+            {client.bankAccountLei?.iban && (
+              <div className='pt-2'>
+                <p className='text-sm font-semibold'>Cont Bancar LEI</p>
+                <p>
+                  <strong>IBAN:</strong>{' '}
+                  {chunkString(client.bankAccountLei.iban, 4)}
+                </p>
+                <p>
+                  <strong>Bancă:</strong> {client.bankAccountLei.bankName}
+                </p>
+              </div>
             )}
-            {client.bankAccountEuro && (
-              <p>
-                IBAN Euro:{' '}
-                <strong>{chunkString(client.bankAccountEuro, 4)}</strong>
-              </p>
+            {client.bankAccountEuro?.iban && (
+              <div className='pt-2'>
+                <p className='text-sm font-semibold'>Cont Bancar EURO</p>
+                <p>
+                  <strong>IBAN:</strong>{' '}
+                  {chunkString(client.bankAccountEuro.iban, 4)}
+                </p>
+                <p>
+                  <strong>Bancă:</strong> {client.bankAccountEuro.bankName}
+                </p>
+              </div>
             )}
           </div>
 
-          {/* Informații Fiscale și Bancare */}
+          {/* Informații Fiscale */}
           <div className='space-y-2'>
             {client.isVatPayer && (
               <p className='font-semibold text-green-600'>✔ Plătitor de TVA</p>
@@ -89,45 +110,80 @@ export default async function ClientViewPage({
             <p>
               <strong>Tip client:</strong> {client.clientType}
             </p>
-            {client.clientType === 'Persoana fizica' && client.cnp && (
+            {client.paymentTerm > 0 && (
+              <p>
+                <strong>Termen de plată:</strong> {client.paymentTerm} zile
+              </p>
+            )}
+            {client.cnp && (
               <p>
                 <strong>CNP:</strong> {client.cnp}
               </p>
-            )}{' '}
-            {client.clientType === 'Persoana juridica' &&
-              client.nrRegComert && (
-                <p>
-                  <strong>Reg. Comerț:</strong> {client.nrRegComert}
-                </p>
-              )}{' '}
-            {client.clientType === 'Persoana juridica' && client.vatId && (
+            )}
+            {client.nrRegComert && (
+              <p>
+                <strong>Reg. Comerț:</strong> {client.nrRegComert}
+              </p>
+            )}
+            {client.vatId && (
               <p>
                 <strong>CUI:</strong> {client.vatId}
               </p>
             )}
+
+            {/* 🔽 MODIFICAT: Afișare adresă fiscală structurată */}
             <div>
               <strong>Adresă fiscală:</strong>
-              <p className='italic'>{client.address}</p>
+              <div className='italic pl-2'>
+                <p>{`${client.address.strada}, Nr. ${client.address.numar}`}</p>
+                <p>{`${client.address.localitate}, ${client.address.judet}, ${client.address.codPostal}`}</p>
+                {client.address.alteDetalii && (
+                  <p className='text-xs'>{client.address.alteDetalii}</p>
+                )}
+              </div>
             </div>
-            <div>
-              <strong>Termen de plată:</strong> {client.paymentTerm} zile
-            </div>
-          </div>
-
-          {/* Adrese și Markup-uri */}
-          <div className='space-y-4'>
-            {client.deliveryAddresses.length > 0 && (
-              <div>
-                <strong>Adrese de livrare marfă:</strong>
-                <ul className='pl-4'>
-                  {client.deliveryAddresses.map((addr, i) => (
-                    <li key={i} className='italic'>
-                      {addr}
-                    </li>
-                  ))}
-                </ul>
+            {(client.contractNumber || client.contractDate) && (
+              <div className='pt-2'>
+                <p className='text-sm font-semibold'>Detalii Contract</p>
+                {client.contractNumber && (
+                  <p>
+                    <strong>Număr:</strong> {client.contractNumber}
+                  </p>
+                )}
+                {client.contractDate && (
+                  <p>
+                    <strong>Data:</strong>{' '}
+                    {new Date(client.contractDate).toLocaleDateString('ro-RO')}
+                  </p>
+                )}
               </div>
             )}
+          </div>
+
+          {/* Adrese de livrare și Markup-uri */}
+          <div className='space-y-4'>
+            {/* 🔽 MODIFICAT: Afișare adrese de livrare structurate */}
+            {client.deliveryAddresses &&
+              client.deliveryAddresses.length > 0 && (
+                <div>
+                  <strong>Adrese de livrare marfă:</strong>
+                  <ul className='space-y-3 mt-1'>
+                    {client.deliveryAddresses.map((addr, i) => (
+                      <li key={i} className='italic border-l-2 pl-2'>
+                        <p>{`${addr.strada}, Nr. ${addr.numar}`}</p>
+                        <p>{`${addr.localitate}, ${addr.judet}, ${addr.codPostal}`}</p>
+                        {addr.alteDetalii && (
+                          <p className='text-xs'>{addr.alteDetalii}</p>
+                        )}
+                        <p className='text-xs not-italic text-muted-foreground mt-1'>
+                          {`Distanță: ~${addr.distanceInKm} km | Timp: ~${formatMinutes(addr.travelTimeInMinutes)}`}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
             {isAdmin && client.defaultMarkups && (
               <div>
                 <strong>Markup-uri implicite:</strong>
@@ -172,18 +228,32 @@ export default async function ClientViewPage({
         )}
 
         {/* Timestamps */}
-        <div className='mb-0 text-sm text-muted-foreground space-y-1 flex flex-row gap-20 justify-end'>
-          <p>
-            <strong>Creat la:</strong>{' '}
-            {new Date(client.createdAt).toLocaleString()}
-          </p>
-          <p>
-            <strong>Actualizat la:</strong>{' '}
-            {new Date(client.updatedAt).toLocaleString()}
-          </p>
+        <div className='mb-0 text-sm text-muted-foreground space-y-1 flex flex-wrap gap-x-12 gap-y-2 justify-end'>
+          <div>
+            <p>
+              <strong>Creat la:</strong>{' '}
+              {new Date(client.createdAt).toLocaleString('ro-RO')}
+            </p>{' '}
+            {client.createdBy && (
+              <p>
+                <strong>Creat de:</strong> {client.createdBy.name}
+              </p>
+            )}
+          </div>
+          <div>
+            <p>
+              <strong>Actualizat la:</strong>{' '}
+              {new Date(client.updatedAt).toLocaleString('ro-RO')}
+            </p>{' '}
+            {client.updatedBy && (
+              <p>
+                <strong>Actualizat de:</strong> {client.updatedBy.name}
+              </p>
+            )}
+          </div>
         </div>
 
-        <SeparatorWithOr> </SeparatorWithOr>
+        <SeparatorWithOr />
       </div>
     </div>
   )

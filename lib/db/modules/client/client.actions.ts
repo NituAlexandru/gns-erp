@@ -12,14 +12,22 @@ import { logAudit } from '../audit-logs/audit.actions'
 export async function createClient(
   data: IClientCreate,
   userId: string,
+  userName: string,
   ip?: string,
   userAgent?: string
 ) {
   const payload = ClientCreateSchema.parse(data)
   await connectToDatabase()
 
-  // 1) Creăm clientul
-  const client = await ClientModel.create(payload)
+  const clientData = {
+    ...payload,
+    createdBy: {
+      userId,
+      name: userName,
+    },
+  }
+
+  const client = await ClientModel.create(clientData)
   revalidatePath('/clients')
 
   // 2) Logăm audit
@@ -36,28 +44,34 @@ export async function createClient(
   return { success: true, message: 'Client creat cu succes' }
 }
 
-// Actualizează client
 export async function updateClient(
   data: IClientUpdate,
   userId: string,
+  userName: string,
   ip?: string,
   userAgent?: string
 ) {
   const payload = ClientUpdateSchema.parse(data)
   await connectToDatabase()
 
-  // 1) Salvăm starea înainte
   const before = await ClientModel.findById(payload._id).lean()
-  // 2) Actualizăm
-  const updated = await ClientModel.findByIdAndUpdate(
-    payload._id,
-    { ...payload, _id: undefined },
-    { new: true }
-  ).lean()
+
+  const updateData = {
+    ...payload,
+    _id: undefined,
+    updatedBy: {
+      userId,
+      name: userName,
+    },
+  }
+
+  const updated = await ClientModel.findByIdAndUpdate(payload._id, updateData, {
+    new: true,
+  }).lean()
+
   if (!updated) throw new Error('Client inexistent')
   revalidatePath('/clients')
 
-  // 3) Logăm audit
   await logAudit(
     'Client',
     payload._id,

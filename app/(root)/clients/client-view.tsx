@@ -6,6 +6,8 @@ import { ChevronLeft } from 'lucide-react'
 import Link from 'next/link'
 import { IClientDoc } from '@/lib/db/modules/client/types'
 
+// Nu este folosita nicaieri momentan.
+
 interface Props {
   initialClient: IClientDoc
 }
@@ -59,19 +61,30 @@ export default function ClientView({ initialClient }: Props) {
         </p>
       )}
 
-      <p>
-        <strong>Adresă fiscală:</strong> {c.address}
-      </p>
+      {/* MODIFICAT: Afișare adresă fiscală structurată */}
+      <div>
+        <strong>Adresă fiscală:</strong>
+        <div className='italic pl-2'>
+          <p>{`${c.address.strada}, Nr. ${c.address.numar}`}</p>
+          <p>{`${c.address.localitate}, ${c.address.judet}, ${c.address.codPostal}`}</p>
+          {c.address.alteDetalii && (
+            <p className='text-xs'>{c.address.alteDetalii}</p>
+          )}
+        </div>
+      </div>
 
+      {/* MODIFICAT: Afișare adrese de livrare structurate */}
       {c.deliveryAddresses?.length > 0 && (
-        <>
+        <div>
           <strong>Adrese de încărcare marfă:</strong>
-          <ul className='list-disc pl-6'>
+          <ul className='list-disc pl-6 space-y-2'>
             {c.deliveryAddresses.map((a, i) => (
-              <li key={i}>{a}</li>
+              <li key={i}>
+                <p>{`${a.strada}, Nr. ${a.numar}, ${a.localitate}, ${a.judet}`}</p>
+              </li>
             ))}
           </ul>
-        </>
+        </div>
       )}
 
       <Button variant='outline' asChild>
@@ -80,3 +93,4 @@ export default function ClientView({ initialClient }: Props) {
     </div>
   )
 }
+// Nu este folosita nicaieri momentan.

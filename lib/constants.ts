@@ -490,3 +490,24 @@ export const USER_ROLES = [
   'Agent-vanzari',
 ]
 export const THEMES = ['Light', 'Dark', 'System']
+
+export const ROMANIAN_BANKS = [
+  'Banca Comercială Română (BCR)',
+  'Banca Transilvania (BT)',
+  'BRD - Groupe Société Générale',
+  'CEC Bank',
+  'Credit Agricole',
+  'Credit Europe Bank',
+  'Exim Banca Romaneasca',
+  'First Bank',
+  'Garanti BBVA',
+  'ING Bank N.V. Amsterdam - Sucursala Bucuresti',
+  'Intesa Sanpaolo Bank',
+  'Libra Internet Bank',
+  'Patria Bank',
+  'ProCredit Bank',
+  'Raiffeisen Bank',
+  'Revolut Bank UAB - Sucursala Romania',
+  'TechVentures Bank (fost Vista Bank)',
+  'UniCredit Bank',
+]

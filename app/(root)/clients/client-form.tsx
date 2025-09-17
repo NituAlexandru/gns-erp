@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm, SubmitHandler } from 'react-hook-form'
+import { useForm, SubmitHandler, ControllerRenderProps } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
@@ -19,7 +19,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import LoadingPage from '@/app/loading'
 import { ClientCreateSchema } from '@/lib/db/modules/client/validator'
-import type { IClientCreate } from '@/lib/db/modules/client/types'
+import type { IAddress, IClientCreate } from '@/lib/db/modules/client/types'
 import {
   Select,
   SelectContent,
@@ -27,11 +27,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Loader2 } from 'lucide-react'
+import { ROMANIAN_BANKS } from '@/lib/constants'
+import { formatMinutes } from '@/lib/db/modules/client/client.utils'
+
+
 
 export default function ClientForm() {
   const router = useRouter()
-  // Starea pentru input-ul adresei curente este corectă și necesară.
-  const [currentLoadingAddr, setCurrentLoadingAddr] = useState('')
+  const [currentDeliveryAddress, setCurrentDeliveryAddress] = useState<
+    Partial<IAddress>
+  >({})
+  const [isCalculating, setIsCalculating] = useState(false)
 
   const form = useForm<IClientCreate>({
     resolver: zodResolver(ClientCreateSchema),
@@ -41,13 +48,22 @@ export default function ClientForm() {
       cnp: '',
       vatId: '',
       nrRegComert: '',
+      contractNumber: '',
+      contractDate: undefined,
       isVatPayer: false,
       email: '',
       phone: '',
-      address: '',
-      deliveryAddresses: [], // Valoarea este gestionată de react-hook-form
-      bankAccountLei: '',
-      bankAccountEuro: '',
+      address: {
+        judet: '',
+        localitate: '',
+        strada: '',
+        numar: '',
+        codPostal: '',
+        alteDetalii: '',
+      },
+      deliveryAddresses: [],
+      bankAccountLei: { iban: '', bankName: '' },
+      bankAccountEuro: { iban: '', bankName: '' },
       mentions: '',
       paymentTerm: 0,
     },
@@ -58,29 +74,93 @@ export default function ClientForm() {
     control,
     handleSubmit,
     formState: { isSubmitting },
+    getValues,
   } = form
 
-  // Funcțiile `handleAddLoadingAddr` și `handleRemoveLoadingAddr` au fost eliminate
-  // deoarece logica lor este deja implementată corect și mai simplu în JSX,
-  // folosind `field.onChange` de la react-hook-form.
+  const handleCopyBillingAddress = () => {
+    const billingAddress = getValues('address')
+    if (!billingAddress.judet) {
+      toast.error('Completează mai întâi adresa de facturare.')
+      return
+    }
+    setCurrentDeliveryAddress(billingAddress)
+    toast.success('Adresa de facturare a fost copiată.')
+  }
+
+  // Logica pentru adăugarea unei adrese de livrare
+  const handleAddDeliveryAddress = async (
+    field: ControllerRenderProps<IClientCreate, 'deliveryAddresses'>
+  ) => {
+    const addr = currentDeliveryAddress
+    if (
+      !addr.judet ||
+      !addr.localitate ||
+      !addr.strada ||
+      !addr.numar ||
+      !addr.codPostal
+    ) {
+      toast.error(
+        'Toate câmpurile adresei de livrare (fără "alte detalii") sunt obligatorii.'
+      )
+      return
+    }
+
+    setIsCalculating(true)
+    try {
+      const res = await fetch('/api/maps-distance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addr),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || 'Eroare la calcularea distanței.')
+      }
+
+      const { distanceInKm, travelTimeInMinutes } = await res.json()
+
+      const newAddress: IAddress = {
+        ...addr,
+        distanceInKm,
+        travelTimeInMinutes,
+      } as IAddress
+
+      field.onChange([...field.value, newAddress])
+      setCurrentDeliveryAddress({}) // Resetează "ciorna"
+      toast.success('Adresa de livrare a fost adăugată.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
+    } finally {
+      setIsCalculating(false)
+    }
+  }
 
   const onSubmit: SubmitHandler<IClientCreate> = async (values) => {
-    console.log('📤 onSubmit payload:', values)
     try {
-      // Obiectul `values` conține deja toate datele din formular,
-      // inclusiv `deliveryAddresses`, gestionat de react-hook-form.
       const res = await fetch('/api/clients', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.message)
-      toast.success('Client creat cu succes.')
-      router.push('/clients')
-      //eslint-disable-next-line
-    } catch (err: any) {
-      toast.error(err.message)
+      if (!res.ok) {
+        // Prindem eroarea de unicitate de la server
+        if (json.message.includes('duplicate key')) {
+          toast.error('Un client cu acest CUI/CNP există deja în baza de date.')
+        } else {
+          throw new Error(json.message)
+        }
+      } else {
+        toast.success('Client creat cu succes.')
+        router.push('/clients')
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        toast.error(err.message)
+      } else {
+        toast.error('A apărut o eroare necunoscută.')
+      }
     }
   }
 
@@ -217,6 +297,44 @@ export default function ClientForm() {
             />
           </div>
         )}
+        {/* Contract */}
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg'>
+          <FormField
+            control={control}
+            name='contractNumber'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Număr Contract</FormLabel>
+                <FormControl>
+                  <Input placeholder='Ex: 123/2025' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name='contractDate'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Data Contract</FormLabel>
+                <FormControl>
+                  {/* Afișăm valoarea în format YYYY-MM-DD pentru input */}
+                  <Input
+                    type='date'
+                    {...field}
+                    value={
+                      field.value
+                        ? new Date(field.value).toISOString().split('T')[0]
+                        : ''
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
         {/* Contact */}
         <div className='grid grid-cols-1 md:grid-cols-3 gap-2'>
           <FormField
@@ -275,119 +393,325 @@ export default function ClientForm() {
           />
         </div>
         {/* IBAN */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-          <FormField
-            control={control}
-            name='bankAccountLei'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Cont Bancar LEI</FormLabel>
-                <FormControl>
-                  <Input placeholder='RO29BACX0000002238640000' {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={control}
-            name='bankAccountEuro'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Cont Bancar Euro</FormLabel>
-                <FormControl>
-                  <Input placeholder='RO29BACX0000002238640000' {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        {/* Conturi Bancare Structurate */}
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg'>
+          <div className='space-y-2'>
+            <FormLabel>Cont Bancar LEI</FormLabel>
+            <FormField
+              control={control}
+              name='bankAccountLei.iban'
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input placeholder='IBAN (24 caractere)' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='bankAccountLei.bankName'
+              render={({ field }) => (
+                <FormItem>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Selectează banca' />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ROMANIAN_BANKS.map((bank) => (
+                        <SelectItem key={bank} value={bank}>
+                          {bank}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className='space-y-2'>
+            <FormLabel>Cont Bancar Euro</FormLabel>
+            <FormField
+              control={control}
+              name='bankAccountEuro.iban'
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input placeholder='IBAN (24 caractere)' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='bankAccountEuro.bankName'
+              render={({ field }) => {
+                return (
+                  <FormItem>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder='Selectează banca' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {ROMANIAN_BANKS.map((bank) => (
+                          <SelectItem key={bank} value={bank}>
+                            {bank}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )
+              }}
+            />
+          </div>
         </div>
         {/* Adresă fiscală */}
-        <div className='space-y-2 p-4 border rounded-lg'>
-          <FormField
-            control={control}
-            name='address'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  Adresă fiscală (facturare){' '}
-                  <span className='text-red-500'>*</span>
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder='Județ, Oraș, Str. Principală, Nr. 1'
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />{' '}
-          {/* Adrese de livrare marfă */}
-          <FormField
-            control={control}
-            name='deliveryAddresses'
-            render={({ field }) => (
-              <FormItem className='space-y-2 p-4 border rounded-lg'>
-                <FormLabel>
+        <div className='space-y-4 p-4 border rounded-lg'>
+          <FormLabel className='text-base font-semibold'>
+            Adresă fiscală (facturare) <span className='text-red-500'>*</span>
+          </FormLabel>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+            <FormField
+              control={control}
+              name='address.judet'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Județ</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Ex: București' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.localitate'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Localitate</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Ex: Sector 1' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.strada'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Stradă</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Ex: Calea Victoriei' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.numar'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Număr</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Ex: 100' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.codPostal'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cod Poștal</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Ex: 010071' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.alteDetalii'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alte detalii</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Bloc, Scara, Apartament' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
+        {/* Adrese de Livrare Structurate */}
+        <FormField
+          control={control}
+          name='deliveryAddresses'
+          render={({ field }) => (
+            <div className='space-y-4 p-4 border rounded-lg'>
+              <div className='flex justify-between items-center'>
+                <FormLabel className='text-base font-semibold'>
                   Adrese de livrare <span className='text-red-500'>*</span>
                 </FormLabel>
-                <div className='flex items-center space-x-2'>
-                  <FormControl>
-                    <Input
-                      placeholder='Județ, Oraș, Str. Principală, Nr. 1'
-                      value={currentLoadingAddr}
-                      onChange={(e) => setCurrentLoadingAddr(e.target.value)}
-                    />
-                  </FormControl>
-                  <Button
-                    variant='outline'
-                    type='button'
-                    onClick={() => {
-                      const addr = currentLoadingAddr.trim()
-                      if (!addr) {
-                        toast.error('Completează câmpul înainte de a adăuga.')
-                        return
-                      }
-                      // Adaugă noua adresă la array-ul existent din formular
-                      field.onChange([...field.value, addr])
-                      setCurrentLoadingAddr('')
-                    }}
-                  >
-                    Adaugă Adresa
-                  </Button>
+                <Button
+                  type='button'
+                  variant='link'
+                  className='p-0 h-auto text-sm'
+                  onClick={handleCopyBillingAddress}
+                >
+                  Copiază adresa de facturare
+                </Button>
+              </div>
+
+              <div className='p-4 bg-muted/50 rounded-lg'>
+                <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                  <FormItem>
+                    <FormLabel>Județ</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.judet || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            judet: e.target.value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Localitate</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.localitate || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            localitate: e.target.value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Stradă</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.strada || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            strada: e.target.value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Număr</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.numar || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            numar: e.target.value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Cod Poștal</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.codPostal || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            codPostal: e.target.value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Alte detalii</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.alteDetalii || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            alteDetalii: e.target.value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
                 </div>
+                <Button
+                  type='button'
+                  className='mt-4'
+                  onClick={() => handleAddDeliveryAddress(field)}
+                  disabled={isCalculating}
+                >
+                  {isCalculating && (
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  )}
+                  Adaugă Adresa
+                </Button>
+              </div>
 
-                {/* Afișează lista de adrese direct din starea formularului (`field.value`) */}
-                <ul className='mt-2 space-y-1'>
-                  {field.value.map((addr, i) => (
-                    <li
-                      key={i}
-                      className='flex items-center justify-between gap-2 pl-2 bg-secondary rounded-md text-sm'
+              <div className='space-y-2'>
+                {field.value.map((addr, index) => (
+                  <div
+                    key={index}
+                    className='flex justify-between items-center p-2 bg-secondary rounded-md'
+                  >
+                    <div>
+                      <p className='font-medium'>{`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}`}</p>
+                      <p className='text-sm text-muted-foreground'>
+                        {`Distanță dus-întors: ~${addr.distanceInKm} km | Timp dus-întors: ~${formatMinutes(addr.travelTimeInMinutes || 0)}`}
+                      </p>
+                    </div>
+                    <Button
+                      type='button'
+                      variant='destructive'
+                      size='sm'
+                      onClick={() => {
+                        const newAddresses = field.value.filter(
+                          (_, i) => i !== index
+                        )
+                        field.onChange(newAddresses)
+                      }}
                     >
-                      <span>{addr}</span>
-                      <Button
-                        size='sm'
-                        type='button'
-                        onClick={() => {
-                          // Elimină adresa selectată și actualizează starea formularului
-                          field.onChange(
-                            field.value.filter((_, idx) => idx !== i)
-                          )
-                        }}
-                      >
-                        X
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+                      X
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <FormMessage />
+            </div>
+          )}
+        />
         <div className='space-y-2 p-4 pb-2 border rounded-lg md:col-span-2'>
           <FormField
             control={control}
@@ -410,7 +734,8 @@ export default function ClientForm() {
           Câmpurile marcate cu <span className='text-red-500'>*</span> sunt
           obligatorii.
         </p>
-        <Button type='submit' className='w-full'>
+        <Button type='submit' className='w-full' disabled={isSubmitting}>
+          {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
           Adaugă client
         </Button>
       </form>

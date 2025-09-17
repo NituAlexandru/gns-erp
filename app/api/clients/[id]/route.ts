@@ -12,10 +12,12 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth()
-  if (!session?.user?.id) {
+
+  if (!session?.user?.id || !session?.user?.name) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
   }
   const userId = session.user.id
+  const userName = session.user.name
 
   try {
     const { id } = await params
@@ -25,7 +27,7 @@ export async function PUT(
     const ip = request.headers.get('x-forwarded-for') || ''
     const userAgent = request.headers.get('user-agent') || ''
 
-    const result = await updateClient(data, userId, ip, userAgent)
+    const result = await updateClient(data, userId, userName, ip, userAgent)
     return NextResponse.json(result)
   } catch (err) {
     return NextResponse.json(

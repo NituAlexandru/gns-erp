@@ -72,7 +72,7 @@ export const formatError = (error: any): string => {
     return fieldErrors.join('. ')
   } else if (error.code === 11000) {
     const duplicateField = Object.keys(error.keyValue)[0]
-    return `${duplicateField} already exists`
+    return `${duplicateField} deja exista. Va rugam selectati alt ${duplicateField}`
   } else {
     // return 'Something went wrong. please try again'
     return typeof error.message === 'string'
