@@ -1,5 +1,5 @@
 // Funcție helper pentru afișarea timpului în format prietenos
-export const formatMinutes = (minutes: number) => {
+export const formatMinutes = (minutes: number | undefined) => {
   if (!minutes || minutes < 0) return 'N/A'
   if (minutes < 60) return `${minutes} min`
   const hours = Math.floor(minutes / 60)

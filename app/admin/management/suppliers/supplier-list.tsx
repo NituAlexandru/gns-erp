@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import DeleteDialog from '@/components/shared/delete-dialog'
 import { formatError, toSlug } from '@/lib/utils'
 import { toast } from 'sonner'
-import { ISupplierDoc } from '@/lib/db/modules/suppliers'
 import LoadingPage from '@/app/loading'
 import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
 import {
@@ -25,6 +24,7 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 import { ADMIN_PAGE_SIZE } from '@/lib/constants'
+import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 
 interface Props {
   initialData: {
@@ -217,8 +217,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
                     )}
                   </TableCell>
                   <TableCell>
-                    {/* inline buttons doar de la xl în sus */}
-                    <div className='hidden xl:flex gap-2'>
+                                    <div className='hidden xl:flex gap-2'>
                       <Button
                         variant='outline'
                         size='sm'

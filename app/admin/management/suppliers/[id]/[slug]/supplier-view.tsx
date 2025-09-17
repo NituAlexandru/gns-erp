@@ -1,6 +1,5 @@
 import React from 'react'
 import { notFound, redirect } from 'next/navigation'
-import { getSupplierById } from '@/lib/db/modules/suppliers'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
@@ -8,6 +7,8 @@ import { auth } from '@/auth'
 import { chunkString, toSlug } from '@/lib/utils'
 import SeparatorWithOr from '@/components/shared/separator-or'
 import { Barcode } from '@/components/barcode/barcode-image'
+import { getSupplierById } from '@/lib/db/modules/suppliers/supplier.actions'
+import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 
 export default async function SupplierView({
   params,
@@ -17,7 +18,6 @@ export default async function SupplierView({
   await auth()
 
   const { id, slug } = await params
-
   const supplier = await getSupplierById(id)
 
   if (!supplier) {
@@ -37,14 +37,14 @@ export default async function SupplierView({
             <Link href='/admin/management/suppliers'>
               <ChevronLeft /> Înapoi
             </Link>
-          </Button>{' '}
+          </Button>
           <h1 className='text-2xl font-bold'>
             Detalii furnizor {supplier.name}
           </h1>
         </div>
         <div className='my-2'>
           <Barcode
-            text={supplier.fiscalCode}
+            text={supplier.fiscalCode || ''}
             type='code128'
             width={300}
             height={100}
@@ -52,13 +52,12 @@ export default async function SupplierView({
         </div>
       </div>
       <div className='p-6 pt-0'>
-        <div className=' flex gap-3'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-4'>
           {/* Informații Generale */}
-          <div className='w-1/3'>
+          <div className='space-y-2'>
             <p>
               <strong>ID:</strong> {supplier._id}
             </p>
-
             <p>
               <strong>Nume Furnizor:</strong> {supplier.name}
             </p>
@@ -79,238 +78,138 @@ export default async function SupplierView({
               </p>
             )}
           </div>
-          {/* Informații Bancare */}
-          <div className='w-1/3'>
-            {' '}
-            {supplier.externalTransport && (
-              <p className='font-semibold text-green-500'>
-                ✔ Transport asigurat de furnizor
-              </p>
-            )}
-            {/* Informații Transport */}
-            <p>
-              <strong>Costuri transport intern:</strong>{' '}
-              {supplier.internalTransportCosts} LEI
-            </p>
-            <p>
-              <strong>Costuri transport extern:</strong>{' '}
-              {supplier.externalTransportCosts} LEI
-            </p>{' '}
-            {supplier.bankAccountLei && (
-              <p>
-                <strong>Cont LEI:</strong>{' '}
-                {chunkString(supplier.bankAccountLei, 4)}
-              </p>
-            )}
-            {supplier.bankAccountEuro && (
-              <p>
-                <strong>Cont EURO:</strong>{' '}
-                {chunkString(supplier.bankAccountEuro, 4)}
-              </p>
-            )}
-          </div>
-          {/* Informații Fiscale și de Adresă */}
-          <div className='w-1/3'>
-            {' '}
+
+          <div className='space-y-2'>
             {supplier.isVatPayer && (
               <p className='font-semibold text-green-600'>✔ Plătitor de TVA</p>
             )}
             <p>
-              <strong>Adresă fiscală:</strong> {supplier.address}
-            </p>
-            <p>
               <strong>Cod Fiscal:</strong> {supplier.fiscalCode}
             </p>
             <p>
-              <strong>Nr. Registru Comerț:</strong> {supplier.regComNumber}
+              <strong>Nr. Reg. Comerț:</strong> {supplier.regComNumber}
             </p>
-            {/* Afișăm adresele de încărcare dacă există */}
-            {supplier.loadingAddress && supplier.loadingAddress.length > 0 && (
-              <>
-                <strong>Adrese de încărcare:</strong>
-                <ul className='list-disc list-inside pl-4'>
-                  {supplier.loadingAddress.map((addr, index) => (
-                    <li
-                      className='w-full italic font-light text-justify'
-                      key={index}
-                    >
-                      {addr}
-                    </li>
-                  ))}
-                </ul>
-              </>
+
+            {(supplier.contractNumber || supplier.contractDate) && (
+              <div className='pt-2'>
+                <p className='text-sm font-semibold'>Detalii Contract</p>
+                {supplier.contractNumber && (
+                  <p>
+                    <strong>Număr:</strong> {supplier.contractNumber}
+                  </p>
+                )}
+                {supplier.contractDate && (
+                  <p>
+                    <strong>Data:</strong>{' '}
+                    {new Date(supplier.contractDate).toLocaleDateString(
+                      'ro-RO'
+                    )}
+                  </p>
+                )}
+              </div>
+            )}
+            {supplier.paymentTerm > 0 && (
+              <p>
+                <strong>Termen de plată:</strong> {supplier.paymentTerm} zile
+              </p>
+            )}
+          </div>
+
+          <div className='space-y-4'>
+            {supplier.bankAccountLei?.iban && (
+              <div>
+                <p className='text-sm font-semibold'>Cont Bancar LEI</p>
+                <p>
+                  <strong>IBAN:</strong>{' '}
+                  {chunkString(supplier.bankAccountLei.iban, 4)}
+                </p>
+                <p>
+                  <strong>Bancă:</strong> {supplier.bankAccountLei.bankName}
+                </p>
+              </div>
+            )}
+            {supplier.bankAccountEuro?.iban && (
+              <div className='mt-2'>
+                <p className='text-sm font-semibold'>Cont Bancar EURO</p>
+                <p>
+                  <strong>IBAN:</strong>{' '}
+                  {chunkString(supplier.bankAccountEuro.iban, 4)}
+                </p>
+                <p>
+                  <strong>Bancă:</strong> {supplier.bankAccountEuro.bankName}
+                </p>
+              </div>
+            )}
+
+            <div className='pt-2'>
+              <strong>Adresă fiscală:</strong>
+              <div className='italic pl-2'>
+                <p>{`${supplier.address.strada}, Nr. ${supplier.address.numar}`}</p>
+                <p>{`${supplier.address.localitate}, ${supplier.address.judet}, ${supplier.address.codPostal}`}</p>
+                {supplier.address.alteDetalii && (
+                  <p className='text-xs'>{supplier.address.alteDetalii}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {supplier.loadingAddresses && supplier.loadingAddresses.length > 0 && (
+          <div className='pt-4'>
+            <h3 className='text-lg font-semibold mb-2'>
+              Adrese de încărcare marfă
+            </h3>
+            <ul className='space-y-3 mt-1'>
+              {supplier.loadingAddresses.map((addr, i) => (
+                <li key={i} className='italic border-l-2 pl-2'>
+                  <p>{`${addr.strada}, Nr. ${addr.numar}`}</p>
+                  <p>{`${addr.localitate}, ${addr.judet}, ${addr.codPostal}`}</p>
+                  {addr.alteDetalii && (
+                    <p className='text-xs'>{addr.alteDetalii}</p>
+                  )}
+                  <p className='text-xs not-italic text-muted-foreground mt-1'>
+                    {`Distanta dus-întors: ~${addr.distanceInKm} km | Timp dus-întors: ~${formatMinutes(addr.travelTimeInMinutes)}`}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {supplier.mentions && (
+          <div className='pt-4'>
+            <h3 className='text-lg font-semibold'>Mențiuni</h3>
+            <p className='italic text-muted-foreground'>{supplier.mentions}</p>
+          </div>
+        )}
+
+        {/* 🔽 MODIFICAT: Afișare Timestamps și Audit */}
+        <div className='mb-0 text-sm text-muted-foreground flex flex-wrap gap-x-12 gap-y-2 justify-end'>
+          <div>
+            <p>
+              <strong>Creat la:</strong>{' '}
+              {new Date(supplier.createdAt).toLocaleString('ro-RO')}
+            </p>
+            {supplier.createdBy && (
+              <p>
+                <strong>Creat de:</strong> {supplier.createdBy.name}
+              </p>
+            )}
+          </div>
+          <div>
+            <p>
+              <strong>Actualizat la:</strong>{' '}
+              {new Date(supplier.updatedAt).toLocaleString('ro-RO')}
+            </p>{' '}
+            {supplier.updatedBy && (
+              <p>
+                <strong>Actualizat de:</strong> {supplier.updatedBy.name}
+              </p>
             )}
           </div>
         </div>
-        {/* Branduri și Mențiuni */}
-        <div className='w-full flex'>
-          {supplier.mentions && (
-            <p className='w-2/3'>
-              <strong>Mențiuni:</strong>{' '}
-              <span className='w-full italic text-muted-foreground font-light text-justify'>
-                {supplier.mentions}
-              </span>{' '}
-            </p>
-          )}
-        </div>
-
-        {/* Timestamps */}
-        <div className='mb-0 text-sm text-muted-foreground space-y-1 flex flex-row gap-20 justify-end'>
-          <p>
-            <strong>Creat la:</strong>{' '}
-            {new Date(supplier.createdAt).toLocaleString()}
-          </p>
-          <p>
-            <strong>Actualizat la:</strong>{' '}
-            {new Date(supplier.updatedAt).toLocaleString()}
-          </p>
-        </div>
-        <SeparatorWithOr> </SeparatorWithOr>
-      </div>
+      </div>{' '}
+      <SeparatorWithOr />
     </div>
   )
 }
-// Pentru statistica - de adaugat dupa finalizarea modului de statistica
-
-// const PurchaseOrderSchema = new Schema(
-//   {
-//     supplier: {
-//       type: mongoose.Types.ObjectId,
-//       ref: 'Supplier',
-//       required: true,
-//     },
-//     date: { type: Date, default: Date.now },
-//     items: [
-//       {
-//         material: {
-//           type: mongoose.Types.ObjectId,
-//           ref: 'Material',
-//           required: true,
-//         },
-//         qty: Number,
-//         unitPrice: Number,
-//         lineTotal: Number, // qty * unitPrice
-//       },
-//     ],
-//     status: {
-//       type: String,
-//       enum: ['Pending', 'Received', 'Cancelled'],
-//       default: 'Pending',
-//     },
-//     // eventual alte câmpuri: termeni plată, condiții transport…
-//   },
-//   { timestamps: true }
-// )
-// const GoodsReceiptSchema = new Schema(
-//   {
-//     supplier: {
-//       type: mongoose.Types.ObjectId,
-//       ref: 'Supplier',
-//       required: true,
-//     },
-//     purchaseOrder: { type: mongoose.Types.ObjectId, ref: 'PurchaseOrder' },
-//     date: { type: Date, default: Date.now },
-//     items: [
-//       {
-//         material: {
-//           type: mongoose.Types.ObjectId,
-//           ref: 'Material',
-//           required: true,
-//         },
-//         qty: Number,
-//         // eventual unitPrice dacă vrei să salvezi prețul de recepție
-//       },
-//     ],
-//   },
-//   { timestamps: true }
-// )
-// import mongoose from 'mongoose'
-
-// // Exemplu de agregare Mongoose în serviciul tău:
-// export async function getSupplierStats(supplierId: string) {
-//   const id = new mongoose.Types.ObjectId(supplierId)
-
-//   // 1) număr comenzi
-//   // 2) sumă totală comandă
-//   // 3) număr recepții
-//   // 4) sumă total recepționată
-//   const stats = await PurchaseOrder.aggregate([
-//     { $match: { supplier: id } },
-//     {
-//       $facet: {
-//         orders: [
-//           {
-//             $group: {
-//               _id: null,
-//               count: { $sum: 1 },
-//               totalOrdered: { $sum: '$items.lineTotal' },
-//             },
-//           },
-//         ],
-//         receipts: [
-//           {
-//             $match: {
-//               /* eventual filtrare după purchaseOrder */
-//             },
-//           },
-//           {
-//             $group: {
-//               _id: null,
-//               totalReceived: { $sum: '$items.qty' },
-//             },
-//           },
-//         ],
-//       },
-//     },
-//     // proiectează default-urile dacă nu-s date
-//     {
-//       $project: {
-//         ordersCount: { $ifNull: [{ $arrayElemAt: ['$orders.count', 0] }, 0] },
-//         totalOrdered: {
-//           $ifNull: [{ $arrayElemAt: ['$orders.totalOrdered', 0] }, 0],
-//         },
-//         totalReceived: {
-//           $ifNull: [{ $arrayElemAt: ['$receipts.totalReceived', 0] }, 0],
-//         },
-//       },
-//     },
-//   ])
-
-//   return (
-//     stats[0] || {
-//       ordersCount: 0,
-//       totalOrdered: 0,
-//       totalReceived: 0,
-//     }
-//   )
-// }
-// export default async function SupplierPage({ params }) {
-//   const { id, slug } = await params
-//   const supplier = await getSupplierById(id)
-//   if (!supplier) notFound()
-
-//   const { ordersCount, totalOrdered, totalReceived } =
-//     await getSupplierStats(id)
-//   const balance = totalOrdered - totalReceived
-
-//   return (
-//     <div className='p-6'>
-//       <h1 className='text-2xl font-bold'>{supplier.name}</h1>
-//       <div className='mt-4 space-y-1'>
-//         <p>
-//           Comenzi plasate: <strong>{ordersCount}</strong>
-//         </p>
-//         <p>
-//           Valoare totală comandă: <strong>{totalOrdered.toFixed(2)} Lei</strong>
-//         </p>
-//         <p>
-//           Total recepționat: <strong>{totalReceived}</strong> buc.
-//         </p>
-//         <p>
-//           Sold restant (cantitate): <strong>{balance}</strong> buc.
-//         </p>
-//       </div>
-//       {/* restul detaliilor */}
-//     </div>
-//   )
-// }

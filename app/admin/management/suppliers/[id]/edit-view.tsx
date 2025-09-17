@@ -4,8 +4,9 @@ import React from 'react'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ISupplierDoc } from '@/lib/db/modules/suppliers'
+
 import SupplierEditForm from '../supplier-edit-form'
+import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 
 interface Props {
   initialValues: ISupplierDoc

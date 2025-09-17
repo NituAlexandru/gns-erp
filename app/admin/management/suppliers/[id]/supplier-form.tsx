@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useForm, SubmitHandler } from 'react-hook-form'
+import { useForm, SubmitHandler, ControllerRenderProps } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
@@ -14,19 +14,31 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
-import { SupplierCreateSchema } from '@/lib/db/modules/suppliers/validator'
-import type { ISupplierInput } from '@/lib/db/modules/suppliers/types'
 import LoadingPage from '@/app/loading'
+import { SupplierCreateSchema } from '@/lib/db/modules/suppliers/validator'
+import type { ISupplierInput, IAddress } from '@/lib/db/modules/suppliers/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ROMANIAN_BANKS } from '@/lib/constants'
+import { Loader2 } from 'lucide-react'
+import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 
 export default function SupplierForm() {
   const router = useRouter()
+
+  const [currentLoadingAddress, setCurrentLoadingAddress] = useState<
+    Partial<IAddress>
+  >({})
   const [currentBrand, setCurrentBrand] = useState('')
-  const [brands, setBrands] = useState<string[]>([])
-  const [currentLoadingAddr, setCurrentLoadingAddr] = useState('')
-  const [loadingAddrs, setLoadingAddrs] = useState<string[]>([])
+  const [isCalculating, setIsCalculating] = useState(false)
 
   const form = useForm<ISupplierInput>({
     resolver: zodResolver(SupplierCreateSchema),
@@ -35,18 +47,27 @@ export default function SupplierForm() {
       contactName: '',
       email: '',
       phone: '',
-      address: '',
+      address: {
+        judet: '',
+        localitate: '',
+        strada: '',
+        numar: '',
+        codPostal: '',
+      },
       fiscalCode: '',
       regComNumber: '',
-      bankAccountLei: '',
-      bankAccountEuro: '',
+      bankAccountLei: { iban: '', bankName: '' },
+      bankAccountEuro: { iban: '', bankName: '' },
       externalTransport: false,
       isVatPayer: false,
-      loadingAddress: [],
+      loadingAddresses: [],
       externalTransportCosts: 0,
       internalTransportCosts: 0,
       brand: [],
       mentions: '',
+      paymentTerm: 0,
+      contractNumber: '',
+      contractDate: undefined,
     },
   })
 
@@ -54,57 +75,106 @@ export default function SupplierForm() {
     control,
     handleSubmit,
     formState: { isSubmitting },
+    getValues,
   } = form
 
-  const handleAddBrand = () => {
+  const handleAddBrand = (
+    field: ControllerRenderProps<ISupplierInput, 'brand'>
+  ) => {
     const b = currentBrand.trim()
-    if (b && !brands.includes(b)) {
-      setBrands((prev) => [...prev, b])
+    if (b && !field.value?.includes(b)) {
+      field.onChange([...(field.value || []), b])
       setCurrentBrand('')
     }
   }
-  const handleRemoveBrand = (idx: number) =>
-    setBrands((prev) => prev.filter((_, i) => i !== idx))
 
-  const handleAddLoadingAddr = () => {
-    const a = currentLoadingAddr.trim()
-    if (a && !loadingAddrs.includes(a)) {
-      setLoadingAddrs((prev) => [...prev, a])
-      setCurrentLoadingAddr('')
+  const handleAddLoadingAddress = async (
+    field: ControllerRenderProps<ISupplierInput, 'loadingAddresses'> 
+  ) => {
+    const addr = currentLoadingAddress
+    if (
+      !addr.judet ||
+      !addr.localitate ||
+      !addr.strada ||
+      !addr.numar ||
+      !addr.codPostal
+    ) {
+      toast.error('Toate câmpurile adresei de încărcare sunt obligatorii.')
+      return
+    }
+
+    setIsCalculating(true)
+    try {
+      const res = await fetch('/api/maps-distance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(addr),
+      })
+
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.message || 'Eroare la calcularea distanței.')
+      }
+
+      const { distanceInKm, travelTimeInMinutes } = await res.json()
+
+      const newAddress: IAddress = {
+        ...addr,
+        distanceInKm,
+        travelTimeInMinutes,
+      } as IAddress
+
+      field.onChange([...(field.value || []), newAddress])
+      setCurrentLoadingAddress({})
+      toast.success('Adresa de încărcare a fost adăugată.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
+    } finally {
+      setIsCalculating(false)
     }
   }
-  const handleRemoveLoadingAddr = (idx: number) =>
-    setLoadingAddrs((prev) => prev.filter((_, i) => i !== idx))
+
+  const handleCopyBillingAddress = () => {
+    const billingAddress = getValues('address')
+    if (!billingAddress.judet) {
+      toast.error('Completează mai întâi adresa fiscală.')
+      return
+    }
+    setCurrentLoadingAddress(billingAddress)
+    toast.success('Adresa fiscală a fost copiată.')
+  }
 
   const onSubmit: SubmitHandler<ISupplierInput> = async (values) => {
     try {
-      const payload: ISupplierInput = {
-        ...values,
-        brand: brands,
-        loadingAddress: loadingAddrs,
-      }
       const res = await fetch('/api/admin/management/suppliers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(values),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.message)
-      toast.success('Furnizor creat.')
+      toast.success('Furnizor creat cu succes.')
       router.push('/admin/management/suppliers')
       router.refresh()
     } catch (err: unknown) {
-      toast.error((err as Error).message)
+      if (err instanceof Error) {
+        if (err.message.includes('duplicate key')) {
+          toast.error('Un furnizor cu acest Cod Fiscal există deja.')
+        } else {
+          toast.error(err.message)
+        }
+      } else {
+        toast.error('A apărut o eroare necunoscută.')
+      }
     }
   }
 
-  if (isSubmitting) {
-    return <LoadingPage />
-  }
+  if (isSubmitting) return <LoadingPage />
 
   return (
     <Form {...form}>
-      <form onSubmit={handleSubmit(onSubmit)} className='space-y-2'>
+      <form onSubmit={handleSubmit(onSubmit)} className='space-y-4'>
+        {/* Nume și Contact */}
         <div className='grid grid-cols-1 md:grid-cols-4 gap-6'>
           <FormField
             control={control}
@@ -126,7 +196,7 @@ export default function SupplierForm() {
             name='contactName'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Nume persoană de contact</FormLabel>
+                <FormLabel>Nume contact</FormLabel>
                 <FormControl>
                   <Input placeholder='Popescu Ion' {...field} />
                 </FormControl>
@@ -140,7 +210,7 @@ export default function SupplierForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Email furnizor<span className='text-red-500'>*</span>
+                  Email <span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
                   <Input
@@ -159,7 +229,7 @@ export default function SupplierForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Număr de telefon<span className='text-red-500'>*</span>
+                  Telefon <span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
                   <Input type='tel' placeholder='07xx xxx xxx' {...field} />
@@ -168,13 +238,17 @@ export default function SupplierForm() {
               </FormItem>
             )}
           />
+        </div>
+
+        {/* Date Fiscale și Contract */}
+        <div className='grid grid-cols-1 md:grid-cols-4 gap-6'>
           <FormField
             control={control}
             name='fiscalCode'
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Cod Fiscal (CUI)<span className='text-red-500'>*</span>
+                  Cod Fiscal (CUI) <span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
                   <Input placeholder='RO123456' {...field} />
@@ -182,14 +256,14 @@ export default function SupplierForm() {
                 <FormMessage />
               </FormItem>
             )}
-          />{' '}
+          />
           <FormField
             control={control}
             name='regComNumber'
             render={({ field }) => (
               <FormItem>
                 <FormLabel>
-                  Număr Registru Comerț<span className='text-red-500'>*</span>
+                  Nr. Reg. Comerț <span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
                   <Input placeholder='J23/2873/2022' {...field} />
@@ -200,14 +274,12 @@ export default function SupplierForm() {
           />
           <FormField
             control={control}
-            name='bankAccountLei'
+            name='contractNumber'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>
-                  Cont Bancar LEI<span className='text-red-500'>*</span>
-                </FormLabel>
+                <FormLabel>Număr Contract</FormLabel>
                 <FormControl>
-                  <Input placeholder='RO29BACX0000002238640000' {...field} />
+                  <Input placeholder='Ex: 123/2025' {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -215,192 +287,493 @@ export default function SupplierForm() {
           />
           <FormField
             control={control}
-            name='bankAccountEuro'
+            name='contractDate'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Cont Bancar EURO</FormLabel>
+                <FormLabel>Data Contract</FormLabel>
                 <FormControl>
-                  <Input placeholder='RO29BACX0000002238640000' {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        <div className='space-y-2 p-4 border rounded-lg md:col-span-2'>
-          <FormField
-            control={control}
-            name='address'
-            render={({ field }) => (
-              <FormItem className='md:col-span-2'>
-                <FormLabel>
-                  Adresă fiscală (facturare)
-                  <span className='text-red-500'>*</span>
-                </FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder='Str. Principală, Nr. 1, Oraș, Județ'
+                  <Input
+                    type='date'
                     {...field}
+                    value={
+                      field.value
+                        ? new Date(field.value).toISOString().split('T')[0]
+                        : ''
+                    }
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <div className='space-y-2 p-4 border rounded-lg md:col-span-2'>
-            <FormLabel>
-              Adrese de încărcare marfă<span className='text-red-500'>*</span>
-            </FormLabel>
-            <div className='flex items-center gap-2'>
-              <Input
-                placeholder='Adaugă o adresă'
-                value={currentLoadingAddr}
-                onChange={(e) => setCurrentLoadingAddr(e.target.value)}
-              />
-              <Button
-                type='button'
-                variant='outline'
-                onClick={handleAddLoadingAddr}
-              >
-                Adaugă
-              </Button>
-            </div>
-            <div className='space-y-1'>
-              {loadingAddrs.map((addr, i) => (
-                <div
-                  key={i}
-                  className='flex items-center justify-between gap-1 pl-1 bg-secondary rounded-md'
-                >
-                  <span>{addr}</span>
-                  <Button
-                    type='button'
-                    size='sm'
-                    onClick={() => handleRemoveLoadingAddr(i)}
-                  >
-                    X
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-center'>
-            <FormField
-              control={control}
-              name='isVatPayer'
-              render={({ field }) => (
-                <FormItem className='flex items-center space-x-2 pt-6'>
-                  <FormControl>
-                    <Checkbox
-                      className='cursor-pointer'
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormLabel>Este plătitor TVA?</FormLabel>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name='externalTransport'
-              render={({ field }) => (
-                <FormItem className='flex items-center space-x-2 pt-6'>
-                  <FormControl>
-                    <Checkbox
-                      className='cursor-pointer'
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormLabel>Transport asigurat de furnizor</FormLabel>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name='externalTransportCosts'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Costuri transport furnizor</FormLabel>
-                  <FormControl>
-                    <Input type='number' {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
-              name='internalTransportCosts'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Costuri transport Genesis</FormLabel>
-                  <FormControl>
-                    <Input type='number' {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>{' '}
         </div>
-        <div className='space-y-2 p-4 pb-2 border rounded-lg md:col-span-2'>
-          <FormLabel>Brandurile furnizorului</FormLabel>
-          <div className='flex items-center gap-2'>
-            <Input
-              placeholder='Adaugă un brand nou'
-              value={currentBrand}
-              onChange={(e) => setCurrentBrand(e.target.value)}
+
+        {/* Adresa Fiscală Structurată */}
+        <div className='space-y-4 p-4 border rounded-lg'>
+          <FormLabel className='text-base font-semibold'>
+            Adresă fiscală (facturare) <span className='text-red-500'>*</span>
+          </FormLabel>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+            <FormField
+              control={control}
+              name='address.judet'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Județ</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <Button type='button' variant='outline' onClick={handleAddBrand}>
-              Adaugă
-            </Button>
+            <FormField
+              control={control}
+              name='address.localitate'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Localitate</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.strada'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Stradă</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.numar'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Număr</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.codPostal'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cod Poștal</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.alteDetalii'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alte detalii</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Bloc, Scara, etc.' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
-          <div className='space-y-2 pt-2'>
-            {brands.map((b, i) => (
-              <div
-                key={i}
-                className='flex items-center justify-between gap-2 pl-1 bg-secondary rounded-md'
-              >
-                <span>{b}</span>
+        </div>
+
+        {/* Conturi Bancare Structurate */}
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg'>
+          <div className='space-y-2'>
+            <FormLabel>Cont Bancar LEI</FormLabel>
+            <FormField
+              control={control}
+              name='bankAccountLei.iban'
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input placeholder='IBAN (24 caractere)' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='bankAccountLei.bankName'
+              render={({ field }) => (
+                <FormItem>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Selectează banca' />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ROMANIAN_BANKS.map((bank) => (
+                        <SelectItem key={bank} value={bank}>
+                          {bank}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+          <div className='space-y-2'>
+            <FormLabel>Cont Bancar Euro</FormLabel>
+            <FormField
+              control={control}
+              name='bankAccountEuro.iban'
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input placeholder='IBAN (24 caractere)' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='bankAccountEuro.bankName'
+              render={({ field }) => (
+                <FormItem>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Selectează banca' />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {ROMANIAN_BANKS.map((bank) => (
+                        <SelectItem key={bank} value={bank}>
+                          {bank}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
+
+        <FormField
+          control={control}
+          name='loadingAddresses'
+          render={({ field }) => (
+            <div className='space-y-4 p-4 border rounded-lg'>
+              <div className='flex justify-between items-center'>
+                <FormLabel className='text-base font-semibold'>
+                  Adrese de încărcare
+                </FormLabel>
                 <Button
                   type='button'
-                  size='sm'
-                  onClick={() => handleRemoveBrand(i)}
+                  variant='link'
+                  className='p-0 h-auto text-sm'
+                  onClick={handleCopyBillingAddress}
                 >
-                  X
+                  Copiază adresa fiscală
                 </Button>
               </div>
-            ))}
-          </div>
-        </div>
-        <div className='space-y-2 p-4 pb-2 border rounded-lg md:col-span-2'>
+              <div className='p-4 bg-muted/50 rounded-lg'>
+                <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+                  <FormItem>
+                    <FormLabel>Județ</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentLoadingAddress.judet || ''}
+                        onChange={(e) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            judet: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Localitate</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentLoadingAddress.localitate || ''}
+                        onChange={(e) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            localitate: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Stradă</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentLoadingAddress.strada || ''}
+                        onChange={(e) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            strada: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Număr</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentLoadingAddress.numar || ''}
+                        onChange={(e) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            numar: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Cod Poștal</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentLoadingAddress.codPostal || ''}
+                        onChange={(e) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            codPostal: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Alte detalii</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentLoadingAddress.alteDetalii || ''}
+                        onChange={(e) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            alteDetalii: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                </div>
+                <Button
+                  type='button'
+                  className='mt-4'
+                  onClick={() => handleAddLoadingAddress(field)}
+                  disabled={isCalculating}
+                >
+                  {isCalculating && (
+                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                  )}
+                  Adaugă Adresă
+                </Button>
+              </div>
+              <div className='space-y-2'>
+                {(field.value || []).map((addr, index) => (
+                  <div
+                    key={index}
+                    className='flex justify-between items-center p-2 bg-secondary rounded-md'
+                  >
+                    <div>
+                      <p className='font-medium text-sm'>{`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}`}</p>
+                      <p className='text-xs text-muted-foreground'>
+                        {`Dus-întors: ~${addr.distanceInKm} km | Timp: ~${formatMinutes(addr.travelTimeInMinutes)}`}
+                      </p>
+                    </div>
+                    <Button
+                      type='button'
+                      variant='destructive'
+                      size='sm'
+                      onClick={() => {
+                        const newAddresses = (field.value || []).filter(
+                          (_, i) => i !== index
+                        )
+                        field.onChange(newAddresses)
+                      }}
+                    >
+                      X
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <FormMessage />
+            </div>
+          )}
+        />
+
+        {/* Alte Setări si Costuri transport*/}
+        <div className='grid grid-cols-1 md:grid-cols-5 gap-6'>
           <FormField
             control={control}
-            name='mentions'
+            name='isVatPayer'
             render={({ field }) => (
-              <FormItem className='md:col-span-2'>
-                <FormLabel>Mențiuni</FormLabel>
+              <FormItem className='flex items-center space-x-2 pt-6'>
                 <FormControl>
-                  <Textarea
-                    placeholder='Orice considerați necesar..'
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormLabel>Este plătitor TVA?</FormLabel>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name='externalTransport'
+            render={({ field }) => (
+              <FormItem className='flex items-center space-x-2 pt-6'>
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormLabel>Transport asigurat de furnizor</FormLabel>
+              </FormItem>
+            )}
+          />{' '}
+          <FormField
+            control={control}
+            name='paymentTerm'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Termen de plată (zile)</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
                     {...field}
+                    onChange={(e) =>
+                      field.onChange(parseInt(e.target.value, 10) || 0)
+                    }
                   />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-        </div>{' '}
-        <p className='text-sm text-muted-foreground mb-2'>
+          <FormField
+            control={control}
+            name='externalTransportCosts'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cost transport furnizor (LEI)</FormLabel>
+                <FormControl>
+                  <Input type='number' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name='internalTransportCosts'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cost transport intern (LEI)</FormLabel>
+                <FormControl>
+                  <Input type='number' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        {/* Branduri */}
+        <FormField
+          control={control}
+          name='brand'
+          render={({ field }) => (
+            <div className='space-y-2 p-4 border rounded-lg'>
+              <FormLabel>Branduri</FormLabel>
+              <div className='flex items-center gap-2'>
+                <Input
+                  placeholder='Adaugă un brand nou'
+                  value={currentBrand}
+                  onChange={(e) => setCurrentBrand(e.target.value)}
+                />
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => handleAddBrand(field)}
+                >
+                  Adaugă
+                </Button>
+              </div>
+              <div className='space-y-1 pt-2'>
+                {field.value?.map((b, i) => (
+                  <div
+                    key={i}
+                    className='flex items-center justify-between gap-2 pl-2 bg-secondary rounded-md text-sm'
+                  >
+                    <span>{b}</span>
+                    <Button
+                      type='button'
+                      size='sm'
+                      onClick={() => {
+                        const newBrands = field.value?.filter(
+                          (_, idx) => idx !== i
+                        )
+                        field.onChange(newBrands)
+                      }}
+                    >
+                      X
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name='mentions'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Mențiuni</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder='Orice considerați necesar..'
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <p className='text-sm text-muted-foreground pt-4'>
           Câmpurile marcate cu <span className='text-red-500'>*</span> sunt
           obligatorii.
         </p>
-        <Button
-          type='submit'
-          disabled={isSubmitting}
-          className='w-full bg-red-500'
-        >
+        <Button type='submit' className='w-full' disabled={isSubmitting}>
+          {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
           Adaugă furnizor
         </Button>
       </form>

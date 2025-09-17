@@ -1,7 +1,7 @@
 import React from 'react'
 import { auth } from '@/auth'
-import { getSupplierById } from '@/lib/db/modules/suppliers'
 import EditSupplierView from './edit-view'
+import { getSupplierById } from '@/lib/db/modules/suppliers/supplier.actions'
 
 export default async function EditSupplierPage({
   params,

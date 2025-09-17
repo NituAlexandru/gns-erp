@@ -1,6 +1,6 @@
 import { auth } from '@/auth'
 import SupplierList from './supplier-list'
-import { getAllSuppliersForAdmin } from '@/lib/db/modules/suppliers'
+import { getAllSuppliersForAdmin } from '@/lib/db/modules/suppliers/supplier.actions'
 
 export default async function AdminSuppliersPage({
   searchParams,
