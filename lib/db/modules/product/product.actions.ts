@@ -2,12 +2,6 @@
 
 import '@/lib/db/modules/client/client.model'
 import { connectToDatabase } from '@/lib/db'
-import type {
-  IProductInput,
-  IProductUpdate,
-  IProductDoc,
-  MarkupPatch,
-} from './types'
 import { revalidatePath } from 'next/cache'
 import { ProductInputSchema, ProductUpdateSchema } from './validator'
 import { formatError } from '@/lib/utils'
@@ -18,6 +12,7 @@ import { FilterQuery, Types } from 'mongoose'
 import { PRODUCT_PAGE_SIZE } from './constants'
 import ERPProductModel from './product.model'
 import { getGlobalHighestCostInStock } from '../inventory/pricing'
+import { IProductDoc, IProductInput, IProductUpdate, MarkupPatch } from './types'
 
 // O funcție helper pentru a verifica duplicatele
 async function checkForDuplicateCodes(payload: {

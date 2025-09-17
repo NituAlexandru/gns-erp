@@ -39,13 +39,13 @@ import {
   createProduct,
   updateProduct,
 } from '@/lib/db/modules/product/product.actions'
-import { ISupplierDoc } from '@/lib/db/modules/suppliers'
 import { ICategoryDoc } from '@/lib/db/modules/category/category.model'
 import { InfoTooltip } from '@/components/shared/info-tooltip'
 import {
   FIELD_LABELS_RO,
   FIELD_PLACEHOLDERS_RO,
 } from '@/lib/db/modules/product/constants'
+import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 
 const zeroMarkups = {
   markupDirectDeliveryPrice: 0,
@@ -400,7 +400,7 @@ const ProductForm = ({
             title: 'Eroare',
             description: 'Acest cod de bare este deja utilizat.',
           })
-          return 
+          return
         }
       }
     }
