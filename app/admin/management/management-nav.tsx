@@ -19,6 +19,10 @@ const links = [
     href: '/admin/management/reception',
   },
   {
+    title: 'Parc Auto',
+    href: '/admin/management/fleet',
+  },
+  {
     title: 'Clienți',
     href: '/clients',
   },

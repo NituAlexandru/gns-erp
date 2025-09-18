@@ -21,19 +21,3 @@ export const VehicleAllocationSchema = new Schema(
   },
   { _id: false }
 )
-// export const VehicleAllocationSchema = z.object({
-//   //   vehicle: z.object({
-//   //     name: z.string(),
-//   //     maxLoadKg: z.number(),
-//   //     maxVolumeM3: z.number(),
-//   //     lengthCm: z.number(),
-//   //     widthCm: z.number(),
-//   //     heightCm: z.number(),
-//   //     ratePerKm: z.number(),
-//   //   }),
-//   //   trips: z
-//   //     .number()
-//   //     .int({ message: 'Numărul de curse trebuie să fie un număr întreg' })
-//   //     .positive({ message: 'Numărul de curse trebuie să fie un număr pozitiv' }),
-//   //   totalCost: z.number(),
-//   // })

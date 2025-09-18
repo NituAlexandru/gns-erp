@@ -1,6 +1,7 @@
 import { Document, Model, model, models, Schema } from 'mongoose'
-import { VehicleAllocationSchema } from '../vehicle/vehicle.alocation'
+
 import { IOrderInput } from './types'
+import { VehicleAllocationSchema } from '../fleet/vehicle/vehicle.alocation'
 
 export interface IOrder extends Document, IOrderInput {
   _id: string

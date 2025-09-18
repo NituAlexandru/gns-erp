@@ -1,7 +1,15 @@
 import { z } from 'zod'
-import { VehicleAllocationSchema } from '../vehicle'
+
 import { MongoId, Price } from '@/lib/validator'
 
+const VehicleAllocationSchema = z
+  .object({
+    vehicle: z.any(), // Folosim z.any() temporar pentru a permite orice obiect
+    trips: z.number().int().positive(),
+    totalCost: z.number().nonnegative(),
+  })
+  .optional()
+  
 // Order Item
 export const OrderItemSchema = z.object({
   clientId: z.string().min(1, 'ID-ul clientului este obligatoriu'),
