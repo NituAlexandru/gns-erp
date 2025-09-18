@@ -5,7 +5,7 @@ export const ASSIGNMENT_STATUSES = ['Activ', 'Inactiv'] as const
 const BaseAssignmentSchema = z.object({
   driverId: z.string().min(1, 'Trebuie să selectezi un șofer.'),
   vehicleId: z.string().min(1, 'Trebuie să selectezi un vehicul.'),
-  trailerId: z.string().optional(), // Remorca este opțională
+  trailerId: z.string().optional(), 
 
   startDate: z.coerce.date({
     required_error: 'Data de început este obligatorie.',

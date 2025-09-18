@@ -5,9 +5,13 @@ import { revalidatePath } from 'next/cache'
 import type { IDriverDoc, IDriverInput } from './types'
 import { logAudit } from '../../audit-logs/audit.actions'
 import DriverModel from './drivers.model'
-import { DRIVER_STATUSES, DriverCreateSchema, DriverUpdateSchema } from './validator'
+import {
+  DRIVER_STATUSES,
+  DriverCreateSchema,
+  DriverUpdateSchema,
+} from './validator'
 
-const REVALIDATE_PATH = '/admin/fleet' // Calea unde se va afla lista de șoferi
+const REVALIDATE_PATH = '/admin/fleet'
 
 export async function createDriver(
   data: IDriverInput,

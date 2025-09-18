@@ -17,9 +17,6 @@ export async function createAssignment(
   const payload = AssignmentCreateSchema.parse(data)
   await connectToDatabase()
 
-  // Logică opțională: Verifică dacă șoferul sau vehiculul au deja o asignare activă
-  // și eventual dezactiveaz-o pe cea veche înainte de a o crea pe cea nouă.
-
   const assignmentData = { ...payload, createdBy: { userId, name: userName } }
   const newAssignment = await AssignmentModel.create(assignmentData)
 
@@ -86,7 +83,6 @@ export async function getAssignmentById(id: string): Promise<IAssignmentDoc> {
 
 export async function getAllAssignments() {
   await connectToDatabase()
-  // Folosim .populate() pentru a aduce și numele șoferului/vehiculului, nu doar ID-ul
   const docs = await AssignmentModel.find()
     .populate('driverId', 'name')
     .populate('vehicleId', 'name carNumber')

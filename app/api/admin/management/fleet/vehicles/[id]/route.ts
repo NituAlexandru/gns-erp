@@ -8,7 +8,6 @@ import {
 
 export async function PUT(
   request: Request,
-  // ✅ FIX: Am adăugat 'Promise' la tipul parametrului
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -17,7 +16,6 @@ export async function PUT(
       return NextResponse.json({ message: 'Neautorizat' }, { status: 401 })
     }
 
-    // ✅ FIX: Am adăugat 'await' pentru a extrage id-ul
     const { id } = await params
     const data = await request.json()
     const payload = { ...data, _id: id }

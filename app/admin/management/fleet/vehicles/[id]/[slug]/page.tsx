@@ -10,7 +10,6 @@ export default async function VehicleViewPage({
 }: {
   params: Promise<{ id: string; slug: string }>
 }) {
-  // ✅ FIX: Am adăugat 'await' aici
   const { id, slug } = await params
 
   const vehicle = await getVehicleById(id)

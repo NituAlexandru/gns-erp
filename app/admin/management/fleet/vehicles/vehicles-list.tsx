@@ -40,14 +40,12 @@ export default function VehiclesList({ initialVehicles }: Props) {
   const router = useRouter()
   const [vehicles, setVehicles] = useState(initialVehicles)
 
-  // Stare pentru a controla dialogul de ștergere
   const [deleteTarget, setDeleteTarget] = useState<IVehicleDoc | null>(null)
 
   const handleDeleteConfirm = async () => {
     if (!deleteTarget) return
 
     try {
-      // ✅ Folosim FETCH către ruta API, NU import direct
       const response = await fetch(
         `/api/admin/management/fleet/vehicles/${deleteTarget._id}`,
         {
@@ -65,7 +63,7 @@ export default function VehiclesList({ initialVehicles }: Props) {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
     } finally {
-      setDeleteTarget(null) // Închide dialogul
+      setDeleteTarget(null) 
     }
   }
 

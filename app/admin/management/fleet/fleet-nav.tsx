@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Car, User, Container, ClipboardList } from 'lucide-react'
 
-// Definim linkurile și iconițele într-un singur loc, la fel ca în model
 const FLEET_LINKS = [
   {
     id: 'vehicles',
@@ -40,10 +39,7 @@ export function FleetNav() {
     <aside>
       <h1 className='text-2xl font-bold ml-2'>Parc Auto</h1>
       <nav className='flex flex-col gap-2 mt-4'>
-        {/*
-          Structura este păstrată identic.
-          Am adăugat un titlu <p> deasupra listei, la fel ca "Stocuri pe Locații".
-        */}
+     
         <p className='text-sm text-muted-foreground mt-4 px-2'>
           Management Flotă
         </p>

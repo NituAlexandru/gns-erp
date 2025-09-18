@@ -20,12 +20,10 @@ const assignmentSchema = new Schema<IAssignmentDoc>(
     notes: { type: String },
 
     createdBy: {
-      // ✅ FIX: Am șters 'type: Schema.Types.ObjectId'
       userId: { ref: 'User', required: true },
       name: { type: String, required: true },
     },
     updatedBy: {
-      // ✅ FIX: Am șters 'type: Schema.Types.ObjectId'
       userId: { ref: 'User' },
       name: { type: String },
     },
