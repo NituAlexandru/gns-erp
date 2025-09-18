@@ -15,7 +15,6 @@ const trailerSchema = new Schema<ITrailerDoc>(
     heightCm: { type: Number, required: true },
 
     year: { type: Number },
-    chassisNumber: { type: String },
     notes: { type: String },
 
     createdBy: {

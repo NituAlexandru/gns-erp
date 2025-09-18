@@ -17,7 +17,6 @@ const BaseTrailerSchema = z.object({
   heightCm: z.number().int().positive('Dimensiunile trebuie să fie pozitive'),
 
   year: z.number().int().optional(),
-  chassisNumber: z.string().optional(),
   notes: z.string().optional(),
 })
 

@@ -35,6 +35,7 @@ import {
   VEHICLE_TEMPLATES,
   VEHICLE_TYPE_NAMES,
 } from '@/lib/db/modules/fleet/vehicle/constants'
+import { useEffect } from 'react'
 
 interface Props {
   initialValues?: IVehicleDoc
@@ -51,8 +52,7 @@ export default function VehicleForm({ initialValues }: Props) {
     defaultValues: initialValues
       ? {
           ...initialValues,
-          // Asigurăm valori de fallback pentru câmpurile care ar putea fi null/undefined
-          name: initialValues.name || '',
+           name: initialValues.name || '',
           carNumber: initialValues.carNumber || '',
           carType: initialValues.carType || '',
           brand: initialValues.brand || '',
@@ -87,6 +87,22 @@ export default function VehicleForm({ initialValues }: Props) {
         },
   })
 
+  const { watch, setValue } = form
+
+  const [lengthCm, widthCm, heightCm] = watch([
+    'lengthCm',
+    'widthCm',
+    'heightCm',
+  ])
+
+  useEffect(() => {
+    if (lengthCm > 0 && widthCm > 0 && heightCm > 0) {
+      const volumeM3 = (lengthCm / 100) * (widthCm / 100) * (heightCm / 100)
+      setValue('maxVolumeM3', parseFloat(volumeM3.toFixed(2)), {
+        shouldValidate: true,
+      })
+    }
+  }, [lengthCm, widthCm, heightCm, setValue])
   const handleTypeChange = (typeName: string) => {
     const template = VEHICLE_TEMPLATES.find((t) => t.name === typeName)
     if (template) {
@@ -104,7 +120,7 @@ export default function VehicleForm({ initialValues }: Props) {
     try {
       let response
       if (isEditMode) {
-        // Acțiune de actualizare (PUT)
+        
         response = await fetch(
           `/api/admin/management/fleet/vehicles/${initialValues?._id}`,
           {
@@ -114,7 +130,7 @@ export default function VehicleForm({ initialValues }: Props) {
           }
         )
       } else {
-        // Acțiune de creare (POST)
+     
         response = await fetch('/api/admin/management/fleet/vehicles', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -280,6 +296,7 @@ export default function VehicleForm({ initialValues }: Props) {
                   <Input
                     type='number'
                     {...field}
+                    disabled
                     onChange={(e) => field.onChange(parseFloat(e.target.value))}
                   />
                 </FormControl>
