@@ -1,144 +1,86 @@
-// import BrowsingHistoryList from '@/components/shared/browsing-history-list'
-// import { HomeCard } from '@/components/shared/home/home-card'
-// import ProductSlider from '@/components/shared/product/product-slider'
-// import { Card, CardContent } from '@/components/ui/card'
-// import {
-//   getAllCategories,
-//   getProductsByTag,
-//   getProductsForCard,
-//   getProductsRandomByTag,
-//   getProductsRandomForCard,
-// } from '@/lib/actions/product.actions'
-// import data from '@/lib/data'
-// import { toSlug } from '@/lib/utils'
-
-// // Helper Fisher–Yates pentru a amesteca un array
-// function shuffleArray<T>(arr: T[]): T[] {
-//   const a = [...arr]
-//   for (let i = a.length - 1; i > 0; i--) {
-//     const j = Math.floor(Math.random() * (i + 1))
-//     ;[a[i], a[j]] = [a[j], a[i]]
-//   }
-//   return a
-// }
-
-// export default async function Page() {
-//   // Inițializăm promisiunile fără await imediat
-//   const allCategoriesPromise = getAllCategories()
-//   const newArrivalsPromise = getProductsForCard({
-//     tag: 'new-arrival',
-//     limit: 4,
-//   })
-//   const featuredsPromise = getProductsRandomForCard({
-//     tag: 'featured',
-//     limit: 4,
-//   })
-//   const bestSellersPromise = getProductsRandomForCard({
-//     tag: 'best-seller',
-//     limit: 4,
-//   })
-//   const todaysDealsPromise = getProductsByTag({ tag: 'todays-deal' })
-//   const bestSellingProductsPromise = getProductsRandomByTag({
-//     tag: 'best-seller',
-//   })
-
-//   // Așteptăm toate odată
-//   const [
-//     allCategories,
-//     newArrivals,
-//     featuredsRaw,
-//     bestSellers,
-//     todaysDealsRaw,
-//     bestSellingProductsRaw,
-//   ] = await Promise.all([
-//     allCategoriesPromise,
-//     newArrivalsPromise,
-//     featuredsPromise,
-//     bestSellersPromise,
-//     todaysDealsPromise,
-//     bestSellingProductsPromise,
-//   ])
-
-//   // Shuffle categoriile + limită la 4
-//   const categories = shuffleArray(allCategories).slice(0, 4)
-
-//   const featureds = shuffleArray(featuredsRaw)
-
-//   // Todays deals și best selling products rămân shuffle JS
-//   const todaysDeals = shuffleArray(todaysDealsRaw)
-//   const bestSellingProducts = shuffleArray(bestSellingProductsRaw)
-
-//   const cards = [
-//     {
-//       title: 'Categorii de explorat',
-//       link: {
-//         text: 'Vezi mai multe',
-//         href: '/search',
-//       },
-//       items: categories.map((category) => ({
-//         name: category,
-//         image: `/images/${toSlug(category)}.webp`,
-//         href: `/search?category=${category}`,
-//       })),
-//     },
-//     {
-//       title: 'Explorează Noutățile',
-//       items: newArrivals,
-//       link: {
-//         text: 'Vezi toate',
-//         href: '/search?tag=new-arrival',
-//       },
-//     },
-//     {
-//       title: 'Descopera Cele Mai Vândute',
-//       items: bestSellers,
-//       link: {
-//         text: 'Vezi toate',
-//         href: '/search?tag=best-seller',
-//       },
-//     },
-//     {
-//       title: 'Produse Recomandate',
-//       items: featureds,
-//       link: {
-//         text: 'Cumpără acum',
-//         href: '/search?tag=featured',
-//       },
-//     },
-//   ]
-
-//   return (
-//     <>
-//       <HomeCarousel items={data.carousels} />
-//       <div className='md:p-4 md:space-y-4 bg-border'>
-//         <HomeCard cards={cards} />
-//         <Card className='w-full rounded-none'>
-//           <CardContent className='p-4 items-center gap-3'>
-//             <ProductSlider title='Oferte' products={todaysDeals} />
-//           </CardContent>
-//         </Card>
-
-//         <Card className='w-full rounded-none'>
-//           <CardContent className='p-4 items-center gap-3'>
-//             <ProductSlider
-//               title='Cele mai Vândute'
-//               products={bestSellingProducts}
-//               hideDetails
-//             />
-//           </CardContent>
-//         </Card>
-//       </div>
-//       <div className='p-4 bg-background'>
-//         <BrowsingHistoryList />
-//       </div>
-//     </>
-//   )
-// }
-
-export default async function Page() {
+export default function HomePage() {
   return (
-    <div>
-      <h1 className='h1-bold text-center p-10'> Home</h1>
+    <div className='grid grid-cols-1 lg:grid-cols-3 gap-2 py-3'>
+      {/* --- COLOANA 1 (Livrări) --- */}
+      <div
+        style={{ height: 'calc(100vh - 180px)' }}
+        className='flex flex-col py-3 overflow-auto p-4 rounded-lg shadow-sm border'
+      >
+        <h1 className='text-3xl font-bold mb-6'>
+          Livrari{' '}
+          <span className='text-sm text-muted-foreground cursor-pointer'>
+            Vezi toate livrarile
+          </span>
+        </h1>
+        <div className='text-sm'>
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie 4{' '}
+          Aici va fi lista cu livrările... (adaugă mai mult conținut aici pentru
+          a testa scroll-ul)
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie 4{' '}
+          Aici va fi lista cu livrările... (adaugă mai mult conținut aici pentru
+          a testa scroll-ul)
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie 4{' '}
+          Aici va fi lista cu livrările... (adaugă mai mult conținut aici pentru
+          a testa scroll-ul)
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie 4{' '}
+          Aici va fi lista cu livrările... (adaugă mai mult conținut aici pentru
+          a testa scroll-ul)
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie 4{' '}
+          Aici va fi lista cu livrările... (adaugă mai mult conținut aici pentru
+          a testa scroll-ul)
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie 4{' '}
+          Aici va fi lista cu livrările... (adaugă mai mult conținut aici pentru
+          a testa scroll-ul)
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie 4{' '}
+          Aici va fi lista cu livrările... (adaugă mai mult conținut aici pentru
+          a testa scroll-ul)
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie 4{' '}
+          Aici va fi lista cu livrările... (adaugă mai mult conținut aici pentru
+          a testa scroll-ul)
+          <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie
+          4{' '}
+        </div>
+      </div>
+
+      {/* --- COLOANA 2 (Comenzi) --- */}
+      <div className='flex' style={{ height: 'calc(100vh - 180px)' }}>
+        <div className='overflow-y-auto  p-4 rounded-lg shadow-sm border'>
+          <h1 className='text-3xl font-bold mb-6'>Comenzi</h1>
+          <p className='text-sm'>
+            Aici va fi lista cu livrările... (adaugă mai mult conținut aici
+            pentru a testa scroll-ul)
+            <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie
+            4{' '}
+          </p>{' '}
+          <p className='text-sm'>
+            Aici va fi lista cu livrările... (adaugă mai mult conținut aici
+            pentru a testa scroll-ul)
+            <br /> <br /> Linie 1 <br /> Linie 2 <br /> Linie 3 <br /> Linie
+            4{' '}
+          </p>
+        </div>
+      </div>
+      {/* --- COLOANA 3 (Notificări) --- */}
+      <div className='flex flex-col space-y-4  h-full'>
+        <div className='flex-grow p-4 rounded-lg shadow-sm border'>
+          <h2 className='font-semibold text-lg'>Notificări</h2>
+          <p className='text-sm mt-2'>
+            Aici vor fi diverse notificări sau alerte.
+          </p>
+        </div>
+        <div className='flex-grow p-4 rounded-lg shadow-sm border'>
+          <h2 className='font-semibold text-lg'>Solduri clienti</h2>
+          <p className='text-sm mt-2'>
+            Aici vor fi butoane pentru acțiuni rapide.
+          </p>
+        </div>
+        <div className='flex-grow p-4 rounded-lg shadow-sm border'>
+          <h2 className='font-semibold text-lg'>Clienti Blocati Livrari</h2>
+          <p className='text-sm mt-2'>
+            Aici vor fi butoane pentru acțiuni rapide.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
