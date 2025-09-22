@@ -3,15 +3,10 @@ import { z } from 'zod'
 export const ASSIGNMENT_STATUSES = ['Activ', 'Inactiv'] as const
 
 const BaseAssignmentSchema = z.object({
+  name: z.string().min(3, 'Numele ansamblului este obligatoriu.'),
   driverId: z.string().min(1, 'Trebuie să selectezi un șofer.'),
   vehicleId: z.string().min(1, 'Trebuie să selectezi un vehicul.'),
-  trailerId: z.string().optional(), 
-
-  startDate: z.coerce.date({
-    required_error: 'Data de început este obligatorie.',
-  }),
-  endDate: z.coerce.date().optional(),
-
+  trailerId: z.string().optional(),
   status: z.enum(ASSIGNMENT_STATUSES).default('Activ'),
   notes: z.string().optional(),
 })

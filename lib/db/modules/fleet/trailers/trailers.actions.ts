@@ -6,6 +6,7 @@ import { TrailerCreateSchema, TrailerUpdateSchema } from './validator'
 import type { ITrailerDoc, ITrailerInput } from './types'
 import { logAudit } from '../../audit-logs/audit.actions'
 import TrailerModel from './trailers.model'
+import AssignmentModel from '../assignments/assignments.model'
 
 const REVALIDATE_PATH = '/admin/fleet'
 
@@ -85,4 +86,17 @@ export async function getAllTrailers() {
   await connectToDatabase()
   const docs = await TrailerModel.find().sort({ name: 1 }).lean()
   return JSON.parse(JSON.stringify(docs)) as ITrailerDoc[]
+}
+
+export async function getAvailableTrailers() {
+  await connectToDatabase()
+  const assignedTrailerIds = (
+    await AssignmentModel.find({ status: 'Activ' }).select('trailerId')
+  ).map((a) => a.trailerId)
+  const availableTrailers = await TrailerModel.find({
+    _id: { $nin: assignedTrailerIds },
+  })
+    .sort({ name: 1 })
+    .lean()
+  return JSON.parse(JSON.stringify(availableTrailers)) as ITrailerDoc[]
 }

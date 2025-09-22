@@ -4,6 +4,7 @@ import { IVehicleDoc, IVehicleInput } from './types'
 import { connectToDatabase } from '@/lib/db'
 import { logAudit } from '../../audit-logs/audit.actions'
 import { revalidatePath } from 'next/cache'
+import AssignmentModel from '../assignments/assignments.model'
 
 const REVALIDATE_PATH = '/admin/fleet'
 
@@ -92,4 +93,17 @@ export async function getAllVehicles() {
 export async function listVehicles() {
   const docs = await VehicleModel.find().lean<IVehicleDoc[]>()
   return docs
+}
+
+export async function getAvailableVehicles() {
+  await connectToDatabase()
+  const assignedVehicleIds = (
+    await AssignmentModel.find({ status: 'Activ' }).select('vehicleId')
+  ).map((a) => a.vehicleId)
+  const availableVehicles = await VehicleModel.find({
+    _id: { $nin: assignedVehicleIds },
+  })
+    .sort({ name: 1 })
+    .lean()
+  return JSON.parse(JSON.stringify(availableVehicles)) as IVehicleDoc[]
 }

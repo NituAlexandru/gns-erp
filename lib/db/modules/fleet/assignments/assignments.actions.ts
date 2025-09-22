@@ -2,12 +2,24 @@
 
 import { connectToDatabase } from '@/lib/db'
 import { revalidatePath } from 'next/cache'
-import { AssignmentCreateSchema, AssignmentUpdateSchema } from './validator'
+import {
+  AssignmentCreateSchema,
+  AssignmentUpdateSchema,
+  ASSIGNMENT_STATUSES,
+} from './validator'
+
 import type { IAssignmentDoc, IAssignmentInput } from './types'
 import { logAudit } from '../../audit-logs/audit.actions'
 import AssignmentModel from './assignments.model'
 
-const REVALIDATE_PATH = '/admin/fleet'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import DriverModel from '../drivers/drivers.model'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import VehicleModel from '../vehicle/vehicle.model'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import TrailerModel from '../trailers/trailers.model'
+
+const REVALIDATE_PATH = '/admin/management/fleet/assignments'
 
 export async function createAssignment(
   data: IAssignmentInput,
@@ -25,7 +37,7 @@ export async function createAssignment(
     after: newAssignment,
   })
 
-  return { success: true, message: 'Asignare creată cu succes.' }
+  return { success: true, message: 'Ansamblu creat cu succes.' }
 }
 
 export async function updateAssignment(
@@ -37,7 +49,7 @@ export async function updateAssignment(
   await connectToDatabase()
 
   const before = await AssignmentModel.findById(payload._id).lean()
-  if (!before) throw new Error('Asignarea nu a fost găsită.')
+  if (!before) throw new Error('Ansamblul nu a fost găsit.')
 
   const updateData = {
     ...payload,
@@ -57,37 +69,77 @@ export async function updateAssignment(
     after: updatedAssignment,
   })
 
-  return { success: true, message: 'Asignare actualizată cu succes.' }
+  return { success: true, message: 'Ansamblu actualizat cu succes.' }
 }
 
 export async function deleteAssignment(id: string, userId: string) {
   await connectToDatabase()
 
   const before = await AssignmentModel.findById(id).lean()
-  if (!before) throw new Error('Asignarea nu a fost găsită.')
+  if (!before) throw new Error('Ansamblul nu a fost găsit.')
 
   await AssignmentModel.findByIdAndDelete(id)
   revalidatePath(REVALIDATE_PATH)
 
   await logAudit('Assignment', id, 'delete', userId, { before })
 
-  return { success: true, message: 'Asignare ștearsă cu succes.' }
+  return { success: true, message: 'Ansamblu șters cu succes.' }
 }
 
 export async function getAssignmentById(id: string): Promise<IAssignmentDoc> {
   await connectToDatabase()
-  const doc = await AssignmentModel.findById(id).lean()
-  if (!doc) throw new Error('Asignare inexistentă')
+  const doc = await AssignmentModel.findById(id)
+    .populate('driverId')
+    .populate('vehicleId')
+    .populate('trailerId')
+    .lean()
+  if (!doc) throw new Error('Ansamblu inexistent')
   return JSON.parse(JSON.stringify(doc)) as IAssignmentDoc
 }
 
 export async function getAllAssignments() {
   await connectToDatabase()
   const docs = await AssignmentModel.find()
-    .populate('driverId', 'name')
-    .populate('vehicleId', 'name carNumber')
-    .populate('trailerId', 'name licensePlate')
-    .sort({ createdAt: -1 })
+
+    .populate('driverId')
+    .populate('vehicleId')
+    .populate('trailerId')
+    .sort({ name: 1 })
     .lean()
   return JSON.parse(JSON.stringify(docs)) as IAssignmentDoc[]
+}
+
+export async function updateAssignmentStatus(
+  assignmentId: string,
+  newStatus: (typeof ASSIGNMENT_STATUSES)[number],
+  userId: string,
+  userName: string
+) {
+  await connectToDatabase()
+
+  if (!ASSIGNMENT_STATUSES.includes(newStatus)) {
+    throw new Error('Status invalid.')
+  }
+
+  const before = await AssignmentModel.findById(assignmentId).lean()
+  if (!before) throw new Error('Ansamblul nu a fost găsit.')
+
+  const updateData = {
+    status: newStatus,
+    updatedBy: { userId, name: userName },
+  }
+
+  const after = await AssignmentModel.findByIdAndUpdate(
+    assignmentId,
+    updateData,
+    { new: true }
+  ).lean()
+
+  revalidatePath(REVALIDATE_PATH)
+  await logAudit('Assignment', assignmentId, 'update', userId, {
+    before,
+    after,
+  })
+
+  return { success: true, message: 'Status actualizat cu succes.' }
 }

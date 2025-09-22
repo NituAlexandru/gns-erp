@@ -10,6 +10,7 @@ import {
   DriverCreateSchema,
   DriverUpdateSchema,
 } from './validator'
+import AssignmentModel from '../assignments/assignments.model'
 
 const REVALIDATE_PATH = '/admin/fleet'
 
@@ -120,4 +121,19 @@ export async function updateDriverStatus(
   await logAudit('Driver', driverId, 'update', userId, { before, after })
 
   return { success: true, message: 'Status actualizat cu succes.' }
+}
+
+export async function getAvailableDrivers() {
+  await connectToDatabase()
+  // 1. Găsim ID-urile tuturor șoferilor care sunt într-o asignare activă
+  const assignedDriverIds = (
+    await AssignmentModel.find({ status: 'Activ' }).select('driverId')
+  ).map((a) => a.driverId)
+  // 2. Găsim toți șoferii al căror ID nu este în lista de mai sus
+  const availableDrivers = await DriverModel.find({
+    _id: { $nin: assignedDriverIds },
+  })
+    .sort({ name: 1 })
+    .lean()
+  return JSON.parse(JSON.stringify(availableDrivers)) as IDriverDoc[]
 }
