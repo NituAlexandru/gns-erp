@@ -1,47 +1,18 @@
 import React from 'react'
-import { notFound, redirect } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
-import { auth } from '@/auth'
-import { chunkString, toSlug } from '@/lib/utils'
+import { chunkString } from '@/lib/utils'
 import SeparatorWithOr from '@/components/shared/separator-or'
 import { Barcode } from '@/components/barcode/barcode-image'
-import { getSupplierById } from '@/lib/db/modules/suppliers/supplier.actions'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
+import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 
-export default async function SupplierView({
-  params,
-}: {
-  params: Promise<{ id: string; slug: string }>
-}) {
-  await auth()
+interface SupplierDetailsProps {
+  supplier: ISupplierDoc
+}
 
-  const { id, slug } = await params
-  const supplier = await getSupplierById(id)
-
-  if (!supplier) {
-    notFound()
-  }
-
-  const canonical = toSlug(supplier.name)
-  if (slug !== canonical) {
-    return redirect(`/admin/management/suppliers/${id}/${canonical}`)
-  }
-
+export function SupplierDetails({ supplier }: SupplierDetailsProps) {
   return (
     <div>
       <div className='flex items-center justify-between gap-4 mr-20 px-6'>
-        <div className='flex items-center gap-4 mb-5'>
-          <Button asChild variant='outline'>
-            <Link href='/admin/management/suppliers'>
-              <ChevronLeft /> Înapoi
-            </Link>
-          </Button>
-          <h1 className='text-2xl font-bold'>
-            Detalii furnizor {supplier.name}
-          </h1>
-        </div>
         <div className='my-2'>
           <Barcode
             text={supplier.fiscalCode || ''}
