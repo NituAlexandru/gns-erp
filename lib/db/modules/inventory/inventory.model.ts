@@ -8,11 +8,16 @@ export interface IInventoryBatch {
 }
 
 export interface IInventoryItemDoc extends Document {
-  stockableItem: Types.ObjectId // ID-ul documentului (poate fi Product sau Packaging)
-  stockableItemType: 'ERPProduct' | 'Packaging' // Numele modelului de referință
+  stockableItem: Types.ObjectId 
+  stockableItemType: 'ERPProduct' | 'Packaging' 
   location: string
   batches: IInventoryBatch[]
   quantityReserved: number
+  totalStock: number
+  averageCost: number
+  maxPurchasePrice: number
+  minPurchasePrice: number
+  lastPurchasePrice: number
   createdAt: Date
   updatedAt: Date
 }
@@ -36,7 +41,7 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
     stockableItemType: {
       type: String,
       required: true,
-      enum: ['ERPProduct', 'Packaging'], // Modelele pe care le permitem
+      enum: ['ERPProduct', 'Packaging'], 
     },
     stockableItem: {
       type: Schema.Types.ObjectId,
@@ -46,6 +51,11 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
     location: { type: String, required: true, index: true },
     batches: [InventoryBatchSchema],
     quantityReserved: { type: Number, required: true, default: 0 },
+    totalStock: { type: Number, required: true, default: 0 },
+    averageCost: { type: Number, required: true, default: 0 },
+    maxPurchasePrice: { type: Number, required: true, default: 0 },
+    minPurchasePrice: { type: Number, required: true, default: 0 },
+    lastPurchasePrice: { type: Number, required: true, default: 0 },
   },
   { timestamps: true }
 )

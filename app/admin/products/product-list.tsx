@@ -3,32 +3,20 @@
 import React, { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
 import {
   Table,
   TableHeader,
   TableRow,
   TableHead,
   TableBody,
-  TableCell,
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { formatCurrency, toSlug } from '@/lib/utils'
-import {
-  AdminProductDoc,
-  AdminProductSearchResult,
-} from '@/lib/db/modules/product/types'
+import { AdminProductSearchResult } from '@/lib/db/modules/product/types'
 import { updateProductMarkup } from '@/lib/db/modules/product/product.actions'
 import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
 import { toast } from 'sonner'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -39,17 +27,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
-
-export type CatalogShape = {
-  _id: string
-  productCode: string
-  name: string
-  averagePurchasePrice: number
-  defaultMarkups: AdminProductDoc['defaultMarkups']
-  image: string
-  barCode: string
-  isPublished: boolean
-}
+import { ProductRow } from './product-row'
+import { IAdminCatalogItem } from '@/lib/db/modules/catalog/types'
 
 type RowState = {
   direct: number
@@ -57,8 +36,6 @@ type RowState = {
   smallBiz: number
   retail: number
 }
-
-type DisplayItem = AdminProductDoc | CatalogShape | AdminProductSearchResult
 
 export default function AdminProductsList({
   products,
@@ -68,7 +45,7 @@ export default function AdminProductsList({
   from,
   to,
 }: {
-  products: DisplayItem[]
+  products: IAdminCatalogItem[]
   currentPage: number
   totalPages: number
   totalProducts: number
@@ -76,21 +53,25 @@ export default function AdminProductsList({
   to: number
 }) {
   const [page, setPage] = useState(currentPage)
-  const [items, setItems] = useState<DisplayItem[]>(products)
+  const [items, setItems] = useState<IAdminCatalogItem[]>(products)
   const [query, setQuery] = useState('')
-  const [searchResults, setSearchResults] = useState<DisplayItem[] | null>(null)
+  const [searchResults, setSearchResults] = useState<
+    IAdminCatalogItem[] | null
+  >(null)
   const [rows, setRows] = useState<Record<string, RowState>>({})
   const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
   const [, startTransition] = useTransition()
   const router = useRouter()
   const [deactivateOpen, setDeactivateOpen] = useState(false)
-  const [deactivateTarget, setDeactivateTarget] = useState<DisplayItem | null>(
+  const [deactivateTarget, setDeactivateTarget] =
+    useState<IAdminCatalogItem | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<IAdminCatalogItem | null>(
     null
   )
-  const [deleteOpen, setDeleteOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<DisplayItem | null>(null)
   const [activateOpen, setActivateOpen] = useState(false)
-  const [activateTarget, setActivateTarget] = useState<DisplayItem | null>(null)
+  const [activateTarget, setActivateTarget] =
+    useState<IAdminCatalogItem | null>(null)
   const [scanning, setScanning] = useState(false)
 
   async function handleActivateConfirm() {
@@ -194,12 +175,9 @@ export default function AdminProductsList({
     return () => clearTimeout(t)
   }, [query])
 
-  //  total pages based on search vs server
   const totalPagesDisplay = searchResults
     ? Math.ceil(searchResults.length / ADMIN_PRODUCT_PAGE_SIZE)
     : totalPages
-
-  //  only slice when it's the un-paged searchResults
   const displayList = searchResults
     ? searchResults.slice(
         (page - 1) * ADMIN_PRODUCT_PAGE_SIZE,
@@ -257,9 +235,9 @@ export default function AdminProductsList({
       })
       setItems((prev) =>
         prev.map((item) =>
-          (item as AdminProductDoc)._id === id
+          item._id === id
             ? {
-                ...(item as AdminProductDoc),
+                ...item,
                 defaultMarkups: {
                   markupDirectDeliveryPrice: row.direct,
                   markupFullTruckPrice: row.fullTruck,
@@ -270,15 +248,6 @@ export default function AdminProductsList({
             : item
         )
       )
-      setRows((prev) => ({
-        ...prev,
-        [id]: {
-          direct: row.direct,
-          fullTruck: row.fullTruck,
-          smallBiz: row.smallBiz,
-          retail: row.retail,
-        },
-      }))
     } else {
       toast.error('Eroare la salvare: ' + res.message)
     }
@@ -353,6 +322,8 @@ export default function AdminProductsList({
             <TableHead>Imagine</TableHead>
             <TableHead>Produs</TableHead>
             <TableHead>Preț Intrare</TableHead>
+            <TableHead>UM</TableHead>
+            <TableHead>Stoc</TableHead>
             <TableHead>
               Adaos Livrare <br />
               Directă (%)
@@ -386,208 +357,28 @@ export default function AdminProductsList({
               PF
             </TableHead>
             <TableHead>Status</TableHead>
-            <TableHead>Cod Bare</TableHead>
             <TableHead colSpan={2} className='text-center'>
               Acțiuni
             </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {displayList.map((item) => {
-            const prod = item as AdminProductDoc
-            const fallback: RowState = {
-              direct: prod.defaultMarkups?.markupDirectDeliveryPrice ?? 0,
-              fullTruck: prod.defaultMarkups?.markupFullTruckPrice ?? 0,
-              smallBiz:
-                prod.defaultMarkups?.markupSmallDeliveryBusinessPrice ?? 0,
-              retail: prod.defaultMarkups?.markupRetailPrice ?? 0,
-            }
-            const rowVals = rows[prod._id] ?? fallback
-            const base = prod.averagePurchasePrice ?? 0
-
-            const directPrice = base * (1 + rowVals.direct / 100)
-            const fullTruckPrice = base * (1 + rowVals.fullTruck / 100)
-            const smallBizPrice = base * (1 + rowVals.smallBiz / 100)
-            const retailPrice = base * (1 + rowVals.retail / 100)
-
-            return (
-              <TableRow key={prod._id} className='hover:bg-muted/50'>
-                <TableCell>{prod.productCode}</TableCell>
-                <TableCell className='p-0 h-10 w-12'>
-                  {prod.image ? (
-                    <Image
-                      src={prod.image}
-                      alt={prod.name}
-                      priority
-                      width={45}
-                      height={45}
-                      style={{ width: '45px', height: '45px' }}
-                      className='ml-3 object-contain'
-                    />
-                  ) : (
-                    '-'
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Link
-                    href={`/catalog-produse/${prod._id}/${toSlug(prod.name)}`}
-                  >
-                    {prod.name}
-                  </Link>
-                </TableCell>
-                <TableCell>{formatCurrency(base)}</TableCell>
-
-                <TableCell className='text-right'>
-                  <Input
-                    type='number'
-                    value={String(rowVals.direct)}
-                    onChange={(e) =>
-                      onMarkupChange(
-                        prod._id,
-                        'direct',
-                        Number(e.target.value),
-                        fallback
-                      )
-                    }
-                    className='w-20'
-                  />
-                </TableCell>
-                <TableCell>{formatCurrency(directPrice)}</TableCell>
-
-                <TableCell className='text-right'>
-                  <Input
-                    type='number'
-                    value={String(rowVals.fullTruck)}
-                    onChange={(e) =>
-                      onMarkupChange(
-                        prod._id,
-                        'fullTruck',
-                        Number(e.target.value),
-                        fallback
-                      )
-                    }
-                    className='w-20'
-                  />
-                </TableCell>
-                <TableCell>{formatCurrency(fullTruckPrice)}</TableCell>
-
-                <TableCell className='text-right'>
-                  <Input
-                    type='number'
-                    value={String(rowVals.smallBiz)}
-                    onChange={(e) =>
-                      onMarkupChange(
-                        prod._id,
-                        'smallBiz',
-                        Number(e.target.value),
-                        fallback
-                      )
-                    }
-                    className='w-20'
-                  />
-                </TableCell>
-                <TableCell>{formatCurrency(smallBizPrice)}</TableCell>
-
-                <TableCell className='text-right'>
-                  <Input
-                    type='number'
-                    value={String(rowVals.retail)}
-                    onChange={(e) =>
-                      onMarkupChange(
-                        prod._id,
-                        'retail',
-                        Number(e.target.value),
-                        fallback
-                      )
-                    }
-                    className='w-20'
-                  />
-                </TableCell>
-                <TableCell>{formatCurrency(retailPrice)}</TableCell>
-                <TableCell>
-                  {prod.isPublished ? (
-                    <span className='text-green-500'>Activ</span>
-                  ) : (
-                    <span className='text-red-500'>Inactiv</span>
-                  )}
-                </TableCell>
-                <TableCell>{prod.barCode || '-'}</TableCell>
-                <TableCell>
-                  <Button
-                    size='sm'
-                    variant={dirtyRows[prod._id] ? 'default' : 'outline'}
-                    onClick={() => onUpdate(prod._id)}
-                  >
-                    Salvează
-                  </Button>
-                </TableCell>
-                {/* Acțiuni cell */}
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant='outline' size='sm'>
-                        Acțiuni
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align='end'>
-                      {/* Vizualizează */}
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          router.push(
-                            `/catalog-produse/${prod._id}/${toSlug(prod.name)}`
-                          )
-                        }
-                      >
-                        Vizualizează
-                      </DropdownMenuItem>
-
-                      {/* Editează */}
-                      <DropdownMenuItem
-                        onSelect={() =>
-                          router.push(
-                            `/admin/management/products/${prod._id}/edit`
-                          )
-                        }
-                      >
-                        Editează
-                      </DropdownMenuItem>
-
-                      {/* Activează / Dezactivează */}
-                      {prod.isPublished ? (
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setDeactivateTarget(prod)
-                            setDeactivateOpen(true)
-                          }}
-                        >
-                          Dezactivează
-                        </DropdownMenuItem>
-                      ) : (
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            setActivateTarget(prod)
-                            setActivateOpen(true)
-                          }}
-                        >
-                          Activează
-                        </DropdownMenuItem>
-                      )}
-
-                      {/* Șterge definitiv */}
-                      <DropdownMenuItem
-                        onSelect={() => {
-                          setDeleteTarget(prod)
-                          setDeleteOpen(true)
-                        }}
-                      >
-                        Șterge definitiv
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            )
-          })}
+          {displayList.map((item) => (
+            <ProductRow
+              key={item._id}
+              item={item}
+              onMarkupChange={onMarkupChange}
+              onUpdate={onUpdate}
+              dirtyRows={dirtyRows}
+              rows={rows}
+              setDeactivateTarget={setDeactivateTarget}
+              setDeactivateOpen={setDeactivateOpen}
+              setActivateTarget={setActivateTarget}
+              setActivateOpen={setActivateOpen}
+              setDeleteTarget={setDeleteTarget}
+              setDeleteOpen={setDeleteOpen}
+            />
+          ))}
         </TableBody>
       </Table>
 
@@ -617,7 +408,7 @@ export default function AdminProductsList({
               <AlertDialogTitle>Confirmare Dezactivare</AlertDialogTitle>
               <AlertDialogDescription>
                 Produsul “<strong>{deactivateTarget.name}</strong>” va fi ascuns
-                clienților. Sigur dorești să continui?
+                agenților. Sigur dorești să continui?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

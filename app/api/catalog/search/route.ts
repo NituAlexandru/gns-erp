@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/db'
 import ProductModel from '@/lib/db/modules/product/product.model'
 import PackagingModel from '@/lib/db/modules/packaging-products/packaging.model'
-import type { ICatalogItem } from '@/lib/db/modules/catalog/catalog.actions'
+import type { ICatalogItem } from '@/lib/db/modules/catalog/types'
 import { escapeRegex } from '@/lib/db/modules/product/utils'
 
 export async function GET(request: NextRequest) {
@@ -16,8 +16,136 @@ export async function GET(request: NextRequest) {
 
   await connectToDatabase()
 
-  // 1) ERP products
-  const products = await ProductModel.aggregate([
+  // --- Pipeline-ul de bază pentru a adăuga datele de inventar ---
+  const addInventoryAndUMPipeline = [
+    {
+      $lookup: {
+        from: 'inventoryitems',
+        localField: '_id',
+        foreignField: 'stockableItem',
+        as: 'inventoryDocs',
+      },
+    },
+    {
+      $addFields: {
+        totalStock: { $ifNull: [{ $sum: '$inventoryDocs.totalStock' }, 0] },
+        purchasePrice: {
+          $ifNull: [{ $max: '$inventoryDocs.maxPurchasePrice' }, 0],
+        },
+        packagingOptions: {
+          $concatArrays: [
+            {
+              $cond: {
+                if: {
+                  $and: [
+                    '$packagingUnit',
+                    '$packagingQuantity',
+                    { $gt: ['$packagingQuantity', 0] },
+                  ],
+                },
+                then: [
+                  {
+                    unitName: '$packagingUnit',
+                    baseUnitEquivalent: '$packagingQuantity',
+                  },
+                ],
+                else: [],
+              },
+            },
+            {
+              $cond: {
+                if: { $gt: ['$itemsPerPallet', 0] },
+                then: [
+                  {
+                    unitName: 'Palet',
+                    baseUnitEquivalent: {
+                      $multiply: [
+                        '$itemsPerPallet',
+                        { $ifNull: ['$packagingQuantity', 1] },
+                      ],
+                    },
+                  },
+                ],
+                else: [],
+              },
+            },
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        'defaultMarkups.markupDirectDeliveryPrice': {
+          $ifNull: ['$defaultMarkups.markupDirectDeliveryPrice', 0],
+        },
+        'defaultMarkups.markupFullTruckPrice': {
+          $ifNull: ['$defaultMarkups.markupFullTruckPrice', 0],
+        },
+        'defaultMarkups.markupSmallDeliveryBusinessPrice': {
+          $ifNull: ['$defaultMarkups.markupSmallDeliveryBusinessPrice', 0],
+        },
+        'defaultMarkups.markupRetailPrice': {
+          $ifNull: ['$defaultMarkups.markupRetailPrice', 0],
+        },
+      },
+    },
+    {
+      $addFields: {
+        directDeliveryPrice: {
+          $multiply: [
+            '$purchasePrice',
+            {
+              $add: [
+                1,
+                { $divide: ['$defaultMarkups.markupDirectDeliveryPrice', 100] },
+              ],
+            },
+          ],
+        },
+        fullTruckPrice: {
+          $multiply: [
+            '$purchasePrice',
+            {
+              $add: [
+                1,
+                { $divide: ['$defaultMarkups.markupFullTruckPrice', 100] },
+              ],
+            },
+          ],
+        },
+        smallDeliveryBusinessPrice: {
+          $multiply: [
+            '$purchasePrice',
+            {
+              $add: [
+                1,
+                {
+                  $divide: [
+                    '$defaultMarkups.markupSmallDeliveryBusinessPrice',
+                    100,
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        retailPrice: {
+          $multiply: [
+            '$purchasePrice',
+            {
+              $add: [
+                1,
+                { $divide: ['$defaultMarkups.markupRetailPrice', 100] },
+              ],
+            },
+          ],
+        },
+      },
+    },
+  ]
+
+  // --- Pipeline-ul pentru Produse ---
+  const productQuery = [
     {
       $match: {
         isPublished: true,
@@ -37,6 +165,7 @@ export async function GET(request: NextRequest) {
       },
     },
     { $unwind: { path: '$cat', preserveNullAndEmptyArrays: true } },
+    ...addInventoryAndUMPipeline,
     {
       $project: {
         _id: 1,
@@ -44,37 +173,28 @@ export async function GET(request: NextRequest) {
         image: { $arrayElemAt: ['$images', 0] },
         name: 1,
         category: '$cat.name',
-        averagePurchasePrice: {
-          $ifNull: ['$averagePurchasePrice', '$entryPrice', 0],
-        },
-        defaultMarkups: {
-          $ifNull: [
-            '$defaultMarkups',
-            {
-              markupDirectDeliveryPrice: 0,
-              markupFullTruckPrice: 0,
-              markupSmallDeliveryBusinessPrice: 0,
-              markupRetailPrice: 0,
-            },
-          ],
-        },
-        countInStock: 1,
+        directDeliveryPrice: 1,
+        fullTruckPrice: 1,
+        smallDeliveryBusinessPrice: 1,
+        retailPrice: 1,
+        totalStock: 1,
         barCode: 1,
         isPublished: 1,
+        unit: 1,
+        packagingOptions: 1,
       },
     },
-    { $limit: 50 },
-  ])
+    { $limit: 25 },
+  ]
 
-  // 2) packagings
-  const packages = await PackagingModel.aggregate([
+  // --- Pipeline-ul pentru Ambalaje ---
+  const packagingQuery = [
     {
       $match: {
         isPublished: true,
         $or: [
           { name: { $regex: q, $options: 'i' } },
           { productCode: { $regex: q, $options: 'i' } },
-          { barCode: { $regex: q, $options: 'i' } },
         ],
       },
     },
@@ -88,61 +208,41 @@ export async function GET(request: NextRequest) {
     },
     { $unwind: { path: '$cat', preserveNullAndEmptyArrays: true } },
     {
+      $addFields: {
+        unit: '$packagingUnit',
+        packagingUnit: null,
+        packagingQuantity: null,
+        itemsPerPallet: { $ifNull: ['$itemsPerPallet', 0] },
+      },
+    }, // Aliniere de date
+    ...addInventoryAndUMPipeline,
+    {
       $project: {
         _id: 1,
         productCode: 1,
         image: { $arrayElemAt: ['$images', 0] },
         name: 1,
         category: '$cat.name',
-        averagePurchasePrice: {
-          $ifNull: ['$averagePurchasePrice', '$entryPrice', 0],
-        },
-        defaultMarkups: {
-          $ifNull: [
-            '$defaultMarkups',
-            {
-              markupDirectDeliveryPrice: 0,
-              markupFullTruckPrice: 0,
-              markupSmallDeliveryBusinessPrice: 0,
-              markupRetailPrice: 0,
-            },
-          ],
-        },
-        countInStock: 1,
+        directDeliveryPrice: 1,
+        fullTruckPrice: 1,
+        smallDeliveryBusinessPrice: 1,
+        retailPrice: 1,
+        totalStock: 1,
         barCode: 1,
         isPublished: 1,
+        unit: 1,
+        packagingOptions: 1,
       },
     },
-    { $limit: 50 },
-  ])
-
-  // 3) merge into ICatalogItem[]
-  const items: ICatalogItem[] = [
-    ...products.map((p) => ({
-      _id: p._id.toString(),
-      productCode: p.productCode,
-      image: p.image,
-      name: p.name,
-      category: p.category ?? null,
-      averagePurchasePrice: p.averagePurchasePrice,
-      defaultMarkups: p.defaultMarkups,
-      countInStock: p.countInStock,
-      barCode: p.barCode ?? null,
-      isPublished: p.isPublished,
-    })),
-    ...packages.map((p) => ({
-      _id: p._id.toString(),
-      productCode: p.productCode,
-      image: p.image,
-      name: p.name,
-      category: p.category ?? null,
-      averagePurchasePrice: p.averagePurchasePrice,
-      defaultMarkups: p.defaultMarkups,
-      countInStock: p.countInStock,
-      barCode: p.barCode ?? null,
-      isPublished: p.isPublished,
-    })),
+    { $limit: 25 },
   ]
 
-  return NextResponse.json(items, { status: 200 })
+  const [products, packages] = await Promise.all([
+    ProductModel.aggregate(productQuery),
+    PackagingModel.aggregate(packagingQuery),
+  ])
+
+  const items: ICatalogItem[] = [...products, ...packages]
+
+  return NextResponse.json(JSON.parse(JSON.stringify(items)), { status: 200 })
 }

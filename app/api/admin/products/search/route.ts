@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/db'
 import ProductModel from '@/lib/db/modules/product/product.model'
 import PackagingModel from '@/lib/db/modules/packaging-products/packaging.model'
-import type { AdminProductSearchResult } from '@/lib/db/modules/product/types'
 import { escapeRegex } from '@/lib/db/modules/product/utils'
+import { IAdminCatalogItem } from '@/lib/db/modules/catalog/types'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -12,18 +12,71 @@ export async function GET(request: NextRequest) {
   const q = escapeRegex(rawQuery)
 
   if (!q) {
-    return NextResponse.json<AdminProductSearchResult[]>([], { status: 200 })
+    return NextResponse.json([], { status: 200 })
   }
 
   await connectToDatabase()
 
-  // Inițializăm listele ca fiind goale
-  //eslint-disable-next-line
-  let products: any[] = []
-  //eslint-disable-next-line
-  let packages: any[] = []
+  // --- Pipeline-ul de bază pentru a adăuga datele de inventar ---
+  const addInventoryAndPackagingOptionsPipeline = [
+    {
+      $lookup: {
+        from: 'inventoryitems',
+        localField: '_id',
+        foreignField: 'stockableItem',
+        as: 'inventoryDocs',
+      },
+    },
+    {
+      $addFields: {
+        totalStock: { $ifNull: [{ $sum: '$inventoryDocs.totalStock' }, 0] },
+        averagePurchasePrice: {
+          $ifNull: [{ $max: '$inventoryDocs.maxPurchasePrice' }, 0],
+        },
+        packagingOptions: {
+          $concatArrays: [
+            {
+              $cond: {
+                if: {
+                  $and: [
+                    '$packagingUnit',
+                    '$packagingQuantity',
+                    { $gt: ['$packagingQuantity', 0] },
+                  ],
+                },
+                then: [
+                  {
+                    unitName: '$packagingUnit',
+                    baseUnitEquivalent: '$packagingQuantity',
+                  },
+                ],
+                else: [],
+              },
+            },
+            {
+              $cond: {
+                if: { $gt: ['$itemsPerPallet', 0] },
+                then: [
+                  {
+                    unitName: 'Palet',
+                    baseUnitEquivalent: {
+                      $multiply: [
+                        '$itemsPerPallet',
+                        { $ifNull: ['$packagingQuantity', 1] },
+                      ],
+                    },
+                  },
+                ],
+                else: [],
+              },
+            },
+          ],
+        },
+      },
+    },
+  ]
 
-  // Extragem logica de interogare pentru a o refolosi
+  // --- Pipeline-ul pentru Produse ---
   const productQuery = [
     {
       $match: {
@@ -34,75 +87,29 @@ export async function GET(request: NextRequest) {
         ],
       },
     },
-    {
-      $lookup: {
-        from: 'categories',
-        localField: 'category',
-        foreignField: '_id',
-        as: 'cat',
-      },
-    },
-    { $unwind: { path: '$cat', preserveNullAndEmptyArrays: true } },
-    {
-      $project: {
-        _id: 1,
-        name: 1,
-        productCode: 1,
-        averagePurchasePrice: 1,
-        defaultMarkups: 1,
-        image: { $arrayElemAt: ['$images', 0] },
-        category: '$cat.name',
-        barCode: 1,
-        isPublished: 1,
-        unit: 1,
-        packagingUnit: 1,
-        packagingQuantity: 1,
-        itemsPerPallet: 1,
-      },
-    },
+    ...addInventoryAndPackagingOptionsPipeline,
     { $limit: 50 },
   ]
 
+  // --- Pipeline-ul pentru Ambalaje ---
   const packagingQuery = [
     {
       $match: {
         $or: [
           { name: { $regex: q, $options: 'i' } },
           { productCode: { $regex: q, $options: 'i' } },
-          { slug: { $regex: q, $options: 'i' } },
         ],
       },
     },
-    {
-      $lookup: {
-        from: 'categories',
-        localField: 'mainCategory',
-        foreignField: '_id',
-        as: 'cat',
-      },
-    },
-    { $unwind: { path: '$cat', preserveNullAndEmptyArrays: true } },
-    {
-      $project: {
-        _id: 1,
-        name: 1,
-        productCode: 1,
-        averagePurchasePrice: 1,
-        defaultMarkups: 1,
-        image: { $arrayElemAt: ['$images', 0] },
-        category: '$cat.name',
-        barCode: 1,
-        isPublished: 1,
-        unit: 1,
-        packagingUnit: 1,
-        packagingQuantity: 1,
-        itemsPerPallet: 1,
-      },
-    },
+    // Adăugăm câmpul 'unit' pentru consistență
+    { $addFields: { unit: '$packagingUnit' } },
+    ...addInventoryAndPackagingOptionsPipeline,
     { $limit: 50 },
   ]
 
-  // ---  Logica de filtrare ---
+  let products: IAdminCatalogItem[] = []
+  let packages: IAdminCatalogItem[] = []
+
   if (type === 'product') {
     products = await ProductModel.aggregate(productQuery)
   } else if (type === 'packaging') {
@@ -115,54 +122,8 @@ export async function GET(request: NextRequest) {
     products = productResults
     packages = packageResults
   }
-  // --- Sfârșitul logicii de filtrare ---
 
-  const results: AdminProductSearchResult[] = [
-    ...products.map((p) => ({
-      _id: p._id.toString(),
-      name: p.name,
-      unit: p.unit,
-      packagingUnit: p.packagingUnit,
-      packagingQuantity: p.packagingQuantity,
-      itemsPerPallet: p.itemsPerPallet,
-      productCode: p.productCode,
-      averagePurchasePrice: p.averagePurchasePrice ?? 0,
-      defaultMarkups: {
-        markupDirectDeliveryPrice:
-          p.defaultMarkups?.markupDirectDeliveryPrice ?? 0,
-        markupFullTruckPrice: p.defaultMarkups?.markupFullTruckPrice ?? 0,
-        markupSmallDeliveryBusinessPrice:
-          p.defaultMarkups?.markupSmallDeliveryBusinessPrice ?? 0,
-        markupRetailPrice: p.defaultMarkups?.markupRetailPrice ?? 0,
-      },
-      image: p.image ?? null,
-      category: p.category ?? null,
-      barCode: p.barCode ?? null,
-      isPublished: p.isPublished,
-    })),
-    ...packages.map((pkg) => ({
-      _id: pkg._id.toString(),
-      name: pkg.name,
-      unit: pkg.unit,
-      packagingUnit: pkg.packagingUnit,
-      packagingQuantity: pkg.packagingQuantity,
-      itemsPerPallet: pkg.itemsPerPallet,
-      productCode: pkg.productCode,
-      averagePurchasePrice: pkg.averagePurchasePrice ?? 0,
-      defaultMarkups: {
-        markupDirectDeliveryPrice:
-          pkg.defaultMarkups?.markupDirectDeliveryPrice ?? 0,
-        markupFullTruckPrice: pkg.defaultMarkups?.markupFullTruckPrice ?? 0,
-        markupSmallDeliveryBusinessPrice:
-          pkg.defaultMarkups?.markupSmallDeliveryBusinessPrice ?? 0,
-        markupRetailPrice: pkg.defaultMarkups?.markupRetailPrice ?? 0,
-      },
-      image: pkg.image ?? null,
-      category: pkg.category ?? null,
-      barCode: pkg.barCode ?? null,
-      isPublished: pkg.isPublished,
-    })),
-  ]
+  const results: IAdminCatalogItem[] = [...products, ...packages]
 
-  return NextResponse.json<AdminProductSearchResult[]>(results, { status: 200 })
+  return NextResponse.json(JSON.parse(JSON.stringify(results)), { status: 200 })
 }

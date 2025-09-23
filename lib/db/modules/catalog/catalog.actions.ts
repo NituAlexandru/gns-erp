@@ -2,34 +2,29 @@
 
 import { connectToDatabase } from '@/lib/db'
 import ERPProductModel from '../product/product.model'
-import type { PipelineStage } from 'mongoose'
-import { Types } from 'mongoose'
+import type { PipelineStage, Types } from 'mongoose'
 import { PRODUCT_PAGE_SIZE } from '../product/constants'
+import { ICatalogItem, ICatalogPage } from './types'
 
-export interface ICatalogItem {
-  _id: string
+type RawCatalogDoc = {
+  _id: Types.ObjectId
   productCode: string
-  image: string | null
+  images: string[]
   name: string
-  category: string | null
-  averagePurchasePrice: number
-  defaultMarkups: {
-    markupDirectDeliveryPrice: number
-    markupFullTruckPrice: number
-    markupSmallDeliveryBusinessPrice: number
-    markupRetailPrice: number
-  }
-  countInStock: number | null
+  categoryDoc?: { name: string }
+  directDeliveryPrice: number
+  fullTruckPrice: number
+  smallDeliveryBusinessPrice: number
+  retailPrice: number
+  totalStock: number
   barCode: string | null
   isPublished: boolean
-}
-
-export interface ICatalogPage {
-  data: ICatalogItem[]
-  total: number
-  totalPages: number
-  from: number
-  to: number
+  createdAt: Date
+  unit: string
+  packagingOptions: {
+    unitName: string
+    baseUnitEquivalent: number
+  }[]
 }
 
 export async function getCatalogPage({
@@ -44,7 +39,48 @@ export async function getCatalogPage({
 
   const agg: PipelineStage[] = [
     { $match: { isPublished: true } },
-    // 1) Lookup categorie pentru produse
+    {
+      $project: {
+        _id: 1,
+        name: 1,
+        defaultMarkups: 1,
+        images: 1,
+        category: 1,
+        barCode: 1,
+        productCode: 1,
+        createdAt: 1,
+        isPublished: 1,
+        unit: 1,
+        packagingUnit: 1,
+        packagingQuantity: 1,
+        itemsPerPallet: 1,
+      },
+    },
+    {
+      $unionWith: {
+        coll: 'packagings',
+        pipeline: [
+          { $match: { isPublished: true } },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              defaultMarkups: 1,
+              images: 1,
+              category: '$mainCategory',
+              barCode: '$productCode',
+              productCode: 1,
+              createdAt: 1,
+              isPublished: 1,
+              unit: '$packagingUnit',
+              packagingUnit: null,
+              packagingQuantity: null,
+              itemsPerPallet: { $ifNull: ['$itemsPerPallet', 0] },
+            },
+          },
+        ],
+      },
+    },
     {
       $lookup: {
         from: 'categories',
@@ -54,82 +90,130 @@ export async function getCatalogPage({
       },
     },
     { $unwind: { path: '$categoryDoc', preserveNullAndEmptyArrays: true } },
-
-    // 2) Proiectăm produsul
     {
-      $project: {
-        _id: 1,
-        productCode: 1,
-        image: { $arrayElemAt: ['$images', 0] },
-        name: 1,
-        category: '$categoryDoc.name',
-        averagePurchasePrice: { $ifNull: ['$averagePurchasePrice', 0] },
-        defaultMarkups: {
-          $ifNull: [
-            '$defaultMarkups',
+      $lookup: {
+        from: 'inventoryitems',
+        localField: '_id',
+        foreignField: 'stockableItem',
+        as: 'inventoryDocs',
+      },
+    },
+    {
+      $addFields: {
+        totalStock: { $ifNull: [{ $sum: '$inventoryDocs.totalStock' }, 0] },
+        purchasePrice: {
+          $ifNull: [{ $max: '$inventoryDocs.maxPurchasePrice' }, 0],
+        },
+        packagingOptions: {
+          $concatArrays: [
             {
-              markupDirectDeliveryPrice: 0,
-              markupFullTruckPrice: 0,
-              markupSmallDeliveryBusinessPrice: 0,
-              markupRetailPrice: 0,
+              $cond: {
+                if: {
+                  $and: [
+                    '$packagingUnit',
+                    '$packagingQuantity',
+                    { $gt: ['$packagingQuantity', 0] },
+                  ],
+                },
+                then: [
+                  {
+                    unitName: '$packagingUnit',
+                    baseUnitEquivalent: '$packagingQuantity',
+                  },
+                ],
+                else: [],
+              },
+            },
+            {
+              $cond: {
+                if: { $gt: ['$itemsPerPallet', 0] },
+                then: [
+                  {
+                    unitName: 'Palet',
+                    baseUnitEquivalent: {
+                      $multiply: [
+                        '$itemsPerPallet',
+                        { $ifNull: ['$packagingQuantity', 1] },
+                      ],
+                    },
+                  },
+                ],
+                else: [],
+              },
             },
           ],
         },
-        countInStock: 1,
-        barCode: 1,
-        createdAt: 1,
       },
     },
-
-    // 3) UnionWith ambalaje (cu lookup pentru mainCategory)
     {
-      $unionWith: {
-        coll: 'packagings',
-        pipeline: [
-          {
-            $lookup: {
-              from: 'categories',
-              localField: 'mainCategory',
-              foreignField: '_id',
-              as: 'categoryDoc',
-            },
-          },
-          {
-            $unwind: { path: '$categoryDoc', preserveNullAndEmptyArrays: true },
-          },
-          {
-            $project: {
-              _id: 1,
-              productCode: 1,
-              image: { $arrayElemAt: ['$images', 0] },
-              name: 1,
-              category: '$categoryDoc.name',
-
-              averagePurchasePrice: {
-                $ifNull: ['$averagePurchasePrice', 0],
-              },
-              defaultMarkups: {
-                $ifNull: [
-                  '$defaultMarkups',
-                  {
-                    markupDirectDeliveryPrice: 0,
-                    markupFullTruckPrice: 0,
-                    markupSmallDeliveryBusinessPrice: 0,
-                    markupRetailPrice: 0,
-                  },
-                ],
-              },
-
-              countInStock: '$countInStock',
-              barCode: 1,
-              createdAt: 1,
-            },
-          },
-        ],
+      $addFields: {
+        'defaultMarkups.markupDirectDeliveryPrice': {
+          $ifNull: ['$defaultMarkups.markupDirectDeliveryPrice', 0],
+        },
+        'defaultMarkups.markupFullTruckPrice': {
+          $ifNull: ['$defaultMarkups.markupFullTruckPrice', 0],
+        },
+        'defaultMarkups.markupSmallDeliveryBusinessPrice': {
+          $ifNull: ['$defaultMarkups.markupSmallDeliveryBusinessPrice', 0],
+        },
+        'defaultMarkups.markupRetailPrice': {
+          $ifNull: ['$defaultMarkups.markupRetailPrice', 0],
+        },
       },
     },
-
-    // 4) Sortare + facet pentru paginare
+    {
+      $addFields: {
+        directDeliveryPrice: {
+          $multiply: [
+            '$purchasePrice',
+            {
+              $add: [
+                1,
+                { $divide: ['$defaultMarkups.markupDirectDeliveryPrice', 100] },
+              ],
+            },
+          ],
+        },
+        fullTruckPrice: {
+          $multiply: [
+            '$purchasePrice',
+            {
+              $add: [
+                1,
+                { $divide: ['$defaultMarkups.markupFullTruckPrice', 100] },
+              ],
+            },
+          ],
+        },
+        smallDeliveryBusinessPrice: {
+          $multiply: [
+            '$purchasePrice',
+            {
+              $add: [
+                1,
+                {
+                  $divide: [
+                    '$defaultMarkups.markupSmallDeliveryBusinessPrice',
+                    100,
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        retailPrice: {
+          $multiply: [
+            '$purchasePrice',
+            {
+              $add: [
+                1,
+                { $divide: ['$defaultMarkups.markupRetailPrice', 100] },
+              ],
+            },
+          ],
+        },
+      },
+    },
     { $sort: { createdAt: -1 } },
     {
       $facet: {
@@ -144,36 +228,24 @@ export async function getCatalogPage({
   const [res] = await ERPProductModel.aggregate(agg)
   const total = res?.total ?? 0
 
-  type RawDoc = {
-    _id: Types.ObjectId
-    productCode: string
-    image: string | null
-    name: string
-    category: string | null
-    averagePurchasePrice: number
-    defaultMarkups: {
-      markupDirectDeliveryPrice: number
-      markupFullTruckPrice: number
-      markupSmallDeliveryBusinessPrice: number
-      markupRetailPrice: number
-    }
-    countInStock: number | null
-    barCode: string | null
-    isPublished: boolean
-  }
-  const raw = (res?.data ?? []) as RawDoc[]
+  const rawData = (res?.data ?? []) as RawCatalogDoc[]
 
-  const data: ICatalogItem[] = raw.map((doc) => ({
+  const data: ICatalogItem[] = rawData.map((doc: RawCatalogDoc) => ({
     _id: doc._id.toString(),
     productCode: doc.productCode,
-    image: doc.image,
+    image: doc.images?.[0] ?? null,
     name: doc.name,
-    category: doc.category ?? null,
-    averagePurchasePrice: doc.averagePurchasePrice,
-    defaultMarkups: doc.defaultMarkups,
-    countInStock: doc.countInStock,
-    barCode: doc.barCode,
+    category: doc.categoryDoc?.name ?? null,
+    directDeliveryPrice: doc.directDeliveryPrice ?? 0,
+    fullTruckPrice: doc.fullTruckPrice ?? 0,
+    smallDeliveryBusinessPrice: doc.smallDeliveryBusinessPrice ?? 0,
+    retailPrice: doc.retailPrice ?? 0,
+    totalStock: doc.totalStock ?? 0,
+    barCode: doc.barCode ?? null,
     isPublished: doc.isPublished,
+    // --- AM ADĂUGAT CÂMPURILE LIPSA ȘI AICI ---
+    unit: doc.unit,
+    packagingOptions: doc.packagingOptions,
   }))
 
   return {

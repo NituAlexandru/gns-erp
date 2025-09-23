@@ -41,7 +41,6 @@ export async function recordStockMovement(
   input: StockMovementInput,
   existingSession?: ClientSession
 ) {
-  // Validarea datelor de intrare rămâne la început.
   const payload = StockMovementSchema.parse(input)
 
   const executeLogic = async (session: ClientSession) => {
@@ -115,7 +114,6 @@ export async function recordStockMovement(
           continue
         }
         if (batch.quantity > quantityToDecrease) {
-          // --- AICI ESTE CORECȚIA ---
           // Creăm un obiect nou cu proprietățile copiate manual
           newBatches.push({
             quantity: batch.quantity - quantityToDecrease,
@@ -130,6 +128,8 @@ export async function recordStockMovement(
       }
       inventoryItem.batches = newBatches
     }
+
+    await recalculateInventorySummary(inventoryItem)
 
     await inventoryItem.save({ session })
 
@@ -207,6 +207,7 @@ export async function reverseStockMovementsByReference(
       const removed = inventoryItem.batches.length < initialBatchCount
 
       if (removed) {
+        await recalculateInventorySummary(inventoryItem)
         await inventoryItem.save({ session })
       } else {
         console.warn(
@@ -857,3 +858,50 @@ export async function getProductStockDetails(
     return null
   }
 }
+
+export async function recalculateInventorySummary(item: IInventoryItemDoc) {
+  if (!item) return
+
+  const totalStock = item.batches.reduce(
+    (sum, batch) => sum + batch.quantity,
+    0
+  )
+
+  // Actualizăm întotdeauna stocul total, indiferent de valoare
+  item.totalStock = totalStock
+
+  // Actualizăm prețurile DOAR dacă există stoc.
+  if (totalStock > 0) {
+    let totalValue = 0
+    let maxPrice = 0
+    let minPrice = Infinity
+
+    // Sortăm pentru a găsi corect ultimul preț
+    item.batches.sort((a, b) => a.entryDate.getTime() - b.entryDate.getTime())
+
+    for (const batch of item.batches) {
+      totalValue += batch.quantity * batch.unitCost
+      if (batch.unitCost > maxPrice) maxPrice = batch.unitCost
+      if (batch.unitCost < minPrice) minPrice = batch.unitCost
+    }
+
+    // Setăm noile valori calculate direct pe document
+    item.averageCost = totalValue / totalStock
+    item.maxPurchasePrice = maxPrice
+    item.minPurchasePrice = minPrice === Infinity ? 0 : minPrice
+    item.lastPurchasePrice = item.batches[item.batches.length - 1].unitCost
+  }
+  // Dacă stocul este 0, nu se intră în acest bloc, iar prețurile vechi rămân nemodificate.
+}
+
+// Funcția recalculateInventorySummary: Ar fi bine să adăugăm o sortare a
+//  batches după dată direct în interiorul ei. Asta garantează 100% că
+// lastPurchasePrice este corect, indiferent de unde este apelată funcția.
+// Este o mică îmbunătățire de siguranță.
+
+// Funcțiile getAggregatedStockStatus și getStockByLocation: Aceste două
+// funcții sunt acum ineficiente. Ele încă fac calculul complex ("numără
+// cutiile manual") la fiecare apel. Acum că avem câmpurile de sumar
+// pre-calculate pe InventoryItem, aceste funcții ar trebui simplificate
+// radical pentru a citi direct acele sumare. Asta ar face pagina principală
+// de inventar la fel de rapidă ca cea de produse.

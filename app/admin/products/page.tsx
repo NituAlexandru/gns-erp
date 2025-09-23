@@ -1,11 +1,8 @@
 'use server'
 
-import {
-  getAdminCatalogPage,
-  IAdminCatalogPage,
-} from '@/lib/db/modules/catalog/admin-catalog.actions'
-import AdminProductsList, { CatalogShape } from './product-list'
-import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
+import { getAdminCatalogPage } from '@/lib/db/modules/catalog/admin-catalog.actions'
+import { IAdminCatalogItem } from '@/lib/db/modules/catalog/types'
+import AdminProductsList from './product-list'
 
 export default async function AdminProductsPage({
   searchParams,
@@ -15,25 +12,13 @@ export default async function AdminProductsPage({
   const { page: p } = await searchParams
   const page = Number(p) || 1
 
-  // This returns the union‐of‐products‐and‐packagings paged
-  const { data, total, totalPages, from, to }: IAdminCatalogPage =
-    await getAdminCatalogPage({ page, limit: ADMIN_PRODUCT_PAGE_SIZE })
-
-  // Map *only* into the minimal shape that AdminProductsList expects
-  const products: CatalogShape[] = data.map((i) => ({
-    _id: i._id,
-    productCode: i.productCode,
-    name: i.name,
-    averagePurchasePrice: i.averagePurchasePrice,
-    defaultMarkups: i.defaultMarkups,
-    image: i.image ?? '',
-    barCode: i.barCode ?? '',
-    isPublished: i.isPublished,
-  }))
+  const { data, total, totalPages, from, to } = await getAdminCatalogPage({
+    page,
+  })
 
   return (
     <AdminProductsList
-      products={products}
+      products={data as IAdminCatalogItem[]}
       currentPage={page}
       totalPages={totalPages}
       totalProducts={total}

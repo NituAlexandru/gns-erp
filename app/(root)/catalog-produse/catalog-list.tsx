@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState, useTransition } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import {
   Table,
@@ -9,21 +8,10 @@ import {
   TableRow,
   TableHead,
   TableBody,
-  TableCell,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import type {
-  ICatalogPage,
-  ICatalogItem,
-} from '@/lib/db/modules/catalog/catalog.actions'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@/components/ui/dropdown-menu'
+import type { ICatalogPage, ICatalogItem } from '@/lib/db/modules/catalog/types'
 import Link from 'next/link'
-import { formatCurrency, toSlug } from '@/lib/utils'
 import { PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
 import { Input } from '@/components/ui/input'
 import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
@@ -36,8 +24,9 @@ import {
   AlertDialogFooter,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog'
-import { computeSalePrices } from '@/lib/db/modules/product/utils'
 import { toast } from 'sonner'
+import { toSlug } from '@/lib/utils'
+import { CatalogRow } from './catalog-row'
 
 interface Props {
   initialData: ICatalogPage
@@ -107,7 +96,6 @@ export default function CatalogList({
       )
     : items
 
-  // Page navigation
   const fetchPage = (newPage = 1) => {
     startTransition(() => {
       router.replace(`/catalog-produse?page=${newPage}`)
@@ -117,7 +105,6 @@ export default function CatalogList({
 
   return (
     <div className='p-0 max-w-full'>
-      {/* ————————— HEADER GRID ————————— */}
       <div className='grid mb-4 grid-cols-1 items-center gap-4 lg:grid-cols-4 lg:items-center w-full'>
         <h1 className='text-2xl font-bold'>Catalog Produse</h1>
         <div className='lg:col-span-2 flex items-center space-x-2 justify-center'>
@@ -126,9 +113,9 @@ export default function CatalogList({
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder='Caută după cod, nume sau cod de bare'
             className='w-full lg:w-80 h-10 px-4 text-sm sm:text-base rounded-md border
-                   focus:outline-none focus:ring bg-background hover:bg-accent
-                   hover:text-accent-foreground dark:bg-input/30 dark:border-input
-                   dark:hover:bg-input/50 justify-self-center'
+                      focus:outline-none focus:ring bg-background hover:bg-accent
+                      hover:text-accent-foreground dark:bg-input/30 dark:border-input
+                      dark:hover:bg-input/50 justify-self-center'
           />
           <span className='text-sm text-gray-400'>
             {searchResults
@@ -157,28 +144,28 @@ export default function CatalogList({
         </div>
       </div>
 
-      {/* ————————— SCANNER OVERLAY ————————— */}
       {scanning && (
         <BarcodeScanner
           onDecode={async (code) => {
             setScanning(false)
             try {
-              // 1️⃣ Caută produsul după cod
               const res = await fetch(
                 `/api/catalog/search?q=${encodeURIComponent(code)}`
               )
               if (!res.ok) throw new Error('Produs inexistent')
               const items = (await res.json()) as ICatalogItem[]
-              //  Găsește match după barCode, altfel primul element
               const match = items.find((p) => p.barCode === code) || items[0]
               if (!match) {
                 toast.error(`Produs cu cod „${code}” nu a fost găsit.`)
                 return
               }
               router.push(`/catalog-produse/${match._id}/${toSlug(match.name)}`)
-              //eslint-disable-next-line
-            } catch (err: any) {
-              toast.error(err.message || 'Eroare la căutarea produsului')
+            } catch (err) {
+              const message =
+                err instanceof Error
+                  ? err.message
+                  : 'Eroare la căutarea produsului'
+              toast.error(message)
             }
           }}
           onError={() => setScanning(false)}
@@ -196,137 +183,58 @@ export default function CatalogList({
               <TableHead>Categorie</TableHead>
               <TableHead>
                 Livrare
-                <br /> Directă
+                <br />
+                Directă
               </TableHead>
               <TableHead>
-                <span className='text-center'>
-                  {' '}
-                  Macara / Tir
-                  <br /> Complete
-                </span>
+                Macara / Tir
+                <br />
+                Complete
               </TableHead>
               <TableHead>
-                {' '}
-                <span className='text-center'>
-                  Comenzi <br /> mici PJ
-                </span>
+                Comenzi
+                <br />
+                mici PJ
               </TableHead>
               <TableHead>
-                Retail <br /> PF
+                Retail
+                <br />
+                PF
               </TableHead>
               <TableHead>Stoc</TableHead>
+              <TableHead>UM</TableHead>
               <TableHead>Cod Bare</TableHead>
               <TableHead>Acțiuni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {displayList.map((item: ICatalogItem) => {
-              const sale = computeSalePrices(
-                item.averagePurchasePrice,
-                item.defaultMarkups
-              )
-
-              return (
-                <TableRow key={item._id} className='hover:bg-muted/50'>
-                  <TableCell>{item.productCode || '-'}</TableCell>
-                  <TableCell className='p-0 h-10 w-12'>
-                    {item.image ? (
-                      <Image
-                        src={item.image}
-                        alt={item.name}
-                        priority
-                        width={45}
-                        height={45}
-                        style={{ width: '50px', height: '50px' }}
-                        className='ml-3 object-contain'
-                      />
-                    ) : (
-                      '-'
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {item.name ? (
-                      <Link
-                        href={`/catalog-produse/${item._id}/${toSlug(item.name)}`}
-                        className='hover:underline'
-                      >
-                        {item.name}
-                      </Link>
-                    ) : (
-                      '-'
-                    )}
-                  </TableCell>
-                  <TableCell>{item.category || '-'}</TableCell>
-                  <TableCell>{formatCurrency(sale.directPrice)}</TableCell>
-                  <TableCell>{formatCurrency(sale.fullTruckPrice)}</TableCell>
-                  <TableCell>{formatCurrency(sale.smallBizPrice)}</TableCell>
-                  <TableCell>{formatCurrency(sale.retailPrice)}</TableCell>
-                  <TableCell>
-                    {item.countInStock != null ? item.countInStock : '-'}
-                  </TableCell>
-                  <TableCell>{item.barCode || '-'}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant='outline' size='sm'>
-                          Acțiuni
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align='end'>
-                        <DropdownMenuItem
-                          className='cursor-pointer hover:bg-muted/50'
-                          onSelect={() =>
-                            router.push(
-                              `/catalog-produse/${item._id}/${toSlug(item.name)}`
-                            )
-                          }
-                        >
-                          Vizualizează
-                        </DropdownMenuItem>
-                        {canManageProducts && (
-                          <DropdownMenuItem
-                            onSelect={() =>
-                              router.push(
-                                `/admin/management/products/${item._id}/edit`
-                              )
-                            }
-                          >
-                            Editează
-                          </DropdownMenuItem>
-                        )}
-
-                        {/* doar SUPER_ADMIN_ROLES pot dezactiva/șterge */}
-                        {isAdmin && (
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              setDeleteTarget(item)
-                              setDeleteOpen(true)
-                            }}
-                          >
-                            Șterge Produs
-                          </DropdownMenuItem>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+            {displayList.map((item) => (
+              <CatalogRow
+                key={item._id}
+                item={item}
+                canManageProducts={canManageProducts}
+                isAdmin={isAdmin}
+                setDeleteTarget={setDeleteTarget}
+                setDeleteOpen={setDeleteOpen}
+              />
+            ))}
           </TableBody>
         </Table>
+
         {deleteTarget && (
           <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Confirmare Dezactivare</AlertDialogTitle>
+                <AlertDialogTitle>Confirmare Ștergere</AlertDialogTitle>
                 <AlertDialogDescription>
                   Produsul “<strong>{deleteTarget.name}</strong>” nu va mai fi
-                  vizibil clienților. Sigur dorești să continui?
+                  vizibil. Sigur dorești să continui?
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Renunță</AlertDialogCancel>
                 <Button
+                  variant='destructive'
                   onClick={async () => {
                     const res = await fetch(
                       `/api/catalog/${deleteTarget._id}/publish`,
@@ -337,23 +245,23 @@ export default function CatalogList({
                       }
                     )
                     if (!res.ok) {
-                      alert('Eroare la server')
+                      toast.error('Eroare la server')
                     } else {
                       setItems((prev) =>
                         prev.filter((i) => i._id !== deleteTarget._id)
                       )
+                      toast.success('Produs șters cu succes!')
                       setDeleteOpen(false)
                     }
                   }}
                 >
-                  Dezactivează
+                  Confirmă Ștergerea
                 </Button>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         )}
 
-        {/* Pagination */}
         {totalPagesDisplay > 1 && (
           <div className='flex justify-center items-center gap-2 mt-4'>
             <Button
