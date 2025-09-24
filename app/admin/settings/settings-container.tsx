@@ -6,15 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import React from 'react'
 import SettingNav from './setting-nav'
 import { VatRatesManager } from './vat-rate/vat-rates-manager'
+import { ServiceDTO } from '@/lib/db/modules/setting/services/types'
+import { ServicesManager } from './services/services-manager'
 
 interface SettingsContainerProps {
   initialVatRates: VatRateDTO[]
+  initialServices: ServiceDTO[]
   userId: string
   children: React.ReactNode
 }
 
 export default function SettingsContainer({
   initialVatRates,
+  initialServices,
   userId,
   children,
 }: SettingsContainerProps) {
@@ -50,6 +54,13 @@ export default function SettingsContainer({
               </p>
             </CardContent>
           </Card>
+        )}
+        {activeSection === 'services' && (
+          <ServicesManager
+            initialServices={initialServices}
+            vatRates={initialVatRates}
+            userId={userId}
+          />
         )}
       </main>
     </div>

@@ -14,12 +14,10 @@ import {
 } from './validator'
 import User from '../../user/user.model'
 
-//  Returnează toate cotele de TVA active, sortate după valoare.
+//  Returnează toate cotele de TVA, sortate după valoare.
 export async function getVatRates() {
   try {
-    const rates = await VatRateModel.find({ isActive: true })
-      .sort({ rate: -1 })
-      .lean()
+    const rates = await VatRateModel.find({}).sort({ rate: -1 }).lean()
     return { success: true, data: rates }
   } catch (error) {
     console.error('Eroare la preluarea cotelor TVA:', error)
