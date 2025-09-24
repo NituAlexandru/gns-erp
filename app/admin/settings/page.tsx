@@ -1,5 +1,5 @@
 import { auth } from '@/auth'
-import { getVatRates } from '@/lib/db/modules/vat-rate/vatRate.actions'
+import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 import SettingsContainer from './settings-container'
 import { DefaultVatHistory } from './vat-rate/default-vat-history'
 

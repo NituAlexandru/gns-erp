@@ -22,7 +22,7 @@ import { cn, formatCurrency } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { ReceptionCreateInput } from '@/lib/db/modules/reception/types'
-import { VatRateDTO } from '@/lib/db/modules/vat-rate/types'
+import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import {
   Select,
   SelectContent,

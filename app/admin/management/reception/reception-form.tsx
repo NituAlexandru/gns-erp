@@ -43,7 +43,7 @@ import { toast } from 'sonner'
 import { distributeTransportCost } from '@/lib/db/modules/reception/reception.helpers'
 import { ReceptionDeliveries } from './reception-deliveries'
 import { ReceptionInvoices } from './reception-invoices'
-import { VatRateDTO } from '@/lib/db/modules/vat-rate/types'
+import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { roundToTwoDecimals } from '@/lib/finance/money'
 
 type Project = { _id: string; name: string }

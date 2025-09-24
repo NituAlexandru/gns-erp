@@ -4,7 +4,7 @@ import { auth } from '@/auth'
 import {
   getDefaultVatRate,
   getVatRates,
-} from '@/lib/db/modules/vat-rate/vatRate.actions'
+} from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 
 const EditReceptionPage = async ({
   params,

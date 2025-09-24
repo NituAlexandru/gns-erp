@@ -3,7 +3,7 @@ import { ReceptionForm } from '../reception-form'
 import {
   getDefaultVatRate,
   getVatRates,
-} from '@/lib/db/modules/vat-rate/vatRate.actions'
+} from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 
 export default async function CreateReceptionPage() {
   const session = await auth()

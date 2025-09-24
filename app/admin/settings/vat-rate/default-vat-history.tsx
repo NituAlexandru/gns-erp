@@ -1,4 +1,4 @@
-import { getDefaultVatHistory } from '@/lib/db/modules/vat-rate/vatRate.actions'
+import { getDefaultVatHistory } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table'
 import { format, formatDistanceStrict } from 'date-fns'
 import { ro } from 'date-fns/locale'
-import { PopulatedDefaultVatHistory } from '@/lib/db/modules/vat-rate/types'
+import { PopulatedDefaultVatHistory } from '@/lib/db/modules/setting/vat-rate/types'
 
 export async function DefaultVatHistory() {
   const historyResult = await getDefaultVatHistory()

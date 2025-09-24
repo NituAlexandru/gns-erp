@@ -26,12 +26,12 @@ import {
 import {
   PopulatedDefaultVatHistory,
   VatRateDTO,
-} from '@/lib/db/modules/vat-rate/types'
+} from '@/lib/db/modules/setting/vat-rate/types'
 import {
   createVatRate,
   updateVatRate,
   setDefaultVatRate,
-} from '@/lib/db/modules/vat-rate/vatRate.actions'
+} from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 
 type ServerActionResult = {
   success: boolean

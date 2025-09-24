@@ -12,7 +12,7 @@ import {
   VatRateUpdateSchema,
   SetDefaultVatRateSchema,
 } from './validator'
-import User from '../user/user.model'
+import User from '../../user/user.model'
 
 //  Returnează toate cotele de TVA active, sortate după valoare.
 export async function getVatRates() {

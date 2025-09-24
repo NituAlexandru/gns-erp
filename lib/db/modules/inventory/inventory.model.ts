@@ -13,7 +13,6 @@ export interface IInventoryItemDoc extends Document {
   location: string
   batches: IInventoryBatch[]
   quantityReserved: number
-  minStock: number
   totalStock: number
   averageCost: number
   maxPurchasePrice: number
@@ -52,7 +51,6 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
     location: { type: String, required: true, index: true },
     batches: [InventoryBatchSchema],
     quantityReserved: { type: Number, required: true, default: 0 },
-    minStock: { type: Number, required: true, default: 0 },
     totalStock: { type: Number, required: true, default: 0 },
     averageCost: { type: Number, required: true, default: 0 },
     maxPurchasePrice: { type: Number, required: true, default: 0 },

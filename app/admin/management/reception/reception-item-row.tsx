@@ -22,7 +22,7 @@ import {
 import { cn, formatCurrency } from '@/lib/utils'
 import { ReceptionCreateInput } from '@/lib/db/modules/reception/types'
 import { AutocompleteSearch, type SearchResult } from './autocomplete-search'
-import { VatRateDTO } from '@/lib/db/modules/vat-rate/types'
+import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 
 type ReceptionItemRowProps = {
   form: UseFormReturn<ReceptionCreateInput>

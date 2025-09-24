@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { VatRateDTO } from '@/lib/db/modules/vat-rate/types'
+import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import React from 'react'
 import SettingNav from './setting-nav'
