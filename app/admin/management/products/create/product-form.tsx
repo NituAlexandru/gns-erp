@@ -64,7 +64,6 @@ const productDefaultValues: IProductInput =
         brand: 'Sample Brand',
         mainSupplier: '',
         description: '',
-        numSales: 0,
         isPublished: false,
         barCode: '',
         productCode: '',
@@ -78,11 +77,9 @@ const productDefaultValues: IProductInput =
         weight: 0,
         volume: 0,
         specifications: [],
-        itemsPerPallet: 1,
+        itemsPerPallet: 0,
         palletTypeId: '',
-        minStock: 0,
-        countInStock: 0,
-        averagePurchasePrice: 0,
+
         defaultMarkups: zeroMarkups,
         clientMarkups: [],
       }
@@ -93,7 +90,6 @@ const productDefaultValues: IProductInput =
         brand: '',
         mainSupplier: '',
         description: '',
-        numSales: 0,
         isPublished: false,
         productCode: '',
         barCode: '',
@@ -108,11 +104,8 @@ const productDefaultValues: IProductInput =
         weight: 0,
         volume: 0,
         specifications: [],
-        itemsPerPallet: 1,
+        itemsPerPallet: 0,
         palletTypeId: '',
-        minStock: 0,
-        countInStock: 0,
-        averagePurchasePrice: 0,
         defaultMarkups: zeroMarkups,
         clientMarkups: [],
       }
@@ -185,7 +178,6 @@ const ProductForm = ({
             images: product.images,
             brand: product.brand ?? '',
             description: product.description,
-            numSales: product.numSales,
             isPublished: product.isPublished,
             productCode: product.productCode,
             barCode: product.barCode ?? '',
@@ -199,9 +191,6 @@ const ProductForm = ({
             volume: product.volume,
             specifications: product.specifications,
             itemsPerPallet: product.itemsPerPallet,
-            minStock: product.minStock,
-            countInStock: product.countInStock,
-            averagePurchasePrice: product.averagePurchasePrice,
             defaultMarkups: product.defaultMarkups,
             clientMarkups: product.clientMarkups,
             mainSupplier: getIdFromStringOrObject(product.mainSupplier),
@@ -373,41 +362,8 @@ const ProductForm = ({
     }
   }
   async function onSubmit(values: IProductInput) {
-    const payload: IProductInput = values
-    // --- Verificare de unicitate pe client, înainte de submit ---
     if (type === 'Create') {
-      // 1. Verificăm codul de produs
-      const codeRes = await fetch(
-        `/api/admin/products/check-code?code=${encodeURIComponent(values.productCode)}`
-      )
-      const codeData = await codeRes.json()
-      if (!codeData.isAvailable) {
-        toast({
-          title: 'Eroare',
-          description: 'Acest cod de produs este deja utilizat.',
-        })
-        return
-      }
-
-      // 2. Verificăm codul de bare, doar dacă a fost introdus
-      if (values.barCode) {
-        const barcodeRes = await fetch(
-          `/api/admin/products/check-barcode?code=${encodeURIComponent(values.barCode)}`
-        )
-        const barcodeData = await barcodeRes.json()
-        if (!barcodeData.isAvailable) {
-          toast({
-            title: 'Eroare',
-            description: 'Acest cod de bare este deja utilizat.',
-          })
-          return
-        }
-      }
-    }
-    // --- Sfârșitul verificării pe client ---
-
-    if (type === 'Create') {
-      const res = await createProduct(payload)
+      const res = await createProduct(values)
       if (!res.success) {
         toast({ title: 'Eroare la creare', description: res.message })
       } else {
@@ -423,23 +379,25 @@ const ProductForm = ({
         return
       }
 
-      // Construim obiectul final pentru update, adăugând ID-ul
-      const dataToUpdate = { ...payload, _id: productId }
+      // Extragem câmpurile pe care NU vrem să le trimitem la update
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { defaultMarkups, clientMarkups, ...payloadForUpdate } = values
 
-      // Validăm manual acest obiect cu schema de UPDATE
+      const dataToUpdate = { ...payloadForUpdate, _id: productId }
+
       const result = ProductUpdateSchema.safeParse(dataToUpdate)
 
-      // Verificăm dacă validarea manuală a eșuat
       if (!result.success) {
         console.error('Update validation failed:', result.error.flatten())
+        const firstError =
+          result.error.flatten().formErrors[0] || 'Datele nu sunt valide.'
         toast({
           title: 'Eroare de validare la salvare',
-          description: 'Datele finale nu sunt corecte.',
+          description: firstError,
         })
         return
       }
 
-      // Dacă totul e OK, trimitem datele validate la server
       const res = await updateProduct(result.data)
       if (!res.success) {
         toast({ title: 'Eroare la actualizare', description: res.message })
@@ -772,7 +730,7 @@ const ProductForm = ({
                       </>
                     }
                   />
-                  Mod Ambalare Produs<span className='text-red-500'>*</span>
+                  UM Ambalare<span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
                   <Select onValueChange={field.onChange} value={field.value}>
@@ -812,13 +770,48 @@ const ProductForm = ({
                       </>
                     }
                   />
-                  Nr. Produse în Ambalaj<span className='text-red-500'>*</span>
+                  UM în Ambalaj<span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
                   <Input
                     type='number'
                     step='0.001'
                     placeholder='e.g. 96.250'
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          {/* Items per Pallet - nr. ambalaje pe palet */}
+          <FormField
+            control={control}
+            name='itemsPerPallet'
+            render={({ field }) => (
+              <FormItem className='w-1/5'>
+                <FormLabel>
+                  <InfoTooltip
+                    content={
+                      <>
+                        <div className='mb-1'>
+                          Adaugă numărul de ambalaje secundare (ex: saci, cutii)
+                          care intră pe un palet.
+                        </div>
+                        <i className='text-muted-foreground'>
+                          Dacă produsul nu se paletizează sau se vinde la bucată
+                          pe palet, lasă 0.
+                        </i>
+                      </>
+                    }
+                  />
+                  Ambalaje pe Palet
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    step='1'
+                    placeholder='ex: 48'
                     {...field}
                   />
                 </FormControl>

@@ -26,14 +26,6 @@ export const ProductInputSchema = z
       .optional(),
     brand: z.string().optional(),
 
-    // stocuri și costuri
-    minStock: z.coerce.number().int().nonnegative().default(0),
-    countInStock: z.coerce.number().int().nonnegative().default(0),
-    firstOrderDate: z.coerce.date().optional(),
-    lastOrderDate: z.coerce.date().optional(),
-    numSales: z.coerce.number().int().nonnegative().default(0),
-    averagePurchasePrice: z.coerce.number().nonnegative().default(0),
-
     // marje comerciale
     defaultMarkups: z
       .object({
@@ -76,7 +68,6 @@ export const ProductInputSchema = z
         message: 'Maxim 3 zecimale permise',
       })
       .optional(),
-
     length: z.coerce.number().positive('Lungimea trebuie să fie > 0'),
     width: z.coerce.number().positive('Lățimea trebuie să fie > 0'),
     height: z.coerce.number().positive('Înălțimea trebuie să fie > 0'),
@@ -85,16 +76,16 @@ export const ProductInputSchema = z
       .positive('Volumul trebuie să fie > 0')
       .describe('Calculat ca (L×W×H)/1e6, in m³'),
     weight: z.coerce.number().positive('Greutatea trebuie să fie > 0'),
-
     specifications: z.array(z.string()).default([]),
-
     palletTypeId: z.string().optional(),
-    itemsPerPallet: z.coerce.number().int().positive().default(1),
-
+    itemsPerPallet: z.coerce.number().int().default(0),
     isPublished: z.boolean().default(true),
   })
   .strict()
 
-export const ProductUpdateSchema = ProductInputSchema.extend({
+export const ProductUpdateSchema = ProductInputSchema.omit({
+  defaultMarkups: true, // Omitem markup-urile la update
+  clientMarkups: true, // Omitem și markup-urile de client
+}).extend({
   _id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'ID produs invalid'),
 })

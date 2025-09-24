@@ -1,11 +1,11 @@
 import React from 'react'
-import ProductPrice from '@/components/shared/product/product-price'
+// import ProductPrice from '@/components/shared/product/product-price'
 import ProductGallery from '@/components/shared/product/product-gallery'
 import { Separator } from '@/components/ui/separator'
-import { formatCurrency } from '@/lib/utils'
+// import { formatCurrency } from '@/lib/utils'
 import { PopulatedProduct } from '@/lib/db/modules/product/types'
 import { Barcode, BarcodeType } from '@/components/barcode/barcode-image'
-import { computeSalePrices } from '@/lib/db/modules/product/utils'
+// import { computeSalePrices } from '@/lib/db/modules/product/utils'
 import { ProductsBackBtn } from '@/components/ui/custom/products-back-btn'
 
 //eslint-disable-next-line
@@ -26,11 +26,6 @@ export default function ERPProductView({
 }) {
   const rawCode = product.barCode || product.productCode || ''
   const type = detectBarcodeType(rawCode)
-
-  const sale = computeSalePrices(
-    product.averagePurchasePrice,
-    product.defaultMarkups
-  )
 
   return (
     <>
@@ -63,16 +58,16 @@ export default function ERPProductView({
               <h1 className='font-bold text-lg lg:text-xl'>{product.name}</h1>
               <Separator />
               <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
-                <ProductPrice price={sale.retailPrice} forListing={false} />
+                {/* <ProductPrice price={sale.retailPrice} forListing={false} /> */}
               </div>
               {product.packagingQuantity! > 1 && (
                 <div className='flex items-center gap-3'>
-                  <p className='text-lg'>
+                  {/* <p className='text-lg'>
                     {formatCurrency(
                       sale.retailPrice / product.packagingQuantity!
                     )}{' '}
                     / {product.unit}
-                  </p>
+                  </p> */}
                   <span className='text-lg text-muted-foreground'>
                     TVA inclus
                   </span>
@@ -146,28 +141,12 @@ export default function ERPProductView({
                 </div>
                 <p>description: {product.description}</p>
                 <p>brand: {product.brand}</p>
-                <p>averagePurchasePrice: {product.averagePurchasePrice}</p>
-                <p>directDeliveryPrice: {sale.directPrice.toFixed(2)}</p>
-                <p>fullTruckPrice: {sale.fullTruckPrice.toFixed(2)}</p>
+                {/* <p>directDeliveryPrice: {sale.directPrice.toFixed(2)}</p> */}
+                {/* <p>fullTruckPrice: {sale.fullTruckPrice.toFixed(2)}</p> */}
                 <p>
-                  smallDeliveryBusinessPrice: {sale.smallBizPrice.toFixed(2)}
+                  {/* smallDeliveryBusinessPrice: {sale.smallBizPrice.toFixed(2)} */}
                 </p>
-                <p>retailPrice: {sale.retailPrice.toFixed(2)}</p>
-                <p>minStock: {product.minStock}</p>
-                <p>countInStock: {product.countInStock}</p>
-                <p>
-                  firstOrderDate:{' '}
-                  {product.firstOrderDate
-                    ? product.firstOrderDate.toLocaleDateString()
-                    : '-'}
-                </p>
-                <p>
-                  lastOrderDate:{' '}
-                  {product.lastOrderDate
-                    ? product.lastOrderDate.toLocaleDateString()
-                    : '-'}
-                </p>
-                <p>numSales: {product.numSales}</p>
+                {/* <p>retailPrice: {sale.retailPrice.toFixed(2)}</p> */}
                 <p>unit: {product.unit}</p>
                 <p>packagingUnit: {product.packagingUnit}</p>
                 <p>packagingQuantity: {product.packagingQuantity}</p>

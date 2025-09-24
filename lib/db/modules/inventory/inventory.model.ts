@@ -8,11 +8,12 @@ export interface IInventoryBatch {
 }
 
 export interface IInventoryItemDoc extends Document {
-  stockableItem: Types.ObjectId 
-  stockableItemType: 'ERPProduct' | 'Packaging' 
+  stockableItem: Types.ObjectId
+  stockableItemType: 'ERPProduct' | 'Packaging'
   location: string
   batches: IInventoryBatch[]
   quantityReserved: number
+  minStock: number
   totalStock: number
   averageCost: number
   maxPurchasePrice: number
@@ -41,7 +42,7 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
     stockableItemType: {
       type: String,
       required: true,
-      enum: ['ERPProduct', 'Packaging'], 
+      enum: ['ERPProduct', 'Packaging'],
     },
     stockableItem: {
       type: Schema.Types.ObjectId,
@@ -51,6 +52,7 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
     location: { type: String, required: true, index: true },
     batches: [InventoryBatchSchema],
     quantityReserved: { type: Number, required: true, default: 0 },
+    minStock: { type: Number, required: true, default: 0 },
     totalStock: { type: Number, required: true, default: 0 },
     averageCost: { type: Number, required: true, default: 0 },
     maxPurchasePrice: { type: Number, required: true, default: 0 },

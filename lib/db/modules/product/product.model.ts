@@ -20,13 +20,6 @@ const erpProductSchema = new Schema(
     description: { type: String },
     mainSupplier: { type: Types.ObjectId, ref: 'Supplier', required: false },
     brand: { type: String },
-    minStock: { type: Number, required: false, default: 0 },
-    // countInStock: { type: Number, required: false, default: 0 },
-    firstOrderDate: { type: Date, required: false },
-    lastOrderDate: { type: Date, required: false },
-    numSales: { type: Number, required: false, default: 0 },
-    // Preț mediu de achiziție - se calculeaza automat. medie ponderata
-    averagePurchasePrice: { type: Number, required: false, default: 0 },
     defaultMarkups: {
       markupDirectDeliveryPrice: { type: Number, required: false, default: 0 },
       markupFullTruckPrice: { type: Number, required: false, default: 0 },
@@ -57,7 +50,7 @@ const erpProductSchema = new Schema(
     weight: { type: Number, required: true },
     specifications: { type: [String], required: true },
     palletTypeId: { type: String, required: false },
-    itemsPerPallet: { type: Number, required: false, default: 1 },
+    itemsPerPallet: { type: Number, required: false, default: 0 },
     isPublished: { type: Boolean, default: true },
   },
   {
