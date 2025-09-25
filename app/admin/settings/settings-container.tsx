@@ -8,10 +8,13 @@ import SettingNav from './setting-nav'
 import { VatRatesManager } from './vat-rate/vat-rates-manager'
 import { ServiceDTO } from '@/lib/db/modules/setting/services/types'
 import { ServicesManager } from './services/services-manager'
+import { SeriesManager } from './series/series-manager'
+import { SeriesDTO } from '@/lib/db/modules/numbering/types'
 
 interface SettingsContainerProps {
   initialVatRates: VatRateDTO[]
   initialServices: ServiceDTO[]
+  initialSeries: SeriesDTO[]
   userId: string
   children: React.ReactNode
 }
@@ -19,6 +22,7 @@ interface SettingsContainerProps {
 export default function SettingsContainer({
   initialVatRates,
   initialServices,
+  initialSeries,
   userId,
   children,
 }: SettingsContainerProps) {
@@ -61,6 +65,9 @@ export default function SettingsContainer({
             vatRates={initialVatRates}
             userId={userId}
           />
+        )}
+        {activeSection === 'series' && (
+          <SeriesManager initialSeries={initialSeries} />
         )}
       </main>
     </div>
