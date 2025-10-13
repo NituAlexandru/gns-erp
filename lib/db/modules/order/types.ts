@@ -1,0 +1,41 @@
+import { z } from 'zod'
+import { Types } from 'mongoose'
+import { IOrder } from './order.model'
+import { CreateOrderInputSchema, OrderLineItemInputSchema } from './validator'
+
+export interface IOrderLineItem extends Types.Subdocument {
+  productId?: Types.ObjectId
+  serviceId?: Types.ObjectId
+  isManualEntry: boolean
+  productName: string
+  productCode?: string
+  quantity: number
+  unitOfMeasure: string
+  unitOfMeasureCode?: string
+  priceAtTimeOfOrder: number
+  vatRateDetails: {
+    rate: number
+    value: number
+  }
+  codNC?: string
+  codCPV?: string
+}
+
+// Tipul de date pentru formularul de creare a unei comenzi
+export type CreateOrderInput = z.infer<typeof CreateOrderInputSchema>
+
+// Tipul de date pentru o singură linie din formularul de comandă
+export type OrderLineItemInput = z.infer<typeof OrderLineItemInputSchema>
+
+export type FullOrder = IOrder & {
+  _id: string
+}
+export type PopulatedOrder = Omit<IOrder, 'client'> & {
+  client: {
+    _id: string
+    name: string
+  } | null
+}
+
+
+export { CreateOrderInputSchema }

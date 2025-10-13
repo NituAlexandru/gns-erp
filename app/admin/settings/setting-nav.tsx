@@ -1,12 +1,13 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Info, PercentSquare, Handshake, FileText } from 'lucide-react'
+import { Info, PercentSquare, Handshake, FileText, Truck } from 'lucide-react'
 
 const navItems = [
   { name: 'Informații Site', hash: 'site-info', icon: <Info /> },
   { name: 'Cote TVA', hash: 'vat-rates', icon: <PercentSquare /> },
   { name: 'Servicii', hash: 'services', icon: <Handshake /> },
+  { name: 'Tarife Transport', hash: 'shipping-rates', icon: <Truck /> },
   { name: 'Serii Documente', hash: 'series', icon: <FileText /> },
 ]
 

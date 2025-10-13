@@ -144,3 +144,57 @@ export async function getAllClients({
     to: skip + data.length,
   }
 }
+// pentru ORDER
+export type SearchedClient = {
+  _id: string
+  name: string
+  vatId: string
+}
+type LeanClientForSearch = Pick<IClientDoc, '_id' | 'name' | 'vatId' | 'cnp'>
+
+export async function searchClients(
+  searchTerm: string
+): Promise<SearchedClient[]> {
+
+  try {
+    await connectToDatabase()
+
+    const trimmedSearchTerm = searchTerm.trim()
+
+    if (!trimmedSearchTerm || trimmedSearchTerm.length < 2) {
+      // console.log('[DEBUG] Termen prea scurt, se returnează array gol.')
+      return []
+    }
+
+    const query = {
+      $or: [
+        { name: { $regex: trimmedSearchTerm, $options: 'i' } },
+        { vatId: { $regex: trimmedSearchTerm, $options: 'i' } },
+        { cnp: { $regex: trimmedSearchTerm, $options: 'i' } },
+      ],
+    }
+
+    let queryResult: LeanClientForSearch[] = []
+    try {
+      queryResult = (await ClientModel.find(query)
+        .select('_id name vatId cnp')
+        .lean()) as unknown as LeanClientForSearch[]
+    } catch (dbError) {
+      console.error('[DEBUG] A CRĂPAT INTEROGAREA LA BAZA DE DATE!', dbError)
+      throw dbError
+    }
+
+    const results: SearchedClient[] = queryResult.map((client) => {
+      return {
+        _id: client._id.toString(),
+        name: client.name || 'Nume lipsă',
+        vatId: client.vatId || client.cnp || '',
+      }
+    })
+
+    return results
+  } catch (error) {
+    console.error('EROARE MAJORĂ în funcția searchClients:', error)
+    return []
+  }
+}

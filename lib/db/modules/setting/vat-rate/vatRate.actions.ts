@@ -18,7 +18,7 @@ import User from '../../user/user.model'
 export async function getVatRates() {
   try {
     const rates = await VatRateModel.find({}).sort({ rate: -1 }).lean()
-    return { success: true, data: rates }
+    return { success: true, data: JSON.parse(JSON.stringify(rates)) }
   } catch (error) {
     console.error('Eroare la preluarea cotelor TVA:', error)
     return { success: false, message: 'Nu am putut prelua cotele TVA.' }
@@ -30,12 +30,10 @@ export async function getDefaultVatRate() {
   try {
     const defaultRate = await VatRateModel.findOne({ isDefault: true }).lean()
     if (!defaultRate) {
-      const fallbackRate = await VatRateModel.findOne({ isActive: true })
-        .sort({ rate: 1 })
-        .lean()
-      return { success: true, data: fallbackRate }
+      return { success: true, data: null }
     }
-    return { success: true, data: defaultRate }
+
+    return { success: true, data: JSON.parse(JSON.stringify(defaultRate)) }
   } catch (error) {
     console.error('Eroare la preluarea cotei TVA implicite:', error)
     return { success: false, message: 'Nu am putut prelua cota implicită.' }

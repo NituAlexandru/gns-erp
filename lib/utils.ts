@@ -47,6 +47,17 @@ const CURRENCY_FORMATTER = new Intl.NumberFormat('ro-RO', {
 export function formatCurrency(amount: number) {
   return CURRENCY_FORMATTER.format(amount)
 }
+
+export function formatDecimal(value: number, decimals: number = 2): string {
+  if (typeof value !== 'number') {
+    return ''
+  }
+  return new Intl.NumberFormat('ro-RO', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value)
+}
+
 const NUMBER_FORMATTER = new Intl.NumberFormat('ro-RO')
 export function formatNumber(number: number) {
   return NUMBER_FORMATTER.format(number)

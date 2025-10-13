@@ -16,7 +16,11 @@ import {
   IProductInput,
   IProductUpdate,
   MarkupPatch,
+  ProductForOrderLine,
+  SearchedProduct,
 } from './types'
+import InventoryItemModel from '../inventory/inventory.model'
+import PackagingModel from '../packaging-products/packaging.model'
 
 // O funcție helper pentru a verifica duplicatele
 async function checkForDuplicateCodes(payload: {
@@ -136,7 +140,6 @@ export async function getProductBySlug(
   if (!options?.includeUnpublished) {
     filter.isPublished = true
   }
-  console.log('[DBG] getProductBySlug filter:', filter)
 
   const doc = await ERPProductModel.findOne(filter)
     .populate('category')
@@ -287,7 +290,6 @@ export async function getAllProducts({
   }
 }
 
-
 export async function updateProductMarkup(
   id: string,
   defaultMarkups: MarkupPatch
@@ -322,4 +324,262 @@ export async function updateProductAveragePurchasePrice(productId: string) {
   console.log(
     `Updated averagePurchasePrice for product ${productId} to HIGHEST cost: ${highestCost}`
   )
+}
+
+// For Orders
+export async function searchStockableItems(
+  searchTerm: string
+): Promise<SearchedProduct[]> {
+  try {
+    await connectToDatabase()
+    if (!searchTerm || searchTerm.trim().length < 2) return []
+
+    const searchRegex = { $regex: searchTerm, $options: 'i' }
+    const matchQuery = {
+      $or: [{ name: searchRegex }, { productCode: searchRegex }],
+      isPublished: true,
+    }
+
+    const [products, packagings] = await Promise.all([
+      // Căutare Produse
+      ERPProductModel.aggregate([
+        { $match: matchQuery },
+        {
+          $lookup: {
+            from: 'inventoryitems',
+            localField: '_id',
+            foreignField: 'stockableItem',
+            as: 'inventoryInfo',
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            productCode: 1,
+            image: { $first: '$images' },
+            unit: 1,
+            packagingUnit: 1,
+            packagingQuantity: 1,
+            itemsPerPallet: 1,
+            itemType: 'Produs',
+            inventoryDoc: { $first: '$inventoryInfo' },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            productCode: 1,
+            image: 1,
+            itemType: 1,
+            unit: 1,
+            totalStock: {
+              $ifNull: [
+                {
+                  $subtract: [
+                    '$inventoryDoc.totalStock',
+                    '$inventoryDoc.quantityReserved',
+                  ],
+                },
+                0,
+              ],
+            },
+            packagingOptions: {
+              $filter: {
+                input: [
+                  {
+                    $cond: [
+                      {
+                        $and: [
+                          '$packagingUnit',
+                          { $gt: ['$packagingQuantity', 0] },
+                        ],
+                      },
+                      {
+                        unitName: '$packagingUnit',
+                        baseUnitEquivalent: '$packagingQuantity',
+                      },
+                      null,
+                    ],
+                  },
+                  {
+                          $cond: {
+                      if: {
+                        $and: [
+                          { $gt: ['$itemsPerPallet', 0] },
+                          { $gt: ['$packagingQuantity', 0] },
+                        ],
+                      },
+                      
+                      then: {
+                        unitName: 'palet',
+                        baseUnitEquivalent: {
+                          $multiply: ['$itemsPerPallet', '$packagingQuantity'],
+                        },
+                      },
+                    
+                      else: {
+                        $cond: [
+                          { $gt: ['$itemsPerPallet', 0] },
+                          {
+                            unitName: 'palet',
+                            baseUnitEquivalent: '$itemsPerPallet',
+                          },
+                          null,
+                        ],
+                      },
+                    },
+                  },
+                ],
+                as: 'option',
+                cond: { $ne: ['$$option', null] },
+              },
+            },
+          },
+        },
+      ]),
+      // Căutare Ambalaje
+      PackagingModel.aggregate([
+        { $match: matchQuery },
+        {
+          $lookup: {
+            from: 'inventoryitems',
+            localField: '_id',
+            foreignField: 'stockableItem',
+            as: 'inventoryInfo',
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            productCode: 1,
+            image: { $first: '$images' },
+            unit: '$packagingUnit',
+            itemType: 'Ambalaj',
+            inventoryDoc: { $first: '$inventoryInfo' },
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            productCode: 1,
+            image: 1,
+            itemType: 1,
+            unit: 1,
+            totalStock: {
+              $ifNull: [
+                {
+                  $subtract: [
+                    '$inventoryDoc.totalStock',
+                    '$inventoryDoc.quantityReserved',
+                  ],
+                },
+                0,
+              ],
+            },
+            packagingOptions: [],
+          },
+        },
+      ]),
+    ])
+
+    const combinedResults = [...products, ...packagings].sort(
+      (a, b) => (b.totalStock || 0) - (a.totalStock || 0)
+    )
+
+    return combinedResults.map((r) => ({ ...r, _id: r._id.toString() }))
+  } catch (error) {
+    console.error('Eroare la căutarea produselor și ambalajelor:', error)
+    return []
+  }
+}
+
+export async function calculateMinimumPrice(
+  productId: string,
+  deliveryMethodKey: string
+): Promise<number> {
+  try {
+    await connectToDatabase()
+
+   
+    // Căutăm TOATE intrările de inventar pentru acest produs
+    const inventoryItems = await InventoryItemModel.find({
+      stockableItem: productId,
+    }).lean()
+
+    // Găsim cel mai mare 'maxPurchasePrice' dintre toate locațiile
+    const baseCost = inventoryItems.reduce(
+      (max, item) => Math.max(max, item.maxPurchasePrice || 0),
+      0
+    )
+
+    if (baseCost === 0) {
+      console.warn(
+        `ATENȚIE: Produsul ${productId} nu are un 'maxPurchasePrice' > 0 în nicio locație. Prețul minim va fi 0.`
+      )
+      return 0
+    }
+    
+    const product = await ERPProductModel.findById(productId)
+      .select('defaultMarkups')
+      .lean()
+    if (!product) {
+      throw new Error('Produsul nu a fost găsit.')
+    }
+
+    let markupPercentage = 0
+    switch (deliveryMethodKey) {
+      case 'DIRECT_SALE':
+        markupPercentage =
+          product.defaultMarkups?.markupDirectDeliveryPrice || 0
+        break
+      case 'DELIVERY_FULL_TRUCK':
+      case 'DELIVERY_CRANE':
+        markupPercentage = product.defaultMarkups?.markupFullTruckPrice || 0
+        break
+      case 'DELIVERY_SMALL_VEHICLE_PJ':
+        markupPercentage =
+          product.defaultMarkups?.markupSmallDeliveryBusinessPrice || 0
+        break
+      case 'RETAIL_SALE_PF':
+      case 'PICK_UP_SALE':
+      default:
+        markupPercentage = product.defaultMarkups?.markupRetailPrice || 0
+    }
+
+    const minimumPrice = baseCost * (1 + markupPercentage / 100)
+    return minimumPrice
+  } catch (error) {
+    console.error('Eroare la calcularea prețului minim:', error)
+    return 0
+  }
+}
+export async function getProductForOrderLine(
+  productId: string
+): Promise<ProductForOrderLine | null> {
+  try {
+    await connectToDatabase()
+
+    const product = await ERPProductModel.findById(productId).lean()
+
+    if (!product) {
+      return null
+    }
+
+    const result: ProductForOrderLine = {
+      ...product,
+      _id: product._id.toString(),
+    } as unknown as ProductForOrderLine
+
+    return JSON.parse(JSON.stringify(result))
+  } catch (error) {
+    console.error(
+      'Eroare la preluarea datelor de produs pentru comandă:',
+      error
+    )
+    throw new Error('Nu s-au putut prelua datele produsului.')
+  }
 }

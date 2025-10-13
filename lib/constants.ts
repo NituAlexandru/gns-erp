@@ -1,6 +1,5 @@
 import { PalletType } from '@/types'
 
-
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'Genesis ERP'
 export const APP_SLOGAN =
   process.env.NEXT_PUBLIC_APP_SLOGAN || 'Solutie customizabila pentru Genesis'
@@ -13,6 +12,7 @@ export const UNITS = [
   'bucata',
   'rola',
   'set',
+  'balot',
   'cutie',
   'punga',
   'colac',
@@ -375,7 +375,7 @@ export const AVAILABLE_PALLET_TYPES: PalletType[] = [
       'Returnabil in maxim 60 zile la valoarea de 84,00 RON, in stare buna.',
   },
 ]
-export const VAT_RATE = 0.19
+export const VAT_RATE = 0.21
 
 export const DEPOT_ADDRESS =
   'Com. Chiajna, Strada Industriilor 191, Ilfov 077040, Romania'

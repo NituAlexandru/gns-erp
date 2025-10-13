@@ -4,7 +4,7 @@ import { connectToDatabase } from '../../..'
 import Service from './service.model'
 import { VatRateModel } from '../vat-rate/vatRate.model'
 import { formatError } from '@/lib/utils'
-import { ServiceInput, ServiceUpdateInput } from './types'
+import { SearchedService, ServiceInput, ServiceUpdateInput } from './types'
 import { ServiceInputSchema, ServiceUpdateSchema } from './validator'
 import { revalidatePath } from 'next/cache'
 import { MongoId } from '@/lib/validator'
@@ -37,7 +37,6 @@ export async function createService(input: ServiceInput) {
       message: 'Serviciul a fost adăugat cu succes.',
     }
   } catch (error) {
-   
     return { success: false, message: formatError(error) }
   }
 }
@@ -78,5 +77,57 @@ export async function toggleServiceActiveState(serviceId: string) {
     }
   } catch (error) {
     return { success: false, message: formatError(error) }
+  }
+}
+export async function searchServices(
+  searchTerm: string
+): Promise<SearchedService[]> {
+  try {
+    await connectToDatabase()
+    if (!searchTerm || searchTerm.trim().length < 2) return []
+
+    const services = await Service.find({
+      $or: [
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { code: { $regex: searchTerm, $options: 'i' } },
+      ],
+      isActive: true,
+    })
+      .limit(10)
+      .select('_id name code price unitOfMeasure vatRate')
+      .lean()
+
+    return services.map((service) => ({
+      _id: service._id.toString(),
+      name: service.name,
+      code: service.code,
+      price: service.price,
+      unitOfMeasure: service.unitOfMeasure,
+      vatRateId: service.vatRate.toString(),
+    }))
+  } catch (error) {
+    console.error('Eroare la căutarea serviciilor:', error)
+    return []
+  }
+}
+export async function getActiveServices(): Promise<SearchedService[]> {
+  try {
+    await connectToDatabase()
+    const services = await Service.find({ isActive: true })
+      .sort({ name: 1 })
+      .select('_id name code price unitOfMeasure vatRate')
+      .lean()
+
+    return services.map((service) => ({
+      _id: service._id.toString(),
+      name: service.name,
+      code: service.code,
+      price: service.price,
+      unitOfMeasure: service.unitOfMeasure,
+      vatRateId: service.vatRate.toString(),
+    }))
+  } catch (error) {
+    console.error('Eroare la preluarea serviciilor active:', error)
+    return []
   }
 }

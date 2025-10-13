@@ -435,87 +435,146 @@ export async function getAggregatedStockStatus(
   try {
     await connectToDatabase()
 
-    // --- PIPELINE 1: PENTRU PRODUSE (Folosește funcția originală) ---
-    const productPipeline: mongoose.PipelineStage[] = [
-      { $match: { stockableItemType: 'ERPProduct' } },
-      { $unwind: '$batches' },
+    const pipeline: mongoose.PipelineStage[] = [
+      // Grupăm intrările din inventar pentru a însuma stocurile și a prelua prețurile pre-calculate
       {
         $group: {
           _id: '$stockableItem',
-          totalStock: { $sum: '$batches.quantity' },
-          totalValue: {
-            $sum: { $multiply: ['$batches.quantity', '$batches.unitCost'] },
-          },
-          minPrice: { $min: '$batches.unitCost' },
-          maxPrice: { $max: '$batches.unitCost' },
-          lastPrice: { $last: '$batches.unitCost' },
+          totalStock: { $sum: '$totalStock' },
+          averageCost: { $avg: '$averageCost' },
+          minPrice: { $min: '$minPurchasePrice' },
+          maxPrice: { $max: '$maxPurchasePrice' },
+          lastPrice: { $last: '$lastPurchasePrice' },
         },
       },
-      ...getPackagingOptionsPipeline(),
+      //  Facem join cu produsele/ambalajele pentru a lua numele și detaliile de conversie
+      {
+        $lookup: {
+          from: 'erpproducts',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'productDetails',
+        },
+      },
+      {
+        $lookup: {
+          from: 'packagings',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'packagingDetails',
+        },
+      },
+      // Unwind pentru a putea accesa detaliile
+      {
+        $unwind: { path: '$productDetails', preserveNullAndEmptyArrays: true },
+      },
+      {
+        $unwind: {
+          path: '$packagingDetails',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+
+     
+      // logica pentru a construi dinamic 'packagingOptions'
+      {
+        $lookup: {
+          from: 'packagings',
+          localField: 'productDetails.palletTypeId',
+          foreignField: '_id',
+          as: 'palletTypeDetails',
+        },
+      },
+      {
+        $unwind: {
+          path: '$palletTypeDetails',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          packagingOptions: {
+            $concatArrays: [
+              {
+                $cond: {
+                  // Condiția pentru 'packagingUnit' (ex: sac)
+                  if: {
+                    $and: [
+                      '$productDetails.packagingUnit',
+                      '$productDetails.packagingQuantity',
+                      { $gt: ['$productDetails.packagingQuantity', 0] },
+                    ],
+                  },
+                  then: [
+                    {
+                      unitName: '$productDetails.packagingUnit',
+                      baseUnitEquivalent: '$productDetails.packagingQuantity',
+                    },
+                  ],
+                  else: [],
+                },
+              },
+              {
+                $cond: {
+                  // Condiția pentru 'palet'
+                  if: {
+                    $and: [
+                      '$productDetails.itemsPerPallet',
+                      { $gt: ['$productDetails.itemsPerPallet', 0] },
+                    ],
+                  },
+                  then: [
+                    {
+                      unitName: {
+                        $ifNull: ['$palletTypeDetails.name', 'Palet'],
+                      },
+                      baseUnitEquivalent: {
+                        $multiply: [
+                          '$productDetails.itemsPerPallet',
+                          '$productDetails.packagingQuantity',
+                        ],
+                      },
+                    },
+                  ],
+                  else: [],
+                },
+              },
+            ],
+          },
+        },
+      },
+
+      // Proiectăm câmpurile finale, inclusiv 'packagingOptions' corect
       {
         $project: {
           _id: 1,
           totalStock: 1,
+          averageCost: { $ifNull: ['$averageCost', 0] },
           minPrice: { $ifNull: ['$minPrice', 0] },
           maxPrice: { $ifNull: ['$maxPrice', 0] },
           lastPrice: { $ifNull: ['$lastPrice', 0] },
-          averageCost: {
-            $ifNull: [{ $divide: ['$totalValue', '$totalStock'] }, 0],
+          name: { $ifNull: ['$productDetails.name', '$packagingDetails.name'] },
+          unit: {
+            $ifNull: [
+              '$productDetails.unit',
+              '$packagingDetails.packagingUnit',
+            ],
           },
-          name: '$productDetails.name',
-          unit: '$productDetails.unit',
-          productCode: '$productDetails.productCode',
-          packagingOptions: 1,
+          productCode: {
+            $ifNull: [
+              '$productDetails.productCode',
+              '$packagingDetails.productCode',
+            ],
+          },
+          packagingOptions: 1, 
         },
       },
     ]
 
-    // --- PIPELINE 2: PENTRU AMBALAJE (Folosește NOUA funcție dedicată) ---
-    const packagingPipeline: mongoose.PipelineStage[] = [
-      { $match: { stockableItemType: 'Packaging' } },
-      { $unwind: '$batches' },
-      {
-        $group: {
-          _id: '$stockableItem',
-          totalStock: { $sum: '$batches.quantity' },
-          totalValue: {
-            $sum: { $multiply: ['$batches.quantity', '$batches.unitCost'] },
-          },
-          minPrice: { $min: '$batches.unitCost' },
-          maxPrice: { $max: '$batches.unitCost' },
-          lastPrice: { $last: '$batches.unitCost' },
-        },
-      },
-      ...createPackagingOptionsPipelineForPackaging(),
-      {
-        $project: {
-          _id: 1,
-          totalStock: 1,
-          minPrice: { $ifNull: ['$minPrice', 0] },
-          maxPrice: { $ifNull: ['$maxPrice', 0] },
-          lastPrice: { $ifNull: ['$lastPrice', 0] },
-          averageCost: {
-            $ifNull: [{ $divide: ['$totalValue', '$totalStock'] }, 0],
-          },
-          name: '$packagingDetails.name',
-          unit: '$packagingDetails.packagingUnit',
-          productCode: '$packagingDetails.productCode',
-          packagingOptions: 1,
-        },
-      },
-    ]
+    let combinedStock: AggregatedStockItem[] =
+      await InventoryItemModel.aggregate(pipeline)
 
-    // --- Execuție și combinare ---
-    const [productStock, packagingStock] = await Promise.all([
-      InventoryItemModel.aggregate(productPipeline),
-      InventoryItemModel.aggregate(packagingPipeline),
-    ])
-
-    let combinedStock: AggregatedStockItem[] = [
-      ...productStock,
-      ...packagingStock,
-    ]
-
+    // Logica de filtrare și sortare rămâne la fel
     if (query && query.trim() !== '') {
       const regex = new RegExp(query, 'i')
       combinedStock = combinedStock.filter(
@@ -526,7 +585,7 @@ export async function getAggregatedStockStatus(
     }
 
     combinedStock = combinedStock.filter(
-      (item) => item.name != null && item.totalStock > 0
+      (item) => item.name != null && item.totalStock !== 0
     )
     combinedStock.sort((a, b) => a.name.localeCompare(b.name))
 

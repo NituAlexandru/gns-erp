@@ -10,11 +10,14 @@ import { ServiceDTO } from '@/lib/db/modules/setting/services/types'
 import { ServicesManager } from './services/services-manager'
 import { SeriesManager } from './series/series-manager'
 import { SeriesDTO } from '@/lib/db/modules/numbering/types'
+import { ShippingRateDTO } from '@/lib/db/modules/setting/shipping-rates/types'
+import { ShippingRatesManager } from './shipping-rates/shipping-manager'
 
 interface SettingsContainerProps {
   initialVatRates: VatRateDTO[]
   initialServices: ServiceDTO[]
   initialSeries: SeriesDTO[]
+  initialShippingRates: ShippingRateDTO[]
   userId: string
   children: React.ReactNode
 }
@@ -23,6 +26,7 @@ export default function SettingsContainer({
   initialVatRates,
   initialServices,
   initialSeries,
+  initialShippingRates,
   userId,
   children,
 }: SettingsContainerProps) {
@@ -65,6 +69,9 @@ export default function SettingsContainer({
             vatRates={initialVatRates}
             userId={userId}
           />
+        )}
+        {activeSection === 'shipping-rates' && (
+          <ShippingRatesManager initialRates={initialShippingRates} />
         )}
         {activeSection === 'series' && (
           <SeriesManager initialSeries={initialSeries} />

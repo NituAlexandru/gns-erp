@@ -1,0 +1,188 @@
+'use client'
+
+import { useCallback, useState } from 'react'
+import { useForm, FormProvider } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
+import { ClientSelector } from './ClientSelector'
+import { DeliveryAddressSelector } from './DeliveryAddressSelector'
+import { OrderLogistics } from './OrderLogistics'
+import { OrderItemsManager } from './OrderItemsManager'
+import { OrderTotals } from './OrderTotals'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+
+import {
+  createOrder,
+  calculateShippingCost,
+} from '@/lib/db/modules/order/order.actions'
+import {
+  CreateOrderInput,
+  CreateOrderInputSchema,
+} from '@/lib/db/modules/order/types'
+import { IClientDoc, IAddress } from '@/lib/db/modules/client/types'
+
+export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
+  const router = useRouter()
+
+  const methods = useForm<CreateOrderInput>({
+    resolver: zodResolver(CreateOrderInputSchema),
+    defaultValues: {
+      lineItems: [],
+      estimatedTransportCount: 1,
+      notes: '',
+      shippingCost: 0,
+      clientSnapshot: { name: '', cui: '', regCom: '', address: '', judet: '' },
+      deliveryAddress: {
+        strada: '',
+        numar: '',
+        localitate: '',
+        judet: '',
+        codPostal: '',
+      },
+    },
+  })
+
+  // const { watch } = methods
+
+  // useEffect(() => {
+  //   const subscription = watch((value, { name, type }) => {
+  //     console.group(
+  //       `%cFormular actualizat de: ${name || 'unknown'}`,
+  //       'color: blue; font-weight: bold;'
+  //     )
+  //     console.log('Tip eveniment:', type)
+  //     console.log('Date complete:', value)
+  //     console.groupEnd()
+  //   })
+
+  //   return () => subscription.unsubscribe()
+  // }, [watch])
+
+  const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
+  const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
+
+  const handleClientSelect = useCallback(
+    (client: IClientDoc | null) => {
+      setSelectedClient(client)
+      setSelectedAddress(null)
+
+      methods.setValue('clientId', client?._id || '')
+      if (client) {
+        methods.setValue('clientSnapshot', {
+          name: client.name,
+          cui: client.vatId ?? '',
+          regCom: client.nrRegComert ?? '',
+          address: `${client.address.strada}, ${client.address.localitate}`,
+          judet: client.address.judet,
+          bank: client.bankAccountLei?.bankName ?? '',
+          iban: client.bankAccountLei?.iban ?? '',
+        })
+      } else {
+        methods.resetField('clientSnapshot')
+      }
+      methods.resetField('deliveryAddress')
+    },
+    [methods]
+  )
+
+  const handleAddressSelect = useCallback(
+    (address: IAddress | null) => {
+      setSelectedAddress(address)
+      if (address) {
+        methods.setValue('deliveryAddress', { ...address })
+      } else {
+        methods.resetField('deliveryAddress')
+      }
+    },
+    [methods]
+  )
+
+  const onSubmit = async (data: CreateOrderInput) => {
+    const vehicleType = methods.getValues('estimatedVehicleType')
+    const finalShippingCost =
+      selectedAddress?.distanceInKm && vehicleType
+        ? await calculateShippingCost(vehicleType, selectedAddress.distanceInKm)
+        : 0
+
+    data.shippingCost = finalShippingCost
+
+    const result = await createOrder(data)
+
+    if (result.success) {
+      toast.success('Comanda a fost creată cu succes!')
+      router.push('/admin/orders')
+    } else {
+      toast.error('A apărut o eroare', {
+        description: result.message || 'Verifică consola pentru detalii.',
+      })
+      console.error('Eroare la creare comandă:', result.errors)
+    }
+  }
+
+  return (
+    <FormProvider {...methods}>
+      <form onSubmit={methods.handleSubmit(onSubmit)} className='space-y-6'>
+        <h1 className='text-2xl font-bold'>Creare Comandă Nouă</h1>
+        <div className='flex gap-4 p-4 border rounded-lg space-y-4'>
+          <div className='p-2 border rounded-lg m-0'>
+            <h2 className='text-lg font-semibold mb-2'>1. Detalii Client</h2>
+
+            <ClientSelector onClientSelect={handleClientSelect} />
+            <DeliveryAddressSelector
+              client={selectedClient}
+              onAddressSelect={handleAddressSelect}
+            />
+          </div>
+          <div className='p-2 border rounded-lg'>
+            <h2 className='text-lg font-semibold mb-2'>2. Detalii Logistice</h2>
+            <OrderLogistics />
+          </div>
+          <div className='p-4 border rounded-lg'>
+            <h2 className='text-lg font-semibold mb-2'>3. Mențiuni</h2>
+            <Textarea
+              placeholder='Adaugă notițe sau mențiuni speciale pentru această comandă...'
+              {...methods.register('notes')}
+            />
+          </div>
+        </div>
+
+        <div className='p-4 border rounded-lg'>
+          <h2 className='hidden text-lg font-semibold mb-2'>
+            3. Articole Comandă
+          </h2>
+          <OrderItemsManager isAdmin={isAdmin} />
+        </div>
+
+        <OrderTotals selectedAddress={selectedAddress} />
+
+        <div className='flex justify-end gap-4'>
+          <Button
+            type='button'
+            variant='outline'
+            disabled={methods.formState.isSubmitting}
+          >
+            Salvează Ciornă
+          </Button>
+          <Button type='submit' disabled={methods.formState.isSubmitting}>
+            {methods.formState.isSubmitting
+              ? 'Se salvează...'
+              : 'Confirmă și Salvează Comanda'}
+          </Button>
+        </div>
+      </form>
+      <div className='mt-8 p-4 border rounded-lg bg-muted text-xs overflow-auto'>
+        <h3 className='font-bold mb-2'>Date primite de la server (Debug):</h3>
+        <h4 className='font-semibold mt-4'>Client Selectat:</h4>
+        <pre className='mt-2 p-2 bg-background rounded'>
+          {JSON.stringify(selectedClient, null, 2)}
+        </pre>
+        <h4 className='font-semibold mt-4'>Adresă Selectată:</h4>
+        <pre className='mt-2 p-2 bg-background rounded'>
+          {JSON.stringify(selectedAddress, null, 2)}
+        </pre>
+      </div>
+    </FormProvider>
+  )
+}

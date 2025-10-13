@@ -55,3 +55,28 @@ export interface AdminProductSearchResult {
   barCode: string | null
   isPublished: boolean
 }
+// ----------------------------- for Orders
+export type SearchedProduct = {
+  _id: string
+  name: string
+  productCode: string
+  image: string | null
+  unit: string
+  totalStock: number
+  packagingOptions: {
+    unitName: string
+    baseUnitEquivalent: number
+  }[]
+  itemType: string
+}
+
+type ProductBaseType = z.infer<typeof ProductInputSchema>
+
+export type ProductForOrderLine = ProductBaseType & {
+  _id: string
+  packagingOptions?: {
+    unitName: string
+    baseUnitEquivalent: number
+  }[]
+ 
+}

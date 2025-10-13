@@ -24,6 +24,7 @@ import { z } from 'zod'
 // }
 
 export const AddressSchema = z.object({
+  _id: z.string().optional(),
   judet: z.string().min(3, 'Județul este obligatoriu'),
   localitate: z.string().min(3, 'Localitatea este obligatorie'),
   strada: z.string().min(3, 'Strada este obligatorie'),
@@ -121,7 +122,6 @@ export const BaseClientSchema = z.object({
     })
     .optional(),
 })
-
 
 export const ClientCreateSchema = BaseClientSchema.superRefine((data, ctx) => {
   if (data.clientType === 'Persoana fizica') {
