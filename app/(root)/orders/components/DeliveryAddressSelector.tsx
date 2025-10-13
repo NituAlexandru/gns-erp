@@ -60,7 +60,7 @@ export function DeliveryAddressSelector({
 
   return (
     <div className='space-y-4'>
-      <div className='flex flex-col gap-2 w-full md:w-[400px]'>
+      <div className='flex flex-col gap-2 w-full md:w-[400px] mt-2'>
         <label
           className={`font-medium ${!client ? 'text-muted-foreground' : ''}`}
         >

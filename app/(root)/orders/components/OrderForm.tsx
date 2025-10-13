@@ -125,37 +125,44 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(onSubmit)} className='space-y-6'>
         <h1 className='text-2xl font-bold'>Creare Comandă Nouă</h1>
-        <div className='flex gap-4 p-4 border rounded-lg space-y-4'>
-          <div className='p-2 border rounded-lg m-0'>
-            <h2 className='text-lg font-semibold mb-2'>1. Detalii Client</h2>
-
+        <div className='grid grid-cols-1 md:grid-cols-[2fr_1.5fr_1.5fr_auto] gap-4 p-4 border rounded-lg'>
+          {/* Coloana 1: Detalii Client (cea mai lată dintre cele flexibile) */}
+          <div className='p-4 border rounded-lg flex flex-col'>
+            <h2 className='text-lg font-semibold mb-2'>Detalii Client</h2>
             <ClientSelector onClientSelect={handleClientSelect} />
             <DeliveryAddressSelector
               client={selectedClient}
               onAddressSelect={handleAddressSelect}
             />
           </div>
-          <div className='p-2 border rounded-lg'>
-            <h2 className='text-lg font-semibold mb-2'>2. Detalii Logistice</h2>
+
+          {/* Coloana 2: Detalii Logistice */}
+          <div className='p-4 border rounded-lg flex flex-col'>
+            <h2 className='text-lg font-semibold mb-2'>Detalii Logistice</h2>
             <OrderLogistics />
           </div>
-          <div className='p-4 border rounded-lg'>
-            <h2 className='text-lg font-semibold mb-2'>3. Mențiuni</h2>
+
+          {/* Coloana 3: Mențiuni (cu textarea h-full) */}
+          <div className='p-4 border rounded-lg flex flex-col'>
+            <h2 className='text-lg font-semibold mb-2'>Mențiuni</h2>
             <Textarea
               placeholder='Adaugă notițe sau mențiuni speciale pentru această comandă...'
               {...methods.register('notes')}
+              className='flex-grow h-full min-h-[100px]'
             />
           </div>
+
+          {/* Coloana 4: Totaluri Comandă (lățime automată) */}
+
+          <OrderTotals selectedAddress={selectedAddress} />
         </div>
 
         <div className='p-4 border rounded-lg'>
           <h2 className='hidden text-lg font-semibold mb-2'>
-            3. Articole Comandă
+            Articole Comandă
           </h2>
           <OrderItemsManager isAdmin={isAdmin} />
         </div>
-
-        <OrderTotals selectedAddress={selectedAddress} />
 
         <div className='flex justify-end gap-4'>
           <Button
@@ -172,7 +179,7 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
           </Button>
         </div>
       </form>
-      <div className='mt-8 p-4 border rounded-lg bg-muted text-xs overflow-auto'>
+      {/* <div className='mt-8 p-4 border rounded-lg bg-muted text-xs overflow-auto'>
         <h3 className='font-bold mb-2'>Date primite de la server (Debug):</h3>
         <h4 className='font-semibold mt-4'>Client Selectat:</h4>
         <pre className='mt-2 p-2 bg-background rounded'>
@@ -182,7 +189,7 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
         <pre className='mt-2 p-2 bg-background rounded'>
           {JSON.stringify(selectedAddress, null, 2)}
         </pre>
-      </div>
+      </div> */}
     </FormProvider>
   )
 }

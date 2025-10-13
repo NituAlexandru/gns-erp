@@ -13,14 +13,13 @@ import { OrderStatusBadge } from './components/OrderStatusBadge'
 import { PopulatedOrder } from '@/lib/db/modules/order/types'
 
 export default async function OrdersPage() {
-
   const orders = await getAllOrders()
 
   return (
-    <div className='container mx-auto py-8'>
+    <div className='container mx-auto'>
       <div className='flex justify-between items-center mb-6'>
         <h1 className='text-3xl font-bold'>Comenzi</h1>
-      
+
         <Button asChild>
           <Link href='/orders/new'>Comandă Nouă</Link>
         </Button>
@@ -44,7 +43,7 @@ export default async function OrdersPage() {
                   <TableCell className='font-medium'>
                     {order.orderNumber}
                   </TableCell>
-                    <TableCell>{order.client?.name || 'Client șters'}</TableCell>
+                  <TableCell>{order.client?.name || 'Client șters'}</TableCell>
                   <TableCell>
                     {new Date(order.createdAt).toLocaleDateString('ro-RO')}
                   </TableCell>

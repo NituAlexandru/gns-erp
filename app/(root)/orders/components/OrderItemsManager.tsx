@@ -272,7 +272,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
               className='w-full sm:w-auto'
               disabled={isAddingItem}
             >
-              {isAddingItem ? 'Se adaugă...' : 'Adaugă Articol...'}
+              {isAddingItem ? 'Se adaugă...' : 'Adaugă Articol'}
             </Button>
           </PopoverTrigger>
           <PopoverContent
@@ -347,7 +347,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
         </DropdownMenu>
 
         <Button variant='outline' type='button' onClick={handleAddManualLine}>
-          Adauga Operatiune Manuala
+          Adaugă Linie Liberă
         </Button>
       </div>
 

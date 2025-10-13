@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useFormContext, Controller } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -25,19 +26,42 @@ export function ManualLineItemRow({
   index,
   vatRates,
   remove,
-  itemData,
+  itemData, // itemData este un prop, nu e nevoie să-l mai citim cu useWatch
 }: ManualLineItemRowProps) {
-  const { control } = useFormContext()
+  const { control, setValue } = useFormContext() // PASUL 3: Adaugă `setValue`
 
-  // Extragem datele necesare pentru calculele live
   const {
     priceAtTimeOfOrder = 0,
     quantity = 0,
     vatRateDetails,
   } = itemData || {}
 
+  // ==========================================================
+  // PASUL 4: Adaugă `useEffect`-ul de calcul al TVA-ului
+  // ==========================================================
+  useEffect(() => {
+    const vatRate = vatRateDetails?.rate || 0
+    const lineSubtotal = priceAtTimeOfOrder * quantity
+    const calculatedVatValue = Number(
+      ((vatRate / 100) * lineSubtotal).toFixed(2)
+    )
+
+    if (vatRateDetails?.value !== calculatedVatValue) {
+      setValue(`lineItems.${index}.vatRateDetails.value`, calculatedVatValue, {
+        shouldDirty: true,
+      })
+    }
+  }, [
+    priceAtTimeOfOrder,
+    quantity,
+    vatRateDetails?.rate,
+    vatRateDetails?.value,
+    index,
+    setValue,
+  ])
+
   const lineSubtotal = priceAtTimeOfOrder * quantity
-  const lineVatValue = (vatRateDetails?.rate / 100) * lineSubtotal
+  const lineVatValue = vatRateDetails?.value || 0
   const lineTotal = lineSubtotal + lineVatValue
 
   return (
@@ -75,14 +99,14 @@ export function ManualLineItemRow({
         />
       </TableCell>
 
-      <TableCell>
+      <TableCell className='w-[120px] py-3'>
         <Controller
           name={`lineItems.${index}.unitOfMeasure`}
           control={control}
           defaultValue='buc'
           render={({ field }) => (
             <Select onValueChange={field.onChange} value={field.value}>
-              <SelectTrigger className='w-[100px]'>
+              <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -144,7 +168,6 @@ export function ManualLineItemRow({
         />
       </TableCell>
 
-      {/* Câmpuri calculate */}
       <TableCell className='w-[150px] text-right'>
         {formatCurrency(lineSubtotal)}
       </TableCell>
@@ -155,7 +178,6 @@ export function ManualLineItemRow({
         {formatCurrency(lineTotal)}
       </TableCell>
 
-      {/* Butonul de ștergere */}
       <TableCell className='w-[50px]'>
         <Button
           variant='ghost'
