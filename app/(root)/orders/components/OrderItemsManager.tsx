@@ -52,6 +52,21 @@ interface OrderItemsManagerProps {
   isAdmin: boolean
 }
 
+function getUnitPreference(productId: string, defaultUnit: string): string {
+  // Verificăm dacă suntem în browser, pentru a nu avea erori pe server
+  if (typeof window === 'undefined') {
+    return defaultUnit
+  }
+  try {
+    const savedPrefs = window.localStorage.getItem('unitPreferences')
+    const preferences = savedPrefs ? JSON.parse(savedPrefs) : {}
+    return preferences[productId] || defaultUnit
+  } catch (error) {
+    console.error('Eroare la citirea preferințelor din localStorage:', error)
+    return defaultUnit
+  }
+}
+
 export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
   const { control } = useFormContext()
   const { fields, append, remove } = useFieldArray({
@@ -115,7 +130,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
     setItemSearchTerm('')
 
     try {
-      // Preluăm detaliile complete, inclusiv câmpurile de ambalare
+      // 1. Preluăm detaliile complete ale produsului
       const fullProduct = await getProductForOrderLine(item._id)
       if (!fullProduct) {
         toast.error(
@@ -125,7 +140,10 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
         return
       }
 
-      // 2. Calculăm prețul minim
+      // 2. Aflăm unitatea de măsură preferată sau cea de bază
+      const initialUnit = getUnitPreference(fullProduct._id, fullProduct.unit)
+
+      // 3. Calculăm prețul minim
       const unformattedMinPrice = await calculateMinimumPrice(
         item._id,
         deliveryMethod
@@ -138,9 +156,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
         return
       }
 
-      // ===================================================================
-      // AICI CONSTRUIM `packagingOptions` 
-      // ===================================================================
+      // 4. Construim `packagingOptions` pe baza datelor complete
       const options = []
       const hasIntermediatePackaging =
         fullProduct.packagingUnit &&
@@ -149,18 +165,14 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
       const hasPallet =
         fullProduct.itemsPerPallet && fullProduct.itemsPerPallet > 0
 
-      // Adăugăm ambalajul intermediar (ex: bax, cutie) dacă există
       if (hasIntermediatePackaging) {
         options.push({
           unitName: fullProduct.packagingUnit,
           baseUnitEquivalent: fullProduct.packagingQuantity,
         })
       }
-
-      // Adăugăm paletul, calculând corect echivalentul
       if (hasPallet) {
         let palletEquivalent = fullProduct.itemsPerPallet
-        // Dacă un palet conține X baxuri (nu X bucăți), înmulțim
         if (hasIntermediatePackaging) {
           palletEquivalent =
             fullProduct.itemsPerPallet * fullProduct.packagingQuantity!
@@ -170,9 +182,8 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
           baseUnitEquivalent: palletEquivalent,
         })
       }
-      // ===================================================================
 
-      // 3. Construim obiectul `newItem` complet
+      // 5. Construim obiectul `newItem` complet
       const newItem: OrderLineItemInput = {
         productId: fullProduct._id,
         isManualEntry: false,
@@ -184,10 +195,10 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
           rate: defaultVat.rate,
           value: Number((minPrice * (defaultVat.rate / 100)).toFixed(2)),
         },
-        unitOfMeasure: fullProduct.unit,
-        unitOfMeasureCode: getEFacturaUomCode(fullProduct.unit),
+        unitOfMeasure: initialUnit,
+        unitOfMeasureCode: getEFacturaUomCode(initialUnit),
         baseUnit: fullProduct.unit,
-        packagingOptions: options, 
+        packagingOptions: options,
         weight: fullProduct.weight || 0,
         volume: fullProduct.volume || 0,
         length: fullProduct.length || 0,
