@@ -110,10 +110,18 @@ export async function searchServices(
     return []
   }
 }
-export async function getActiveServices(): Promise<SearchedService[]> {
+export async function getActiveServices(
+  category?: 'Serviciu' | 'Autorizatie' 
+): Promise<SearchedService[]> {
   try {
     await connectToDatabase()
-    const services = await Service.find({ isActive: true })
+
+    const filter: { isActive: boolean; category?: string } = { isActive: true }
+    if (category) {
+      filter.category = category // Adăugăm filtrul, dacă este specificat
+    }
+
+    const services = await Service.find(filter) // Folosim filtrul dinamic
       .sort({ name: 1 })
       .select('_id name code price unitOfMeasure vatRate')
       .lean()
@@ -130,4 +138,12 @@ export async function getActiveServices(): Promise<SearchedService[]> {
     console.error('Eroare la preluarea serviciilor active:', error)
     return []
   }
+}
+
+export async function getActiveCommonServices(): Promise<SearchedService[]> {
+  return getActiveServices('Serviciu')
+}
+
+export async function getActivePermits(): Promise<SearchedService[]> {
+  return getActiveServices('Autorizatie')
 }

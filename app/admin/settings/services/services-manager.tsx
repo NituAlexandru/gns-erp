@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -48,6 +48,7 @@ import {
   toggleServiceActiveState,
 } from '@/lib/db/modules/setting/services/service.actions'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 
 interface ServicesManagerProps {
   initialServices: ServiceDTO[]
@@ -67,6 +68,21 @@ export const ServicesManager = ({
   const [serviceToToggle, setServiceToToggle] = useState<ServiceDTO | null>(
     null
   )
+
+  const [searchTerm, setSearchTerm] = useState('')
+
+  // PASUL 2: Filtrăm serviciile folosind useMemo pentru performanță
+  const filteredServices = useMemo(() => {
+    if (!searchTerm) {
+      return initialServices // Dacă nu se caută nimic, returnăm lista completă
+    }
+    const lowercasedTerm = searchTerm.toLowerCase()
+    return initialServices.filter(
+      (service) =>
+        service.name.toLowerCase().includes(lowercasedTerm) ||
+        service.code.toLowerCase().includes(lowercasedTerm)
+    )
+  }, [initialServices, searchTerm])
 
   const handleSaveService = async (data: ServiceInput, serviceId?: string) => {
     setIsSaving(true)
@@ -106,14 +122,22 @@ export const ServicesManager = ({
       <Card>
         <CardHeader className='flex flex-row items-center justify-between'>
           <CardTitle>Management Servicii</CardTitle>
-          <Button
-            onClick={() => {
-              setEditingService(null)
-              setIsOpen(true)
-            }}
-          >
-            Adaugă Serviciu Nou
-          </Button>
+          <div className='flex items-center gap-2'>
+            <Input
+              placeholder='Caută după nume sau cod...'
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className='w-full sm:w-[250px]'
+            />
+            <Button
+              onClick={() => {
+                setEditingService(null)
+                setIsOpen(true)
+              }}
+            >
+              Adaugă Serviciu Nou
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -128,7 +152,7 @@ export const ServicesManager = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {initialServices.map((service) => (
+              {filteredServices.map((service) => (
                 <TableRow key={service._id}>
                   <TableCell>{service.name}</TableCell>
                   <TableCell>
@@ -155,7 +179,7 @@ export const ServicesManager = ({
                           }}
                         >
                           Modifică
-                        </DropdownMenuItem>                      
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className={
                             service.isActive ? 'text-red-500' : 'text-green-500'
@@ -184,7 +208,7 @@ export const ServicesManager = ({
           if (!open) setEditingService(null)
         }}
       >
-        <DialogContent>
+        <DialogContent className='sm:max-w-xl'>
           <DialogHeader>
             <DialogTitle>
               {editingService ? 'Modifică Serviciu' : 'Adaugă Serviciu Nou'}

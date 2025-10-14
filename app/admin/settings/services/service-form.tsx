@@ -52,6 +52,8 @@ export function ServiceForm({
           code: '',
           description: '',
           price: 0,
+          cost: 0, // Valoare implicită
+          category: 'Serviciu', // Valoare implicită
           unitOfMeasure: 'buc',
           vatRate: vatRates.find((v) => v.isDefault)?._id || vatRates[0]?._id,
           isActive: true,
@@ -71,45 +73,85 @@ export function ServiceForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className='space-y-4'>
-        <FormField
-          control={form.control}
-          name='name'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Nume Serviciu</FormLabel>
-              <FormControl>
-                <Input placeholder='ex: Descărcare mecanizată' {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='code'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Cod Serviciu</FormLabel>
-              <FormControl>
-                <Input placeholder='ex: SERV-DESC' {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name='price'
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Preț (fără TVA)</FormLabel>
-              <FormControl>
-                <Input type='number' step='0.01' {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+          <FormField
+            control={form.control}
+            name='name'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nume Serviciu</FormLabel>
+                <FormControl>
+                  <Input placeholder='ex: Descărcare mecanizată' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='code'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cod Serviciu</FormLabel>
+                <FormControl>
+                  <Input placeholder='ex: SERV-DESC' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
+          <FormField
+            control={form.control}
+            name='category'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Categorie</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder='Selectează categoria...' />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value='Serviciu'>Serviciu</SelectItem>
+                    <SelectItem value='Autorizatie'>Autorizație</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='cost'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cost (fără TVA)</FormLabel>
+                <FormControl>
+                  <Input type='number' step='0.01' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='price'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Preț Vânzare (fără TVA)</FormLabel>
+                <FormControl>
+                  <Input type='number' step='0.01' {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
         <div className='flex flex-row gap-10 items-center '>
           <FormField
             control={form.control}
@@ -152,6 +194,7 @@ export function ServiceForm({
             )}
           />
         </div>
+
         <div className='flex justify-end gap-2 pt-4'>
           <Button type='button' variant='ghost' onClick={onClose}>
             Anulează

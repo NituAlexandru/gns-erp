@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useFormContext, useFieldArray, useWatch } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,7 +38,10 @@ import {
   searchStockableItems,
 } from '@/lib/db/modules/product/product.actions'
 import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
-import { getActiveServices } from '@/lib/db/modules/setting/services/service.actions'
+import {
+  getActiveCommonServices,
+  getActivePermits,
+} from '@/lib/db/modules/setting/services/service.actions'
 import { OrderLineItemRow } from './mini-components/OrderLineItemRow'
 import { SearchedProduct } from '@/lib/db/modules/product/types'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
@@ -47,6 +50,7 @@ import { OrderLineItemInput } from '@/lib/db/modules/order/types'
 import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
 import { SearchResultItem } from './mini-components/SearchResultItem'
 import { LogisticsTotals } from './mini-components/LogisticsTotals'
+import { formatCurrency } from '@/lib/utils'
 
 interface OrderItemsManagerProps {
   isAdmin: boolean
@@ -88,9 +92,14 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
   )
   const [isLoadingItems, setIsLoadingItems] = useState(false)
   const debouncedItemSearch = useDebounce(itemSearchTerm, 300)
+  // Stări pentru Servicii și Autorizații
   const [services, setServices] = useState<SearchedService[]>([])
+  const [permits, setPermits] = useState<SearchedService[]>([])
   const [isLoadingServices, setIsLoadingServices] = useState(true)
   const [isAddingItem, setIsAddingItem] = useState(false)
+  // Stări pentru popover-ul de autorizații
+  const [isPermitPopoverOpen, setIsPermitPopoverOpen] = useState(false)
+  const [permitSearchTerm, setPermitSearchTerm] = useState('')
 
   useEffect(() => {
     async function fetchData() {
@@ -99,8 +108,14 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
       if (vatResult.success && vatResult.data) {
         setVatRates(vatResult.data as VatRateDTO[])
       }
-      const servicesResult = await getActiveServices()
+
+      const [servicesResult, permitsResult] = await Promise.all([
+        getActiveCommonServices(),
+        getActivePermits(),
+      ])
+
       setServices(servicesResult)
+      setPermits(permitsResult)
       setIsLoadingServices(false)
     }
     fetchData()
@@ -229,9 +244,18 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
       unitOfMeasure: service.unitOfMeasure,
       unitOfMeasureCode: getEFacturaUomCode(service.unitOfMeasure),
       priceAtTimeOfOrder: service.price,
-      vatRateDetails: { rate: vatRate, value: service.price * (vatRate / 100) },
+      vatRateDetails: {
+        rate: vatRate,
+        value: Number((service.price * (vatRate / 100)).toFixed(2)),
+      },
     }
     append(newItem)
+  }
+
+  const handleSelectPermit = (permit: SearchedService) => {
+    handleSelectService(permit)
+    setIsPermitPopoverOpen(false)
+    setPermitSearchTerm('')
   }
 
   const handleAddManualLine = () => {
@@ -257,14 +281,22 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
     append(newItem)
   }
 
+  const filteredPermits = useMemo(() => {
+    if (!permitSearchTerm) return permits
+    return permits.filter((p) =>
+      p.name.toLowerCase().includes(permitSearchTerm.toLowerCase())
+    )
+  }, [permits, permitSearchTerm])
+
   return (
     <div className='space-y-4'>
       <div className='flex justify-between items-start mb-4'>
         <h2 className='text-lg font-semibold'>3. Articole Comandă</h2>
-
         <LogisticsTotals lineItems={lineItems} />
       </div>
+
       <div className='flex flex-wrap gap-2'>
+        {/* Butonul 1: Adaugă Articol (neschimbat) */}
         <Popover open={itemPopoverOpen} onOpenChange={setItemPopoverOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -275,14 +307,10 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
               {isAddingItem ? 'Se adaugă...' : 'Adaugă Articol'}
             </Button>
           </PopoverTrigger>
-          <PopoverContent
-            className='w-[450px] p-0'
-            align='start'
-            sideOffset={4}
-          >
+          <PopoverContent className='w-[650px] p-0' align='start'>
             <Command>
               <CommandInput
-                placeholder='Caută produs sau ambalaj...'
+                placeholder='Caută produs...'
                 value={itemSearchTerm}
                 onValueChange={setItemSearchTerm}
               />
@@ -312,6 +340,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
           </PopoverContent>
         </Popover>
 
+        {/* Butonul 2: Adaugă Serviciu (acum doar pentru servicii comune) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -323,7 +352,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className='w-[300px] '
+            className='w-[450px]'
             align='start'
             sideOffset={4}
           >
@@ -334,18 +363,67 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
                   onSelect={() => handleSelectService(service)}
                 >
                   <span>
-                    {service.name} ({service.price} RON)
+                    {service.name} ({formatCurrency(service.price)})
                   </span>
                 </DropdownMenuItem>
               ))
             ) : (
               <DropdownMenuItem disabled>
-                Niciun serviciu activ găsit.
+                Niciun serviciu comun găsit.
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {/* Butonul 3 (NOU): Adaugă Autorizație */}
+        <Popover
+          open={isPermitPopoverOpen}
+          onOpenChange={setIsPermitPopoverOpen}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              variant='outline'
+              className='w-full sm:w-auto'
+              disabled={isLoadingServices}
+            >
+              {isLoadingServices ? 'Se încarcă...' : 'Adaugă Autorizație'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className='w-[550px] p-0'
+            align='start'
+            sideOffset={4}
+          >
+            <Command>
+              <CommandInput
+                placeholder='Caută autorizație...'
+                value={permitSearchTerm}
+                onValueChange={setPermitSearchTerm}
+              />
+              <CommandList>
+                {isLoadingServices && (
+                  <div className='p-2 text-sm'>Se încarcă...</div>
+                )}
+                {!isLoadingServices && !filteredPermits.length && (
+                  <CommandEmpty>Nicio autorizație găsită.</CommandEmpty>
+                )}
+                <CommandGroup>
+                  {filteredPermits.map((permit) => (
+                    <CommandItem
+                      key={permit._id}
+                      value={permit.name}
+                      onSelect={() => handleSelectPermit(permit)}
+                    >
+                      {permit.name} ({formatCurrency(permit.price)})
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        {/* Butonul 4: Adaugă Linie Liberă (neschimbat) */}
         <Button variant='outline' type='button' onClick={handleAddManualLine}>
           Adaugă Linie Liberă
         </Button>

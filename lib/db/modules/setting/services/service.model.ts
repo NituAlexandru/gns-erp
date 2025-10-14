@@ -6,6 +6,8 @@ export interface IServiceDoc extends Document {
   code: string
   description?: string
   price: number
+  cost: number
+  category: 'Serviciu' | 'Autorizatie'
   unitOfMeasure: string
   vatRate: Types.ObjectId
   isActive: boolean
@@ -19,6 +21,13 @@ const serviceSchema = new Schema<IServiceDoc>(
     code: { type: String, required: true, unique: true },
     description: { type: String },
     price: { type: Number, required: true, default: 0 },
+    cost: { type: Number, required: true, default: 0 },
+    category: {
+      type: String,
+      required: true,
+      enum: ['Serviciu', 'Autorizatie'],
+      index: true,
+    },
     unitOfMeasure: { type: String, required: true, default: 'buc' },
     vatRate: { type: Schema.Types.ObjectId, ref: 'VatRate', required: true },
     isActive: { type: Boolean, default: true, index: true },
