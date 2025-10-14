@@ -9,3 +9,18 @@ export interface IPackagingDoc extends IPackagingInput {
   createdAt: Date
   updatedAt: Date
 }
+
+export type PackagingForOrderLine = {
+  _id: string
+  name: string
+  productCode: string
+  unit: string
+  packagingOptions?: []
+  weight?: number
+  volume?: number
+  length?: number
+  width?: number
+  height?: number
+  packagingUnit?: string
+  packagingQuantity?: number
+}

@@ -78,5 +78,15 @@ export type ProductForOrderLine = ProductBaseType & {
     unitName: string
     baseUnitEquivalent: number
   }[]
- 
+}
+
+// for orders
+export type DefaultMarkups = {
+  markupDirectDeliveryPrice?: number
+  markupFullTruckPrice?: number
+  markupSmallDeliveryBusinessPrice?: number
+  markupRetailPrice?: number
+}
+export type ItemWithMarkups = {
+  defaultMarkups?: DefaultMarkups
 }

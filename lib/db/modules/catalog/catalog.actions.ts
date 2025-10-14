@@ -243,7 +243,6 @@ export async function getCatalogPage({
     totalStock: doc.totalStock ?? 0,
     barCode: doc.barCode ?? null,
     isPublished: doc.isPublished,
-    // --- AM ADĂUGAT CÂMPURILE LIPSA ȘI AICI ---
     unit: doc.unit,
     packagingOptions: doc.packagingOptions,
   }))

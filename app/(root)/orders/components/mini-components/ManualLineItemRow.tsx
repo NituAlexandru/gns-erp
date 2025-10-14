@@ -26,19 +26,16 @@ export function ManualLineItemRow({
   index,
   vatRates,
   remove,
-  itemData, // itemData este un prop, nu e nevoie să-l mai citim cu useWatch
+  itemData,
 }: ManualLineItemRowProps) {
-  const { control, setValue } = useFormContext() // PASUL 3: Adaugă `setValue`
-
+  const { control, setValue } = useFormContext() 
+  
   const {
     priceAtTimeOfOrder = 0,
     quantity = 0,
     vatRateDetails,
   } = itemData || {}
 
-  // ==========================================================
-  // PASUL 4: Adaugă `useEffect`-ul de calcul al TVA-ului
-  // ==========================================================
   useEffect(() => {
     const vatRate = vatRateDetails?.rate || 0
     const lineSubtotal = priceAtTimeOfOrder * quantity
@@ -103,7 +100,7 @@ export function ManualLineItemRow({
         <Controller
           name={`lineItems.${index}.unitOfMeasure`}
           control={control}
-          defaultValue='buc'
+          defaultValue='bucata'
           render={({ field }) => (
             <Select onValueChange={field.onChange} value={field.value}>
               <SelectTrigger>

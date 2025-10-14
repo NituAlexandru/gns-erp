@@ -43,7 +43,10 @@ import {
   getActivePermits,
 } from '@/lib/db/modules/setting/services/service.actions'
 import { OrderLineItemRow } from './mini-components/OrderLineItemRow'
-import { SearchedProduct } from '@/lib/db/modules/product/types'
+import {
+  ProductForOrderLine,
+  SearchedProduct,
+} from '@/lib/db/modules/product/types'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { SearchedService } from '@/lib/db/modules/setting/services/types'
 import { OrderLineItemInput } from '@/lib/db/modules/order/types'
@@ -51,10 +54,14 @@ import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
 import { SearchResultItem } from './mini-components/SearchResultItem'
 import { LogisticsTotals } from './mini-components/LogisticsTotals'
 import { formatCurrency } from '@/lib/utils'
+import { getPackagingForOrderLine } from '@/lib/db/modules/packaging-products/packaging.actions'
+import { PackagingForOrderLine } from '@/lib/db/modules/packaging-products/types'
 
 interface OrderItemsManagerProps {
   isAdmin: boolean
 }
+
+type StockableItemForOrderLine = ProductForOrderLine | PackagingForOrderLine
 
 function getUnitPreference(productId: string, defaultUnit: string): string {
   // Verificăm dacă suntem în browser, pentru a nu avea erori pe server
@@ -145,20 +152,22 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
     setItemSearchTerm('')
 
     try {
-      // 1. Preluăm detaliile complete ale produsului
-      const fullProduct = await getProductForOrderLine(item._id)
-      if (!fullProduct) {
+      let fullData: StockableItemForOrderLine | null = null
+
+      if (item.itemType === 'Produs') {
+        fullData = await getProductForOrderLine(item._id)
+      } else if (item.itemType === 'Ambalaj') {
+        fullData = await getPackagingForOrderLine(item._id)
+      }
+
+      if (!fullData) {
         toast.error(
-          'Detaliile complete ale produsului nu au putut fi încărcate.'
+          'Detaliile complete ale articolului nu au putut fi încărcate.'
         )
         setIsAddingItem(false)
         return
       }
 
-      // 2. Aflăm unitatea de măsură preferată sau cea de bază
-      const initialUnit = getUnitPreference(fullProduct._id, fullProduct.unit)
-
-      // 3. Calculăm prețul minim
       const unformattedMinPrice = await calculateMinimumPrice(
         item._id,
         deliveryMethod
@@ -171,26 +180,27 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
         return
       }
 
-      // 4. Construim `packagingOptions` pe baza datelor complete
       const options = []
       const hasIntermediatePackaging =
-        fullProduct.packagingUnit &&
-        fullProduct.packagingQuantity &&
-        fullProduct.packagingQuantity > 0
+        fullData.packagingUnit &&
+        fullData.packagingQuantity &&
+        fullData.packagingQuantity > 0
       const hasPallet =
-        fullProduct.itemsPerPallet && fullProduct.itemsPerPallet > 0
+        'itemsPerPallet' in fullData &&
+        fullData.itemsPerPallet &&
+        fullData.itemsPerPallet > 0
 
       if (hasIntermediatePackaging) {
         options.push({
-          unitName: fullProduct.packagingUnit,
-          baseUnitEquivalent: fullProduct.packagingQuantity,
+          unitName: fullData.packagingUnit,
+          baseUnitEquivalent: fullData.packagingQuantity,
         })
       }
-      if (hasPallet) {
-        let palletEquivalent = fullProduct.itemsPerPallet
+      if (hasPallet && 'itemsPerPallet' in fullData) {
+        let palletEquivalent = fullData.itemsPerPallet
         if (hasIntermediatePackaging) {
           palletEquivalent =
-            fullProduct.itemsPerPallet * fullProduct.packagingQuantity!
+            fullData.itemsPerPallet * fullData.packagingQuantity!
         }
         options.push({
           unitName: 'palet',
@@ -198,12 +208,16 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
         })
       }
 
-      // 5. Construim obiectul `newItem` complet
+      const initialUnit = getUnitPreference(
+        fullData._id.toString(),
+        fullData.unit
+      )
+
       const newItem: OrderLineItemInput = {
-        productId: fullProduct._id,
+        productId: fullData._id.toString(),
         isManualEntry: false,
-        productName: fullProduct.name,
-        productCode: fullProduct.productCode,
+        productName: fullData.name,
+        productCode: fullData.productCode,
         quantity: 1,
         priceAtTimeOfOrder: minPrice,
         vatRateDetails: {
@@ -212,21 +226,21 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
         },
         unitOfMeasure: initialUnit,
         unitOfMeasureCode: getEFacturaUomCode(initialUnit),
-        baseUnit: fullProduct.unit,
+        baseUnit: fullData.unit,
         packagingOptions: options,
-        weight: fullProduct.weight || 0,
-        volume: fullProduct.volume || 0,
-        length: fullProduct.length || 0,
-        width: fullProduct.width || 0,
-        height: fullProduct.height || 0,
-        packagingUnit: fullProduct.packagingUnit,
-        packagingQuantity: fullProduct.packagingQuantity,
+        weight: fullData.weight || 0,
+        volume: fullData.volume || 0,
+        length: fullData.length || 0,
+        width: fullData.width || 0,
+        height: fullData.height || 0,
+        packagingUnit: fullData.packagingUnit,
+        packagingQuantity: fullData.packagingQuantity,
       }
 
       append(newItem)
     } catch (error) {
-      console.error('Eroare la adăugarea produsului:', error)
-      toast.error('Eroare la adăugarea produsului.')
+      console.error('Eroare la adăugarea articolului:', error)
+      toast.error('Eroare la adăugarea articolului.')
     } finally {
       setIsAddingItem(false)
     }
@@ -270,7 +284,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
       productName: '',
       productCode: '',
       quantity: 1,
-      unitOfMeasure: 'buc',
+      unitOfMeasure: 'bucata',
       unitOfMeasureCode: 'H87',
       priceAtTimeOfOrder: 0,
       vatRateDetails: {
@@ -291,12 +305,11 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
   return (
     <div className='space-y-4'>
       <div className='flex justify-between items-start mb-4'>
-        <h2 className='text-lg font-semibold'>3. Articole Comandă</h2>
+        <h2 className='text-lg font-semibold'> Articole Comandă</h2>
         <LogisticsTotals lineItems={lineItems} />
       </div>
 
       <div className='flex flex-wrap gap-2'>
-        {/* Butonul 1: Adaugă Articol (neschimbat) */}
         <Popover open={itemPopoverOpen} onOpenChange={setItemPopoverOpen}>
           <PopoverTrigger asChild>
             <Button
@@ -340,7 +353,6 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
           </PopoverContent>
         </Popover>
 
-        {/* Butonul 2: Adaugă Serviciu (acum doar pentru servicii comune) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -423,7 +435,6 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
           </PopoverContent>
         </Popover>
 
-        {/* Butonul 4: Adaugă Linie Liberă (neschimbat) */}
         <Button variant='outline' type='button' onClick={handleAddManualLine}>
           Adaugă Linie Liberă
         </Button>

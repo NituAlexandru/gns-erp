@@ -15,6 +15,7 @@ import {
   IProductDoc,
   IProductInput,
   IProductUpdate,
+  ItemWithMarkups,
   MarkupPatch,
   ProductForOrderLine,
   SearchedProduct,
@@ -404,21 +405,21 @@ export async function searchStockableItems(
                     ],
                   },
                   {
-                          $cond: {
+                    $cond: {
                       if: {
                         $and: [
                           { $gt: ['$itemsPerPallet', 0] },
                           { $gt: ['$packagingQuantity', 0] },
                         ],
                       },
-                      
+
                       then: {
                         unitName: 'palet',
                         baseUnitEquivalent: {
                           $multiply: ['$itemsPerPallet', '$packagingQuantity'],
                         },
                       },
-                    
+
                       else: {
                         $cond: [
                           { $gt: ['$itemsPerPallet', 0] },
@@ -498,16 +499,15 @@ export async function searchStockableItems(
 }
 
 export async function calculateMinimumPrice(
-  productId: string,
+  itemId: string,
   deliveryMethodKey: string
 ): Promise<number> {
   try {
     await connectToDatabase()
 
-   
-    // Căutăm TOATE intrările de inventar pentru acest produs
+    // Căutăm TOATE intrările de inventar pentru acest articol
     const inventoryItems = await InventoryItemModel.find({
-      stockableItem: productId,
+      stockableItem: itemId,
     }).lean()
 
     // Găsim cel mai mare 'maxPurchasePrice' dintre toate locațiile
@@ -518,36 +518,47 @@ export async function calculateMinimumPrice(
 
     if (baseCost === 0) {
       console.warn(
-        `ATENȚIE: Produsul ${productId} nu are un 'maxPurchasePrice' > 0 în nicio locație. Prețul minim va fi 0.`
+        `ATENȚIE: Articolul ${itemId} nu are un 'maxPurchasePrice' > 0. Prețul minim va fi 0.`
       )
       return 0
     }
-    
-    const product = await ERPProductModel.findById(productId)
-      .select('defaultMarkups')
-      .lean()
-    if (!product) {
-      throw new Error('Produsul nu a fost găsit.')
+
+    // Căutăm articolul în ambele colecții și luăm datele de markup
+    let itemWithMarkups: ItemWithMarkups | null =
+      await ERPProductModel.findById(itemId)
+        .select('defaultMarkups')
+        .lean<ItemWithMarkups>()
+
+    if (!itemWithMarkups) {
+      itemWithMarkups = await PackagingModel.findById(itemId)
+        .select('defaultMarkups')
+        .lean<ItemWithMarkups>() // Și aici
+    }
+
+    if (!itemWithMarkups) {
+      throw new Error(
+        'Articolul (produs/ambalaj) nu a fost găsit pentru calculul markup-ului.'
+      )
     }
 
     let markupPercentage = 0
+    const markups = itemWithMarkups.defaultMarkups || {}
+
     switch (deliveryMethodKey) {
       case 'DIRECT_SALE':
-        markupPercentage =
-          product.defaultMarkups?.markupDirectDeliveryPrice || 0
+        markupPercentage = markups.markupDirectDeliveryPrice || 0
         break
       case 'DELIVERY_FULL_TRUCK':
       case 'DELIVERY_CRANE':
-        markupPercentage = product.defaultMarkups?.markupFullTruckPrice || 0
+        markupPercentage = markups.markupFullTruckPrice || 0
         break
       case 'DELIVERY_SMALL_VEHICLE_PJ':
-        markupPercentage =
-          product.defaultMarkups?.markupSmallDeliveryBusinessPrice || 0
+        markupPercentage = markups.markupSmallDeliveryBusinessPrice || 0
         break
       case 'RETAIL_SALE_PF':
       case 'PICK_UP_SALE':
       default:
-        markupPercentage = product.defaultMarkups?.markupRetailPrice || 0
+        markupPercentage = markups.markupRetailPrice || 0
     }
 
     const minimumPrice = baseCost * (1 + markupPercentage / 100)

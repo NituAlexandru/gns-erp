@@ -4,7 +4,12 @@ import { connectToDatabase } from '@/lib/db'
 import PackagingModel from './packaging.model'
 import { revalidatePath } from 'next/cache'
 import { formatError } from '@/lib/utils'
-import { IPackagingDoc, IPackagingInput, IPackagingUpdate } from './types'
+import {
+  IPackagingDoc,
+  IPackagingInput,
+  IPackagingUpdate,
+  PackagingForOrderLine,
+} from './types'
 import { packagingUpdateZod, packagingZod } from './validator'
 import { getGlobalHighestCostInStock } from '../inventory/pricing'
 
@@ -97,4 +102,45 @@ export async function updatePackagingAveragePurchasePrice(packagingId: string) {
   console.log(
     `Updated averagePurchasePrice for packaging ${packagingId} to HIGHEST cost: ${highestCost}`
   )
+}
+
+export async function getPackagingForOrderLine(
+  packagingId: string
+): Promise<PackagingForOrderLine | null> {
+  try {
+    await connectToDatabase()
+
+    const packaging = await PackagingModel.findById(packagingId)
+      .select(
+        'name productCode packagingUnit weight volume length width height packagingQuantity'
+      )
+      .lean()
+
+    if (!packaging) {
+      return null
+    }
+
+    const result: PackagingForOrderLine = {
+      _id: packaging._id.toString(),
+      name: packaging.name,
+      productCode: packaging.productCode,
+      unit: packaging.packagingUnit || 'bucata',
+      weight: packaging.weight,
+      volume: packaging.volume,
+      length: packaging.length,
+      width: packaging.width,
+      height: packaging.height,
+      packagingUnit: packaging.packagingUnit,
+      packagingQuantity: packaging.packagingQuantity,
+      packagingOptions: [],
+    }
+
+    return JSON.parse(JSON.stringify(result))
+  } catch (error) {
+    console.error(
+      'Eroare la preluarea datelor de ambalaj pentru comandă:',
+      error
+    )
+    throw new Error('Nu s-au putut prelua datele ambalajului.')
+  }
 }
