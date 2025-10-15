@@ -33,10 +33,12 @@ export const OrderLineItemInputSchema = z.object({
   height: z.number().optional(),
   packagingUnit: z.string().optional(),
   packagingQuantity: z.number().optional(),
+  isPerDelivery: z.boolean().optional(),
 })
 
 // Validator pentru crearea unei comenzi noi
 export const CreateOrderInputSchema = z.object({
+  entityType: z.enum(['client', 'project']).default('client'),
   clientId: z.string({ required_error: 'Te rog selectează un client.' }).min(1),
   clientSnapshot: z.object({
     name: z.string(),

@@ -262,6 +262,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
         rate: vatRate,
         value: Number((service.price * (vatRate / 100)).toFixed(2)),
       },
+      isPerDelivery: service.isPerDelivery || false,
     }
     append(newItem)
   }
@@ -387,7 +388,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Butonul 3 (NOU): Adaugă Autorizație */}
+        {/* Butonul 3: Adaugă Autorizație */}
         <Popover
           open={isPermitPopoverOpen}
           onOpenChange={setIsPermitPopoverOpen}

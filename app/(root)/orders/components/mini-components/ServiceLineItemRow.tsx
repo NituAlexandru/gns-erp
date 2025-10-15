@@ -36,6 +36,7 @@ export function ServiceLineItemRow({
     vatRateDetails,
     productName,
     unitOfMeasure,
+    isPerDelivery,
   } = itemData || {}
 
   const [minimumPrice] = useState(itemData.priceAtTimeOfOrder)
@@ -68,7 +69,17 @@ export function ServiceLineItemRow({
             <Input
               {...field}
               type='number'
-              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+              disabled={isPerDelivery}
+              onChange={(e) => {
+                if (isPerDelivery) return
+                field.onChange(parseFloat(e.target.value) || 0)
+              }}
+              onBlur={(e) => {
+                const numValue = parseFloat(e.target.value)
+                if (!isNaN(numValue)) {
+                  field.onChange(numValue.toFixed(2))
+                }
+              }}
               className='min-w-[100px]'
             />
           )}

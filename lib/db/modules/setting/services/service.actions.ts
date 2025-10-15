@@ -111,19 +111,18 @@ export async function searchServices(
   }
 }
 export async function getActiveServices(
-  category?: 'Serviciu' | 'Autorizatie' 
+  category?: 'Serviciu' | 'Autorizatie'
 ): Promise<SearchedService[]> {
   try {
     await connectToDatabase()
 
     const filter: { isActive: boolean; category?: string } = { isActive: true }
     if (category) {
-      filter.category = category // Adăugăm filtrul, dacă este specificat
-    }
+      filter.category = category    }
 
-    const services = await Service.find(filter) // Folosim filtrul dinamic
+    const services = await Service.find(filter)
       .sort({ name: 1 })
-      .select('_id name code price unitOfMeasure vatRate')
+      .select('_id name code price unitOfMeasure vatRate isPerDelivery')
       .lean()
 
     return services.map((service) => ({
@@ -133,6 +132,7 @@ export async function getActiveServices(
       price: service.price,
       unitOfMeasure: service.unitOfMeasure,
       vatRateId: service.vatRate.toString(),
+      isPerDelivery: service.isPerDelivery || false,
     }))
   } catch (error) {
     console.error('Eroare la preluarea serviciilor active:', error)

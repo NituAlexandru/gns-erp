@@ -19,4 +19,5 @@ export type SearchedService = {
   price: number
   unitOfMeasure: string
   vatRateId: string
+  isPerDelivery?: boolean
 }

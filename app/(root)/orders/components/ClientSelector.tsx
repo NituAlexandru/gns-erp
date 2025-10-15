@@ -26,13 +26,16 @@ import { useEffect, useState } from 'react'
 
 interface ClientSelectorProps {
   onClientSelect: (client: IClientDoc | null) => void
+  selectedClient: IClientDoc | null
 }
 
-export function ClientSelector({ onClientSelect }: ClientSelectorProps) {
+export function ClientSelector({
+  onClientSelect,
+  selectedClient,
+}: ClientSelectorProps) {
   const [open, setOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<SearchedClient[]>([])
-  const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
   const [isLoadingSearch, setIsLoadingSearch] = useState(false)
   const [isFetchingDetails, setIsFetchingDetails] = useState(false)
 
@@ -48,7 +51,6 @@ export function ClientSelector({ onClientSelect }: ClientSelectorProps) {
 
       try {
         const clients = await searchClients(debouncedSearchTerm)
-
         setSearchResults(clients)
       } catch (error) {
         console.error('[FRONTEND] Eroare la apelul searchClients:', error)
@@ -67,11 +69,10 @@ export function ClientSelector({ onClientSelect }: ClientSelectorProps) {
 
     try {
       const fullClientData = await getClientById(clientFromSearch._id)
-      setSelectedClient(fullClientData)
+      // Acum nu mai setăm starea locală, ci doar notificăm părintele
       onClientSelect(fullClientData)
     } catch (error) {
       console.error('Clientul nu a putut fi încărcat:', error)
-      // TODO: Gestionează eroarea (ex: afișează un toast/notificare)
       onClientSelect(null)
     } finally {
       setIsFetchingDetails(false)
@@ -140,8 +141,30 @@ export function ClientSelector({ onClientSelect }: ClientSelectorProps) {
       {isFetchingDetails && (
         <div className='p-2 text-sm'>Se încarcă detaliile clientului...</div>
       )}
+
       {selectedClient && !isFetchingDetails && (
-        <div className='mt-2 p-3 border rounded-md bg-muted text-sm'>
+        <div className='mt-2 p-3 border rounded-md bg-muted text-sm space-y-1'>
+          <div className='mb-1 pb-1 border-b  text-sm'>
+            <div className='flex justify-between'>
+              <span className='text-muted-foreground'>Plafon de livrare:</span>
+              <span className='font-semibold text-red-500'>
+                100.000,00 RON (Placeholder)
+              </span>
+            </div>
+            <div className='flex justify-between'>
+              <span className='text-muted-foreground'>Sold Curent:</span>
+              <span className='font-semibold text-yellow-500'>
+                -1,234.56 RON (Placeholder)
+              </span>
+            </div>
+            <div className='flex justify-between items-center'>
+              <span className='text-muted-foreground'>Status Livrare:</span>
+              <span className='font-semibold text-red-500'>
+                Blocat (Placeholder)
+              </span>
+            </div>
+          </div>
+
           <p>
             <strong>Client:</strong> {selectedClient.name}
           </p>
