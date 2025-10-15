@@ -7,6 +7,7 @@ export interface IOrderLineItem extends Types.Subdocument {
   productId?: Types.ObjectId
   serviceId?: Types.ObjectId
   isManualEntry: boolean
+  isPerDelivery?: boolean
   productName: string
   productCode?: string
   quantity: number
@@ -37,5 +38,6 @@ export type PopulatedOrder = Omit<IOrder, 'client'> & {
   } | null
 }
 
-
 export { CreateOrderInputSchema }
+
+export type OrderStatusKey = IOrder['status']

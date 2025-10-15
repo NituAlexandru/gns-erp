@@ -1,3 +1,7 @@
+import { OrderStatusKey } from './types'
+import { type VariantProps } from 'class-variance-authority'
+import { badgeVariants } from '@/components/ui/badge'
+
 export const DELIVERY_METHODS = [
   {
     key: 'DIRECT_SALE',
@@ -32,3 +36,17 @@ export const DELIVERY_METHODS = [
 ] as const
 
 export type DeliveryMethodKey = (typeof DELIVERY_METHODS)[number]['key']
+
+export const ORDER_STATUS_MAP: Record<
+  OrderStatusKey,
+  { name: string; variant: VariantProps<typeof badgeVariants>['variant'] }
+> = {
+  DRAFT: { name: 'Ciornă', variant: 'secondary' },
+  CONFIRMED: { name: 'Confirmată', variant: 'default' },
+  IN_DELIVERY: { name: 'În livrare', variant: 'warning' },
+  PARTIALLY_DELIVERED: { name: 'Livrată Parțial', variant: 'warning' },
+  DELIVERED: { name: 'Livrată Integral', variant: 'success' },
+  INVOICED: { name: 'Facturată', variant: 'info' },
+  COMPLETED: { name: 'Finalizată', variant: 'success' },
+  CANCELLED: { name: 'Anulată', variant: 'destructive' },
+}

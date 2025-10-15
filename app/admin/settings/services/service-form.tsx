@@ -27,6 +27,12 @@ import {
   ServiceInput,
 } from '@/lib/db/modules/setting/services/types'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface ServiceFormProps {
   vatRates: VatRateDTO[]
@@ -45,6 +51,7 @@ export function ServiceForm({
 }: ServiceFormProps) {
   const form = useForm<ServiceInput>({
     resolver: zodResolver(ServiceInputSchema),
+    // Am actualizat valorile implicite pentru noile câmpuri
     defaultValues: initialData
       ? { ...initialData, vatRate: initialData.vatRate._id }
       : {
@@ -52,9 +59,10 @@ export function ServiceForm({
           code: '',
           description: '',
           price: 0,
-          cost: 0, // Valoare implicită
-          category: 'Serviciu', // Valoare implicită
-          unitOfMeasure: 'buc',
+          cost: 0,
+          category: 'Serviciu',
+          isPerDelivery: false,
+          unitOfMeasure: 'bucata',
           vatRate: vatRates.find((v) => v.isDefault)?._id || vatRates[0]?._id,
           isActive: true,
         },
@@ -73,6 +81,7 @@ export function ServiceForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className='space-y-4'>
+        {/* Numele și Codul */}
         <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
           <FormField
             control={form.control}
@@ -102,6 +111,7 @@ export function ServiceForm({
           />
         </div>
 
+        {/* --- CATEGORIE, COST, PREȚ --- */}
         <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
           <FormField
             control={form.control}
@@ -152,17 +162,18 @@ export function ServiceForm({
           />
         </div>
 
-        <div className='flex flex-row gap-10 items-center '>
+        {/* --- TVA ȘI OPȚIUNI --- */}
+        <div className='flex flex-row items-center justify-between pt-2'>
           <FormField
             control={form.control}
             name='vatRate'
             render={({ field }) => (
-              <FormItem>
+              <FormItem className='w-[200px]'>
                 <FormLabel>Cotă TVA</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder='Selectează cota TVA...' />
+                      <SelectValue placeholder='Selectează...' />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -179,17 +190,55 @@ export function ServiceForm({
           />
           <FormField
             control={form.control}
-            name='isActive'
+            name='isPerDelivery'
             render={({ field }) => (
-              <FormItem className='flex flex-row items-center gap-2 pt-2 '>
+              <FormItem className='flex flex-row items-center gap-2 pt-6'>
                 <FormControl>
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={field.onChange}
-                    className='cursor-pointer'
                   />
                 </FormControl>
-                <FormLabel className='!mt-0'>Activ</FormLabel>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <FormLabel className='!mt-0 font-normal cursor-help'>
+                        Aplicabil la fiecare livrare
+                      </FormLabel>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className='max-w-md'>
+                        Bifând această opțiune, serviciul va fi tratat ca un
+                        cost recurent.
+                        <br />
+                        La crearea fiecărei livrări dintr-o comandă, acest
+                        serviciu va fi propus automat pentru a fi adăugat pe
+                        aviz.
+                        <br />
+                        <br />
+                        <b>Exemplu:</b> Dacă Transport este bifat, iar o comandă
+                        are 3 livrări, veți putea adăuga costul de transport pe
+                        fiecare din cele 3 avize.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='isActive'
+            render={({ field }) => (
+              <FormItem className='flex flex-row items-center gap-2 pt-6'>
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormLabel className='!mt-0 font-normal'>Activ</FormLabel>
               </FormItem>
             )}
           />

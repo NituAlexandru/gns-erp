@@ -1,11 +1,12 @@
 import mongoose, { Schema, Document, models, Types } from 'mongoose'
-import { IOrderLineItem } from './types' 
+import { IOrderLineItem } from './types'
 
 // Schema pentru un rând din comandă
 const OrderLineItemSchema = new Schema<IOrderLineItem>({
   productId: { type: Schema.Types.ObjectId, ref: 'Product', default: null },
   serviceId: { type: Schema.Types.ObjectId, ref: 'Service', default: null },
   isManualEntry: { type: Boolean, default: false, required: true },
+  isPerDelivery: { type: Boolean, default: false },
   productName: { type: String, required: true },
   productCode: { type: String, default: '' },
   quantity: { type: Number, required: true },
@@ -26,7 +27,17 @@ export interface IOrder extends Document {
   orderNumber: string
   client: Types.ObjectId
   salesAgent: Types.ObjectId
-  status: 'Ciorna' | 'Confirmata' | 'LivrataPartial' | 'Livrata' | 'Anulata'
+  status:
+    | 'DRAFT'
+    | 'CONFIRMED'
+    | 'IN_DELIVERY'
+    | 'PARTIALLY_DELIVERED'
+    | 'DELIVERED'
+    | 'INVOICED'
+    | 'COMPLETED'
+    | 'CANCELLED'
+  entityType: 'client' | 'project'
+  projectId?: Types.ObjectId
   clientSnapshot: {
     name: string
     cui: string
@@ -35,6 +46,10 @@ export interface IOrder extends Document {
     judet: string
     bank?: string
     iban?: string
+    balanceAtCreation?: number
+    statusAtCreation?: string
+    estimatedProfitRON?: number
+    estimatedProfitPercent?: number
   }
   deliveryAddress: {
     judet: string
@@ -73,9 +88,26 @@ const OrderSchema = new Schema<IOrder>(
     salesAgent: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     status: {
       type: String,
-      enum: ['Ciorna', 'Confirmata', 'LivrataPartial', 'Livrata', 'Anulata'],
-      default: 'Ciorna',
+      enum: [
+        'DRAFT',
+        'CONFIRMED',
+        'IN_DELIVERY',
+        'PARTIALLY_DELIVERED',
+        'DELIVERED',
+        'INVOICED',
+        'COMPLETED',
+        'CANCELLED',
+      ],
+      default: 'DRAFT',
+      index: true,
     },
+    entityType: {
+      type: String,
+      enum: ['client', 'project'],
+      required: true,
+      default: 'client',
+    },
+    projectId: { type: Schema.Types.ObjectId, ref: 'Project' },
     clientSnapshot: {
       name: { type: String, required: true },
       cui: { type: String, required: true },
@@ -84,6 +116,8 @@ const OrderSchema = new Schema<IOrder>(
       judet: { type: String, required: true },
       bank: { type: String },
       iban: { type: String },
+      balanceAtCreation: { type: Number },
+      statusAtCreation: { type: String },
     },
     deliveryAddress: {
       judet: { type: String, required: true },
@@ -105,6 +139,8 @@ const OrderSchema = new Schema<IOrder>(
       shippingCost: { type: Number, required: true, default: 0 },
       vatTotal: { type: Number, required: true, default: 0 },
       grandTotal: { type: Number, required: true, default: 0 },
+      estimatedProfitRON: { type: Number },
+      estimatedProfitPercent: { type: Number },
     },
     deliveryType: { type: String, required: true },
     estimatedVehicleType: { type: String, required: true },

@@ -10,6 +10,7 @@ export const ServiceInputSchema = z.object({
   category: z.enum(['Serviciu', 'Autorizatie'], {
     required_error: 'Categoria este obligatorie.',
   }),
+  isPerDelivery: z.boolean().optional().default(false),
   unitOfMeasure: z.string().min(1, 'Unitatea de măsură este obligatorie.'),
   vatRate: MongoId,
   isActive: z.boolean().optional(),

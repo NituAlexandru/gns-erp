@@ -10,6 +10,7 @@ export interface IServiceDoc extends Document {
   category: 'Serviciu' | 'Autorizatie'
   unitOfMeasure: string
   vatRate: Types.ObjectId
+  isPerDelivery: boolean
   isActive: boolean
   createdAt: Date
   updatedAt: Date
@@ -28,6 +29,7 @@ const serviceSchema = new Schema<IServiceDoc>(
       enum: ['Serviciu', 'Autorizatie'],
       index: true,
     },
+    isPerDelivery: { type: Boolean, default: false },
     unitOfMeasure: { type: String, required: true, default: 'buc' },
     vatRate: { type: Schema.Types.ObjectId, ref: 'VatRate', required: true },
     isActive: { type: Boolean, default: true, index: true },

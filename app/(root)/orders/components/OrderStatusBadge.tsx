@@ -1,22 +1,22 @@
 'use client'
 
 import { Badge } from '@/components/ui/badge'
-import { IOrder } from '@/lib/db/modules/order/order.model'
+import { ORDER_STATUS_MAP } from '@/lib/db/modules/order/constants'
+import { OrderStatusKey } from '@/lib/db/modules/order/types'
 
 interface OrderStatusBadgeProps {
-  status: IOrder['status']
+  status: OrderStatusKey
 }
 
 export function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
-  const statusConfig = {
-    Ciorna: { label: 'Ciornă', variant: 'secondary' as const },
-    Confirmata: { label: 'Confirmată', variant: 'default' as const },
-    Livrata: { label: 'Livrată', variant: 'success' as const },
-    LivrataPartial: { label: 'Livrată Parțial', variant: 'warning' as const },
-    Anulata: { label: 'Anulată', variant: 'destructive' as const },
+  const config = ORDER_STATUS_MAP[status] || {
+    name: 'Necunoscut',
+    variant: 'secondary',
   }
 
-  const config = statusConfig[status] || statusConfig.Ciorna
-
-  return <Badge variant={config.variant}>{config.label}</Badge>
+  return (
+    <Badge variant={config.variant} className='whitespace-nowrap'>
+      {config.name}
+    </Badge>
+  )
 }
