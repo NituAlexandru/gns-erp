@@ -1031,8 +1031,35 @@ export async function reserveStock(
  * @param items Liniile de comandă pentru care se eliberează stocul.
  * @param session Sesiunea MongoDB activă pentru tranzacție.
  */
-// export async function unreserveStock(items: OrderLineItemInput[], session: ClientSession) {
-//   // Logica va fi similară cu `reserveStock`, dar va scădea din `quantityReserved`.
-//   // Pentru moment, o lăsăm ca placeholder.
-//   console.log('Functia unreserveStock va fi implementata ulterior.');
-// }
+export async function unreserveStock(
+  items: OrderLineItemInput[],
+  session: ClientSession
+) {
+  for (const item of items) {
+    if (!item.productId || item.isManualEntry) {
+      continue
+    }
+
+    let quantityToUnreserve = Number(item.quantity) || 0
+    if (item.unitOfMeasure !== item.baseUnit) {
+      const option = item.packagingOptions?.find(
+        (opt: { unitName: string }) => opt.unitName === item.unitOfMeasure
+      )
+      if (option && option.baseUnitEquivalent) {
+        quantityToUnreserve *= option.baseUnitEquivalent
+      }
+    }
+
+    // Decrementăm cantitatea rezervată. Folosim `$inc` cu o valoare negativă.
+    await InventoryItemModel.findOneAndUpdate(
+      {
+        stockableItem: item.productId,
+        location: 'DEPOZIT',
+      },
+      {
+        $inc: { quantityReserved: -quantityToUnreserve },
+      },
+      { session } // Asigurăm că operațiunea face parte din tranzacție
+    )
+  }
+}

@@ -75,6 +75,8 @@ export const CreateOrderInputSchema = z.object({
     required_error: 'Tipul de vehicul este obligatoriu.',
   }),
   estimatedTransportCount: z.number().int().positive().default(1),
+  distanceInKm: z.number().optional(),
+  travelTimeInMinutes: z.number().optional(),
   notes: z.string().optional(),
   shippingCost: z.number().nonnegative().default(0),
 })

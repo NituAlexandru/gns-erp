@@ -17,6 +17,26 @@ import { useDebounce } from '@/hooks/use-debounce'
 import qs from 'query-string'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { formatCurrency } from '@/lib/utils'
+import { cancelOrder } from '@/lib/db/modules/order/order.actions'
+import { toast } from 'sonner'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { useRouter } from 'next/navigation'
 
 interface OrdersListProps {
   initialData: {
@@ -32,12 +52,17 @@ export function OrdersList({
   currentPage,
   isAdmin,
 }: OrdersListProps) {
+  const router = useRouter()
   const [orders, setOrders] = useState<PopulatedOrder[]>(initialData.data)
   const [totalPages, setTotalPages] = useState(initialData.totalPages)
   const [isPending, startTransition] = useTransition()
   const [page, setPage] = useState(currentPage)
   const [filters, setFilters] = useState<OrderFilters>({})
   const debouncedFilters = useDebounce(filters, 500)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [orderToCancel, setOrderToCancel] = useState<PopulatedOrder | null>(
+    null
+  )
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -70,6 +95,26 @@ export function OrdersList({
   const handleFiltersChange = (newFilters: Partial<OrderFilters>) => {
     setPage(1)
     setFilters((prev) => ({ ...prev, ...newFilters }))
+  }
+
+  const handleCancel = async () => {
+    if (!orderToCancel) return
+
+    startTransition(async () => {
+      const result = await cancelOrder(orderToCancel._id)
+      if (result.success) {
+        toast.success(result.message)
+        setOrders((prevOrders) =>
+          prevOrders.map((o) =>
+            o._id === orderToCancel._id ? { ...o, status: 'CANCELLED' } : o
+          )
+        )
+      } else {
+        toast.error('Eroare la anulare', { description: result.message })
+      }
+      setIsConfirmOpen(false) // Închidem dialogul
+      setOrderToCancel(null)
+    })
   }
 
   return (
@@ -127,9 +172,52 @@ export function OrdersList({
                     {formatCurrency(order.totals.grandTotal)}
                   </TableCell>
                   <TableCell className='text-right'>
-                    <Button variant='ghost' size='sm'>
-                      Detalii
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant='ghost' size='sm'>
+                          Acțiuni
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align='end'>
+                        <DropdownMenuItem
+                          onSelect={() => router.push(`/orders/${order._id}`)}
+                        >
+                          Vizualizează
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            router.push(`/orders/${order._id}/edit`)
+                          }
+                          disabled={
+                            order.status === 'COMPLETED' ||
+                            order.status === 'CANCELLED'
+                          }
+                        >
+                          Modifică
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            router.push(`/orders/new?fromOrder=${order._id}`)
+                          }
+                        >
+                          Duplică Comanda
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className='text-red-500'
+                          onSelect={() => {
+                            setOrderToCancel(order)
+                            setIsConfirmOpen(true)
+                          }}
+                          disabled={
+                            order.status === 'COMPLETED' ||
+                            order.status === 'CANCELLED'
+                          }
+                        >
+                          Anulează Comanda
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
@@ -168,6 +256,24 @@ export function OrdersList({
           </Button>
         </div>
       )}
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmare Anulare</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ești sigur că vrei să anulezi comanda{' '}
+              <strong>{orderToCancel?.orderNumber}</strong>? Dacă stocul a fost
+              rezervat, acesta va fi eliberat. Acțiunea este ireversibilă.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Renunță</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancel} disabled={isPending}>
+              {isPending ? 'Se anulează...' : 'Da, anulează comanda'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

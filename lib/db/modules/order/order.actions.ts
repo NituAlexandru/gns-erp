@@ -6,8 +6,8 @@ import { CreateOrderInputSchema } from './validator'
 import { CreateOrderInput, PopulatedOrder } from './types'
 import { connectToDatabase } from '../..'
 import { startSession } from 'mongoose'
-import { round2 } from '@/lib/utils'
-import { reserveStock } from '../inventory/inventory.actions'
+import { formatError, round2 } from '@/lib/utils'
+import { reserveStock, unreserveStock } from '../inventory/inventory.actions'
 import { generateOrderNumber } from '../numbering/numbering.actions'
 import { auth } from '@/auth'
 import z from 'zod'
@@ -165,5 +165,58 @@ export async function getAllOrders(
   } catch (error) {
     console.error('Eroare la preluarea comenzilor:', error)
     return { data: [], totalPages: 0 }
+  }
+}
+
+export async function getOrderById(
+  orderId: string
+): Promise<PopulatedOrder | null> {
+  try {
+    await connectToDatabase()
+
+    const order = await Order.findById(orderId)
+      .populate({ path: 'client', select: 'name' })
+      .populate({ path: 'salesAgent', select: 'name' })
+      .lean()
+
+    if (!order) {
+      return null
+    }
+
+    return JSON.parse(JSON.stringify(order))
+  } catch (error) {
+    console.error('Eroare la preluarea comenzii:', error)
+    return null
+  }
+}
+
+export async function cancelOrder(orderId: string) {
+  const session = await startSession()
+  session.startTransaction()
+
+  try {
+    const order = await Order.findById(orderId).session(session)
+    if (!order) {
+      throw new Error('Comanda nu a fost găsită.')
+    }
+
+    // Eliberăm stocul DOAR dacă comanda era confirmată
+    if (order.status === 'CONFIRMED') {
+      await unreserveStock(order.lineItems, session)
+    }
+
+    // Setăm noul status
+    order.status = 'CANCELLED'
+    await order.save({ session })
+
+    await session.commitTransaction()
+    revalidatePath('/orders')
+    return { success: true, message: 'Comanda a fost anulată cu succes.' }
+  } catch (error) {
+    await session.abortTransaction()
+    console.error('Eroare la anularea comenzii:', error)
+    return { success: false, message: formatError(error) }
+  } finally {
+    await session.endSession()
   }
 }

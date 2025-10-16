@@ -75,6 +75,8 @@ export interface IOrder extends Document {
   deliveryType: string
   estimatedVehicleType: string
   estimatedTransportCount: number
+  distanceInKm?: number
+  travelTimeInMinutes?: number
   notes?: string
   createdAt: Date
   updatedAt: Date
@@ -145,6 +147,8 @@ const OrderSchema = new Schema<IOrder>(
     deliveryType: { type: String, required: true },
     estimatedVehicleType: { type: String, required: true },
     estimatedTransportCount: { type: Number, default: 1 },
+    distanceInKm: { type: Number },
+    travelTimeInMinutes: { type: Number },
     notes: { type: String },
   },
   { timestamps: true }

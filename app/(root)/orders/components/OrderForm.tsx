@@ -104,6 +104,10 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
 
   const onSubmit = async (data: CreateOrderInput) => {
     setIsSubmitting(true)
+
+    data.distanceInKm = selectedAddress?.distanceInKm || 0
+    data.travelTimeInMinutes = selectedAddress?.travelTimeInMinutes || 0
+
     // Logica de calcul a costului de transport rămâne aici
     const finalShippingCost =
       selectedAddress?.distanceInKm && data.estimatedVehicleType
@@ -128,13 +132,10 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
 
   const onSaveDraft = async () => {
     setIsSubmitting(true)
-    // Preluăm datele curente din formular, fără a rula validarea completă a Zod
     const data = methods.getValues()
-    console.log(
-      '%cLOG 3 (onSaveDraft): Datele preluate cu getValues() ->',
-      'color: red; font-weight: bold;',
-      data
-    )
+
+    data.distanceInKm = selectedAddress?.distanceInKm || 0
+    data.travelTimeInMinutes = selectedAddress?.travelTimeInMinutes || 0
 
     const finalShippingCost =
       selectedAddress?.distanceInKm && data.estimatedVehicleType

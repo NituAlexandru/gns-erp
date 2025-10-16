@@ -95,11 +95,13 @@ export function OrderTotals() {
         </div>
 
         <div className='flex justify-between text-sm font-medium mt-2'>
-          <span>Subtotal Linii Libere</span>
+          <span>Subtotal Servicii Personalizate</span>
           <span>{formatCurrency(manualSubtotal)}</span>
         </div>
         <div className='flex justify-between text-sm'>
-          <span className='pl-4 text-muted-foreground'>TVA Linii Libere</span>
+          <span className='pl-4 text-muted-foreground'>
+            TVA Servicii Personalizate
+          </span>
           <span className='font-medium text-muted-foreground'>
             {formatCurrency(manualVat)}
           </span>
