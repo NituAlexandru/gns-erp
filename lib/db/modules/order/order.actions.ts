@@ -12,6 +12,9 @@ import { generateOrderNumber } from '../numbering/numbering.actions'
 import { auth } from '@/auth'
 import z from 'zod'
 import VehicleRate from '../setting/shipping-rates/shipping.model'
+import { PAGE_SIZE } from '@/lib/constants'
+import './../client/client.model'
+import './../user/user.model'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -67,7 +70,6 @@ function calculateOrderTotals(
   }
 }
 
-// --- FUNCȚIA PRINCIPALĂ, CURĂȚATĂ ---
 export async function createOrder(
   data: CreateOrderInput,
   status: 'DRAFT' | 'CONFIRMED'
@@ -76,7 +78,6 @@ export async function createOrder(
   session.startTransaction()
 
   try {
-    // --- PASUL 1: Preluăm corect sesiunea și ID-ul utilizatorului din Next-Auth ---
     const sessionAuth = await auth()
     const userId = sessionAuth?.user?.id
 
@@ -94,9 +95,8 @@ export async function createOrder(
 
     const newOrder = new Order({
       ...validatedData,
-      // --- PASUL 2: Folosim numele corecte ale câmpurilor ---
       salesAgent: userId,
-      client: validatedData.clientId, // `client` este numele din schemă, `clientId` este numele din datele validate
+      client: validatedData.clientId,
       orderNumber,
       status,
       totals: orderTotals,
@@ -119,7 +119,7 @@ export async function createOrder(
   } catch (error) {
     await session.abortTransaction()
     console.error('Eroare la crearea comenzii:', error)
-    // Trimitem eroarea Zod înapoi, dacă este cazul
+
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -137,20 +137,33 @@ export async function createOrder(
     await session.endSession()
   }
 }
-export async function getAllOrders(): Promise<PopulatedOrder[]> {
+export async function getAllOrders(
+  page: number = 1
+): Promise<{ data: PopulatedOrder[]; totalPages: number }> {
   try {
     await connectToDatabase()
-    const orders = await Order.find({})
-      .populate({
-        path: 'client',
-        select: 'name',
-      })
-      .sort({ createdAt: -1 })
-      .lean()
 
-    return JSON.parse(JSON.stringify(orders))
+    const skipAmount = (page - 1) * PAGE_SIZE
+
+    const [orders, totalOrders] = await Promise.all([
+      Order.find({})
+        .sort({ createdAt: -1 })
+        .skip(skipAmount)
+        .limit(PAGE_SIZE)
+        .populate({ path: 'client', select: 'name' })
+        .populate({ path: 'salesAgent', select: 'name' })
+        .lean(),
+      Order.countDocuments({}),
+    ])
+
+    const totalPages = Math.ceil(totalOrders / PAGE_SIZE)
+
+    return {
+      data: JSON.parse(JSON.stringify(orders)),
+      totalPages,
+    }
   } catch (error) {
     console.error('Eroare la preluarea comenzilor:', error)
-    return []
+    return { data: [], totalPages: 0 }
   }
 }

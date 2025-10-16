@@ -36,8 +36,20 @@ export type PopulatedOrder = Omit<IOrder, 'client'> & {
     _id: string
     name: string
   } | null
+  salesAgent: {
+    _id: string
+    name: string
+  } | null
 }
 
 export { CreateOrderInputSchema }
 
 export type OrderStatusKey = IOrder['status']
+
+export interface OrderFilters {
+  q?: string
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  minTotal?: number
+}
