@@ -1,14 +1,17 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { generateNextDocumentNumber } from '../numbering/numbering.actions' // Presupunem calea
 import Order from './order.model'
 import { CreateOrderInputSchema } from './validator'
 import { CreateOrderInput, PopulatedOrder } from './types'
 import { connectToDatabase } from '../..'
-import VehicleModel from '../fleet/vehicle/vehicle.model'
-import ClientModel from '../client/client.model'
-import { IClientDoc } from '../client/types'
+import { startSession } from 'mongoose'
+import { round2 } from '@/lib/utils'
+import { reserveStock } from '../inventory/inventory.actions'
+import { generateOrderNumber } from '../numbering/numbering.actions'
+import { auth } from '@/auth'
+import z from 'zod'
+import VehicleRate from '../setting/shipping-rates/shipping.model'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -20,20 +23,20 @@ export async function calculateShippingCost(
     }
     await connectToDatabase()
 
-    const vehicle = await VehicleModel.findOne({ carType: vehicleType })
+    const vehicleRate = await VehicleRate.findOne({ type: vehicleType })
       .select('ratePerKm')
       .lean()
 
-    if (!vehicle || !vehicle.ratePerKm) {
+    if (!vehicleRate || !vehicleRate.ratePerKm) {
       console.warn(
         `Nu a fost găsit un tarif/km pentru tipul de vehicul: ${vehicleType}`
       )
       return 0
     }
 
-    const ratePerKm = vehicle.ratePerKm
-    const roundTripDistance = distanceInKm * 2
-    const totalCost = roundTripDistance * ratePerKm
+    const ratePerKm = vehicleRate.ratePerKm
+
+    const totalCost = distanceInKm * ratePerKm
 
     return Math.round(totalCost * 100) / 100
   } catch (error) {
@@ -42,100 +45,98 @@ export async function calculateShippingCost(
   }
 }
 
-export async function createOrder(data: CreateOrderInput) {
+function calculateOrderTotals(
+  lineItems: CreateOrderInput['lineItems'],
+  shippingCost: number
+) {
+  const totals = lineItems.reduce(
+    (acc, item) => {
+      const lineSubtotal = item.priceAtTimeOfOrder * Number(item.quantity)
+      acc.subtotal += lineSubtotal
+      acc.vatTotal += item.vatRateDetails.value
+      return acc
+    },
+    { subtotal: 0, vatTotal: 0 }
+  )
+
+  return {
+    subtotal: round2(totals.subtotal),
+    vatTotal: round2(totals.vatTotal),
+    shippingCost: round2(shippingCost),
+    grandTotal: round2(totals.subtotal + totals.vatTotal + shippingCost),
+  }
+}
+
+// --- FUNCȚIA PRINCIPALĂ, CURĂȚATĂ ---
+export async function createOrder(
+  data: CreateOrderInput,
+  status: 'DRAFT' | 'CONFIRMED'
+) {
+  const session = await startSession()
+  session.startTransaction()
+
   try {
-    const validationResult = CreateOrderInputSchema.safeParse(data)
-    if (!validationResult.success) {
-      console.error(
-        'Validation Error:',
-        validationResult.error.flatten().fieldErrors
-      )
-      return {
-        success: false,
-        message: 'Datele comenzii sunt invalide.',
-        errors: validationResult.error.flatten().fieldErrors,
-      }
+    // --- PASUL 1: Preluăm corect sesiunea și ID-ul utilizatorului din Next-Auth ---
+    const sessionAuth = await auth()
+    const userId = sessionAuth?.user?.id
+
+    if (!userId) {
+      throw new Error('Utilizator neautentificat. Acțiune interzisă.')
     }
 
-    const validatedData = validationResult.data
+    const validatedData = CreateOrderInputSchema.parse(data)
 
-    let subtotal = 0
-    let vatTotal = 0
-
-    validatedData.lineItems.forEach((item) => {
-      const lineSubtotal = item.priceAtTimeOfOrder * item.quantity
-      subtotal += lineSubtotal
-      vatTotal += item.vatRateDetails.value
-    })
-
-    const client = (await ClientModel.findById(
-      validatedData.clientId
-    ).lean()) as IClientDoc | null
-
-    if (!client) {
-      throw new Error('Clientul specificat în comandă nu a fost găsit.')
-    }
-
-    const allAddresses = client.deliveryAddresses
-      ? [client.address, ...client.deliveryAddresses]
-      : [client.address]
-
-    const deliveryAddressFromDb = allAddresses.find(
-      (addr) =>
-        addr.strada === validatedData.deliveryAddress.strada &&
-        addr.localitate === validatedData.deliveryAddress.localitate
+    const orderTotals = calculateOrderTotals(
+      validatedData.lineItems,
+      validatedData.shippingCost || 0
     )
-
-    const distanceInKm = deliveryAddressFromDb?.distanceInKm || 0
-
-    const serverCalculatedShippingCost = await calculateShippingCost(
-      validatedData.estimatedVehicleType,
-      distanceInKm
-    )
-
-    const grandTotal = subtotal + vatTotal + serverCalculatedShippingCost
-
-    const nextNumber = await generateNextDocumentNumber('Comanda')
-    if (!nextNumber) {
-      throw new Error('Nu s-a putut genera numărul comenzii.')
-    }
-
-    const currentYear = new Date().getFullYear()
-    const paddedNumber = String(nextNumber).padStart(4, '0')
-    const orderNumber = `CMD-${currentYear}-${paddedNumber}`
+    const orderNumber = await generateOrderNumber({ session })
 
     const newOrder = new Order({
       ...validatedData,
-      orderNumber: orderNumber,
-      status: 'Ciorna',
-      totals: {
-        subtotal,
-        vatTotal,
-        shippingCost: serverCalculatedShippingCost,
-        grandTotal,
-      },
+      // --- PASUL 2: Folosim numele corecte ale câmpurilor ---
+      salesAgent: userId,
+      client: validatedData.clientId, // `client` este numele din schemă, `clientId` este numele din datele validate
+      orderNumber,
+      status,
+      totals: orderTotals,
     })
 
-    await newOrder.save()
+    await newOrder.save({ session })
 
-    revalidatePath('/admin/orders')
+    if (status === 'CONFIRMED') {
+      await reserveStock(validatedData.lineItems, session)
+    }
 
+    await session.commitTransaction()
+
+    revalidatePath('/orders')
     return {
       success: true,
-      message: 'Comanda a fost creată cu succes!',
+      message: `Comanda ${orderNumber} a fost creată cu succes.`,
       data: JSON.parse(JSON.stringify(newOrder)),
     }
   } catch (error) {
+    await session.abortTransaction()
     console.error('Eroare la crearea comenzii:', error)
+    // Trimitem eroarea Zod înapoi, dacă este cazul
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        message: 'Datele comenzii sunt invalide.',
+        errors: error.flatten().fieldErrors,
+      }
+    }
     const errorMessage =
       error instanceof Error ? error.message : 'A apărut o eroare necunoscută.'
     return {
       success: false,
       message: errorMessage,
     }
+  } finally {
+    await session.endSession()
   }
 }
-
 export async function getAllOrders(): Promise<PopulatedOrder[]> {
   try {
     await connectToDatabase()

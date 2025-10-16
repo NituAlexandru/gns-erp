@@ -85,7 +85,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
     name: 'lineItems',
   })
 
-  const deliveryMethod = useWatch({ control, name: 'deliveryMethod' })
+  const deliveryMethod = useWatch({ control, name: 'deliveryType' })
   const lineItems = useWatch({
     control,
     name: 'lineItems',
@@ -280,7 +280,6 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
       return
     }
     const newItem: OrderLineItemInput = {
-      productId: `manual_${new Date().getTime()}`,
       isManualEntry: true,
       productName: '',
       productCode: '',

@@ -36,7 +36,7 @@ export function ProductLineItemRow({
   itemData,
 }: ProductLineItemRowProps) {
   const { control, setValue, getValues } = useFormContext()
-  const deliveryMethod = useWatch({ control, name: 'deliveryMethod' })
+  const deliveryType = useWatch({ control, name: 'deliveryType' })
 
   const {
     productId,
@@ -68,14 +68,14 @@ export function ProductLineItemRow({
     })
 
   useEffect(() => {
-    if (!productId || !deliveryMethod) return
+    if (!productId || !deliveryType) return
     let cancelled = false
     ;(async () => {
       setIsLoadingPrice(true)
       try {
         const newBaseMinPrice = await calculateMinimumPrice(
           productId,
-          deliveryMethod
+          deliveryType
         )
         if (!cancelled) setBaseMinimumPrice(newBaseMinPrice)
       } catch (error) {
@@ -87,7 +87,7 @@ export function ProductLineItemRow({
     return () => {
       cancelled = true
     }
-  }, [deliveryMethod, productId])
+  }, [deliveryType, productId])
 
   useEffect(() => {
     if (
@@ -140,8 +140,8 @@ export function ProductLineItemRow({
   }, [
     priceAtTimeOfOrder,
     quantity,
-    vatRateDetails?.rate, 
-    vatRateDetails?.value, 
+    vatRateDetails?.rate,
+    vatRateDetails?.value,
     index,
     setValue,
   ])

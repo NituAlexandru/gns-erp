@@ -35,17 +35,33 @@ export async function getShippingRates() {
 
 export async function updateShippingRate(
   name: string,
-  ratePerKm: number
+  // Modificăm parametrii pentru a accepta un obiect
+  data: { ratePerKm?: number; costPerKm?: number }
 ): Promise<{ success: boolean; message: string }> {
   try {
-    if (typeof ratePerKm !== 'number' || ratePerKm < 0) {
+    // Validăm noile date
+    if (
+      data.ratePerKm !== undefined &&
+      (typeof data.ratePerKm !== 'number' || data.ratePerKm < 0)
+    ) {
       throw new Error('Tariful trebuie să fie un număr pozitiv.')
+    }
+    if (
+      data.costPerKm !== undefined &&
+      (typeof data.costPerKm !== 'number' || data.costPerKm < 0)
+    ) {
+      throw new Error('Costul trebuie să fie un număr pozitiv.')
     }
 
     await connectToDatabase()
+    // Construim obiectul de update doar cu câmpurile trimise
+    const updatePayload: { [key: string]: number } = {}
+    if (data.ratePerKm !== undefined) updatePayload.ratePerKm = data.ratePerKm
+    if (data.costPerKm !== undefined) updatePayload.costPerKm = data.costPerKm
+
     const updatedRate = await VehicleRate.findOneAndUpdate(
       { name: name },
-      { $set: { ratePerKm: ratePerKm } },
+      { $set: updatePayload }, // Folosim payload-ul dinamic
       { new: true }
     )
 
@@ -57,7 +73,7 @@ export async function updateShippingRate(
 
     return {
       success: true,
-      message: `Tariful pentru "${name}" a fost actualizat cu succes.`,
+      message: `Tarifele pentru "${name}" au fost actualizate cu succes.`,
     }
   } catch (error) {
     return { success: false, message: formatError(error) }

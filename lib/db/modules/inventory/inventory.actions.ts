@@ -26,6 +26,7 @@ import { MovementsFiltersState } from '@/app/admin/management/inventory/movement
 import ERPProductModel from '@/lib/db/modules/product/product.model'
 import PackagingModel from '@/lib/db/modules/packaging-products/packaging.model'
 import ReceptionModel from '@/lib/db/modules/reception/reception.model'
+import { OrderLineItemInput } from '../order/types'
 
 /**
  * Înregistrează o mișcare de stoc (IN/OUT) conform logicii FIFO.
@@ -475,7 +476,6 @@ export async function getAggregatedStockStatus(
         },
       },
 
-     
       // logica pentru a construi dinamic 'packagingOptions'
       {
         $lookup: {
@@ -566,7 +566,7 @@ export async function getAggregatedStockStatus(
               '$packagingDetails.productCode',
             ],
           },
-          packagingOptions: 1, 
+          packagingOptions: 1,
         },
       },
     ]
@@ -964,3 +964,75 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
 // pre-calculate pe InventoryItem, aceste funcții ar trebui simplificate
 // radical pentru a citi direct acele sumare. Asta ar face pagina principală
 // de inventar la fel de rapidă ca cea de produse.
+
+/**
+ * Rezervă stocul pentru o listă de articole dintr-o comandă.
+ * Important: Această funcție este concepută să ruleze ÎN INTERIORUL unei tranzacții MongoDB
+ * pentru a asigura integritatea datelor.
+ * @param items - Liniile de comandă care conțin produse/ambalaje stocabile.
+ * @param session - Sesiunea MongoDB activă pentru tranzacție.
+ */
+export async function reserveStock(
+  items: OrderLineItemInput[],
+  session: ClientSession
+) {
+  // Iterăm prin fiecare articol trimis din comandă
+  for (const item of items) {
+    // Ignorăm ce nu este un articol stocabil (servicii, linii manuale)
+    if (!item.productId || item.isManualEntry) {
+      continue // Trecem la următorul articol
+    }
+
+    // Calculăm cantitatea totală de rezervat în unitatea de bază a produsului.
+    // Această logică este crucială pentru a gestiona corect comenzile în paleți, baxuri etc.
+    let quantityToReserve = Number(item.quantity) || 0
+    if (item.unitOfMeasure !== item.baseUnit) {
+      const option = item.packagingOptions?.find(
+        (opt: { unitName: string }) => opt.unitName === item.unitOfMeasure
+      )
+      if (option && option.baseUnitEquivalent) {
+        quantityToReserve *= option.baseUnitEquivalent
+      }
+    }
+
+    // Căutăm în inventar articolul corespunzător, doar în locația de bază
+    const inventoryItem = await InventoryItemModel.findOne({
+      stockableItem: item.productId,
+      location: 'DEPOZIT', // Conform planului, rezervăm doar din depozitul principal
+    }).session(session) // Asigurăm că această citire face parte din tranzacție
+
+    // Dacă produsul nu are deloc stoc în depozit, aruncăm o eroare clară
+    if (!inventoryItem) {
+      throw new Error(
+        `Stoc inexistent în depozit pentru produsul "${item.productName}".`
+      )
+    }
+
+    // Verificăm dacă stocul DISPONIBIL este suficient
+    const availableStock =
+      inventoryItem.totalStock - inventoryItem.quantityReserved
+    if (availableStock < quantityToReserve) {
+      throw new Error(
+        `Stoc insuficient pentru "${item.productName}". Disponibil: ${availableStock}, Necesar: ${quantityToReserve}.`
+      )
+    }
+
+    // Dacă totul este în regulă, incrementăm cantitatea rezervată
+    inventoryItem.quantityReserved += quantityToReserve
+
+    // Salvăm documentul de inventar actualizat în cadrul aceleiași tranzacții
+    await inventoryItem.save({ session })
+  }
+}
+
+/**
+ * Eliberează stocul rezervat (ex: la anularea unei comenzi confirmate).
+ * O vom implementa complet când vom construi funcționalitatea de anulare.
+ * @param items Liniile de comandă pentru care se eliberează stocul.
+ * @param session Sesiunea MongoDB activă pentru tranzacție.
+ */
+// export async function unreserveStock(items: OrderLineItemInput[], session: ClientSession) {
+//   // Logica va fi similară cu `reserveStock`, dar va scădea din `quantityReserved`.
+//   // Pentru moment, o lăsăm ca placeholder.
+//   console.log('Functia unreserveStock va fi implementata ulterior.');
+// }

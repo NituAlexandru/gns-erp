@@ -146,6 +146,7 @@ export const ServicesManager = ({
                 <TableHead>Nume</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Cod</TableHead>
+                <TableHead>Cost</TableHead>
                 <TableHead>Preț</TableHead>
                 <TableHead>Cotă TVA</TableHead>
                 <TableHead className='text-right'>Acțiuni</TableHead>
@@ -161,6 +162,7 @@ export const ServicesManager = ({
                     </Badge>
                   </TableCell>
                   <TableCell>{service.code}</TableCell>
+                  <TableCell>{service.cost.toFixed(2)} lei</TableCell>
                   <TableCell>{service.price.toFixed(2)} lei</TableCell>
                   <TableCell>{service.vatRate?.name}</TableCell>
                   <TableCell className='text-right'>

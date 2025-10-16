@@ -9,6 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  FormControl,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form'
 import { getShippingRates } from '@/lib/db/modules/setting/shipping-rates/shipping.actions'
 import { ShippingRateDTO } from '@/lib/db/modules/setting/shipping-rates/types'
 import { DELIVERY_METHODS } from '@/lib/db/modules/order/constants'
@@ -20,29 +26,25 @@ export function OrderLogistics() {
   const [shippingRates, setShippingRates] = useState<ShippingRateDTO[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
-  const deliveryMethodKey = useWatch({ control, name: 'deliveryMethod' })
+  // AICI ESTE MODIFICAREA: Urmărim `deliveryType` în loc de `deliveryMethod`
+  const deliveryMethodKey = useWatch({ control, name: 'deliveryType' })
+
   const selectedMethodInfo = DELIVERY_METHODS.find(
     (m) => m.key === deliveryMethodKey
   )
   const showVehicleSelector = selectedMethodInfo?.requiresVehicle === true
 
-  const selectedVehicleRateJSON = useWatch({
+  const selectedVehicleType = useWatch({
     control,
-    name: 'selectedVehicleRate',
+    name: 'estimatedVehicleType',
   })
   const deliveryAddress = useWatch({
     control,
     name: 'deliveryAddress',
   }) as IAddress | null
 
-  let selectedRateInfo: ShippingRateDTO | null = null
-  if (selectedVehicleRateJSON) {
-    try {
-      selectedRateInfo = JSON.parse(selectedVehicleRateJSON)
-    } catch (e) {
-      console.error('Eroare la parsarea datelor vehiculului selectat:', e)
-    }
-  }
+  const selectedRateInfo =
+    shippingRates.find((rate) => rate.type === selectedVehicleType) || null
 
   let totalTransportCost: number | null = null
   if (selectedRateInfo && deliveryAddress?.distanceInKm) {
@@ -65,18 +67,20 @@ export function OrderLogistics() {
   }, [])
 
   return (
-    <div className='flex flex-col gap-4'>
-      {/* Selector Mod Livrare */}
-      <div className='flex flex-col gap-2'>
-        <label className='font-medium'>Mod Livrare</label>
-        <Controller
-          name='deliveryMethod'
-          control={control}
-          render={({ field }) => (
-            <Select onValueChange={field.onChange} defaultValue={field.value}>
-              <SelectTrigger>
-                <SelectValue placeholder='Alege modul de livrare...' />
-              </SelectTrigger>
+    <div className='space-y-4'>
+      <Controller
+        name='deliveryType'
+        control={control}
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Mod Livrare</FormLabel>
+            {/* AICI ESTE MODIFICAREA: Folosim field.value || '' */}
+            <Select onValueChange={field.onChange} value={field.value || ''}>
+              <FormControl>
+                <SelectTrigger>
+                  <SelectValue placeholder='Alege modul de livrare...' />
+                </SelectTrigger>
+              </FormControl>
               <SelectContent>
                 {DELIVERY_METHODS.map((method) => (
                   <SelectItem key={method.key} value={method.key}>
@@ -85,38 +89,46 @@ export function OrderLogistics() {
                 ))}
               </SelectContent>
             </Select>
-          )}
-        />
-      </div>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
 
-      {/* Selector Tip Vehicul */}
       {showVehicleSelector && (
         <div className='flex flex-col gap-1'>
-          <label className='font-medium'>Tip Vehicul (pt. Transport)</label>
           <Controller
-            name='selectedVehicleRate'
+            name='estimatedVehicleType'
             control={control}
             render={({ field }) => (
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-                disabled={isLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      isLoading ? 'Se încarcă...' : 'Alege tipul de vehicul...'
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {shippingRates.map((rate) => (
-                    <SelectItem key={rate._id} value={JSON.stringify(rate)}>
-                      {rate.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormItem>
+                <FormLabel>Tip Vehicul (pt. Transport)</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  // AICI ESTE A DOUA MODIFICARE: Folosim field.value || ''
+                  value={field.value || ''}
+                  disabled={isLoading}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={
+                          isLoading
+                            ? 'Se încarcă...'
+                            : 'Alege tipul de vehicul...'
+                        }
+                      />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {shippingRates.map((rate) => (
+                      <SelectItem key={rate._id} value={rate.type}>
+                        {rate.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
             )}
           />
 

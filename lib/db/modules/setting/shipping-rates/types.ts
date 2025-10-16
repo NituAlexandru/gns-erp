@@ -3,4 +3,5 @@ export interface ShippingRateDTO {
   name: string
   type: string
   ratePerKm: number
+  costPerKm?: number
 }

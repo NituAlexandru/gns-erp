@@ -8,14 +8,14 @@ export const OrderLineItemInputSchema = z.object({
     .string({ required_error: 'Numele produsului este obligatoriu.' })
     .min(1),
   productCode: z.string().optional(),
-  quantity: z
+  quantity: z.coerce
     .number({ required_error: 'Cantitatea este obligatorie.' })
     .positive(),
   unitOfMeasure: z.string({
     required_error: 'Unitatea de măsură este obligatorie.',
   }),
   unitOfMeasureCode: z.string().optional().default('H87'),
-  priceAtTimeOfOrder: z
+  priceAtTimeOfOrder: z.coerce
     .number({ required_error: 'Prețul unitar este obligatoriu.' })
     .nonnegative(),
   vatRateDetails: z.object({

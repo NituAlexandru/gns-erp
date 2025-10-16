@@ -22,6 +22,7 @@ import {
 } from '@/lib/db/modules/order/types'
 import { IClientDoc, IAddress } from '@/lib/db/modules/client/types'
 import { EntitySelector } from './mini-components/EntitySelector'
+import { round2 } from '@/lib/utils'
 
 export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
   const router = useRouter()
@@ -63,6 +64,7 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
 
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleClientSelect = useCallback(
     (client: IClientDoc | null) => {
@@ -101,25 +103,60 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
   )
 
   const onSubmit = async (data: CreateOrderInput) => {
-    const vehicleType = methods.getValues('estimatedVehicleType')
+    setIsSubmitting(true)
+    // Logica de calcul a costului de transport rămâne aici
     const finalShippingCost =
-      selectedAddress?.distanceInKm && vehicleType
-        ? await calculateShippingCost(vehicleType, selectedAddress.distanceInKm)
+      selectedAddress?.distanceInKm && data.estimatedVehicleType
+        ? await calculateShippingCost(
+            data.estimatedVehicleType,
+            selectedAddress.distanceInKm
+          )
         : 0
+    data.shippingCost = round2(finalShippingCost)
 
-    data.shippingCost = finalShippingCost
-
-    const result = await createOrder(data)
+    // Apelăm `createOrder` cu statusul 'CONFIRMED'
+    const result = await createOrder(data, 'CONFIRMED')
 
     if (result.success) {
-      toast.success('Comanda a fost creată cu succes!')
-      router.push('/admin/orders')
+      toast.success(result.message)
+      router.push('/orders')
     } else {
-      toast.error('A apărut o eroare', {
-        description: result.message || 'Verifică consola pentru detalii.',
-      })
-      console.error('Eroare la creare comandă:', result.errors)
+      toast.error('A apărut o eroare', { description: result.message })
     }
+    setIsSubmitting(false)
+  }
+
+  const onSaveDraft = async () => {
+    setIsSubmitting(true)
+    // Preluăm datele curente din formular, fără a rula validarea completă a Zod
+    const data = methods.getValues()
+    console.log(
+      '%cLOG 3 (onSaveDraft): Datele preluate cu getValues() ->',
+      'color: red; font-weight: bold;',
+      data
+    )
+
+    const finalShippingCost =
+      selectedAddress?.distanceInKm && data.estimatedVehicleType
+        ? await calculateShippingCost(
+            data.estimatedVehicleType,
+            selectedAddress.distanceInKm
+          )
+        : 0
+    data.shippingCost = round2(finalShippingCost)
+
+    // Apelăm `createOrder` cu statusul 'DRAFT'
+    const result = await createOrder(data as CreateOrderInput, 'DRAFT')
+
+    if (result.success) {
+      toast.success(result.message)
+      router.push('/orders')
+    } else {
+      toast.error('A apărut o eroare la salvarea ciornei', {
+        description: result.message,
+      })
+    }
+    setIsSubmitting(false)
   }
 
   return (
@@ -160,7 +197,7 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
 
           {/* Coloana 4: Totaluri Comandă (lățime automată) */}
 
-          <OrderTotals selectedAddress={selectedAddress} />
+          <OrderTotals />
         </div>
 
         <div className='p-4 border rounded-lg'>
@@ -174,14 +211,13 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
           <Button
             type='button'
             variant='outline'
-            disabled={methods.formState.isSubmitting}
+            onClick={onSaveDraft}
+            disabled={isSubmitting}
           >
-            Salvează Ciornă
+            {isSubmitting ? 'Se salvează...' : 'Salvează Ciornă'}
           </Button>
-          <Button type='submit' disabled={methods.formState.isSubmitting}>
-            {methods.formState.isSubmitting
-              ? 'Se salvează...'
-              : 'Confirmă și Salvează Comanda'}
+          <Button type='submit' disabled={isSubmitting}>
+            {isSubmitting ? 'Se salvează...' : 'Confirmă și Salvează Comanda'}
           </Button>
         </div>
       </form>
