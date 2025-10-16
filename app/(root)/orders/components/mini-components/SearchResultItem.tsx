@@ -39,7 +39,7 @@ export function SearchResultItem({ item }: SearchResultItemProps) {
                 alt={item.name}
                 width={80}
                 height={80}
-                className='rounded-md object-cover'
+                className='rounded-md object-cover '
               />
             ) : (
               <div className='h-20 w-20 rounded-md bg-secondary flex items-center justify-center text-muted-foreground'>

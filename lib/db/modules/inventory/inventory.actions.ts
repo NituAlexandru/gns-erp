@@ -976,15 +976,11 @@ export async function reserveStock(
   items: OrderLineItemInput[],
   session: ClientSession
 ) {
-  // Iterăm prin fiecare articol trimis din comandă
   for (const item of items) {
-    // Ignorăm ce nu este un articol stocabil (servicii, linii manuale)
     if (!item.productId || item.isManualEntry) {
-      continue // Trecem la următorul articol
+      continue
     }
 
-    // Calculăm cantitatea totală de rezervat în unitatea de bază a produsului.
-    // Această logică este crucială pentru a gestiona corect comenzile în paleți, baxuri etc.
     let quantityToReserve = Number(item.quantity) || 0
     if (item.unitOfMeasure !== item.baseUnit) {
       const option = item.packagingOptions?.find(
@@ -995,33 +991,37 @@ export async function reserveStock(
       }
     }
 
-    // Căutăm în inventar articolul corespunzător, doar în locația de bază
-    const inventoryItem = await InventoryItemModel.findOne({
-      stockableItem: item.productId,
-      location: 'DEPOZIT', // Conform planului, rezervăm doar din depozitul principal
-    }).session(session) // Asigurăm că această citire face parte din tranzacție
+    // Căutăm sau creăm un document de inventar pentru produs în locația 'DEPOZIT'
+    // Folosim `findOneAndUpdate` cu `upsert: true` pentru a face acest pas mai robust.
+    const inventoryItem = await InventoryItemModel.findOneAndUpdate(
+      {
+        stockableItem: item.productId,
+        location: 'DEPOZIT',
+      },
+      {
+        // Incrementăm direct cantitatea rezervată
+        $inc: { quantityReserved: quantityToReserve },
+        // Dacă documentul nu există, îl creăm cu aceste valori inițiale
+        $setOnInsert: {
+          stockableItem: item.productId,
+          location: 'DEPOZIT',
+          // Presupunem că tipul este ERPProduct. Va trebui să ajustăm dacă avem și Packaging.
+          stockableItemType: 'ERPProduct',
+        },
+      },
+      {
+        new: true, // Returnează documentul actualizat
+        upsert: true, // Creează documentul dacă nu există
+        session, // Asigură că operațiunea face parte din tranzacție
+      }
+    )
 
-    // Dacă produsul nu are deloc stoc în depozit, aruncăm o eroare clară
     if (!inventoryItem) {
+      // Această eroare nu ar trebui să apară datorită `upsert: true`, dar o păstrăm ca siguranță.
       throw new Error(
-        `Stoc inexistent în depozit pentru produsul "${item.productName}".`
+        `Nu s-a putut crea/găsi intrarea în inventar pentru "${item.productName}".`
       )
     }
-
-    // Verificăm dacă stocul DISPONIBIL este suficient
-    const availableStock =
-      inventoryItem.totalStock - inventoryItem.quantityReserved
-    if (availableStock < quantityToReserve) {
-      throw new Error(
-        `Stoc insuficient pentru "${item.productName}". Disponibil: ${availableStock}, Necesar: ${quantityToReserve}.`
-      )
-    }
-
-    // Dacă totul este în regulă, incrementăm cantitatea rezervată
-    inventoryItem.quantityReserved += quantityToReserve
-
-    // Salvăm documentul de inventar actualizat în cadrul aceleiași tranzacții
-    await inventoryItem.save({ session })
   }
 }
 

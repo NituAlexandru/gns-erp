@@ -144,9 +144,16 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
 
   const handleSelectItem = async (item: SearchedProduct) => {
     if (!deliveryMethod) {
-      toast.error('Te rog selectează mai întâi Modul de Livrare.')
+      toast.error('Te rog selectează mai întâi Detaliile Logistice.')
       return
     }
+
+    if (item.totalStock <= 0) {
+      toast.warning('Atenție: Stoc insuficient', {
+        description: `Produsul "${item.name}" nu are stoc disponibil. Te rugăm să soliciți aprovizionarea pentru a putea onora comanda.`,
+      })
+    }
+
     setIsAddingItem(true)
     setItemPopoverOpen(false)
     setItemSearchTerm('')
