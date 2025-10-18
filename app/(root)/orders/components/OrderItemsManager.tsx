@@ -227,6 +227,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
         productCode: fullData.productCode,
         quantity: 1,
         priceAtTimeOfOrder: minPrice,
+        minimumSalePrice: minPrice,
         vatRateDetails: {
           rate: defaultVat.rate,
           value: Number((minPrice * (defaultVat.rate / 100)).toFixed(2)),
@@ -265,6 +266,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
       unitOfMeasure: service.unitOfMeasure,
       unitOfMeasureCode: getEFacturaUomCode(service.unitOfMeasure),
       priceAtTimeOfOrder: service.price,
+      minimumSalePrice: service.price,
       vatRateDetails: {
         rate: vatRate,
         value: Number((service.price * (vatRate / 100)).toFixed(2)),

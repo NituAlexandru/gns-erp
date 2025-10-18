@@ -14,6 +14,10 @@ export interface IOrderLineItem extends Types.Subdocument {
   unitOfMeasure: string
   unitOfMeasureCode?: string
   priceAtTimeOfOrder: number
+  minimumSalePrice?: number 
+  lineValue: number
+  lineVatValue: number 
+  lineTotal: number
   vatRateDetails: {
     rate: number
     value: number

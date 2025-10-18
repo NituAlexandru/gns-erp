@@ -13,6 +13,10 @@ const OrderLineItemSchema = new Schema<IOrderLineItem>({
   unitOfMeasure: { type: String, required: true },
   unitOfMeasureCode: { type: String, default: 'H87' },
   priceAtTimeOfOrder: { type: Number, required: true },
+  minimumSalePrice: { type: Number, required: false },
+  lineValue: { type: Number, required: true },
+  lineVatValue: { type: Number, required: true },
+  lineTotal: { type: Number, required: true },
   vatRateDetails: {
     rate: { type: Number, required: true },
     value: { type: Number, required: true },
@@ -27,6 +31,9 @@ export interface IOrder extends Document {
   orderNumber: string
   client: Types.ObjectId
   salesAgent: Types.ObjectId
+  salesAgentSnapshot: {
+    name: string
+  }
   status:
     | 'DRAFT'
     | 'CONFIRMED'
@@ -48,8 +55,6 @@ export interface IOrder extends Document {
     iban?: string
     balanceAtCreation?: number
     statusAtCreation?: string
-    estimatedProfitRON?: number
-    estimatedProfitPercent?: number
   }
   deliveryAddress: {
     judet: string
@@ -59,6 +64,7 @@ export interface IOrder extends Document {
     codPostal: string
     alteDetalii?: string
   }
+  deliveryAddressId?: Types.ObjectId
   delegate?: {
     name: string
     idCardSeries: string
@@ -77,6 +83,7 @@ export interface IOrder extends Document {
   estimatedTransportCount: number
   distanceInKm?: number
   travelTimeInMinutes?: number
+  recommendedShippingCost?: number
   notes?: string
   createdAt: Date
   updatedAt: Date
@@ -88,6 +95,9 @@ const OrderSchema = new Schema<IOrder>(
     orderNumber: { type: String, required: true, unique: true, index: true },
     client: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
     salesAgent: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    salesAgentSnapshot: {
+      name: { type: String, required: true },
+    },
     status: {
       type: String,
       enum: [
@@ -129,6 +139,7 @@ const OrderSchema = new Schema<IOrder>(
       codPostal: { type: String, required: true },
       alteDetalii: { type: String },
     },
+    deliveryAddressId: { type: Schema.Types.ObjectId },
     delegate: {
       name: { type: String },
       idCardSeries: { type: String },
@@ -136,13 +147,11 @@ const OrderSchema = new Schema<IOrder>(
       vehiclePlate: { type: String },
     },
     lineItems: [OrderLineItemSchema],
+    recommendedShippingCost: { type: Number, default: 0 },
     totals: {
       subtotal: { type: Number, required: true, default: 0 },
-      shippingCost: { type: Number, required: true, default: 0 },
       vatTotal: { type: Number, required: true, default: 0 },
       grandTotal: { type: Number, required: true, default: 0 },
-      estimatedProfitRON: { type: Number },
-      estimatedProfitPercent: { type: Number },
     },
     deliveryType: { type: String, required: true },
     estimatedVehicleType: { type: String, required: true },

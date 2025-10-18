@@ -38,9 +38,7 @@ export async function calculateShippingCost(
     }
 
     const ratePerKm = vehicleRate.ratePerKm
-
     const totalCost = distanceInKm * ratePerKm
-
     return Math.round(totalCost * 100) / 100
   } catch (error) {
     console.error('Eroare la calcularea costului de transport:', error)
@@ -48,26 +46,33 @@ export async function calculateShippingCost(
   }
 }
 
-function calculateOrderTotals(
-  lineItems: CreateOrderInput['lineItems'],
-  shippingCost: number
-) {
-  const totals = lineItems.reduce(
+// Funcție ajutătoare care centralizează TOATĂ logica de calcul
+function processOrderData(lineItems: CreateOrderInput['lineItems']) {
+  const processedLineItems = lineItems.map((item) => {
+    const lineValue = round2(item.priceAtTimeOfOrder * Number(item.quantity))
+    const lineVatValue = round2(item.vatRateDetails.value)
+    const lineTotal = round2(lineValue + lineVatValue)
+    return { ...item, lineValue, lineVatValue, lineTotal }
+  })
+
+  const totals = processedLineItems.reduce(
     (acc, item) => {
-      const lineSubtotal = item.priceAtTimeOfOrder * Number(item.quantity)
-      acc.subtotal += lineSubtotal
-      acc.vatTotal += item.vatRateDetails.value
+      acc.subtotal += item.lineValue
+      acc.vatTotal += item.lineVatValue
       return acc
     },
     { subtotal: 0, vatTotal: 0 }
   )
 
-  return {
+  const grandTotal = round2(totals.subtotal + totals.vatTotal)
+
+  const finalTotals = {
     subtotal: round2(totals.subtotal),
     vatTotal: round2(totals.vatTotal),
-    shippingCost: round2(shippingCost),
-    grandTotal: round2(totals.subtotal + totals.vatTotal + shippingCost),
+    grandTotal,
   }
+
+  return { processedLineItems, finalTotals }
 }
 
 export async function createOrder(
@@ -79,33 +84,38 @@ export async function createOrder(
 
   try {
     const sessionAuth = await auth()
-    const userId = sessionAuth?.user?.id
-
-    if (!userId) {
-      throw new Error('Utilizator neautentificat. Acțiune interzisă.')
+    if (!sessionAuth?.user?.id || !sessionAuth?.user?.name) {
+      throw new Error(
+        'Utilizator neautentificat sau date incomplete. Acțiune interzisă.'
+      )
     }
+    const { id: userId, name: userName } = sessionAuth.user
 
     const validatedData = CreateOrderInputSchema.parse(data)
 
-    const orderTotals = calculateOrderTotals(
-      validatedData.lineItems,
-      validatedData.shippingCost || 0
+    const { processedLineItems, finalTotals } = processOrderData(
+      validatedData.lineItems
     )
+
     const orderNumber = await generateOrderNumber({ session })
 
     const newOrder = new Order({
       ...validatedData,
-      salesAgent: userId,
-      client: validatedData.clientId,
       orderNumber,
       status,
-      totals: orderTotals,
+      salesAgent: userId,
+      client: validatedData.clientId,
+      salesAgentSnapshot: {
+        name: userName,
+      },
+      lineItems: processedLineItems,
+      totals: finalTotals,
     })
 
     await newOrder.save({ session })
 
     if (status === 'CONFIRMED') {
-      await reserveStock(validatedData.lineItems, session)
+      await reserveStock(processedLineItems, session)
     }
 
     await session.commitTransaction()
@@ -137,6 +147,7 @@ export async function createOrder(
     await session.endSession()
   }
 }
+
 export async function getAllOrders(
   page: number = 1
 ): Promise<{ data: PopulatedOrder[]; totalPages: number }> {

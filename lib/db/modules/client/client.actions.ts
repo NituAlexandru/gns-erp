@@ -155,7 +155,6 @@ type LeanClientForSearch = Pick<IClientDoc, '_id' | 'name' | 'vatId' | 'cnp'>
 export async function searchClients(
   searchTerm: string
 ): Promise<SearchedClient[]> {
-
   try {
     await connectToDatabase()
 
@@ -197,4 +196,47 @@ export async function searchClients(
     console.error('EROARE MAJORĂ în funcția searchClients:', error)
     return []
   }
+}
+
+async function updateAddressStatus(
+  clientId: string,
+  addressId: string,
+  isActive: boolean
+) {
+  await connectToDatabase()
+
+  const result = await ClientModel.updateOne(
+    { _id: clientId, 'deliveryAddresses._id': addressId },
+    { $set: { 'deliveryAddresses.$.isActive': isActive } }
+  )
+
+  if (result.matchedCount === 0) {
+    throw new Error('Adresa nu a fost găsită sau nu aparține acestui client.')
+  }
+
+  revalidatePath(`/clients/${clientId}`)
+  revalidatePath(`/clients/${clientId}/edit`)
+
+  return {
+    success: true,
+    message: `Adresa a fost ${isActive ? 'reactivată' : 'dezactivată'} cu succes.`,
+  }
+}
+
+export async function deactivateDeliveryAddress(
+  clientId: string,
+  addressId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _userId: string 
+) {
+  return updateAddressStatus(clientId, addressId, false)
+}
+
+export async function reactivateDeliveryAddress(
+  clientId: string,
+  addressId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _userId: string 
+) {
+  return updateAddressStatus(clientId, addressId, true)
 }

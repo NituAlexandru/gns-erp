@@ -18,6 +18,7 @@ export const OrderLineItemInputSchema = z.object({
   priceAtTimeOfOrder: z.coerce
     .number({ required_error: 'Prețul unitar este obligatoriu.' })
     .nonnegative(),
+  minimumSalePrice: z.number().optional(),
   vatRateDetails: z.object({
     rate: z.number({ required_error: 'Cota TVA este obligatorie.' }),
     value: z.number({ required_error: 'Valoarea TVA este obligatorie.' }),
@@ -57,6 +58,7 @@ export const CreateOrderInputSchema = z.object({
     codPostal: z.string().min(1, 'Codul poștal este obligatoriu.'),
     alteDetalii: z.string().optional(),
   }),
+  deliveryAddressId: z.string().optional(),
   delegate: z
     .object({
       name: z.string().optional(),
@@ -78,5 +80,5 @@ export const CreateOrderInputSchema = z.object({
   distanceInKm: z.number().optional(),
   travelTimeInMinutes: z.number().optional(),
   notes: z.string().optional(),
-  shippingCost: z.number().nonnegative().default(0),
+  recommendedShippingCost: z.number().nonnegative().default(0),
 })

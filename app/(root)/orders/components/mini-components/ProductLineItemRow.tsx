@@ -109,9 +109,11 @@ export function ProductLineItemRow({
   useEffect(() => {
     if (!convertedPrice || convertedPrice <= 0) return
     const path = `lineItems.${index}.priceAtTimeOfOrder` as const
+    const minPricePath = `lineItems.${index}.minimumSalePrice` as const
     const currentPrice = Number(getValues(path) ?? 0)
-
     const formattedMinPrice = Number(convertedPrice.toFixed(2))
+
+    setValue(minPricePath, formattedMinPrice, { shouldDirty: true })
 
     if (currentPrice < formattedMinPrice) {
       setValue(path, formattedMinPrice, { shouldDirty: true })
@@ -124,6 +126,7 @@ export function ProductLineItemRow({
       }
     }
   }, [convertedPrice, index, getValues, setValue, productName])
+
   useEffect(() => {
     const vatRate = vatRateDetails?.rate || 0
     const lineSubtotal = priceAtTimeOfOrder * quantity

@@ -30,7 +30,7 @@ const serviceSchema = new Schema<IServiceDoc>(
       index: true,
     },
     isPerDelivery: { type: Boolean, default: false },
-    unitOfMeasure: { type: String, required: true, default: 'buc' },
+    unitOfMeasure: { type: String, required: true, default: 'bucata' },
     vatRate: { type: Schema.Types.ObjectId, ref: 'VatRate', required: true },
     isActive: { type: Boolean, default: true, index: true },
   },

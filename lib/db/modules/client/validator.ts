@@ -1,28 +1,5 @@
 import { z } from 'zod'
 
-// ✨  Funcție helper pentru validarea algoritmică a CUI-ului
-// const isValidCUI = (cui: string): boolean => {
-//   if (!/^\d{2,10}$/.test(cui)) {
-//     return false
-//   }
-//   const controlKey = '753217532'
-//   const digits = cui.slice(0, -1).split('').map(Number)
-//   const controlDigit = Number(cui.slice(-1))
-
-//   let sum = 0
-
-//   for (let i = 0; i < digits.length; i++) {
-//     sum += digits[i] * Number(controlKey[i])
-//   }
-
-//   let calculatedControl = (sum * 10) % 11
-//   if (calculatedControl === 10) {
-//     calculatedControl = 0
-//   }
-
-//   return calculatedControl === controlDigit
-// }
-
 export const AddressSchema = z.object({
   _id: z.string().optional(),
   judet: z.string().min(3, 'Județul este obligatoriu'),
@@ -36,6 +13,7 @@ export const AddressSchema = z.object({
   alteDetalii: z.string().optional(),
   distanceInKm: z.number().optional(),
   travelTimeInMinutes: z.number().optional(),
+  isActive: z.boolean().optional(),
 })
 
 export const BankAccountSchema = z

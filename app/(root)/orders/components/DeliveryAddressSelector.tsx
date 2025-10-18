@@ -23,38 +23,35 @@ export function DeliveryAddressSelector({
 }: DeliveryAddressSelectorProps) {
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
 
-  const deliveryAddresses = client?.deliveryAddresses || []
-  const isDisabled = !client || deliveryAddresses.length === 0
+  const activeDeliveryAddresses =
+    client?.deliveryAddresses.filter((addr) => addr.isActive) || []
+  const isDisabled = !client || activeDeliveryAddresses.length === 0
 
   useEffect(() => {
-    if (client && client.deliveryAddresses.length > 0) {
-      const defaultDeliveryAddress = client.deliveryAddresses[0]
-      setSelectedAddress(defaultDeliveryAddress)
-      onAddressSelect(defaultDeliveryAddress)
+    if (client && activeDeliveryAddresses.length > 0) {
+      const defaultAddr = activeDeliveryAddresses[0]
+      setSelectedAddress(defaultAddr)
+      onAddressSelect(defaultAddr)
     } else {
       setSelectedAddress(null)
       onAddressSelect(null)
     }
-  }, [client, onAddressSelect])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client])
 
-  const handleSelectChange = (addressJson: string) => {
-    if (addressJson) {
-      const addressObject: IAddress = JSON.parse(addressJson)
+  const handleSelectChange = (addressId: string) => {
+    const addressObject = activeDeliveryAddresses.find(
+      (addr) => addr._id === addressId
+    )
+    if (addressObject) {
       setSelectedAddress(addressObject)
       onAddressSelect(addressObject)
-    } else {
-      setSelectedAddress(null)
-      onAddressSelect(null)
     }
   }
 
   const getPlaceholder = () => {
-    if (!client) {
-      return 'Selectează un client mai întâi'
-    }
-    if (deliveryAddresses.length === 0) {
-      return 'Clientul nu are adrese de livrare'
-    }
+    if (!client) return 'Selectează un client'
+    if (activeDeliveryAddresses.length === 0) return 'Nu există adrese active'
     return 'Alege o adresă de livrare...'
   }
 
@@ -69,15 +66,15 @@ export function DeliveryAddressSelector({
         <Select
           onValueChange={handleSelectChange}
           disabled={isDisabled}
-          value={selectedAddress ? JSON.stringify(selectedAddress) : ''}
+          value={selectedAddress?._id || ''}
         >
           <SelectTrigger>
             <SelectValue placeholder={getPlaceholder()} />
           </SelectTrigger>
           <SelectContent>
-            {deliveryAddresses.map((addr, index) => (
-               <SelectItem key={addr._id || index} value={JSON.stringify(addr)}>
-                {`${addr.strada}, ${addr.numar}, ${addr.localitate}, ${addr.judet}`}
+            {activeDeliveryAddresses.map((addr) => (
+              <SelectItem key={addr._id!} value={addr._id!}>
+                {`${addr.strada}, ${addr.numar}, ${addr.localitate}`}
               </SelectItem>
             ))}
           </SelectContent>
@@ -88,24 +85,11 @@ export function DeliveryAddressSelector({
         <div className='p-3 border rounded-md bg-muted text-sm flex items-center gap-6 w-full md:w-[400px]'>
           <div className='flex items-center gap-2'>
             <MapPin className='h-4 w-4 text-muted-foreground' />
-            <div>
-              <span className='font-semibold'>
-                {selectedAddress.distanceInKm
-                  ? selectedAddress.distanceInKm.toFixed(1)
-                  : 0}{' '}
-                km
-              </span>
-              <span className='text-muted-foreground'> (dus-întors)</span>
-            </div>
+            <span>{selectedAddress.distanceInKm?.toFixed(1) ?? 0} km</span>
           </div>
           <div className='flex items-center gap-2'>
             <Clock className='h-4 w-4 text-muted-foreground' />
-            <div>
-              <span className='font-semibold'>
-                {formatMinutes(selectedAddress.travelTimeInMinutes)}
-              </span>
-              <span className='text-muted-foreground'> (dus-întors)</span>
-            </div>
+            <span>{formatMinutes(selectedAddress.travelTimeInMinutes)}</span>
           </div>
         </div>
       )}

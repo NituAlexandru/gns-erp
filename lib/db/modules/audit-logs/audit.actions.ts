@@ -4,7 +4,12 @@ import { AuditLog } from './audit.model'
 export async function logAudit(
   resourceType: string,
   resourceId: Types.ObjectId | string,
-  action: 'create' | 'update' | 'delete',
+  action:
+    | 'create'
+    | 'update'
+    | 'delete'
+    | 'deactivate-address'
+    | 'reactivate-address',
   userId: Types.ObjectId | string,
   //eslint-disable-next-line @typescript-eslint/no-explicit-any
   changes?: Record<string, any>,

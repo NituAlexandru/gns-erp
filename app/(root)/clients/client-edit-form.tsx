@@ -34,6 +34,12 @@ import {
 import { Loader2 } from 'lucide-react'
 import { ROMANIAN_BANKS } from '@/lib/constants'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
+import { Switch } from '@/components/ui/switch'
+import { useSession } from 'next-auth/react'
+import {
+  deactivateDeliveryAddress,
+  reactivateDeliveryAddress,
+} from '@/lib/db/modules/client/client.actions'
 
 interface Props {
   initialValues: IClientDoc
@@ -41,6 +47,7 @@ interface Props {
 
 export default function ClientEditForm({ initialValues }: Props) {
   const router = useRouter()
+  const { data: session } = useSession()
   const [currentDeliveryAddress, setCurrentDeliveryAddress] = useState<
     Partial<IAddress>
   >({})
@@ -80,6 +87,8 @@ export default function ClientEditForm({ initialValues }: Props) {
     control,
     handleSubmit,
     formState: { isSubmitting },
+    setValue,
+    getValues,
   } = form
 
   const handleAddDeliveryAddress = async (
@@ -127,6 +136,46 @@ export default function ClientEditForm({ initialValues }: Props) {
       toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
     } finally {
       setIsCalculating(false)
+    }
+  }
+
+  const handleToggleAddressStatus = async (
+    addressId: string,
+    currentStatus: boolean
+  ) => {
+    const userId = session?.user?.id
+    if (!userId) {
+      toast.error('Sesiunea a expirat. Te rugăm să te re-autentifici.')
+      return
+    }
+
+    const action = currentStatus
+      ? deactivateDeliveryAddress
+      : reactivateDeliveryAddress
+    const clientId = initialValues._id
+
+    toast.loading(currentStatus ? 'Se dezactivează...' : 'Se reactivează...')
+
+    try {
+      const result = await action(clientId, addressId, userId)
+      toast.dismiss()
+
+      if (result.success) {
+        toast.success(result.message)
+
+        const currentAddresses = getValues('deliveryAddresses')
+
+        const newAddresses = currentAddresses.map((addr) =>
+          addr._id === addressId ? { ...addr, isActive: !currentStatus } : addr
+        )
+
+        setValue('deliveryAddresses', newAddresses, { shouldDirty: true })
+      } else {
+        throw new Error(result.message)
+      }
+    } catch (err) {
+      toast.dismiss()
+      toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
     }
   }
 
@@ -668,30 +717,37 @@ export default function ClientEditForm({ initialValues }: Props) {
               </div>
 
               <div className='space-y-2'>
-                {field.value.map((addr, index) => (
+                {field.value.map((addr) => (
                   <div
-                    key={index}
-                    className='flex justify-between items-center p-2 bg-secondary rounded-md'
+                    key={addr._id} // Folosim ID-ul real
+                    className={`flex justify-between items-center p-2 rounded-md transition-colors ${
+                      addr.isActive
+                        ? 'bg-secondary'
+                        : 'bg-muted/40 text-muted-foreground'
+                    }`}
                   >
                     <div>
-                      <p className='font-medium'>{`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}`}</p>
-                      <p className='text-sm text-muted-foreground'>
-                        {`Distanță dus-întors: ~${addr.distanceInKm} km | Timp dus-întors: ~${formatMinutes(addr.travelTimeInMinutes || 0)}`}
+                      <p
+                        className={`font-medium ${!addr.isActive && 'line-through'}`}
+                      >
+                        {`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}`}
+                      </p>
+                      <p className='text-sm'>
+                        {`Distanță: ~${addr.distanceInKm} km | Timp: ~${formatMinutes(addr.travelTimeInMinutes || 0)}`}
                       </p>
                     </div>
-                    <Button
-                      type='button'
-                      variant='destructive'
-                      size='sm'
-                      onClick={() => {
-                        const newAddresses = field.value.filter(
-                          (_, i) => i !== index
-                        )
-                        field.onChange(newAddresses)
-                      }}
-                    >
-                      X
-                    </Button>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-sm'>
+                        {addr.isActive ? 'Activ' : 'Inactiv'}
+                      </span>
+                      <Switch
+                        checked={!!addr.isActive}
+                        onCheckedChange={() =>
+                          handleToggleAddressStatus(addr._id!, addr.isActive!)
+                        }
+                        aria-label='Activează sau dezactivează adresa'
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

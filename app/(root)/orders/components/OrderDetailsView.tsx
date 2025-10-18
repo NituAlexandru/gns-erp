@@ -238,19 +238,19 @@ export function OrderDetailsView({ order }: OrderDetailsViewProps) {
                       <TableCell className='text-right'>
                         {formatCurrency(item.priceAtTimeOfOrder)}
                       </TableCell>
-                      <TableCell className='text-right'>
-                        {formatCurrency(
-                          item.priceAtTimeOfOrder * item.quantity
-                        )}
+
+                        <TableCell className='text-right'>
+                        {formatCurrency(item.lineValue)}
                       </TableCell>
+
+                    
                       <TableCell className='text-right'>
-                        {formatCurrency(item.vatRateDetails.value)}
+                        {formatCurrency(item.lineVatValue)}
                       </TableCell>
+
+                    
                       <TableCell className='text-right font-semibold'>
-                        {formatCurrency(
-                          item.priceAtTimeOfOrder * item.quantity +
-                            item.vatRateDetails.value
-                        )}
+                        {formatCurrency(item.lineTotal)}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -34,7 +34,7 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
       lineItems: [],
       estimatedTransportCount: 1,
       notes: '',
-      shippingCost: 0,
+      recommendedShippingCost: 0,
       clientSnapshot: { name: '', cui: '', regCom: '', address: '', judet: '' },
       deliveryAddress: {
         strada: '',
@@ -95,69 +95,76 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
       setSelectedAddress(address)
       if (address) {
         methods.setValue('deliveryAddress', { ...address })
+        methods.setValue('deliveryAddressId', address._id)
       } else {
         methods.resetField('deliveryAddress')
+        methods.resetField('deliveryAddressId')
       }
     },
     [methods]
   )
 
-  const onSubmit = async (data: CreateOrderInput) => {
-    setIsSubmitting(true)
+  const prepareSubmissionData = async (data: CreateOrderInput) => {
+    const enrichedData = { ...data }
+    enrichedData.distanceInKm = selectedAddress?.distanceInKm || 0
+    enrichedData.travelTimeInMinutes = selectedAddress?.travelTimeInMinutes || 0
 
-    data.distanceInKm = selectedAddress?.distanceInKm || 0
-    data.travelTimeInMinutes = selectedAddress?.travelTimeInMinutes || 0
-
-    // Logica de calcul a costului de transport rămâne aici
     const finalShippingCost =
-      selectedAddress?.distanceInKm && data.estimatedVehicleType
+      selectedAddress?.distanceInKm && enrichedData.estimatedVehicleType
         ? await calculateShippingCost(
-            data.estimatedVehicleType,
+            enrichedData.estimatedVehicleType,
             selectedAddress.distanceInKm
           )
         : 0
-    data.shippingCost = round2(finalShippingCost)
 
-    // Apelăm `createOrder` cu statusul 'CONFIRMED'
-    const result = await createOrder(data, 'CONFIRMED')
+    // Se setează câmpul corect, redenumit
+    enrichedData.recommendedShippingCost = round2(finalShippingCost)
+    return enrichedData
+  }
 
-    if (result.success) {
-      toast.success(result.message)
-      router.push('/orders')
-    } else {
-      toast.error('A apărut o eroare', { description: result.message })
+  const onSubmit = async (data: CreateOrderInput) => {
+    setIsSubmitting(true)
+    try {
+      const finalData = await prepareSubmissionData(data)
+      const result = await createOrder(finalData, 'CONFIRMED')
+
+      if (result.success) {
+        toast.success(result.message)
+        router.push('/orders')
+      } else {
+        toast.error('A apărut o eroare', { description: result.message })
+      }
+    } catch {
+      toast.error('Eroare neașteptată', {
+        description: 'Vă rugăm să reîncercați.',
+      })
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
   }
 
   const onSaveDraft = async () => {
     setIsSubmitting(true)
-    const data = methods.getValues()
+    try {
+      const data = methods.getValues()
+      const finalData = await prepareSubmissionData(data as CreateOrderInput)
+      const result = await createOrder(finalData, 'DRAFT')
 
-    data.distanceInKm = selectedAddress?.distanceInKm || 0
-    data.travelTimeInMinutes = selectedAddress?.travelTimeInMinutes || 0
-
-    const finalShippingCost =
-      selectedAddress?.distanceInKm && data.estimatedVehicleType
-        ? await calculateShippingCost(
-            data.estimatedVehicleType,
-            selectedAddress.distanceInKm
-          )
-        : 0
-    data.shippingCost = round2(finalShippingCost)
-
-    // Apelăm `createOrder` cu statusul 'DRAFT'
-    const result = await createOrder(data as CreateOrderInput, 'DRAFT')
-
-    if (result.success) {
-      toast.success(result.message)
-      router.push('/orders')
-    } else {
-      toast.error('A apărut o eroare la salvarea ciornei', {
-        description: result.message,
+      if (result.success) {
+        toast.success(result.message)
+        router.push('/orders')
+      } else {
+        toast.error('A apărut o eroare la salvarea ciornei', {
+          description: result.message,
+        })
+      }
+    } catch {
+      toast.error('Eroare neașteptată', {
+        description: 'Vă rugăm să reîncercați.',
       })
+    } finally {
+      setIsSubmitting(false)
     }
-    setIsSubmitting(false)
   }
 
   return (

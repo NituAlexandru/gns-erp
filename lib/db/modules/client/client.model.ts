@@ -12,8 +12,9 @@ const addressSchema = new Schema(
     alteDetalii: { type: String },
     distanceInKm: { type: Number },
     travelTimeInMinutes: { type: Number },
+    isActive: { type: Boolean, default: true, required: true },
   },
-  { _id: false }
+  {}
 )
 
 //  Schemă reutilizabilă pentru contul bancar

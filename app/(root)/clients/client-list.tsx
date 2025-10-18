@@ -255,7 +255,7 @@ export default function ClientList({ initialData, currentPage }: Props) {
                             >
                               Editează
                             </DropdownMenuItem>
-                            <DropdownMenuItem
+                            {/* <DropdownMenuItem
                               onSelect={async () => {
                                 if (
                                   confirm(
@@ -268,7 +268,7 @@ export default function ClientList({ initialData, currentPage }: Props) {
                               }}
                             >
                               Șterge
-                            </DropdownMenuItem>
+                            </DropdownMenuItem> */}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
