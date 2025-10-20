@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useFormContext, Controller, useWatch } from 'react-hook-form'
 import {
   Select,
@@ -15,18 +14,17 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { getShippingRates } from '@/lib/db/modules/setting/shipping-rates/shipping.actions'
 import { ShippingRateDTO } from '@/lib/db/modules/setting/shipping-rates/types'
 import { DELIVERY_METHODS } from '@/lib/db/modules/order/constants'
 import { IAddress } from '@/lib/db/modules/client/types'
 import { formatCurrency } from '@/lib/utils'
 
-export function OrderLogistics() {
+export function OrderLogistics({
+  shippingRates,
+}: {
+  shippingRates: ShippingRateDTO[]
+}) {
   const { control } = useFormContext()
-  const [shippingRates, setShippingRates] = useState<ShippingRateDTO[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  // AICI ESTE MODIFICAREA: Urmărim `deliveryType` în loc de `deliveryMethod`
   const deliveryMethodKey = useWatch({ control, name: 'deliveryType' })
 
   const selectedMethodInfo = DELIVERY_METHODS.find(
@@ -52,20 +50,6 @@ export function OrderLogistics() {
       selectedRateInfo.ratePerKm * deliveryAddress.distanceInKm
   }
 
-  useEffect(() => {
-    async function fetchRates() {
-      setIsLoading(true)
-      const result = await getShippingRates()
-      if (result.success && result.data) {
-        setShippingRates(result.data)
-      } else {
-        console.error('Failed to fetch shipping rates:', result.message)
-      }
-      setIsLoading(false)
-    }
-    fetchRates()
-  }, [])
-
   return (
     <div className='space-y-4'>
       <Controller
@@ -74,8 +58,7 @@ export function OrderLogistics() {
         render={({ field }) => (
           <FormItem>
             <FormLabel>Mod Livrare</FormLabel>
-            {/* AICI ESTE MODIFICAREA: Folosim field.value || '' */}
-            <Select onValueChange={field.onChange} value={field.value || ''}>
+             <Select onValueChange={field.onChange} value={field.value || ''}>
               <FormControl>
                 <SelectTrigger>
                   <SelectValue placeholder='Alege modul de livrare...' />
@@ -104,16 +87,15 @@ export function OrderLogistics() {
                 <FormLabel>Tip Vehicul (pt. Transport)</FormLabel>
                 <Select
                   onValueChange={field.onChange}
-                  // AICI ESTE A DOUA MODIFICARE: Folosim field.value || ''
-                  value={field.value || ''}
-                  disabled={isLoading}
+                   value={field.value || ''}
+                  disabled={shippingRates.length === 0}
                 >
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue
                         placeholder={
-                          isLoading
-                            ? 'Se încarcă...'
+                          shippingRates.length === 0
+                            ? 'Nu sunt date...' 
                             : 'Alege tipul de vehicul...'
                         }
                       />

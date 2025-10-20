@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useFormContext, useFieldArray, useWatch } from 'react-hook-form'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,11 +37,6 @@ import {
   getProductForOrderLine,
   searchStockableItems,
 } from '@/lib/db/modules/product/product.actions'
-import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
-import {
-  getActiveCommonServices,
-  getActivePermits,
-} from '@/lib/db/modules/setting/services/service.actions'
 import { OrderLineItemRow } from './mini-components/OrderLineItemRow'
 import {
   ProductForOrderLine,
@@ -59,12 +54,14 @@ import { PackagingForOrderLine } from '@/lib/db/modules/packaging-products/types
 
 interface OrderItemsManagerProps {
   isAdmin: boolean
+  vatRates: VatRateDTO[]
+  services: SearchedService[]
+  permits: SearchedService[]
 }
 
 type StockableItemForOrderLine = ProductForOrderLine | PackagingForOrderLine
 
 function getUnitPreference(productId: string, defaultUnit: string): string {
-  // Verificăm dacă suntem în browser, pentru a nu avea erori pe server
   if (typeof window === 'undefined') {
     return defaultUnit
   }
@@ -78,20 +75,24 @@ function getUnitPreference(productId: string, defaultUnit: string): string {
   }
 }
 
-export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
-  const { control } = useFormContext()
-  const { fields, append, remove } = useFieldArray({
+export function OrderItemsManager({
+  isAdmin,
+  vatRates,
+  services,
+  permits,
+}: OrderItemsManagerProps) {
+  const { control, getValues } = useFormContext()
+  const { fields, append, remove, update } = useFieldArray({
     control,
     name: 'lineItems',
   })
-
+  const isMounted = useRef(false)
   const deliveryMethod = useWatch({ control, name: 'deliveryType' })
   const lineItems = useWatch({
     control,
     name: 'lineItems',
   }) as OrderLineItemInput[]
 
-  const [vatRates, setVatRates] = useState<VatRateDTO[]>([])
   const [itemPopoverOpen, setItemPopoverOpen] = useState(false)
   const [itemSearchTerm, setItemSearchTerm] = useState('')
   const [itemSearchResults, setItemSearchResults] = useState<SearchedProduct[]>(
@@ -99,34 +100,9 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
   )
   const [isLoadingItems, setIsLoadingItems] = useState(false)
   const debouncedItemSearch = useDebounce(itemSearchTerm, 300)
-  // Stări pentru Servicii și Autorizații
-  const [services, setServices] = useState<SearchedService[]>([])
-  const [permits, setPermits] = useState<SearchedService[]>([])
-  const [isLoadingServices, setIsLoadingServices] = useState(true)
   const [isAddingItem, setIsAddingItem] = useState(false)
-  // Stări pentru popover-ul de autorizații
   const [isPermitPopoverOpen, setIsPermitPopoverOpen] = useState(false)
   const [permitSearchTerm, setPermitSearchTerm] = useState('')
-
-  useEffect(() => {
-    async function fetchData() {
-      setIsLoadingServices(true)
-      const vatResult = await getVatRates()
-      if (vatResult.success && vatResult.data) {
-        setVatRates(vatResult.data as VatRateDTO[])
-      }
-
-      const [servicesResult, permitsResult] = await Promise.all([
-        getActiveCommonServices(),
-        getActivePermits(),
-      ])
-
-      setServices(servicesResult)
-      setPermits(permitsResult)
-      setIsLoadingServices(false)
-    }
-    fetchData()
-  }, [])
 
   useEffect(() => {
     async function fetchItems() {
@@ -141,6 +117,59 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
     }
     fetchItems()
   }, [debouncedItemSearch])
+
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true
+      return
+    }
+
+    if (!deliveryMethod || fields.length === 0) {
+      return
+    }
+
+    const updateAllPrices = async () => {
+      console.log(
+        `[OrderItemsManager] Se recalculează prețurile (pt ${fields.length} itemi) din cauza schimbării deliveryMethod.`
+      )
+      const currentItems = getValues('lineItems') as OrderLineItemInput[]
+
+      const pricePromises = currentItems.map((item, index) => {
+        if (item.productId) {
+          return calculateMinimumPrice(item.productId, deliveryMethod).then(
+            (newMinPrice) => ({
+              index,
+              newMinPrice: Number(newMinPrice.toFixed(2)),
+            })
+          )
+        }
+        return Promise.resolve(null)
+      })
+      const results = await Promise.all(pricePromises)
+
+      results.forEach((result) => {
+        if (result) {
+          const currentItem = currentItems[result.index]
+          const updatedItem = { ...currentItem }
+
+          updatedItem.minimumSalePrice = result.newMinPrice
+
+          if (updatedItem.priceAtTimeOfOrder < result.newMinPrice) {
+            updatedItem.priceAtTimeOfOrder = result.newMinPrice
+          }
+
+          update(result.index, updatedItem)
+        }
+      })
+    }
+    const promise = updateAllPrices()
+    toast.promise(promise, {
+      loading: 'Se actualizează prețurile conform noii metode de livrare...',
+      success: 'Prețurile au fost actualizate!',
+      error: 'Eroare la actualizarea prețurilor.',
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deliveryMethod, getValues, update])
 
   const handleSelectItem = async (item: SearchedProduct) => {
     if (!deliveryMethod) {
@@ -364,12 +393,8 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant='outline'
-              className='w-full sm:w-auto'
-              disabled={isLoadingServices}
-            >
-              {isLoadingServices ? 'Se încarcă...' : 'Adaugă Serviciu'}
+            <Button variant='outline' className='w-full sm:w-auto'>
+              Adaugă Serviciu
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -402,12 +427,8 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
           onOpenChange={setIsPermitPopoverOpen}
         >
           <PopoverTrigger asChild>
-            <Button
-              variant='outline'
-              className='w-full sm:w-auto'
-              disabled={isLoadingServices}
-            >
-              {isLoadingServices ? 'Se încarcă...' : 'Adaugă Autorizație'}
+            <Button variant='outline' className='w-full sm:w-auto'>
+              Adaugă Autorizație
             </Button>
           </PopoverTrigger>
           <PopoverContent
@@ -422,10 +443,7 @@ export function OrderItemsManager({ isAdmin }: OrderItemsManagerProps) {
                 onValueChange={setPermitSearchTerm}
               />
               <CommandList>
-                {isLoadingServices && (
-                  <div className='p-2 text-sm'>Se încarcă...</div>
-                )}
-                {!isLoadingServices && !filteredPermits.length && (
+                {!filteredPermits.length && (
                   <CommandEmpty>Nicio autorizație găsită.</CommandEmpty>
                 )}
                 <CommandGroup>

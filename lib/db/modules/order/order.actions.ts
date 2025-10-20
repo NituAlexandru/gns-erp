@@ -15,6 +15,13 @@ import VehicleRate from '../setting/shipping-rates/shipping.model'
 import { PAGE_SIZE } from '@/lib/constants'
 import './../client/client.model'
 import './../user/user.model'
+import { getShippingRates } from '../setting/shipping-rates/shipping.actions'
+import { getVatRates } from '../setting/vat-rate/vatRate.actions'
+import {
+  getActiveCommonServices,
+  getActivePermits,
+} from '../setting/services/service.actions'
+import { VatRateDTO } from '../setting/vat-rate/types'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -74,7 +81,51 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
 
   return { processedLineItems, finalTotals }
 }
+export async function getOrderFormInitialData() {
+  try {
+    const [shippingRatesResult, vatRatesResult, services, permits] =
+      await Promise.all([
+        getShippingRates(),
+        getVatRates(),
+        getActiveCommonServices(),
+        getActivePermits(),
+      ])
 
+    const shippingRates =
+      shippingRatesResult.success && shippingRatesResult.data
+        ? shippingRatesResult.data
+        : []
+    const vatRates =
+      vatRatesResult.success && vatRatesResult.data
+        ? (vatRatesResult.data as VatRateDTO[])
+        : []
+
+    return {
+      success: true,
+      data: {
+        shippingRates,
+        vatRates,
+        services,
+        permits,
+      },
+    }
+  } catch (error) {
+    console.error(
+      'Eroare la preluarea datelor inițiale pentru formular:',
+      error
+    )
+    return {
+      success: false,
+      message: 'Nu s-au putut încărca datele.',
+      data: {
+        shippingRates: [],
+        vatRates: [],
+        services: [],
+        permits: [],
+      },
+    }
+  }
+}
 export async function createOrder(
   data: CreateOrderInput,
   status: 'DRAFT' | 'CONFIRMED'

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { useForm, FormProvider } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -11,10 +11,10 @@ import { OrderItemsManager } from './OrderItemsManager'
 import { OrderTotals } from './OrderTotals'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-
 import {
   createOrder,
   calculateShippingCost,
+  getOrderFormInitialData, 
 } from '@/lib/db/modules/order/order.actions'
 import {
   CreateOrderInput,
@@ -23,10 +23,19 @@ import {
 import { IClientDoc, IAddress } from '@/lib/db/modules/client/types'
 import { EntitySelector } from './mini-components/EntitySelector'
 import { round2 } from '@/lib/utils'
+import { ShippingRateDTO } from '@/lib/db/modules/setting/shipping-rates/types'
+import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
+import { SearchedService } from '@/lib/db/modules/setting/services/types'
+
+type InitialData = {
+  shippingRates: ShippingRateDTO[]
+  vatRates: VatRateDTO[]
+  services: SearchedService[]
+  permits: SearchedService[]
+}
 
 export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
   const router = useRouter()
-
   const methods = useForm<CreateOrderInput>({
     resolver: zodResolver(CreateOrderInputSchema),
     defaultValues: {
@@ -45,26 +54,29 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
       },
     },
   })
-
-  // const { watch } = methods
-
-  // useEffect(() => {
-  //   const subscription = watch((value, { name, type }) => {
-  //     console.group(
-  //       `%cFormular actualizat de: ${name || 'unknown'}`,
-  //       'color: blue; font-weight: bold;'
-  //     )
-  //     console.log('Tip eveniment:', type)
-  //     console.log('Date complete:', value)
-  //     console.groupEnd()
-  //   })
-
-  //   return () => subscription.unsubscribe()
-  // }, [watch])
-
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Stările pentru datele inițiale
+  const [initialData, setInitialData] = useState<InitialData | null>(null)
+  const [isLoadingData, setIsLoadingData] = useState(true)
+
+  useEffect(() => {
+    async function fetchData() {
+      setIsLoadingData(true)
+      const result = await getOrderFormInitialData()
+      if (result.success) {
+        setInitialData(result.data)
+      } else {
+        toast.error('Eroare la încărcarea datelor', {
+          description: result.message,
+        })
+      }
+      setIsLoadingData(false)
+    }
+    fetchData()
+  }, [])
 
   const handleClientSelect = useCallback(
     (client: IClientDoc | null) => {
@@ -167,6 +179,14 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
     }
   }
 
+  if (isLoadingData) {
+    return (
+      <div className='flex justify-center items-center h-64'>
+        <p>Se încarcă formularul...</p>
+      </div>
+    )
+  }
+
   return (
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(onSubmit)} className='space-y-6'>
@@ -190,7 +210,8 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
           {/* Coloana 2: Detalii Logistice */}
           <div className='p-4 border rounded-lg flex flex-col'>
             <h2 className='text-lg font-semibold mb-2'>Detalii Logistice</h2>
-            <OrderLogistics />
+            {/* ⭐ MODIFICARE AICI: Pasăm datele ca prop */}
+            <OrderLogistics shippingRates={initialData?.shippingRates || []} />
           </div>
 
           {/* Coloana 3: Mențiuni (cu textarea h-full) */}
@@ -204,7 +225,6 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
           </div>
 
           {/* Coloana 4: Totaluri Comandă (lățime automată) */}
-
           <OrderTotals />
         </div>
 
@@ -212,7 +232,12 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
           <h2 className='hidden text-lg font-semibold mb-2'>
             Articole Comandă
           </h2>
-          <OrderItemsManager isAdmin={isAdmin} />
+          <OrderItemsManager
+            isAdmin={isAdmin}
+            vatRates={initialData?.vatRates || []}
+            services={initialData?.services || []}
+            permits={initialData?.permits || []}
+          />
         </div>
 
         <div className='flex justify-end gap-4'>

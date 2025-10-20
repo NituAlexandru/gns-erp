@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { useFormContext, Controller, useWatch } from 'react-hook-form'
+import { useEffect, useRef, useMemo } from 'react'
+import { useFormContext, Controller } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Trash2 } from 'lucide-react'
-import { calculateMinimumPrice } from '@/lib/db/modules/product/product.actions'
 import { toast } from 'sonner'
 import { useUnitConversion } from '@/hooks/use-unit-conversion'
 import { formatCurrency } from '@/lib/utils'
@@ -36,7 +35,6 @@ export function ProductLineItemRow({
   itemData,
 }: ProductLineItemRowProps) {
   const { control, setValue, getValues } = useFormContext()
-  const deliveryType = useWatch({ control, name: 'deliveryType' })
 
   const {
     productId,
@@ -46,10 +44,9 @@ export function ProductLineItemRow({
     productName,
     baseUnit,
     packagingOptions,
+    minimumSalePrice = 0,
   } = itemData || {}
 
-  const [baseMinimumPrice, setBaseMinimumPrice] = useState<number | null>(null)
-  const [isLoadingPrice, setIsLoadingPrice] = useState(false)
   const prevConversionFactor = useRef(1)
 
   const itemForHook = useMemo(
@@ -64,30 +61,8 @@ export function ProductLineItemRow({
   const { handleUnitChange, allUnits, convertedPrice, conversionFactor } =
     useUnitConversion({
       item: itemForHook,
-      basePrice: baseMinimumPrice || 0,
+      basePrice: minimumSalePrice || 0,
     })
-
-  useEffect(() => {
-    if (!productId || !deliveryType) return
-    let cancelled = false
-    ;(async () => {
-      setIsLoadingPrice(true)
-      try {
-        const newBaseMinPrice = await calculateMinimumPrice(
-          productId,
-          deliveryType
-        )
-        if (!cancelled) setBaseMinimumPrice(newBaseMinPrice)
-      } catch (error) {
-        console.error('Eroare la preluarea prețului de bază:', error)
-      } finally {
-        if (!cancelled) setIsLoadingPrice(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [deliveryType, productId])
 
   useEffect(() => {
     if (
@@ -109,11 +84,8 @@ export function ProductLineItemRow({
   useEffect(() => {
     if (!convertedPrice || convertedPrice <= 0) return
     const path = `lineItems.${index}.priceAtTimeOfOrder` as const
-    const minPricePath = `lineItems.${index}.minimumSalePrice` as const
     const currentPrice = Number(getValues(path) ?? 0)
     const formattedMinPrice = Number(convertedPrice.toFixed(2))
-
-    setValue(minPricePath, formattedMinPrice, { shouldDirty: true })
 
     if (currentPrice < formattedMinPrice) {
       setValue(path, formattedMinPrice, { shouldDirty: true })
@@ -134,7 +106,6 @@ export function ProductLineItemRow({
       ((vatRate / 100) * lineSubtotal).toFixed(2)
     )
 
-    // Condiție de oprire: actualizăm starea DOAR dacă valoarea calculată este diferită
     if (vatRateDetails?.value !== calculatedVatValue) {
       setValue(`lineItems.${index}.vatRateDetails.value`, calculatedVatValue, {
         shouldDirty: true,
@@ -190,8 +161,8 @@ export function ProductLineItemRow({
           render={({ field }) => (
             <Select
               onValueChange={(value) => {
-                field.onChange(value) // Actualizează starea formularului
-                handleUnitChange(value) // Actualizează starea hook-ului de conversie
+                field.onChange(value)
+                handleUnitChange(value)
               }}
               value={field.value}
             >
@@ -220,18 +191,12 @@ export function ProductLineItemRow({
           defaultValue={0}
           render={({ field }) => (
             <div className='relative'>
-              {(isLoadingPrice || convertedPrice > 0) && (
+              {convertedPrice > 0 && (
                 <p className='absolute bottom-8 left-0 right-0 mb-1 text-center text-xs text-muted-foreground'>
-                  {isLoadingPrice ? (
-                    'Calculare...'
-                  ) : (
-                    <>
-                      Pret Minim:{' '}
-                      <span className='font-bold text-primary'>
-                        {formatCurrency(convertedPrice)}
-                      </span>
-                    </>
-                  )}
+                  Pret Minim:{' '}
+                  <span className='font-bold text-primary'>
+                    {formatCurrency(convertedPrice)}
+                  </span>
                 </p>
               )}
               <Input
@@ -242,9 +207,19 @@ export function ProductLineItemRow({
                   field.onChange(parseFloat(e.target.value) || 0)
                 }
                 onBlur={(e) => {
-                  const numValue = parseFloat(e.target.value)
+                  let numValue = parseFloat(e.target.value)
+                  const formattedMinPrice = Number(convertedPrice.toFixed(2))
+
                   if (!isNaN(numValue)) {
+                    if (numValue < formattedMinPrice) {
+                      numValue = formattedMinPrice
+                      toast.info(
+                        `Prețul a fost ajustat la minimul de ${formatCurrency(formattedMinPrice)}.`
+                      )
+                    }
                     field.onChange(numValue.toFixed(2))
+                  } else {
+                    field.onChange(formattedMinPrice)
                   }
                 }}
                 className='w-full min-w-[100px]'

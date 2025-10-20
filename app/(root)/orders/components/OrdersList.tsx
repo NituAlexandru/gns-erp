@@ -195,13 +195,7 @@ export function OrdersList({
                         >
                           Modifică
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            router.push(`/orders/new?fromOrder=${order._id}`)
-                          }
-                        >
-                          Duplică Comanda
-                        </DropdownMenuItem>
+
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className='text-red-500'
