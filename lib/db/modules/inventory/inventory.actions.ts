@@ -26,7 +26,8 @@ import { MovementsFiltersState } from '@/app/admin/management/inventory/movement
 import ERPProductModel from '@/lib/db/modules/product/product.model'
 import PackagingModel from '@/lib/db/modules/packaging-products/packaging.model'
 import ReceptionModel from '@/lib/db/modules/reception/reception.model'
-import { OrderLineItemInput } from '../order/types'
+import { IOrderLineItem } from '../order/types'
+import StockReservationModel from './reservation.model'
 
 /**
  * Înregistrează o mișcare de stoc (IN/OUT) conform logicii FIFO.
@@ -437,18 +438,18 @@ export async function getAggregatedStockStatus(
     await connectToDatabase()
 
     const pipeline: mongoose.PipelineStage[] = [
-      // Grupăm intrările din inventar pentru a însuma stocurile și a prelua prețurile pre-calculate
       {
         $group: {
           _id: '$stockableItem',
           totalStock: { $sum: '$totalStock' },
+          totalReserved: { $sum: '$quantityReserved' },
           averageCost: { $avg: '$averageCost' },
           minPrice: { $min: '$minPurchasePrice' },
           maxPrice: { $max: '$maxPurchasePrice' },
           lastPrice: { $last: '$lastPurchasePrice' },
         },
       },
-      //  Facem join cu produsele/ambalajele pentru a lua numele și detaliile de conversie
+      // Lookup-uri pentru detalii produs/ambalaj (rămân la fel)
       {
         $lookup: {
           from: 'erpproducts',
@@ -465,7 +466,6 @@ export async function getAggregatedStockStatus(
           as: 'packagingDetails',
         },
       },
-      // Unwind pentru a putea accesa detaliile
       {
         $unwind: { path: '$productDetails', preserveNullAndEmptyArrays: true },
       },
@@ -476,7 +476,7 @@ export async function getAggregatedStockStatus(
         },
       },
 
-      // logica pentru a construi dinamic 'packagingOptions'
+      // Construim packagingOptions
       {
         $lookup: {
           from: 'packagings',
@@ -493,11 +493,11 @@ export async function getAggregatedStockStatus(
       },
       {
         $addFields: {
+          // Logica pentru packagingOptions
           packagingOptions: {
             $concatArrays: [
               {
                 $cond: {
-                  // Condiția pentru 'packagingUnit' (ex: sac)
                   if: {
                     $and: [
                       '$productDetails.packagingUnit',
@@ -516,7 +516,6 @@ export async function getAggregatedStockStatus(
               },
               {
                 $cond: {
-                  // Condiția pentru 'palet'
                   if: {
                     $and: [
                       '$productDetails.itemsPerPallet',
@@ -529,11 +528,41 @@ export async function getAggregatedStockStatus(
                         $ifNull: ['$palletTypeDetails.name', 'Palet'],
                       },
                       baseUnitEquivalent: {
-                        $multiply: [
-                          '$productDetails.itemsPerPallet',
-                          '$productDetails.packagingQuantity',
-                        ],
+                        $cond: {
+                          if: {
+                            $and: [
+                              '$productDetails.packagingQuantity',
+                              { $gt: ['$productDetails.packagingQuantity', 0] },
+                            ],
+                          },
+                          then: {
+                            $multiply: [
+                              '$productDetails.itemsPerPallet',
+                              '$productDetails.packagingQuantity',
+                            ],
+                          },
+                          else: '$productDetails.itemsPerPallet',
+                        },
                       },
+                    },
+                  ],
+                  else: [],
+                },
+              },
+              {
+                $cond: {
+                  if: {
+                    $and: [
+                      '$packagingDetails.itemsPerPallet',
+                      { $gt: ['$packagingDetails.itemsPerPallet', 0] },
+                    ],
+                  },
+                  then: [
+                    {
+                      unitName: {
+                        $ifNull: ['$palletTypeDetails.name', 'Palet'],
+                      },
+                      baseUnitEquivalent: '$packagingDetails.itemsPerPallet',
                     },
                   ],
                   else: [],
@@ -544,11 +573,18 @@ export async function getAggregatedStockStatus(
         },
       },
 
-      // Proiectăm câmpurile finale, inclusiv 'packagingOptions' corect
+      // Proiectăm câmpurile finale + CALCULĂM STOCUL DISPONIBIL (AICI ADĂUGĂM)
       {
         $project: {
           _id: 1,
-          totalStock: 1,
+          totalStock: { $ifNull: ['$totalStock', 0] },
+          totalReserved: { $ifNull: ['$totalReserved', 0] },
+          availableStock: {
+            $subtract: [
+              { $ifNull: ['$totalStock', 0] },
+              { $ifNull: ['$totalReserved', 0] },
+            ],
+          },
           averageCost: { $ifNull: ['$averageCost', 0] },
           minPrice: { $ifNull: ['$minPrice', 0] },
           maxPrice: { $ifNull: ['$maxPrice', 0] },
@@ -566,28 +602,33 @@ export async function getAggregatedStockStatus(
               '$packagingDetails.productCode',
             ],
           },
+          itemType: {
+            $cond: {
+              if: '$productDetails.name',
+              then: 'Produs',
+              else: 'Ambalaj',
+            },
+          },
           packagingOptions: 1,
         },
       },
     ]
 
+    if (query && query.trim() !== '') {
+      const regex = new RegExp(query, 'i')
+      pipeline.push({
+        $match: {
+          $or: [{ name: regex }, { productCode: regex }],
+        },
+      })
+    }
+
+    pipeline.push({ $sort: { name: 1 } })
+
     let combinedStock: AggregatedStockItem[] =
       await InventoryItemModel.aggregate(pipeline)
 
-    // Logica de filtrare și sortare rămâne la fel
-    if (query && query.trim() !== '') {
-      const regex = new RegExp(query, 'i')
-      combinedStock = combinedStock.filter(
-        (item) =>
-          (item.name && regex.test(item.name)) ||
-          (item.productCode && regex.test(item.productCode))
-      )
-    }
-
-    combinedStock = combinedStock.filter(
-      (item) => item.name != null && item.totalStock !== 0
-    )
-    combinedStock.sort((a, b) => a.name.localeCompare(b.name))
+    combinedStock = combinedStock.filter((item) => item.name != null)
 
     return JSON.parse(JSON.stringify(combinedStock))
   } catch (error) {
@@ -605,35 +646,60 @@ export async function getStockByLocation(
 
     // ---------- PIPELINE pentru PRODUSE ----------
     const productPipeline: mongoose.PipelineStage[] = [
+      //  Găsim intrările PENTRU locația specificată
       { $match: { location: locationId, stockableItemType: 'ERPProduct' } },
+
+      //  Adăugăm quantityReserved specific locației (nu e nevoie de unwind pt asta)
+      // Acest pas asigură că avem câmpul quantityReserved disponibil mai târziu
+      { $addFields: { _quantityReserved: '$quantityReserved' } },
+
+      //  Unwind și sortare pe loturi
       { $unwind: '$batches' },
       { $sort: { 'batches.entryDate': 1 } },
+
+      //  Grupăm pe articol PENTRU a calcula sumele din loturi
       {
         $group: {
           _id: '$stockableItem',
-          totalStock: { $sum: '$batches.quantity' },
+          totalStock: { $sum: '$batches.quantity' }, // Calculat din loturi
           totalValue: {
             $sum: { $multiply: ['$batches.quantity', '$batches.unitCost'] },
           },
           minPrice: { $min: '$batches.unitCost' },
           maxPrice: { $max: '$batches.unitCost' },
           lastPrice: { $last: '$batches.unitCost' },
+          // ⭐ Păstrăm quantityReserved folosind $first (va fi aceeași valoare pentru toate loturile aceluiași item/locație)
+          totalReservedForLocation: { $first: '$_quantityReserved' },
         },
       },
-      ...getPackagingOptionsPipeline(), // (join în erpproducts + palet & opțiuni)
+      // Pas 4: Lookup pentru detalii produs și packagingOptions (rămân la fel)
+      ...getPackagingOptionsPipeline(),
+      // Proiectăm câmpurile finale
       {
         $project: {
           _id: 1,
-          totalStock: 1,
+          totalStock: { $ifNull: ['$totalStock', 0] },
+          totalReserved: { $ifNull: ['$totalReservedForLocation', 0] },
+          availableStock: {
+            $subtract: [
+              { $ifNull: ['$totalStock', 0] },
+              { $ifNull: ['$totalReservedForLocation', 0] },
+            ],
+          },
           minPrice: { $ifNull: ['$minPrice', 0] },
           maxPrice: { $ifNull: ['$maxPrice', 0] },
           lastPrice: { $ifNull: ['$lastPrice', 0] },
           averageCost: {
-            $ifNull: [{ $divide: ['$totalValue', '$totalStock'] }, 0],
+            $cond: {
+              if: { $gt: ['$totalStock', 0] },
+              then: { $divide: ['$totalValue', '$totalStock'] },
+              else: 0,
+            },
           },
           name: '$productDetails.name',
           unit: '$productDetails.unit',
           productCode: '$productDetails.productCode',
+          itemType: 'Produs',
           packagingOptions: 1,
         },
       },
@@ -641,9 +707,17 @@ export async function getStockByLocation(
 
     // ---------- PIPELINE pentru AMBALAJE ----------
     const packagingPipeline: mongoose.PipelineStage[] = [
+      //  Găsim intrările PENTRU locația specificată
       { $match: { location: locationId, stockableItemType: 'Packaging' } },
+
+      //  Adăugăm quantityReserved specific locației
+      { $addFields: { _quantityReserved: '$quantityReserved' } },
+
+      //  Unwind și sortare pe loturi
       { $unwind: '$batches' },
       { $sort: { 'batches.entryDate': 1 } },
+
+      // Grupăm pe articol PENTRU a calcula sumele din loturi
       {
         $group: {
           _id: '$stockableItem',
@@ -654,33 +728,49 @@ export async function getStockByLocation(
           minPrice: { $min: '$batches.unitCost' },
           maxPrice: { $max: '$batches.unitCost' },
           lastPrice: { $last: '$batches.unitCost' },
+          totalReservedForLocation: { $first: '$_quantityReserved' },
         },
       },
-      ...createPackagingOptionsPipelineForPackaging(), // (join în packagings + palet & opțiuni)
+      //  Lookup pentru detalii ambalaj și packagingOptions
+      ...createPackagingOptionsPipelineForPackaging(),
+      //  Proiectăm câmpurile finale
       {
         $project: {
           _id: 1,
-          totalStock: 1,
+          totalStock: { $ifNull: ['$totalStock', 0] },
+          totalReserved: { $ifNull: ['$totalReservedForLocation', 0] },
+          availableStock: {
+            $subtract: [
+              { $ifNull: ['$totalStock', 0] },
+              { $ifNull: ['$totalReservedForLocation', 0] },
+            ],
+          },
           minPrice: { $ifNull: ['$minPrice', 0] },
           maxPrice: { $ifNull: ['$maxPrice', 0] },
           lastPrice: { $ifNull: ['$lastPrice', 0] },
           averageCost: {
-            $ifNull: [{ $divide: ['$totalValue', '$totalStock'] }, 0],
+            $cond: {
+              if: { $gt: ['$totalStock', 0] },
+              then: { $divide: ['$totalValue', '$totalStock'] },
+              else: 0,
+            },
           },
           name: '$packagingDetails.name',
           unit: '$packagingDetails.packagingUnit',
           productCode: '$packagingDetails.productCode',
+          itemType: 'Ambalaj',
           packagingOptions: 1,
         },
       },
     ]
 
+    // Executăm ambele pipeline-uri
     const [productStock, packagingStock] = await Promise.all([
       InventoryItemModel.aggregate(productPipeline),
       InventoryItemModel.aggregate(packagingPipeline),
     ])
 
-    // ---------- Combinare + filtrare ----------
+    // Combinăm și filtrăm
     let combined: AggregatedStockItem[] = [...productStock, ...packagingStock]
 
     if (query && query.trim() !== '') {
@@ -693,6 +783,8 @@ export async function getStockByLocation(
     }
 
     combined = combined.filter((i) => i.name != null && i.totalStock > 0)
+
+    // Sortăm
     combined.sort((a, b) => a.name.localeCompare(b.name))
 
     return JSON.parse(JSON.stringify(combined))
@@ -973,53 +1065,141 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
  * @param session - Sesiunea MongoDB activă pentru tranzacție.
  */
 export async function reserveStock(
-  items: OrderLineItemInput[],
+  orderId: Types.ObjectId,
+  clientId: Types.ObjectId,
+  items: IOrderLineItem[],
   session: ClientSession
 ) {
+  const RESERVATION_LOCATIONS_PRIORITY = ['DEPOZIT', 'CUSTODIE_GNS']
+
   for (const item of items) {
-    if (!item.productId || item.isManualEntry) {
+    if (
+      !item.stockableItemType ||
+      !item.quantityInBaseUnit ||
+      !item.productId
+    ) {
       continue
     }
 
-    let quantityToReserve = Number(item.quantity) || 0
-    if (item.unitOfMeasure !== item.baseUnit) {
-      const option = item.packagingOptions?.find(
-        (opt: { unitName: string }) => opt.unitName === item.unitOfMeasure
-      )
-      if (option && option.baseUnitEquivalent) {
-        quantityToReserve *= option.baseUnitEquivalent
+    let quantityStillToReserve = item.quantityInBaseUnit
+    if (quantityStillToReserve <= 0) continue
+
+    // --- Verificare și rezervare stoc dedicat clientului ---
+    const clientCustodyEntry = await InventoryItemModel.findOne({
+      stockableItem: item.productId,
+      location: 'CUSTODIE_PENTRU_CLIENT',
+      clientId: clientId,
+    }).session(session)
+
+    if (clientCustodyEntry) {
+      const availableInCustody =
+        clientCustodyEntry.totalStock - clientCustodyEntry.quantityReserved
+      if (availableInCustody > 0) {
+        const amountToReserveFromCustody = Math.min(
+          quantityStillToReserve,
+          availableInCustody
+        )
+
+        //  Actualizează sumarul pe InventoryItem-ul de custodie
+        clientCustodyEntry.quantityReserved += amountToReserveFromCustody
+        await clientCustodyEntry.save({ session })
+
+        // Creează "chitanța" de rezervare pentru custodie
+        await StockReservationModel.create(
+          [
+            {
+              orderId,
+              orderLineItemId: item._id,
+              stockableItem: item.productId,
+              stockableItemType: item.stockableItemType,
+              location: 'CUSTODIE_PENTRU_CLIENT',
+              quantity: amountToReserveFromCustody,
+              status: 'ACTIVE',
+            },
+          ],
+          { session }
+        )
+
+        quantityStillToReserve -= amountToReserveFromCustody
       }
     }
 
-    // Căutăm sau creăm un document de inventar pentru produs în locația 'DEPOZIT'
-    // Folosim `findOneAndUpdate` cu `upsert: true` pentru a face acest pas mai robust.
-    const inventoryItem = await InventoryItemModel.findOneAndUpdate(
-      {
+    // --- Prioritatea 1 & 2: Cascada de rezervare din locațiile principale ---
+    if (quantityStillToReserve > 0) {
+      const inventoryEntries = await InventoryItemModel.find({
         stockableItem: item.productId,
-        location: 'DEPOZIT',
-      },
-      {
-        // Incrementăm direct cantitatea rezervată
-        $inc: { quantityReserved: quantityToReserve },
-        // Dacă documentul nu există, îl creăm cu aceste valori inițiale
-        $setOnInsert: {
-          stockableItem: item.productId,
-          location: 'DEPOZIT',
-          // Presupunem că tipul este ERPProduct. Va trebui să ajustăm dacă avem și Packaging.
-          stockableItemType: 'ERPProduct',
-        },
-      },
-      {
-        new: true, // Returnează documentul actualizat
-        upsert: true, // Creează documentul dacă nu există
-        session, // Asigură că operațiunea face parte din tranzacție
-      }
-    )
+        location: { $in: RESERVATION_LOCATIONS_PRIORITY },
+      }).session(session)
 
-    if (!inventoryItem) {
-      // Această eroare nu ar trebui să apară datorită `upsert: true`, dar o păstrăm ca siguranță.
-      throw new Error(
-        `Nu s-a putut crea/găsi intrarea în inventar pentru "${item.productName}".`
+      for (const location of RESERVATION_LOCATIONS_PRIORITY) {
+        if (quantityStillToReserve <= 0) break
+
+        const entryForLocation = inventoryEntries.find(
+          (e) => e.location === location
+        )
+        if (!entryForLocation) continue
+
+        const availableInLocation =
+          entryForLocation.totalStock - entryForLocation.quantityReserved
+        if (availableInLocation <= 0) continue
+
+        const amountToReserveFromThisLocation = Math.min(
+          quantityStillToReserve,
+          availableInLocation
+        )
+
+        if (amountToReserveFromThisLocation > 0) {
+          entryForLocation.quantityReserved += amountToReserveFromThisLocation
+          await entryForLocation.save({ session })
+
+          await StockReservationModel.create(
+            [
+              {
+                orderId,
+                orderLineItemId: item._id,
+                stockableItem: item.productId,
+                stockableItemType: item.stockableItemType,
+                location: location,
+                quantity: amountToReserveFromThisLocation,
+                status: 'ACTIVE',
+              },
+            ],
+            { session }
+          )
+
+          quantityStillToReserve -= amountToReserveFromThisLocation
+        }
+      }
+    }
+
+    // --- Gestionarea Backorder-ului ---
+    if (quantityStillToReserve > 0) {
+      await InventoryItemModel.findOneAndUpdate(
+        { stockableItem: item.productId, location: 'DEPOZIT' },
+        {
+          $inc: { quantityReserved: quantityStillToReserve },
+          $setOnInsert: {
+            stockableItem: item.productId,
+            stockableItemType: item.stockableItemType,
+            location: 'DEPOZIT',
+          },
+        },
+        { upsert: true, new: true, session }
+      )
+
+      await StockReservationModel.create(
+        [
+          {
+            orderId,
+            orderLineItemId: item._id,
+            stockableItem: item.productId,
+            stockableItemType: item.stockableItemType,
+            location: 'DEPOZIT',
+            quantity: quantityStillToReserve,
+            status: 'ACTIVE',
+          },
+        ],
+        { session }
       )
     }
   }
@@ -1032,34 +1212,38 @@ export async function reserveStock(
  * @param session Sesiunea MongoDB activă pentru tranzacție.
  */
 export async function unreserveStock(
-  items: OrderLineItemInput[],
+  items: IOrderLineItem[],
   session: ClientSession
 ) {
   for (const item of items) {
-    if (!item.productId || item.isManualEntry) {
+    if (!item.productId) continue
+
+    //  Găsește toate rezervările active pentru această linie de comandă
+    const reservationsToCancel = await StockReservationModel.find({
+      orderLineItemId: item._id,
+      status: 'ACTIVE',
+    }).session(session)
+
+    if (reservationsToCancel.length === 0) {
       continue
     }
 
-    let quantityToUnreserve = Number(item.quantity) || 0
-    if (item.unitOfMeasure !== item.baseUnit) {
-      const option = item.packagingOptions?.find(
-        (opt: { unitName: string }) => opt.unitName === item.unitOfMeasure
+    // Pentru fiecare rezervare, eliberează stocul din locația corectă
+    for (const reservation of reservationsToCancel) {
+      await InventoryItemModel.updateOne(
+        {
+          stockableItem: reservation.stockableItem,
+          location: reservation.location,
+        },
+        {
+          $inc: { quantityReserved: -reservation.quantity },
+        },
+        { session }
       )
-      if (option && option.baseUnitEquivalent) {
-        quantityToUnreserve *= option.baseUnitEquivalent
-      }
-    }
 
-    // Decrementăm cantitatea rezervată. Folosim `$inc` cu o valoare negativă.
-    await InventoryItemModel.findOneAndUpdate(
-      {
-        stockableItem: item.productId,
-        location: 'DEPOZIT',
-      },
-      {
-        $inc: { quantityReserved: -quantityToUnreserve },
-      },
-      { session } // Asigurăm că operațiunea face parte din tranzacție
-    )
+      // Marchează rezervarea ca fiind anulată
+      reservation.status = 'CANCELLED'
+      await reservation.save({ session })
+    }
   }
 }

@@ -63,6 +63,8 @@ export type SearchedProduct = {
   image: string | null
   unit: string
   totalStock: number
+  totalReserved: number
+  availableStock: number
   packagingOptions: {
     unitName: string
     baseUnitEquivalent: number

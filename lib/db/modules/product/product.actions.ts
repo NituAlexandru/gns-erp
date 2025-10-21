@@ -348,42 +348,40 @@ export async function searchStockableItems(
         {
           $lookup: {
             from: 'inventoryitems',
-            localField: '_id',
-            foreignField: 'stockableItem',
-            as: 'inventoryInfo',
+            // Folosim let/pipeline pentru a agrega sumarul
+            let: { productId: '$_id' },
+            pipeline: [
+              { $match: { $expr: { $eq: ['$stockableItem', '$$productId'] } } },
+              {
+                $group: {
+                  _id: '$stockableItem',
+                  totalStock: { $sum: '$totalStock' },
+                  totalReserved: { $sum: '$quantityReserved' }, 
+                },
+              },
+            ],
+            as: 'inventorySummary',
           },
         },
+        // Extragem sumarul (primul element din array sau null)
+        { $addFields: { inventoryDoc: { $first: '$inventorySummary' } } },
         {
           $project: {
             _id: 1,
             name: 1,
             productCode: 1,
-            image: { $first: '$images' },
-            unit: 1,
+            image: { $first: '$images' }, 
+            itemType: 'Produs', 
+            unit: 1, 
             packagingUnit: 1,
             packagingQuantity: 1,
             itemsPerPallet: 1,
-            itemType: 'Produs',
-            inventoryDoc: { $first: '$inventoryInfo' },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            productCode: 1,
-            image: 1,
-            itemType: 1,
-            unit: 1,
-            totalStock: {
-              $ifNull: [
-                {
-                  $subtract: [
-                    '$inventoryDoc.totalStock',
-                    '$inventoryDoc.quantityReserved',
-                  ],
-                },
-                0,
+            totalStock: { $ifNull: ['$inventoryDoc.totalStock', 0] },
+            totalReserved: { $ifNull: ['$inventoryDoc.totalReserved', 0] },
+            availableStock: {
+              $subtract: [
+                { $ifNull: ['$inventoryDoc.totalStock', 0] },
+                { $ifNull: ['$inventoryDoc.totalReserved', 0] },
               ],
             },
             packagingOptions: {
@@ -412,14 +410,12 @@ export async function searchStockableItems(
                           { $gt: ['$packagingQuantity', 0] },
                         ],
                       },
-
                       then: {
                         unitName: 'palet',
                         baseUnitEquivalent: {
                           $multiply: ['$itemsPerPallet', '$packagingQuantity'],
                         },
                       },
-
                       else: {
                         $cond: [
                           { $gt: ['$itemsPerPallet', 0] },
@@ -440,45 +436,43 @@ export async function searchStockableItems(
           },
         },
       ]),
-      // Căutare Ambalaje
       PackagingModel.aggregate([
         { $match: matchQuery },
         {
           $lookup: {
             from: 'inventoryitems',
-            localField: '_id',
-            foreignField: 'stockableItem',
-            as: 'inventoryInfo',
+            let: { packagingId: '$_id' },
+            pipeline: [
+              {
+                $match: { $expr: { $eq: ['$stockableItem', '$$packagingId'] } },
+              },
+              {
+                $group: {
+                  _id: '$stockableItem',
+                  totalStock: { $sum: '$totalStock' },
+                  totalReserved: { $sum: '$quantityReserved' }, 
+                },
+              },
+            ],
+            as: 'inventorySummary',
           },
         },
+        // Extragem sumarul
+        { $addFields: { inventoryDoc: { $first: '$inventorySummary' } } },
         {
           $project: {
             _id: 1,
             name: 1,
             productCode: 1,
             image: { $first: '$images' },
+            itemType: 'Ambalaj', 
             unit: '$packagingUnit',
-            itemType: 'Ambalaj',
-            inventoryDoc: { $first: '$inventoryInfo' },
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            productCode: 1,
-            image: 1,
-            itemType: 1,
-            unit: 1,
-            totalStock: {
-              $ifNull: [
-                {
-                  $subtract: [
-                    '$inventoryDoc.totalStock',
-                    '$inventoryDoc.quantityReserved',
-                  ],
-                },
-                0,
+            totalStock: { $ifNull: ['$inventoryDoc.totalStock', 0] },
+            totalReserved: { $ifNull: ['$inventoryDoc.totalReserved', 0] },
+            availableStock: {
+              $subtract: [
+                { $ifNull: ['$inventoryDoc.totalStock', 0] },
+                { $ifNull: ['$inventoryDoc.totalReserved', 0] },
               ],
             },
             packagingOptions: [],
@@ -487,11 +481,15 @@ export async function searchStockableItems(
       ]),
     ])
 
+    // Combinăm și sortăm EXACT ca în codul tău original 
     const combinedResults = [...products, ...packagings].sort(
-      (a, b) => (b.totalStock || 0) - (a.totalStock || 0)
+      (a, b) => (b.totalStock || 0) - (a.totalStock || 0) 
     )
 
-    return combinedResults.map((r) => ({ ...r, _id: r._id.toString() }))
+    return combinedResults.map((r) => ({
+      ...r,
+      _id: r._id.toString(),
+    })) as SearchedProduct[]
   } catch (error) {
     console.error('Eroare la căutarea produselor și ambalajelor:', error)
     return []

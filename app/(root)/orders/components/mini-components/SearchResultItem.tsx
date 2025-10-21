@@ -22,11 +22,20 @@ type SearchResultItemProps = {
 }
 
 export function SearchResultItem({ item }: SearchResultItemProps) {
-  const { selectedUnit, handleUnitChange, allUnits, convertedStock } =
-    useUnitConversion({
-      item,
-      baseStock: item.totalStock,
-    })
+  const {
+    selectedUnit,
+    handleUnitChange,
+    allUnits,
+    convertedStock: convertedAvailableStock,
+  } = useUnitConversion({
+    item,
+    baseStock: item.availableStock,
+  })
+
+  const conversionFactor =
+    allUnits.find((u) => u.unitName === selectedUnit)?.baseUnitEquivalent ?? 1
+  const convertedTotalStock = item.totalStock / conversionFactor
+  const convertedTotalReserved = item.totalReserved / conversionFactor
 
   return (
     <div className='flex items-center gap-4 w-full'>
@@ -71,9 +80,27 @@ export function SearchResultItem({ item }: SearchResultItemProps) {
           )}
         </div>
         <div className='text-xs text-muted-foreground mt-1'>
-          <span>{item.productCode} | Stoc: </span>
-          <span className='font-bold text-primary'>
-            {convertedStock.toFixed(2)}
+          <span>Cod: {item.productCode} |</span>
+          <span>
+            {' '}
+            Stoc Total:{' '}
+            <span className='font-bold'>{convertedTotalStock.toFixed(2)}</span>
+          </span>
+          <span>
+            {' '}
+            | Rezervat:{' '}
+            <span className='font-bold text-orange-500'>
+              {convertedTotalReserved.toFixed(2)}
+            </span>
+          </span>
+          <span>
+            {' '}
+            | Disponibil:
+            <span
+              className={`font-bold ${item.availableStock >= 0 ? 'text-primary' : 'text-destructive'}`}
+            >
+              {convertedAvailableStock.toFixed(2)}
+            </span>
           </span>
           {allUnits.length > 1 ? (
             <Select onValueChange={handleUnitChange} value={selectedUnit}>

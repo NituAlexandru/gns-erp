@@ -36,7 +36,6 @@ export function ServiceLineItemRow({
     vatRateDetails,
     productName,
     unitOfMeasure,
-    isPerDelivery,
   } = itemData || {}
 
   const [minimumPrice] = useState(itemData.priceAtTimeOfOrder)
@@ -69,9 +68,7 @@ export function ServiceLineItemRow({
             <Input
               {...field}
               type='number'
-              disabled={isPerDelivery}
               onChange={(e) => {
-                if (isPerDelivery) return
                 field.onChange(parseFloat(e.target.value) || 0)
               }}
               onBlur={(e) => {
@@ -85,7 +82,6 @@ export function ServiceLineItemRow({
           )}
         />
       </TableCell>
-
       <TableCell>
         <div className='flex h-9 w-[100px] items-center justify-center rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs opacity-50 cursor-not-allowed text-muted-foreground dark:bg-input/30'>
           {unitOfMeasure}

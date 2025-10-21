@@ -3,7 +3,7 @@ import { IOrderLineItem } from './types'
 
 // Schema pentru un rând din comandă
 const OrderLineItemSchema = new Schema<IOrderLineItem>({
-  productId: { type: Schema.Types.ObjectId, ref: 'Product', default: null },
+  productId: { type: Schema.Types.ObjectId, ref: 'ERPProduct', default: null },
   serviceId: { type: Schema.Types.ObjectId, ref: 'Service', default: null },
   isManualEntry: { type: Boolean, default: false, required: true },
   isPerDelivery: { type: Boolean, default: false },
@@ -23,6 +23,12 @@ const OrderLineItemSchema = new Schema<IOrderLineItem>({
   },
   codNC: { type: String, trim: true },
   codCPV: { type: String, trim: true },
+  quantityShipped: { type: Number, required: true, default: 0 },
+  stockableItemType: { type: String, enum: ['ERPProduct', 'Packaging'] },
+  baseUnit: { type: String },
+  conversionFactor: { type: Number },
+  quantityInBaseUnit: { type: Number },
+  priceInBaseUnit: { type: Number },
 })
 
 // Interfața principală pentru documentul Order
@@ -73,13 +79,18 @@ export interface IOrder extends Document {
   }
   lineItems: Types.DocumentArray<IOrderLineItem>
   totals: {
+    productsSubtotal: number
+    productsVat: number
+    servicesSubtotal: number
+    servicesVat: number
+    manualSubtotal: number
+    manualVat: number
     subtotal: number
-    shippingCost: number
     vatTotal: number
     grandTotal: number
   }
   deliveryType: string
-  estimatedVehicleType: string
+  estimatedVehicleType?: string
   estimatedTransportCount: number
   distanceInKm?: number
   travelTimeInMinutes?: number
@@ -149,6 +160,12 @@ const OrderSchema = new Schema<IOrder>(
     lineItems: [OrderLineItemSchema],
     recommendedShippingCost: { type: Number, default: 0 },
     totals: {
+      productsSubtotal: { type: Number, default: 0 },
+      productsVat: { type: Number, default: 0 },
+      servicesSubtotal: { type: Number, default: 0 },
+      servicesVat: { type: Number, default: 0 },
+      manualSubtotal: { type: Number, default: 0 },
+      manualVat: { type: Number, default: 0 },
       subtotal: { type: Number, required: true, default: 0 },
       vatTotal: { type: Number, required: true, default: 0 },
       grandTotal: { type: Number, required: true, default: 0 },

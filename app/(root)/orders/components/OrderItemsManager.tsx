@@ -213,6 +213,7 @@ export function OrderItemsManager({
       const defaultVat = vatRates.find((v) => v.isDefault) || vatRates[0]
       if (!defaultVat) {
         toast.error('EROARE: Nu a fost găsită nicio cotă de TVA.')
+        setIsAddingItem(false) 
         return
       }
 
@@ -251,6 +252,8 @@ export function OrderItemsManager({
 
       const newItem: OrderLineItemInput = {
         productId: fullData._id.toString(),
+        stockableItemType:
+          item.itemType === 'Ambalaj' ? 'Packaging' : 'ERPProduct',
         isManualEntry: false,
         productName: fullData.name,
         productCode: fullData.productCode,

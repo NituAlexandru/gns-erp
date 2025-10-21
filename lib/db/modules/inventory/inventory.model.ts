@@ -11,6 +11,7 @@ export interface IInventoryItemDoc extends Document {
   stockableItem: Types.ObjectId
   stockableItemType: 'ERPProduct' | 'Packaging'
   location: string
+  clientId?: Types.ObjectId
   batches: IInventoryBatch[]
   quantityReserved: number
   totalStock: number
@@ -49,6 +50,7 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
       refPath: 'stockableItemType',
     },
     location: { type: String, required: true, index: true },
+    clientId: { type: Schema.Types.ObjectId, ref: 'Client', sparse: true },
     batches: [InventoryBatchSchema],
     quantityReserved: { type: Number, required: true, default: 0 },
     totalStock: { type: Number, required: true, default: 0 },

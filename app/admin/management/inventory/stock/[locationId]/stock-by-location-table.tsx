@@ -114,9 +114,9 @@ export function StockByLocationTable({
                 <TableHead className='sticky top-0 z-10 bg-background text-right'>
                   Preț Max
                 </TableHead>
-                <TableHead className='sticky top-0 z-10 bg-background text-right'>
-                  Cantitate
-                </TableHead>
+                <TableHead className='text-right'>Stoc Total</TableHead>
+                <TableHead className='text-right'>Rezervat</TableHead>
+                <TableHead className='text-right'>Disponibil</TableHead>
                 <TableHead className='sticky top-0 z-10 bg-background w-[120px]'>
                   UM
                 </TableHead>
@@ -126,12 +126,11 @@ export function StockByLocationTable({
             <TableBody>
               {stockData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className='h-24 text-center'>
+                  <TableCell colSpan={10} className='h-24 text-center'>
                     Nu există date despre stocuri pentru această locație.
                   </TableCell>
                 </TableRow>
               )}
-
               {stockData.map((item) => {
                 const allUnits = [
                   { unitName: item.unit, baseUnitEquivalent: 1 },
@@ -141,9 +140,10 @@ export function StockByLocationTable({
                 const selectedConversion = allUnits.find(
                   (u) => u.unitName === selectedUnitName
                 )
-                const factor = selectedConversion?.baseUnitEquivalent ?? 1
-
-                const qty = item.totalStock / factor
+                const factor = selectedConversion?.baseUnitEquivalent ?? 1         
+                const convertedTotal = item.totalStock / factor
+                const convertedReserved = item.totalReserved / factor
+                const convertedAvailable = item.availableStock / factor
                 const avg = (item.averageCost ?? 0) * factor
                 const last = (item.lastPrice ?? 0) * factor
                 const pmin = (item.minPrice ?? 0) * factor
@@ -165,7 +165,6 @@ export function StockByLocationTable({
                         {item.name}
                       </Link>
                     </TableCell>
-
                     <TableCell className='text-right'>
                       {formatCurrency(avg)}
                     </TableCell>
@@ -178,9 +177,16 @@ export function StockByLocationTable({
                     <TableCell className='text-right text-green-500'>
                       {formatCurrency(pmax)}
                     </TableCell>
-
-                    <TableCell className='text-right font-bold'>
-                      {qty.toFixed(2)}
+                    <TableCell className='text-right'>
+                      {convertedTotal.toFixed(2)}
+                    </TableCell>
+                    <TableCell className='text-right text-orange-500'>
+                      {convertedReserved.toFixed(2)}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-bold ${item.availableStock >= 0 ? '' : 'text-destructive'}`}
+                    >
+                      {convertedAvailable.toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <Select
@@ -189,7 +195,7 @@ export function StockByLocationTable({
                           handleUnitChange(item._id, newUnit)
                         }
                       >
-                        <SelectTrigger className='w-[100px] h-8 px-3 text-sm'>
+                        <SelectTrigger className='w-[100px] h-8 p-2 text-sm cursor-pointer'>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

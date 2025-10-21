@@ -52,31 +52,87 @@ export async function calculateShippingCost(
     return 0
   }
 }
-
 // Funcție ajutătoare care centralizează TOATĂ logica de calcul
 function processOrderData(lineItems: CreateOrderInput['lineItems']) {
+  let productsSubtotal = 0
+  let productsVat = 0
+  let servicesSubtotal = 0
+  let servicesVat = 0
+  let manualSubtotal = 0
+  let manualVat = 0
+
   const processedLineItems = lineItems.map((item) => {
     const lineValue = round2(item.priceAtTimeOfOrder * Number(item.quantity))
     const lineVatValue = round2(item.vatRateDetails.value)
     const lineTotal = round2(lineValue + lineVatValue)
-    return { ...item, lineValue, lineVatValue, lineTotal }
+
+    // Împărțim valorile pe categorii
+    if (item.productId && !item.isManualEntry) {
+      productsSubtotal += lineValue
+      productsVat += lineVatValue
+    } else if (item.isManualEntry) {
+      manualSubtotal += lineValue
+      manualVat += lineVatValue
+    } else {
+      servicesSubtotal += lineValue
+      servicesVat += lineVatValue
+    }
+
+    // Logica de conversie pentru articolele stocabile rămâne la fel
+    let conversionFactor = 1
+    let quantityInBaseUnit = item.quantity
+    let priceInBaseUnit = item.priceAtTimeOfOrder 
+
+    if (
+      item.productId &&
+      item.stockableItemType &&
+      item.baseUnit &&
+      item.unitOfMeasure !== item.baseUnit
+    ) {
+      const option = item.packagingOptions?.find(
+        (opt: { unitName: string }) => opt.unitName === item.unitOfMeasure
+      )
+      if (option && option.baseUnitEquivalent) {
+        conversionFactor = option.baseUnitEquivalent
+        quantityInBaseUnit = item.quantity * conversionFactor
+        priceInBaseUnit =
+          conversionFactor > 0
+            ? round2(item.priceAtTimeOfOrder / conversionFactor)
+            : 0
+      }
+    }
+
+    return {
+      ...item,
+      lineValue,
+      lineVatValue,
+      lineTotal,
+      quantityShipped: 0,
+      conversionFactor: item.productId ? conversionFactor : undefined, // Doar pt stocabile
+      quantityInBaseUnit: item.productId ? quantityInBaseUnit : undefined, // Doar pt stocabile
+      priceInBaseUnit: item.productId ? priceInBaseUnit : undefined, // Doar pt stocabile
+    }
   })
 
-  const totals = processedLineItems.reduce(
-    (acc, item) => {
-      acc.subtotal += item.lineValue
-      acc.vatTotal += item.lineVatValue
-      return acc
-    },
-    { subtotal: 0, vatTotal: 0 }
+  // Calculăm totalurile generale
+  const overallSubtotal = round2(
+    productsSubtotal + servicesSubtotal + manualSubtotal
   )
-
-  const grandTotal = round2(totals.subtotal + totals.vatTotal)
+  const overallVat = round2(productsVat + servicesVat + manualVat)
+  const grandTotal = round2(overallSubtotal + overallVat)
 
   const finalTotals = {
-    subtotal: round2(totals.subtotal),
-    vatTotal: round2(totals.vatTotal),
+    // Totaluri generale
+    subtotal: overallSubtotal,
+    vatTotal: overallVat,
     grandTotal,
+    // SUBTOTALURI DETALIATE
+    productsSubtotal: round2(productsSubtotal),
+    productsVat: round2(productsVat),
+    servicesSubtotal: round2(servicesSubtotal),
+    servicesVat: round2(servicesVat),
+    manualSubtotal: round2(manualSubtotal),
+    manualVat: round2(manualVat),
   }
 
   return { processedLineItems, finalTotals }
@@ -150,12 +206,12 @@ export async function createOrder(
 
     const orderNumber = await generateOrderNumber({ session })
 
-    const newOrder = new Order({
+    const orderData = new Order({
       ...validatedData,
       orderNumber,
       status,
       salesAgent: userId,
-      client: validatedData.clientId,
+      client: validatedData.clientId, 
       salesAgentSnapshot: {
         name: userName,
       },
@@ -163,10 +219,15 @@ export async function createOrder(
       totals: finalTotals,
     })
 
-    await newOrder.save({ session })
+    const newOrder = await orderData.save({ session })
 
     if (status === 'CONFIRMED') {
-      await reserveStock(processedLineItems, session)
+      await reserveStock(
+        newOrder._id,
+        newOrder.client,
+        newOrder.lineItems,
+        session
+      )
     }
 
     await session.commitTransaction()

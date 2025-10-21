@@ -23,9 +23,12 @@ export type StockMovementDTO = Omit<
 export type AggregatedStockItem = {
   _id: string
   totalStock: number
+  totalReserved: number
+  availableStock: number
   name: string
   unit: string
   productCode: string
+  itemType: 'Produs' | 'Ambalaj'
   averageCost: number
   minPrice: number
   maxPrice: number

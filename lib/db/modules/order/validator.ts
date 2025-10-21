@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 export const OrderLineItemInputSchema = z.object({
-  productId: z.string().optional(),
-  serviceId: z.string().optional(),
+  productId: z.string().optional().nullable(),
+  serviceId: z.string().optional().nullable(),
   isManualEntry: z.boolean(),
   productName: z
     .string({ required_error: 'Numele produsului este obligatoriu.' })
@@ -35,6 +35,7 @@ export const OrderLineItemInputSchema = z.object({
   packagingUnit: z.string().optional(),
   packagingQuantity: z.number().optional(),
   isPerDelivery: z.boolean().optional(),
+  stockableItemType: z.enum(['ERPProduct', 'Packaging']).optional(),
 })
 
 // Validator pentru crearea unei comenzi noi

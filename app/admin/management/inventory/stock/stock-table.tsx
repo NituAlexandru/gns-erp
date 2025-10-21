@@ -74,8 +74,13 @@ export function StockTable({ initialStockData }: StockTableProps) {
   }, [])
 
   useEffect(() => {
-    fetchStock(searchQuery)
-  }, [searchQuery, fetchStock])
+    if (searchQuery !== '') {
+      fetchStock(searchQuery)
+    } else {
+      fetchStock('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
 
   const handleUnitChange = (itemId: string, newUnit: string) => {
     setSelectedUnits((prev) => ({ ...prev, [itemId]: newUnit }))
@@ -104,14 +109,16 @@ export function StockTable({ initialStockData }: StockTableProps) {
                 <TableHead className='text-right'>Ultimul Preț</TableHead>
                 <TableHead className='text-right'>Preț Min</TableHead>
                 <TableHead className='text-right'>Preț Max</TableHead>
-                <TableHead className='text-right'>Cantitate</TableHead>
+                <TableHead className='text-right'>Stoc Total</TableHead>
+                <TableHead className='text-right'>Rezervat</TableHead>
+                <TableHead className='text-right'>Disponibil</TableHead>
                 <TableHead className='w-[120px]'>UM</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {stockData.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className='h-24 text-center'>
+                  <TableCell colSpan={10} className='h-24 text-center'>
                     Nu există date despre stocuri.
                   </TableCell>
                 </TableRow>
@@ -128,7 +135,11 @@ export function StockTable({ initialStockData }: StockTableProps) {
                 const conversionFactor =
                   selectedConversion?.baseUnitEquivalent ?? 1
 
-                const convertedQuantity = item.totalStock / conversionFactor
+                // Calculăm TOATE valorile în unitatea selectată
+                const convertedTotal = item.totalStock / conversionFactor
+                const convertedReserved = item.totalReserved / conversionFactor
+                const convertedAvailable =
+                  item.availableStock / conversionFactor
                 const convertedAvgCost =
                   (item.averageCost ?? 0) * conversionFactor
                 const convertedLastPrice =
@@ -154,7 +165,6 @@ export function StockTable({ initialStockData }: StockTableProps) {
                         {item.name}
                       </Link>
                     </TableCell>
-
                     <TableCell className='text-right'>
                       {formatCurrency(convertedAvgCost)}
                     </TableCell>
@@ -167,9 +177,16 @@ export function StockTable({ initialStockData }: StockTableProps) {
                     <TableCell className='text-right text-green-500'>
                       {formatCurrency(convertedMaxPrice)}
                     </TableCell>
-
-                    <TableCell className='text-right font-bold'>
-                      {convertedQuantity.toFixed(2)}
+                    <TableCell className='text-right'>
+                      {convertedTotal.toFixed(2)}
+                    </TableCell>
+                    <TableCell className='text-right text-orange-500'>
+                      {convertedReserved.toFixed(2)}
+                    </TableCell>
+                    <TableCell
+                      className={`text-right font-bold ${item.availableStock >= 0 ? '' : 'text-destructive'}`}
+                    >
+                      {convertedAvailable.toFixed(2)}
                     </TableCell>
                     <TableCell>
                       <Select
