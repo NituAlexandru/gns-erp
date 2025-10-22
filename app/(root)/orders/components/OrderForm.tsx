@@ -14,11 +14,14 @@ import { Button } from '@/components/ui/button'
 import {
   createOrder,
   calculateShippingCost,
-  getOrderFormInitialData, 
+  getOrderFormInitialData,
+  updateOrder,
 } from '@/lib/db/modules/order/order.actions'
 import {
   CreateOrderInput,
   CreateOrderInputSchema,
+  PopulatedOrder,
+  OrderLineItemInput,
 } from '@/lib/db/modules/order/types'
 import { IClientDoc, IAddress } from '@/lib/db/modules/client/types'
 import { EntitySelector } from './mini-components/EntitySelector'
@@ -26,6 +29,7 @@ import { round2 } from '@/lib/utils'
 import { ShippingRateDTO } from '@/lib/db/modules/setting/shipping-rates/types'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { SearchedService } from '@/lib/db/modules/setting/services/types'
+import { getClientById } from '@/lib/db/modules/client/client.actions'
 
 type InitialData = {
   shippingRates: ShippingRateDTO[]
@@ -34,40 +38,39 @@ type InitialData = {
   permits: SearchedService[]
 }
 
-export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
+interface OrderFormProps {
+  isAdmin: boolean
+  initialOrderData?: PopulatedOrder | null
+  isEditing?: boolean
+}
+
+export function OrderForm({
+  isAdmin,
+  initialOrderData,
+  isEditing = false,
+}: OrderFormProps) {
   const router = useRouter()
+
   const methods = useForm<CreateOrderInput>({
     resolver: zodResolver(CreateOrderInputSchema),
-    defaultValues: {
-      entityType: 'client',
-      lineItems: [],
-      estimatedTransportCount: 1,
-      notes: '',
-      recommendedShippingCost: 0,
-      clientSnapshot: { name: '', cui: '', regCom: '', address: '', judet: '' },
-      deliveryAddress: {
-        strada: '',
-        numar: '',
-        localitate: '',
-        judet: '',
-        codPostal: '',
-      },
-    },
   })
+
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-
-  // Stările pentru datele inițiale
-  const [initialData, setInitialData] = useState<InitialData | null>(null)
+  const [initialDataForm, setInitialDataForm] = useState<InitialData | null>(
+    null
+  )
   const [isLoadingData, setIsLoadingData] = useState(true)
+  const [isClientLoading, setIsClientLoading] = useState(false)
 
+  // useEffect pentru datele generale ale formularului
   useEffect(() => {
     async function fetchData() {
       setIsLoadingData(true)
       const result = await getOrderFormInitialData()
       if (result.success) {
-        setInitialData(result.data)
+        setInitialDataForm(result.data)
       } else {
         toast.error('Eroare la încărcarea datelor', {
           description: result.message,
@@ -77,6 +80,95 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
     }
     fetchData()
   }, [])
+  
+  // useEffect pentru pre-popularea formularului + fetch client complet
+  useEffect(() => {
+    // Rulează doar după ce datele generale s-au încărcat
+    if (!isLoadingData && initialDataForm) {
+      if (isEditing && initialOrderData) {
+        // Mod Editare
+        methods.reset({
+          entityType: initialOrderData.entityType,
+          clientId: initialOrderData.client?._id || '',
+          clientSnapshot: initialOrderData.clientSnapshot,
+          deliveryAddress: initialOrderData.deliveryAddress,
+          deliveryAddressId: initialOrderData.deliveryAddressId?.toString(),
+          delegate: initialOrderData.delegate,
+          lineItems: initialOrderData.lineItems.map(
+            (item) =>
+              ({
+                ...item,
+                _id: item._id?.toString(),
+                productId: item.productId?.toString() || null,
+                serviceId: item.serviceId?.toString() || null,
+                minimumSalePrice: item.minimumSalePrice,
+                vatRateDetails: item.vatRateDetails,
+                baseUnit: item.baseUnit,
+                packagingOptions: item.packagingOptions || [],
+                stockableItemType: item.stockableItemType,
+                weight: item.weight,
+                volume: item.volume,
+                length: item.length,
+                width: item.width,
+                height: item.height,
+                packagingUnit: item.packagingUnit,
+                packagingQuantity: item.packagingQuantity,
+                isPerDelivery: item.isPerDelivery,
+              }) as OrderLineItemInput
+          ),
+          deliveryType: initialOrderData.deliveryType,
+          estimatedVehicleType: initialOrderData.estimatedVehicleType,
+          estimatedTransportCount: initialOrderData.estimatedTransportCount,
+          distanceInKm: initialOrderData.distanceInKm,
+          travelTimeInMinutes: initialOrderData.travelTimeInMinutes,
+          notes: initialOrderData.notes || '',
+          recommendedShippingCost:
+            initialOrderData.recommendedShippingCost || 0,
+        })
+
+        setSelectedAddress(initialOrderData.deliveryAddress as IAddress)
+
+        if (initialOrderData.client?._id) {
+          setIsClientLoading(true)
+          getClientById(initialOrderData.client._id)
+            .then((fullClient) => {
+              if (fullClient) setSelectedClient(fullClient)
+            })
+            .catch((err) =>
+              console.error('Error fetching client for edit:', err)
+            )
+            .finally(() => setIsClientLoading(false))
+        } else {
+          setSelectedClient(null)
+        }
+      } else {
+        // Mod Creare
+        methods.reset({
+          entityType: 'client',
+          lineItems: [],
+          estimatedTransportCount: 1,
+          notes: '',
+          recommendedShippingCost: 0,
+          clientSnapshot: {
+            name: '',
+            cui: '',
+            regCom: '',
+            address: '',
+            judet: '',
+          },
+          deliveryAddress: {
+            strada: '',
+            numar: '',
+            localitate: '',
+            judet: '',
+            codPostal: '',
+          },
+        })
+        setSelectedClient(null)
+        setSelectedAddress(null)
+      }
+    }
+  }, [isEditing, initialOrderData, methods, isLoadingData, initialDataForm]) // Dependențe corecte
 
   const handleClientSelect = useCallback(
     (client: IClientDoc | null) => {
@@ -94,12 +186,20 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
           bank: client.bankAccountLei?.bankName ?? '',
           iban: client.bankAccountLei?.iban ?? '',
         })
+        if (
+          !isEditing ||
+          (initialOrderData && client._id !== initialOrderData.client?._id)
+        ) {
+          methods.resetField('deliveryAddress')
+          methods.resetField('deliveryAddressId')
+        }
       } else {
         methods.resetField('clientSnapshot')
+        methods.resetField('deliveryAddress')
+        methods.resetField('deliveryAddressId')
       }
-      methods.resetField('deliveryAddress')
     },
-    [methods]
+    [methods, isEditing, initialOrderData]
   )
 
   const handleAddressSelect = useCallback(
@@ -128,61 +228,85 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
             selectedAddress.distanceInKm
           )
         : 0
-
-    // Se setează câmpul corect, redenumit
     enrichedData.recommendedShippingCost = round2(finalShippingCost)
     return enrichedData
   }
 
+  
   const onSubmit = async (data: CreateOrderInput) => {
     setIsSubmitting(true)
     try {
       const finalData = await prepareSubmissionData(data)
-      const result = await createOrder(finalData, 'CONFIRMED')
+
+      let result
+      if (isEditing && initialOrderData) {
+      
+        result = await updateOrder(initialOrderData._id, finalData)
+      } else {
+
+        result = await createOrder(finalData, 'CONFIRMED')
+      }
 
       if (result.success) {
         toast.success(result.message)
         router.push('/orders')
       } else {
-        toast.error('A apărut o eroare', { description: result.message })
+      
+        toast.error(result.message || 'A apărut o eroare necunoscută.')
       }
-    } catch {
-      toast.error('Eroare neașteptată', {
-        description: 'Vă rugăm să reîncercați.',
-      })
+    } catch (error) {
+      console.error('Unexpected error during form submission:', error)
+      const message =
+        error instanceof Error ? error.message : 'Vă rugăm să reîncercați.'
+      toast.error('Eroare neașteptată', { description: message })
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  // onSaveDraft 
   const onSaveDraft = async () => {
-    setIsSubmitting(true)
-    try {
-      const data = methods.getValues()
-      const finalData = await prepareSubmissionData(data as CreateOrderInput)
-      const result = await createOrder(finalData, 'DRAFT')
-
-      if (result.success) {
-        toast.success(result.message)
-        router.push('/orders')
-      } else {
-        toast.error('A apărut o eroare la salvarea ciornei', {
-          description: result.message,
+    if (!isEditing) {
+      setIsSubmitting(true)
+      try {
+        const data = methods.getValues()
+        const finalData = await prepareSubmissionData(data as CreateOrderInput)
+        const result = await createOrder(finalData, 'DRAFT')
+        if (result.success) {
+          toast.success(result.message)
+          router.push('/orders')
+        } else {
+          toast.error('Eroare la salvarea ciornei', {
+            description: result.message,
+          })
+        }
+      } catch {
+        toast.error('Eroare neașteptată', {
+          description: 'Vă rugăm să reîncercați.',
         })
+      } finally {
+        setIsSubmitting(false)
       }
-    } catch {
-      toast.error('Eroare neașteptată', {
-        description: 'Vă rugăm să reîncercați.',
-      })
-    } finally {
-      setIsSubmitting(false)
+    } else {
+      toast.info('Salvarea ca draft nu este disponibilă în modul editare.')
     }
   }
 
-  if (isLoadingData) {
+  if (isLoadingData || isClientLoading) {
     return (
       <div className='flex justify-center items-center h-64'>
         <p>Se încarcă formularul...</p>
+      </div>
+    )
+  }
+  if (!initialDataForm) {
+    return (
+      <div className='p-4 text-center text-destructive'>
+        <h1>Eroare</h1>
+        <p>
+          Datele necesare pentru formular nu au putut fi încărcate. Vă rugăm
+          reîncercați.
+        </p>
       </div>
     )
   }
@@ -190,11 +314,14 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
   return (
     <FormProvider {...methods}>
       <form onSubmit={methods.handleSubmit(onSubmit)} className='space-y-6'>
-        <h1 className='text-2xl font-bold'>Creare Comandă Nouă</h1>
+        <h1 className='text-2xl font-bold'>
+          {isEditing
+            ? `Modificare Comandă #${initialOrderData?.orderNumber}`
+            : 'Creare Comandă Nouă'}
+        </h1>
         <div className='grid grid-cols-1 md:grid-cols-[2fr_1.5fr_1.5fr_auto] gap-4 p-4 border rounded-lg'>
-          {/* Coloana 1: Detalii Client (cea mai lată dintre cele flexibile) */}
+          {/* Coloana 1 */}
           <div className='p-4 border rounded-lg flex flex-col space-y-4'>
-            {' '}
             <EntitySelector
               onClientSelect={handleClientSelect}
               selectedClient={selectedClient}
@@ -206,51 +333,54 @@ export function OrderForm({ isAdmin }: { isAdmin: boolean }) {
               />
             )}
           </div>
-
-          {/* Coloana 2: Detalii Logistice */}
+          {/* Coloana 2 */}
           <div className='p-4 border rounded-lg flex flex-col'>
             <h2 className='text-lg font-semibold mb-2'>Detalii Logistice</h2>
-            {/* ⭐ MODIFICARE AICI: Pasăm datele ca prop */}
-            <OrderLogistics shippingRates={initialData?.shippingRates || []} />
+            <OrderLogistics shippingRates={initialDataForm.shippingRates} />
           </div>
-
-          {/* Coloana 3: Mențiuni (cu textarea h-full) */}
+          {/* Coloana 3 */}
           <div className='p-4 border rounded-lg flex flex-col'>
             <h2 className='text-lg font-semibold mb-2'>Mențiuni</h2>
             <Textarea
-              placeholder='Adaugă notițe sau mențiuni speciale pentru această comandă...'
               {...methods.register('notes')}
+              placeholder='Adaugă notițe...'
               className='flex-grow h-full min-h-[100px]'
             />
           </div>
-
-          {/* Coloana 4: Totaluri Comandă (lățime automată) */}
+          {/* Coloana 4 */}
           <OrderTotals />
         </div>
-
+        {/* Manager Articole */}
         <div className='p-4 border rounded-lg'>
-          <h2 className='hidden text-lg font-semibold mb-2'>
-            Articole Comandă
-          </h2>
+          <h2 className='hidden'>Articole Comandă</h2>
           <OrderItemsManager
             isAdmin={isAdmin}
-            vatRates={initialData?.vatRates || []}
-            services={initialData?.services || []}
-            permits={initialData?.permits || []}
+            vatRates={initialDataForm.vatRates}
+            services={initialDataForm.services}
+            permits={initialDataForm.permits}
           />
         </div>
-
+        {/* Butoane */}
         <div className='flex justify-end gap-4'>
+          {!isEditing && (
+            <Button
+              type='button'
+              variant='outline'
+              onClick={onSaveDraft}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Se salvează...' : 'Salvează Ciornă'}
+            </Button>
+          )}
           <Button
-            type='button'
-            variant='outline'
-            onClick={onSaveDraft}
-            disabled={isSubmitting}
+            type='submit'
+            disabled={isSubmitting || isLoadingData || isClientLoading}
           >
-            {isSubmitting ? 'Se salvează...' : 'Salvează Ciornă'}
-          </Button>
-          <Button type='submit' disabled={isSubmitting}>
-            {isSubmitting ? 'Se salvează...' : 'Confirmă și Salvează Comanda'}
+            {isSubmitting
+              ? 'Se salvează...'
+              : isEditing
+                ? 'Actualizează Comanda'
+                : 'Confirmă și Salvează Comanda'}
           </Button>
         </div>
       </form>

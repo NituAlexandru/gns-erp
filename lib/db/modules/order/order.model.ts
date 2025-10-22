@@ -29,6 +29,13 @@ const OrderLineItemSchema = new Schema<IOrderLineItem>({
   conversionFactor: { type: Number },
   quantityInBaseUnit: { type: Number },
   priceInBaseUnit: { type: Number },
+  packagingOptions: [
+    {
+      _id: false,
+      unitName: { type: String, required: true },
+      baseUnitEquivalent: { type: Number, required: true },
+    },
+  ],
 })
 
 // Interfața principală pentru documentul Order

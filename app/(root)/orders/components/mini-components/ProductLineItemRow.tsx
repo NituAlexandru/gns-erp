@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useMemo } from 'react'
-import { useFormContext, Controller } from 'react-hook-form'
+import { useFormContext, Controller, useWatch } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
@@ -63,6 +63,17 @@ export function ProductLineItemRow({
       item: itemForHook,
       basePrice: minimumSalePrice || 0,
     })
+
+  const unitOfMeasureFromForm = useWatch({
+    control,
+    name: `lineItems.${index}.unitOfMeasure`,
+  })
+
+  useEffect(() => {
+    if (unitOfMeasureFromForm && handleUnitChange) {
+      handleUnitChange(unitOfMeasureFromForm)
+    }
+  }, [unitOfMeasureFromForm, handleUnitChange])
 
   useEffect(() => {
     if (

@@ -36,9 +36,14 @@ export function ServiceLineItemRow({
     vatRateDetails,
     productName,
     unitOfMeasure,
+    minimumSalePrice,
   } = itemData || {}
 
-  const [minimumPrice] = useState(itemData.priceAtTimeOfOrder)
+  const [minimumPrice] = useState(
+    minimumSalePrice !== undefined && minimumSalePrice !== null
+      ? minimumSalePrice
+      : priceAtTimeOfOrder
+  )
 
   const vatRate = vatRateDetails?.rate || 0
 

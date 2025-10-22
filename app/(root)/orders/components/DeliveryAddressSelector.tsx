@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+// ⭐ Adăugăm useMemo
+import { useState, useEffect, useMemo } from 'react'
+import { useFormContext, useWatch } from 'react-hook-form'
 import {
   Select,
   SelectContent,
@@ -21,23 +23,52 @@ export function DeliveryAddressSelector({
   client,
   onAddressSelect,
 }: DeliveryAddressSelectorProps) {
+  const { control, setValue } = useFormContext()
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
-
-  const activeDeliveryAddresses =
-    client?.deliveryAddresses.filter((addr) => addr.isActive) || []
+  const activeDeliveryAddresses = useMemo(() => {
+    return client?.deliveryAddresses.filter((addr) => addr.isActive) || []
+  }, [client])
   const isDisabled = !client || activeDeliveryAddresses.length === 0
 
+  const deliveryAddressIdFromForm = useWatch({
+    control,
+    name: 'deliveryAddressId',
+  })
+
   useEffect(() => {
+    let addressToSelect: IAddress | null = null
+
     if (client && activeDeliveryAddresses.length > 0) {
-      const defaultAddr = activeDeliveryAddresses[0]
-      setSelectedAddress(defaultAddr)
-      onAddressSelect(defaultAddr)
+      if (
+        deliveryAddressIdFromForm &&
+        typeof deliveryAddressIdFromForm === 'string'
+      ) {
+        const initialAddress = activeDeliveryAddresses.find(
+          (addr) => addr._id === deliveryAddressIdFromForm
+        )
+        if (initialAddress) {
+          addressToSelect = initialAddress
+          console.log('DAS: Found initial address:', initialAddress?.strada)
+        } else {
+          console.warn('DAS: ID from form not found. Defaulting.')
+        }
+      }
+
+      if (!addressToSelect) {
+        addressToSelect = activeDeliveryAddresses[0]
+        console.log(
+          'DAS: Defaulting to first address:',
+          addressToSelect?.strada
+        )
+      }
     } else {
-      setSelectedAddress(null)
-      onAddressSelect(null)
+      console.log('DAS: No client or addresses.')
     }
+
+    setSelectedAddress(addressToSelect)
+    onAddressSelect(addressToSelect)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client])
+  }, [client, onAddressSelect, deliveryAddressIdFromForm]) // Dependențele corecte
 
   const handleSelectChange = (addressId: string) => {
     const addressObject = activeDeliveryAddresses.find(
@@ -46,6 +77,8 @@ export function DeliveryAddressSelector({
     if (addressObject) {
       setSelectedAddress(addressObject)
       onAddressSelect(addressObject)
+      setValue('deliveryAddress', { ...addressObject }, { shouldDirty: true })
+      setValue('deliveryAddressId', addressObject._id, { shouldDirty: true })
     }
   }
 

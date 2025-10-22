@@ -1,11 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import Order from './order.model'
+import Order, { IOrder } from './order.model'
 import { CreateOrderInputSchema } from './validator'
 import { CreateOrderInput, PopulatedOrder } from './types'
 import { connectToDatabase } from '../..'
-import { startSession } from 'mongoose'
+import mongoose, { startSession } from 'mongoose'
 import { formatError, round2 } from '@/lib/utils'
 import { reserveStock, unreserveStock } from '../inventory/inventory.actions'
 import { generateOrderNumber } from '../numbering/numbering.actions'
@@ -81,7 +81,7 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
     // Logica de conversie pentru articolele stocabile rămâne la fel
     let conversionFactor = 1
     let quantityInBaseUnit = item.quantity
-    let priceInBaseUnit = item.priceAtTimeOfOrder 
+    let priceInBaseUnit = item.priceAtTimeOfOrder
 
     if (
       item.productId &&
@@ -211,7 +211,7 @@ export async function createOrder(
       orderNumber,
       status,
       salesAgent: userId,
-      client: validatedData.clientId, 
+      client: validatedData.clientId,
       salesAgentSnapshot: {
         name: userName,
       },
@@ -259,7 +259,135 @@ export async function createOrder(
     await session.endSession()
   }
 }
+export async function updateOrder(orderId: string, newData: CreateOrderInput) {
+  const session = await startSession()
+  session.startTransaction()
 
+  try {
+    const sessionAuth = await auth()
+    if (!sessionAuth?.user?.id || !sessionAuth?.user?.name) {
+      throw new Error('Utilizator neautentificat pentru actualizare.')
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      throw new Error('ID Comandă invalid.')
+    }
+
+    // Preluăm comanda existentă
+    const oldOrder = await Order.findById(orderId).session(session)
+    if (!oldOrder) {
+      throw new Error('Comanda nu a fost găsită.')
+    }
+
+    //  Verificăm starea comenzii
+    const allowedStatuses: IOrder['status'][] = [
+      'DRAFT',
+      'CONFIRMED',
+      'PARTIALLY_DELIVERED',
+    ]
+    if (!allowedStatuses.includes(oldOrder.status)) {
+      throw new Error(
+        `Comanda nu poate fi modificată în statusul "${oldOrder.status}".`
+      )
+    }
+
+    const wasConfirmed =
+      oldOrder.status === 'CONFIRMED' || oldOrder.status === 'PARTIALLY_SHIPPED'
+    // O comandă editată este considerată confirmată (dacă nu e DRAFT)
+    const newStatus = oldOrder.status === 'DRAFT' ? 'DRAFT' : 'CONFIRMED'
+
+    // Validăm și procesăm datele noi (recalculăm totaluri, base units etc.)
+    // Folosim funcția existentă `processOrderData`
+    const validatedData = CreateOrderInputSchema.parse(newData)
+    const {
+      processedLineItems: newProcessedItems,
+      finalTotals: newFinalTotals,
+    } = processOrderData(validatedData.lineItems)
+
+    // ANULĂM STOCUL VECHI
+    // Anulăm stocul DOAR dacă comanda era deja confirmată
+    if (wasConfirmed) {
+      console.log(
+        `[updateOrder] Anulare rezervări vechi pentru comanda ${oldOrder.orderNumber}`
+      )
+      await unreserveStock(oldOrder.lineItems, session)
+    }
+
+    // Actualizăm documentul comenzii
+    oldOrder.set({
+      ...validatedData, // Aplicăm datele validate (client, adresă, logistică, etc.)
+      lineItems: newProcessedItems, // Salvăm liniile procesate cu noile calcule
+      totals: newFinalTotals, // Salvăm noile totaluri
+      status: newStatus,
+      // Câmpurile pe care NU vrem să le suprascriem: orderNumber, salesAgent, createdAt
+    })
+
+    const updatedOrder = await oldOrder.save({ session })
+
+    // REZERVĂM STOCUL NOU
+    // Rezervăm stocul DOAR dacă noua stare este confirmată
+    if (newStatus === 'CONFIRMED') {
+      console.log(
+        `[updateOrder] Rezervare stoc nou pentru comanda ${updatedOrder.orderNumber}`
+      )
+      await reserveStock(
+        updatedOrder._id,
+        updatedOrder.client,
+        updatedOrder.lineItems,
+        session
+      )
+    }
+
+    // Finalizăm tranzacția
+    await session.commitTransaction()
+
+    revalidatePath('/orders')
+    revalidatePath(`/orders/${orderId}`)
+    revalidatePath(`/orders/${orderId}/edit`)
+
+    return {
+      success: true,
+      message: `Comanda ${updatedOrder.orderNumber} a fost actualizată cu succes.`,
+      data: JSON.parse(JSON.stringify(updatedOrder)),
+    }
+  } catch (error) {
+    await session.abortTransaction()
+    console.error('Eroare la actualizarea comenzii:', error)
+    return { success: false, message: formatError(error) }
+  } finally {
+    await session.endSession()
+  }
+}
+export async function cancelOrder(orderId: string) {
+  const session = await startSession()
+  session.startTransaction()
+
+  try {
+    const order = await Order.findById(orderId).session(session)
+    if (!order) {
+      throw new Error('Comanda nu a fost găsită.')
+    }
+
+    // Eliberăm stocul DOAR dacă comanda era confirmată
+    if (order.status === 'CONFIRMED') {
+      await unreserveStock(order.lineItems, session)
+    }
+
+    // Setăm noul status
+    order.status = 'CANCELLED'
+    await order.save({ session })
+
+    await session.commitTransaction()
+    revalidatePath('/orders')
+    return { success: true, message: 'Comanda a fost anulată cu succes.' }
+  } catch (error) {
+    await session.abortTransaction()
+    console.error('Eroare la anularea comenzii:', error)
+    return { success: false, message: formatError(error) }
+  } finally {
+    await session.endSession()
+  }
+}
 export async function getAllOrders(
   page: number = 1
 ): Promise<{ data: PopulatedOrder[]; totalPages: number }> {
@@ -290,7 +418,6 @@ export async function getAllOrders(
     return { data: [], totalPages: 0 }
   }
 }
-
 export async function getOrderById(
   orderId: string
 ): Promise<PopulatedOrder | null> {
@@ -310,36 +437,5 @@ export async function getOrderById(
   } catch (error) {
     console.error('Eroare la preluarea comenzii:', error)
     return null
-  }
-}
-
-export async function cancelOrder(orderId: string) {
-  const session = await startSession()
-  session.startTransaction()
-
-  try {
-    const order = await Order.findById(orderId).session(session)
-    if (!order) {
-      throw new Error('Comanda nu a fost găsită.')
-    }
-
-    // Eliberăm stocul DOAR dacă comanda era confirmată
-    if (order.status === 'CONFIRMED') {
-      await unreserveStock(order.lineItems, session)
-    }
-
-    // Setăm noul status
-    order.status = 'CANCELLED'
-    await order.save({ session })
-
-    await session.commitTransaction()
-    revalidatePath('/orders')
-    return { success: true, message: 'Comanda a fost anulată cu succes.' }
-  } catch (error) {
-    await session.abortTransaction()
-    console.error('Eroare la anularea comenzii:', error)
-    return { success: false, message: formatError(error) }
-  } finally {
-    await session.endSession()
   }
 }

@@ -30,6 +30,17 @@ export interface IOrderLineItem extends Types.Subdocument {
   conversionFactor?: number
   quantityInBaseUnit?: number
   priceInBaseUnit?: number
+  packagingOptions?: {
+    unitName: string
+    baseUnitEquivalent: number
+  }[]
+  weight?: number
+  volume?: number
+  length?: number
+  width?: number
+  height?: number
+  packagingUnit?: string
+  packagingQuantity?: number
 }
 
 // Tipul de date pentru formularul de creare a unei comenzi
@@ -50,6 +61,11 @@ export type PopulatedOrder = Omit<IOrder, 'client'> & {
     _id: string
     name: string
   } | null
+  lineItems: (Omit<IOrderLineItem, '_id' | 'productId' | 'serviceId'> & {
+    _id: string
+    productId?: string | null
+    serviceId?: string | null
+  })[]
 }
 
 export { CreateOrderInputSchema }
