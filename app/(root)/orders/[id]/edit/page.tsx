@@ -24,9 +24,12 @@ export default async function EditOrderPage({
     notFound()
   }
 
-  const canEdit = ['DRAFT', 'CONFIRMED', 'PARTIALLY_SHIPPED'].includes(
-    orderData.status
-  )
+  const canEdit = [
+    'DRAFT',
+    'CONFIRMED',
+    'SCHEDULED',
+    'PARTIALLY_SHIPPED',
+  ].includes(orderData.status)
 
   if (!canEdit) {
     return (

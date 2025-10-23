@@ -5,7 +5,7 @@ import Order, { IOrder } from './order.model'
 import { CreateOrderInputSchema } from './validator'
 import { CreateOrderInput, PopulatedOrder } from './types'
 import { connectToDatabase } from '../..'
-import mongoose, { startSession } from 'mongoose'
+import mongoose, { startSession, Types } from 'mongoose'
 import { formatError, round2 } from '@/lib/utils'
 import { reserveStock, unreserveStock } from '../inventory/inventory.actions'
 import { generateOrderNumber } from '../numbering/numbering.actions'
@@ -22,6 +22,7 @@ import {
   getActivePermits,
 } from '../setting/services/service.actions'
 import { VatRateDTO } from '../setting/vat-rate/types'
+import { IOrderLineItem } from '../deliveries/types'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -107,7 +108,6 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
       lineValue,
       lineVatValue,
       lineTotal,
-      quantityShipped: 0,
       conversionFactor: item.productId ? conversionFactor : undefined, // Doar pt stocabile
       quantityInBaseUnit: item.productId ? quantityInBaseUnit : undefined, // Doar pt stocabile
       priceInBaseUnit: item.productId ? priceInBaseUnit : undefined, // Doar pt stocabile
@@ -283,7 +283,9 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     const allowedStatuses: IOrder['status'][] = [
       'DRAFT',
       'CONFIRMED',
+      'SCHEDULED',
       'PARTIALLY_DELIVERED',
+      'DELIVERED',
     ]
     if (!allowedStatuses.includes(oldOrder.status)) {
       throw new Error(
@@ -316,11 +318,12 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     // Actualizăm documentul comenzii
     oldOrder.set({
       ...validatedData, // Aplicăm datele validate (client, adresă, logistică, etc.)
-      lineItems: newProcessedItems, // Salvăm liniile procesate cu noile calcule
       totals: newFinalTotals, // Salvăm noile totaluri
       status: newStatus,
-      // Câmpurile pe care NU vrem să le suprascriem: orderNumber, salesAgent, createdAt
     })
+
+    oldOrder.lineItems =
+      newProcessedItems as Types.DocumentArray<IOrderLineItem>
 
     const updatedOrder = await oldOrder.save({ session })
 

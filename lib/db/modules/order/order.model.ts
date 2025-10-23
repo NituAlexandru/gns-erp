@@ -50,7 +50,7 @@ export interface IOrder extends Document {
   status:
     | 'DRAFT'
     | 'CONFIRMED'
-    | 'IN_DELIVERY'
+    | 'SCHEDULED'
     | 'PARTIALLY_DELIVERED'
     | 'DELIVERED'
     | 'INVOICED'
@@ -121,7 +121,6 @@ const OrderSchema = new Schema<IOrder>(
       enum: [
         'DRAFT',
         'CONFIRMED',
-        'IN_DELIVERY',
         'PARTIALLY_DELIVERED',
         'DELIVERED',
         'INVOICED',

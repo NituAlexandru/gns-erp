@@ -80,7 +80,7 @@ export function OrderForm({
     }
     fetchData()
   }, [])
-  
+
   // useEffect pentru pre-popularea formularului + fetch client complet
   useEffect(() => {
     // Rulează doar după ce datele generale s-au încărcat
@@ -232,26 +232,29 @@ export function OrderForm({
     return enrichedData
   }
 
-  
   const onSubmit = async (data: CreateOrderInput) => {
     setIsSubmitting(true)
     try {
       const finalData = await prepareSubmissionData(data)
 
       let result
-      if (isEditing && initialOrderData) {
-      
-        result = await updateOrder(initialOrderData._id, finalData)
-      } else {
+      let orderIdForRedirect: string
 
+      if (isEditing && initialOrderData) {
+        // --- Logică Editare ---
+        result = await updateOrder(initialOrderData._id, finalData)
+        orderIdForRedirect = initialOrderData._id
+      } else {
+        // --- Logică Creare ---
         result = await createOrder(finalData, 'CONFIRMED')
+        // Salvăm ID-ul nou creat (dacă a reușit)
+        orderIdForRedirect = result.data?._id
       }
 
-      if (result.success) {
+      if (result.success && orderIdForRedirect) {
         toast.success(result.message)
-        router.push('/orders')
+        router.push(`/deliveries/new?orderId=${orderIdForRedirect}`)
       } else {
-      
         toast.error(result.message || 'A apărut o eroare necunoscută.')
       }
     } catch (error) {
@@ -264,7 +267,7 @@ export function OrderForm({
     }
   }
 
-  // onSaveDraft 
+  // onSaveDraft
   const onSaveDraft = async () => {
     if (!isEditing) {
       setIsSubmitting(true)

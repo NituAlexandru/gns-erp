@@ -31,7 +31,7 @@ export const DELIVERY_METHODS = [
   {
     key: 'PICK_UP_SALE',
     label: 'Ridicare Comanda de Client',
-    requiresVehicle: false, // Nu necesită selecție vehicul
+    requiresVehicle: false, 
   },
 ] as const
 
@@ -43,7 +43,7 @@ export const ORDER_STATUS_MAP: Record<
 > = {
   DRAFT: { name: 'Ciornă', variant: 'secondary' },
   CONFIRMED: { name: 'Confirmată', variant: 'default' },
-  IN_DELIVERY: { name: 'În livrare', variant: 'warning' },
+  SCHEDULED: { name: 'Livrare Programată', variant: 'default' },
   PARTIALLY_DELIVERED: { name: 'Livrată Parțial', variant: 'warning' },
   DELIVERED: { name: 'Livrată Integral', variant: 'success' },
   INVOICED: { name: 'Facturată', variant: 'info' },

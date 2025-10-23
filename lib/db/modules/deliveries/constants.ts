@@ -1,8 +1,8 @@
-export const DELIVERY_STATUSES = [
-  'In curs',
-  'Livrata',
-  'Anulata',
-  'Confirmata',
+export const DELIVERY_SLOTS = [
+  '08:00 - 09:30',
+  '09:30 - 11:00',
+  '11:00 - 12:30',
+  '12:30 - 14:00',
+  '14:00 - 15:30',
+  '15:30 - 17:00',
 ] as const
-
-export type DeliveryStatus = (typeof DELIVERY_STATUSES)[number]

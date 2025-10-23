@@ -117,6 +117,18 @@ export function OrdersList({
     })
   }
 
+  const allowedDeliveryStatuses: PopulatedOrder['status'][] = [
+    'CONFIRMED',
+    'PARTIALLY_DELIVERED',
+    'SCHEDULED',
+  ]
+  // Definim statusurile permise pentru modificare/anulare
+  const editableStatuses: PopulatedOrder['status'][] = [
+    'DRAFT',
+    'CONFIRMED',
+    'SCHEDULED',
+    'PARTIALLY_DELIVERED',
+  ]
   return (
     <div>
       <div className='flex items-center justify-between gap-4 mb-4'>
@@ -188,14 +200,22 @@ export function OrdersList({
                           onSelect={() =>
                             router.push(`/orders/${order._id}/edit`)
                           }
+                          // Activăm doar dacă statusul permite editarea
+                          disabled={!editableStatuses.includes(order.status)}
+                        >
+                          Modifică Comanda
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            router.push(`/deliveries/new?orderId=${order._id}`)
+                          }
+                          // Activăm doar dacă statusul permite planificarea
                           disabled={
-                            order.status === 'COMPLETED' ||
-                            order.status === 'CANCELLED'
+                            !allowedDeliveryStatuses.includes(order.status)
                           }
                         >
-                          Modifică
+                          Planifică Livrări
                         </DropdownMenuItem>
-
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className='text-red-500'

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const OrderLineItemInputSchema = z.object({
+  _id: z.string().optional(),
   productId: z.string().optional().nullable(),
   serviceId: z.string().optional().nullable(),
   isManualEntry: z.boolean(),
