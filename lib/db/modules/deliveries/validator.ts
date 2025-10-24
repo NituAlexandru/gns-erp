@@ -1,4 +1,3 @@
-
 import { z } from 'zod'
 import { DELIVERY_SLOTS } from './constants'
 
@@ -7,4 +6,6 @@ export const HeaderSchema = z.object({
   deliverySlot: z.enum(DELIVERY_SLOTS, {
     required_error: 'Intervalul orar e obligatoriu.',
   }),
+  deliveryNotes: z.string().optional(),
+  uitCode: z.string().optional(),
 })

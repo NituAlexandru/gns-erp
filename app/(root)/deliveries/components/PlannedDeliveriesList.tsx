@@ -18,7 +18,6 @@ export function PlannedDeliveriesList({
 }: PlannedDeliveriesListProps) {
   return (
     <Card className='h-full sticky top-20'>
-      {' '}
       <CardHeader>
         <CardTitle>Livrări Planificate ({plannedDeliveries.length})</CardTitle>
       </CardHeader>
@@ -33,33 +32,45 @@ export function PlannedDeliveriesList({
 
         {plannedDeliveries.map((delivery, index) => (
           <Card key={delivery.id} className='bg-muted/50'>
-            <CardHeader className='flex-row items-center justify-between p-4'>
-              <CardTitle className='text-base font-semibold'>
-                Livrarea {index + 1}
-              </CardTitle>
-              <Button
-                variant='ghost'
-                size='icon'
-                onClick={() => onRemoveDelivery(delivery.id)}
-              >
-                <Trash2 className='h-4 w-4 text-destructive' />
-              </Button>
+            <CardHeader className='p-4 pb-0 pt-0'>
+              <div className='flex flex-row items-center justify-between m-0'>
+                <CardTitle className='text-2xl font-semibold'>
+                  Livrarea {index + 1}
+                </CardTitle>
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => onRemoveDelivery(delivery.id)}
+                >
+                  <Trash2 className='h-4 w-4 text-destructive' />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className='p-4 pt-0 text-sm space-y-2'>
               <div>
                 <strong>Data:</strong>{' '}
                 {format(delivery.deliveryDate, 'PPP', { locale: ro })}
                 <br />
-                <strong>Interval:</strong> {delivery.deliverySlot}
+                <strong>Interval orar de livrare dorit:</strong>{' '}
+                {delivery.deliverySlot}
               </div>
-              <ul className='list-disc pl-5 text-muted-foreground'>
+
+              {/* Cod UIT (dacă există) */}
+              {delivery.uitCode && (
+                <div className='text-xs'>
+                  <strong>Cod UIT:</strong>{' '}
+                  <span className='font-mono'>{delivery.uitCode}</span>
+                </div>
+              )}
+
+              <ol className='list-disc pl-5 text-muted-foreground'>
                 {delivery.items.map((item) => (
                   <li key={item.id}>
-                    {item.productName} ({item.quantityToAllocate}{' '}
-                    {item.unitOfMeasure})
+                    {item.quantityToAllocate} {item.unitOfMeasure} {'-'}{' '}
+                    {item.productName}
                   </li>
                 ))}
-              </ul>
+              </ol>
             </CardContent>
           </Card>
         ))}

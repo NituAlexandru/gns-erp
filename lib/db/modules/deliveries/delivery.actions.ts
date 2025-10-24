@@ -139,7 +139,9 @@ function createSingleDeliveryDocument(
     deliveryAddressId: new Types.ObjectId(originalOrder.deliveryAddressId),
     items: deliveryLinesData,
     totals: deliveryTotals,
-    notes: originalOrder.notes,
+    deliveryNotes: plan.deliveryNotes,
+    orderNotes: originalOrder.notes,
+    uitCode: plan.uitCode,
   }
   return deliveryData
 }

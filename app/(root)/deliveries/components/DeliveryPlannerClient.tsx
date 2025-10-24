@@ -7,7 +7,7 @@ import { PopulatedOrder } from '@/lib/db/modules/order/types'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Loader2, ListPlus, Send } from 'lucide-react'
+import { Loader2, ListPlus, Send, Boxes } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import { useRouter } from 'next/navigation'
 import { createDeliveryPlans } from '@/lib/db/modules/deliveries/delivery.actions'
@@ -94,6 +94,8 @@ function mapDbDeliveriesToPlannedDeliveries(
     id: dbDelivery._id.toString(),
     deliveryDate: new Date(dbDelivery.deliveryDate),
     deliverySlot: dbDelivery.deliverySlot,
+    deliveryNotes: dbDelivery.deliveryNotes || undefined,
+    uitCode: dbDelivery.uitCode || undefined,
     items: dbDelivery.items.map((dbLine: IDeliveryLineItem) => ({
       id: dbLine.orderLineItemId
         ? dbLine.orderLineItemId.toString()
@@ -140,7 +142,14 @@ export function DeliveryPlannerClient({
   const [plannedDeliveries, setPlannedDeliveries] = useState<PlannedDelivery[]>(
     () => mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[]) // Cast necesar
   )
-  const methods = useForm<HeaderInput>({ resolver: zodResolver(HeaderSchema) })
+  const methods = useForm<HeaderInput>({
+    resolver: zodResolver(HeaderSchema),
+    defaultValues: {
+      deliveryDate: new Date(),
+      deliveryNotes: '',
+      uitCode: '',
+    },
+  })
   const handleItemChange = (itemId: string, updates: Partial<PlannerItem>) => {
     setPlannerItems((currentItems) =>
       currentItems.map((item) =>
@@ -158,7 +167,8 @@ export function DeliveryPlannerClient({
       })
       return
     }
-    const { deliveryDate, deliverySlot } = validationResult.data
+    const { deliveryDate, deliverySlot, deliveryNotes, uitCode } =
+      validationResult.data
     const itemsToPlan = plannerItems.filter(
       (item) => item.quantityToAllocate > 0
     )
@@ -172,6 +182,8 @@ export function DeliveryPlannerClient({
       deliveryDate,
       deliverySlot,
       items: itemsToPlan,
+      deliveryNotes: deliveryNotes || undefined,
+      uitCode: uitCode || undefined,
     }
     setPlannedDeliveries((prev) => [...prev, newPlannedDelivery])
 
@@ -197,6 +209,105 @@ export function DeliveryPlannerClient({
     )
     toast.success('Livrarea adăugată în planificare.') // <-- Folosim toast
     methods.resetField('deliveryDate')
+    methods.resetField('deliveryNotes')
+    methods.resetField('uitCode')
+  }
+
+  const handleDeliverAll = () => {
+    // 1. Validăm header-ul (la fel ca la 'Adaugă')
+    const headerData = methods.getValues()
+    const validationResult = HeaderSchema.safeParse(headerData)
+    if (!validationResult.success) {
+      toast.error('Completează Data și Intervalul Orar.', {
+        description: validationResult.error.errors[0].message,
+      })
+      return
+    }
+    const { deliveryDate, deliverySlot, deliveryNotes, uitCode } =
+      validationResult.data
+
+    // 2. Găsim TOATE item-urile care mai au ceva de livrat
+    let totalAllocatedBase = 0
+    const itemsToPlan = plannerItems
+      .map((item) => {
+        // Calculăm rămasul în unitatea de bază
+        const remainingInBaseUnit =
+          item.quantityOrdered -
+          item.quantityAlreadyShipped -
+          item.quantityAlreadyPlanned
+
+        // Dacă nu mai e nimic de livrat, returnăm null
+        if (remainingInBaseUnit <= 0.001) return null
+
+        // Calculăm factorul de conversie pt UM selectată
+        const allUnits = [
+          { unitName: item.baseUnit, baseUnitEquivalent: 1 },
+          ...item.packagingOptions,
+        ]
+        const unitInfo = allUnits.find(
+          (u) => u.unitName === item.unitOfMeasure
+        ) || { baseUnitEquivalent: 1 }
+        const factor = unitInfo.baseUnitEquivalent || 1
+
+        // Calculăm rămasul în UM selectată
+        const remainingInSelectedUnit = remainingInBaseUnit / factor
+
+        totalAllocatedBase += remainingInBaseUnit
+
+        // Returnăm un obiect PlannerItem care reprezintă ce alocăm
+        return {
+          ...item,
+          quantityToAllocate: parseFloat(remainingInSelectedUnit.toFixed(2)), // Alocăm tot ce a rămas
+        }
+      })
+      .filter(Boolean) as PlannerItem[] // Filtrăm null-urile
+
+    if (itemsToPlan.length === 0 || totalAllocatedBase <= 0) {
+      toast.error('Toate articolele au fost deja planificate integral.')
+      return
+    }
+
+    // 3. Creăm noul card de livrare
+    const newPlannedDelivery: PlannedDelivery = {
+      id: uuidv4(),
+      deliveryDate,
+      deliverySlot,
+      items: itemsToPlan,
+      deliveryNotes: deliveryNotes || undefined,
+      uitCode: uitCode || undefined,
+    }
+
+    // 4. Adăugăm cardul în lista din dreapta
+    setPlannedDeliveries((prev) => [...prev, newPlannedDelivery])
+
+    // 5. Actualizăm starea din stânga (setăm totul ca planificat)
+    setPlannerItems((currentItems) =>
+      currentItems.map((item) => {
+        const plannedItem = itemsToPlan.find((p) => p.id === item.id)
+        if (!plannedItem) return item
+
+        // Calculăm cât am alocat (tot ce a rămas)
+        const remainingInBaseUnit =
+          item.quantityOrdered -
+          item.quantityAlreadyShipped -
+          item.quantityAlreadyPlanned
+
+        return {
+          ...item,
+          // Adăugăm tot restul la planificat
+          quantityAlreadyPlanned:
+            item.quantityAlreadyPlanned +
+            (remainingInBaseUnit > 0 ? remainingInBaseUnit : 0),
+          quantityToAllocate: 0, // Resetăm inputul
+        }
+      })
+    )
+
+    toast.success('Toate articolele rămase au fost adăugate într-o livrare.')
+    // Resetăm câmpurile
+    methods.resetField('deliveryDate')
+    methods.resetField('deliveryNotes')
+    methods.resetField('uitCode')
   }
 
   const handleRemovePlannedDelivery = (deliveryId: string) => {
@@ -306,21 +417,35 @@ export function DeliveryPlannerClient({
               clientSnapshot={order.clientSnapshot}
               deliveryAddress={order.deliveryAddress}
               vehicleType={order.estimatedVehicleType || 'N/A'}
+              orderNotes={order.notes}
             />
           </FormProvider>
+          <div className='flex gap-5'>
+            <Button
+              type='button'
+              onClick={handleDeliverAll}
+              className='w-[49%]'
+              variant='outline'
+              size='lg'
+              disabled={allItemsPlanned}
+            >
+              <Boxes className='mr-2 h-4 w-4' />
+              Livrează Tot
+            </Button>
 
-          <Button
-            type='button'
-            onClick={handleAddToPlanning}
-            className='w-full'
-            size='lg'
-            disabled={allItemsPlanned}
-          >
-            <ListPlus className='mr-2 h-5 w-5' />
-            {allItemsPlanned
-              ? 'Toate articolele planificate'
-              : 'Adaugă la Planificare'}
-          </Button>
+            <Button
+              type='button'
+              className='w-[49%]'
+              onClick={handleAddToPlanning}
+              size='lg'
+              disabled={allItemsPlanned}
+            >
+              <ListPlus className='mr-2 h-5 w-5' />
+              {allItemsPlanned
+                ? 'Toate articolele planificate'
+                : 'Adaugă la Planificare'}
+            </Button>
+          </div>
           <DeliveryItemsAllocator
             itemsToAllocate={plannerItems}
             onAllocationChange={handleItemChange}

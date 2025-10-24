@@ -135,7 +135,9 @@ export interface IDelivery extends Document {
   deliveryDate: Date
   deliverySlot: (typeof DELIVERY_SLOTS)[number]
   vehicleType: string
-  notes?: string
+  deliveryNotes?: string
+  orderNotes?: string
+  uitCode?: string
   createdBy: Types.ObjectId
   createdByName: string
   items: Types.DocumentArray<IDeliveryLineItem>
@@ -177,7 +179,9 @@ const DeliverySchema = new Schema<IDelivery>(
     deliveryDate: { type: Date, required: true },
     deliverySlot: { type: String, enum: DELIVERY_SLOTS, required: true },
     vehicleType: { type: String, required: true },
-    notes: { type: String },
+    deliveryNotes: { type: String },
+    orderNotes: { type: String },
+    uitCode: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
     items: [DeliveryLineItemSchema],

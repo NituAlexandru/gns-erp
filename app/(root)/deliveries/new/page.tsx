@@ -61,7 +61,7 @@ export default async function CreateDeliveryPage({
   const existingDeliveries = sanitizeForClient(existingDeliveriesRaw)
 
   return (
-    <div className='p-4 md:p-6'>
+    <div className='p-4 md:p-2'>
       <DeliveryPlannerClient
         order={order}
         existingDeliveries={existingDeliveries}

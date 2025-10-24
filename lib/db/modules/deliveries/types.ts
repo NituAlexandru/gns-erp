@@ -1,6 +1,5 @@
-
 import { z } from 'zod'
-import { HeaderSchema } from './validator' 
+import { HeaderSchema } from './validator'
 import { IOrder } from '../order/order.model'
 import { Types } from 'mongoose'
 import { DELIVERY_SLOTS } from './constants'
@@ -40,14 +39,14 @@ export type PackagingOption = {
 export type IOrderLineItem = IOrder['lineItems'][number]
 
 export type PlannerItem = {
-  id: string 
+  id: string
   orderLineItemId: string | null
   productId: string | null
   serviceId: string | null
   stockableItemType: 'ERPProduct' | 'Packaging' | null
   productName: string
   productCode: string | null
-  isManualEntry: boolean 
+  isManualEntry: boolean
   quantityOrdered: number
   quantityAlreadyShipped: number
   quantityAlreadyPlanned: number
@@ -58,16 +57,17 @@ export type PlannerItem = {
   quantityToAllocate: number
   priceAtTimeOfOrder: number
   priceInBaseUnit: number
-  vatRateDetails: { rate: number } 
+  vatRateDetails: { rate: number }
 }
 
 export type PlannedDelivery = {
-  id: string 
+  id: string
   deliveryDate: Date
   deliverySlot: string
-  items: PlannerItem[] 
+  items: PlannerItem[]
+  deliveryNotes?: string
+  uitCode?: string
 }
-
 
 export interface NewDeliveryLineData {
   orderLineItemId?: Types.ObjectId
@@ -85,7 +85,7 @@ export interface NewDeliveryLineData {
   lineValue: number
   lineVatValue: number
   lineTotal: number
-  vatRateDetails: { rate: number; value: number } 
+  vatRateDetails: { rate: number; value: number }
   stockableItemType?: 'ERPProduct' | 'Packaging'
   baseUnit?: string
   conversionFactor?: number
@@ -107,7 +107,9 @@ export interface NewDeliveryData {
   deliveryDate: Date
   deliverySlot: (typeof DELIVERY_SLOTS)[number]
   vehicleType: string
-  notes?: string
+  deliveryNotes?: string
+  orderNotes?: string
+  uitCode?: string
   createdBy: Types.ObjectId
   createdByName: string
   items: NewDeliveryLineData[]
@@ -131,5 +133,3 @@ export type DeliveryDataForInsert = NewDeliveryData & {
 
 // Tipul pentru Header (client)
 export type HeaderInput = z.infer<typeof HeaderSchema>
-
-
