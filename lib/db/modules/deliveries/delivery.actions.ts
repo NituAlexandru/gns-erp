@@ -144,7 +144,7 @@ function createSingleDeliveryDocument(
   return deliveryData
 }
 
-// --- Funcția Principală 
+// --- Funcția Principală
 export async function createDeliveryPlans(
   orderId: string,
   plannedDeliveries: PlannedDelivery[]
@@ -194,14 +194,14 @@ export async function createDeliveryPlans(
         // Inserăm livrările noi (dacă există)
         const deliveriesForInsert: DeliveryDataForInsert[] = []
         if (deliveriesToCreate.length > 0) {
-          let i = 1
-          for (const data of deliveriesToCreate) {
-            const deliveryNumber = `D-TEMP-${Date.now()}-${i++}` // TODO: Generator real
+          deliveriesToCreate.forEach((data, i) => {
+            // Noul format: NumarComanda-IndexBazatPe1 (ex: 202510230033-1, 202510230033-2)
+            const deliveryNumber = `${originalOrder.orderNumber}-${i + 1}`
             deliveriesForInsert.push({
               ...data,
               deliveryNumber: deliveryNumber,
             })
-          }
+          })
           savedDeliveries = await DeliveryModel.insertMany(
             deliveriesForInsert,
             { session: transactionSession }

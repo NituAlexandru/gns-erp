@@ -2,7 +2,7 @@ import { Schema, model, models, Document, Model, Types } from 'mongoose'
 
 export interface IStockMovementDoc extends Document {
   stockableItem: Types.ObjectId
-  stockableItemType: 'Product' | 'Packaging'
+  stockableItemType: 'ERPProduct' | 'Packaging'
   movementType: string
   quantity: number
   unitMeasure?: string
