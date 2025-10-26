@@ -4,6 +4,14 @@ import { IOrder } from '../order/order.model'
 import { Types } from 'mongoose'
 import { DELIVERY_SLOTS } from './constants'
 
+export type DeliveryStatusKey =
+  | 'CREATED' // Creata (starea inițială, creată de tine)
+  | 'SCHEDULED' // Programată (starea dupa ce a fost programata livrarea)
+  | 'IN_TRANSIT' // În Tranzit (când se generează Avizul)
+  | 'DELIVERED' // Livrată (confirmată manual)
+  | 'INVOICED' // Facturată
+  | 'CANCELLED' // Anulată (dacă e cazul)
+
 // --- Tipuri Snapshot ---
 export interface ClientSnapshot {
   name: string
@@ -62,8 +70,10 @@ export type PlannerItem = {
 
 export type PlannedDelivery = {
   id: string
-  deliveryDate: Date
-  deliverySlot: string
+  requestedDeliveryDate: Date
+  requestedDeliverySlot: string
+  deliveryDate?: Date
+  deliverySlot?: string
   items: PlannerItem[]
   deliveryNotes?: string
   uitCode?: string
@@ -104,8 +114,10 @@ export interface NewDeliveryData {
   salesAgentSnapshot: SalesAgentSnapshot
   deliveryAddress: DeliveryAddress
   deliveryAddressId: Types.ObjectId
-  deliveryDate: Date
-  deliverySlot: (typeof DELIVERY_SLOTS)[number]
+  requestedDeliveryDate: Date
+  requestedDeliverySlot: (typeof DELIVERY_SLOTS)[number]
+  deliveryDate?: Date
+  deliverySlot?: (typeof DELIVERY_SLOTS)[number]
   vehicleType: string
   deliveryNotes?: string
   orderNotes?: string

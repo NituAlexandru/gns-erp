@@ -92,8 +92,14 @@ function mapDbDeliveriesToPlannedDeliveries(
 ): PlannedDelivery[] {
   return dbDeliveries.map((dbDelivery) => ({
     id: dbDelivery._id.toString(),
-    deliveryDate: new Date(dbDelivery.deliveryDate),
-    deliverySlot: dbDelivery.deliverySlot,
+    requestedDeliveryDate: dbDelivery.requestedDeliveryDate
+      ? new Date(dbDelivery.requestedDeliveryDate)
+      : new Date(),
+    requestedDeliverySlot: dbDelivery.requestedDeliverySlot,
+    deliveryDate: dbDelivery.deliveryDate
+      ? new Date(dbDelivery.deliveryDate)
+      : undefined,
+    deliverySlot: dbDelivery.deliverySlot || undefined,
     deliveryNotes: dbDelivery.deliveryNotes || undefined,
     uitCode: dbDelivery.uitCode || undefined,
     items: dbDelivery.items.map((dbLine: IDeliveryLineItem) => ({
@@ -145,7 +151,7 @@ export function DeliveryPlannerClient({
   const methods = useForm<HeaderInput>({
     resolver: zodResolver(HeaderSchema),
     defaultValues: {
-      deliveryDate: new Date(),
+      requestedDeliveryDate: new Date(),
       deliveryNotes: '',
       uitCode: '',
     },
@@ -167,8 +173,12 @@ export function DeliveryPlannerClient({
       })
       return
     }
-    const { deliveryDate, deliverySlot, deliveryNotes, uitCode } =
-      validationResult.data
+    const {
+      requestedDeliveryDate,
+      requestedDeliverySlot,
+      deliveryNotes,
+      uitCode,
+    } = validationResult.data
     const itemsToPlan = plannerItems.filter(
       (item) => item.quantityToAllocate > 0
     )
@@ -179,8 +189,10 @@ export function DeliveryPlannerClient({
 
     const newPlannedDelivery: PlannedDelivery = {
       id: uuidv4(),
-      deliveryDate,
-      deliverySlot,
+      requestedDeliveryDate: requestedDeliveryDate,
+      requestedDeliverySlot: requestedDeliverySlot,
+      deliveryDate: undefined,
+      deliverySlot: undefined,
       items: itemsToPlan,
       deliveryNotes: deliveryNotes || undefined,
       uitCode: uitCode || undefined,
@@ -208,7 +220,7 @@ export function DeliveryPlannerClient({
       })
     )
     toast.success('Livrarea adăugată în planificare.') // <-- Folosim toast
-    methods.resetField('deliveryDate')
+    methods.resetField('requestedDeliveryDate')
     methods.resetField('deliveryNotes')
     methods.resetField('uitCode')
   }
@@ -223,8 +235,12 @@ export function DeliveryPlannerClient({
       })
       return
     }
-    const { deliveryDate, deliverySlot, deliveryNotes, uitCode } =
-      validationResult.data
+    const {
+      requestedDeliveryDate,
+      requestedDeliverySlot,
+      deliveryNotes,
+      uitCode,
+    } = validationResult.data
 
     // 2. Găsim TOATE item-urile care mai au ceva de livrat
     let totalAllocatedBase = 0
@@ -270,8 +286,10 @@ export function DeliveryPlannerClient({
     // 3. Creăm noul card de livrare
     const newPlannedDelivery: PlannedDelivery = {
       id: uuidv4(),
-      deliveryDate,
-      deliverySlot,
+      requestedDeliveryDate: requestedDeliveryDate,
+      requestedDeliverySlot: requestedDeliverySlot,
+      deliveryDate: undefined,
+      deliverySlot: undefined,
       items: itemsToPlan,
       deliveryNotes: deliveryNotes || undefined,
       uitCode: uitCode || undefined,
@@ -305,7 +323,7 @@ export function DeliveryPlannerClient({
 
     toast.success('Toate articolele rămase au fost adăugate într-o livrare.')
     // Resetăm câmpurile
-    methods.resetField('deliveryDate')
+    methods.resetField('requestedDeliveryDate')
     methods.resetField('deliveryNotes')
     methods.resetField('uitCode')
   }

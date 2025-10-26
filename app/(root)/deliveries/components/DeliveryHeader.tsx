@@ -79,10 +79,10 @@ export function DeliveryHeader({
         <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
           <FormField
             control={control}
-            name='deliveryDate'
+            name='requestedDeliveryDate'
             render={({ field }) => (
               <FormItem className='flex flex-col'>
-                <FormLabel>Data Livrării</FormLabel>
+                <FormLabel>Data Solicitată de Livrare</FormLabel>
                 <Popover>
                   <PopoverTrigger asChild>
                     <FormControl>
@@ -121,10 +121,10 @@ export function DeliveryHeader({
 
           <FormField
             control={control}
-            name='deliverySlot'
+            name='requestedDeliverySlot'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Interval orar de livrare dorit</FormLabel>
+                <FormLabel>Interval Orar Solicitat pentru Livrare</FormLabel>
                 <Select
                   onValueChange={field.onChange}
                   defaultValue={field.value}

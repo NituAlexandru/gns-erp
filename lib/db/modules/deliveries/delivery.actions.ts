@@ -119,13 +119,18 @@ function createSingleDeliveryDocument(
     return buildDeliveryLine(item, originalLine)
   })
   const deliveryTotals = calculateDeliveryTotals(deliveryLinesData)
-  const deliverySlotTyped = plan.deliverySlot as (typeof DELIVERY_SLOTS)[number]
+
   if (!originalOrder.deliveryAddressId)
     throw new Error(`Comanda ${originalOrder.orderNumber} nu are ID adresă.`)
 
   const deliveryData: NewDeliveryData = {
+    requestedDeliveryDate: plan.requestedDeliveryDate,
+    requestedDeliverySlot:
+      plan.requestedDeliverySlot as (typeof DELIVERY_SLOTS)[number],
     deliveryDate: plan.deliveryDate,
-    deliverySlot: deliverySlotTyped,
+    deliverySlot: plan.deliverySlot as
+      | (typeof DELIVERY_SLOTS)[number]
+      | undefined,
     vehicleType: originalOrder.estimatedVehicleType || 'N/A',
     createdBy: new Types.ObjectId(user.id),
     createdByName: user.name,

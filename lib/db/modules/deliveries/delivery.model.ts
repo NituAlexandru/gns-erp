@@ -1,5 +1,6 @@
 import mongoose, { Schema, Document, models, Types, Model } from 'mongoose'
 import { DELIVERY_SLOTS } from './constants'
+import { DeliveryStatusKey } from './types'
 
 export interface ClientSnapshot {
   name: string
@@ -132,12 +133,15 @@ export interface IDelivery extends Document {
   salesAgentSnapshot: SalesAgentSnapshot
   deliveryAddress: DeliveryAddress
   deliveryAddressId: Types.ObjectId
+  requestedDeliveryDate: Date
+  requestedDeliverySlot: (typeof DELIVERY_SLOTS)[number]
   deliveryDate: Date
   deliverySlot: (typeof DELIVERY_SLOTS)[number]
   vehicleType: string
   deliveryNotes?: string
   orderNotes?: string
   uitCode?: string
+  status: DeliveryStatusKey
   createdBy: Types.ObjectId
   createdByName: string
   items: Types.DocumentArray<IDeliveryLineItem>
@@ -176,12 +180,32 @@ const DeliverySchema = new Schema<IDelivery>(
     clientSnapshot: { type: ClientSnapshotSchema, required: true },
     salesAgentSnapshot: { type: SalesAgentSnapshotSchema, required: true },
     deliveryAddress: { type: DeliveryAddressSchema, required: true }, // Snapshot-ul adresei
+    requestedDeliveryDate: { type: Date, required: true },
+    requestedDeliverySlot: {
+      type: String,
+      enum: DELIVERY_SLOTS,
+      required: true,
+    },
     deliveryDate: { type: Date, required: true },
     deliverySlot: { type: String, enum: DELIVERY_SLOTS, required: true },
     vehicleType: { type: String, required: true },
     deliveryNotes: { type: String },
     orderNotes: { type: String },
     uitCode: { type: String },
+    status: {
+      type: String,
+      enum: [
+        'CREATED',
+        'SCHEDULED',
+        'IN_TRANSIT',
+        'DELIVERED',
+        'INVOICED',
+        'CANCELLED',
+      ],
+      default: 'CREATED',
+      required: true,
+      index: true,
+    },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
     items: [DeliveryLineItemSchema],

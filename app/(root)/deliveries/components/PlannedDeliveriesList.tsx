@@ -19,7 +19,7 @@ export function PlannedDeliveriesList({
   return (
     <Card className='h-full sticky top-20'>
       <CardHeader>
-        <CardTitle>Livrări Planificate ({plannedDeliveries.length})</CardTitle>
+        <CardTitle>Livrări Create ({plannedDeliveries.length})</CardTitle>
       </CardHeader>
       <CardContent className='space-y-4 max-h-[70vh] overflow-y-auto'>
         {plannedDeliveries.length === 0 && (
@@ -48,13 +48,28 @@ export function PlannedDeliveriesList({
             </CardHeader>
             <CardContent className='p-4 pt-0 text-sm space-y-2'>
               <div>
-                <strong>Data:</strong>{' '}
-                {format(delivery.deliveryDate, 'PPP', { locale: ro })}
+                <strong>Dată Solicitată:</strong>
+                {delivery.requestedDeliveryDate &&
+                !isNaN(new Date(delivery.requestedDeliveryDate).getTime())
+                  ? format(delivery.requestedDeliveryDate, 'PPP', {
+                      locale: ro,
+                    })
+                  : 'Dată invalidă'}
                 <br />
-                <strong>Interval orar de livrare dorit:</strong>{' '}
-                {delivery.deliverySlot}
+                <strong>Interval Solicitat:</strong>
+                {delivery.requestedDeliverySlot}
               </div>
 
+              {/* Afișează data/slotul REAL dacă există (setat de logistică) */}
+              {delivery.deliveryDate && (
+                <div className='text-sm font-semibold text-green-600 border-l-2 border-green-600 pl-2'>
+                  Programat:{' '}
+                  {format(new Date(delivery.deliveryDate), 'PPP', {
+                    locale: ro,
+                  })}
+                  {delivery.deliverySlot && ` (${delivery.deliverySlot})`}     
+                </div>
+              )}
               {/* Cod UIT (dacă există) */}
               {delivery.uitCode && (
                 <div className='text-xs'>
