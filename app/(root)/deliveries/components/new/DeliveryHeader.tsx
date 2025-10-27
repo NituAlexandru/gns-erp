@@ -127,7 +127,7 @@ export function DeliveryHeader({
                 <FormLabel>Interval Orar Solicitat pentru Livrare</FormLabel>
                 <Select
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
+                  defaultValue={field.value || ''}
                 >
                   <FormControl>
                     <SelectTrigger className='w-full'>

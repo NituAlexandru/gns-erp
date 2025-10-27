@@ -1,11 +1,11 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-import mongoose, { Types, ClientSession } from 'mongoose'
+import mongoose, { Types } from 'mongoose'
 import { revalidatePath } from 'next/cache'
 import { formatError, round2 } from '@/lib/utils'
 import { auth } from '@/auth'
-import DeliveryModel, { IDelivery } from './delivery.model'
+import DeliveryModel, { IDelivery, IDeliveryLineItem } from './delivery.model'
 import OrderModel, { IOrder } from '../order/order.model'
 import {
   IOrderLineItem,
@@ -14,8 +14,10 @@ import {
   DeliveryDataForInsert,
   PlannerItem,
   PlannedDelivery,
+  DeliveryStatusKey,
 } from './types'
 import { DELIVERY_SLOTS } from './constants'
+import { generateDeliveryNumber } from '../numbering/numbering.actions'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -151,12 +153,12 @@ function createSingleDeliveryDocument(
   return deliveryData
 }
 
-// --- Funcția Principală
-export async function createDeliveryPlans(
+export async function createSingleDelivery(
   orderId: string,
-  plannedDeliveries: PlannedDelivery[]
+  plan: PlannedDelivery
 ) {
   const mongoSession = await mongoose.startSession()
+  mongoSession.startTransaction()
   try {
     await connectToDatabase()
     const authSession = await auth()
@@ -177,84 +179,236 @@ export async function createDeliveryPlans(
       ])
     )
 
-    // Construim datele pentru livrările trimise de client
-    const deliveriesToCreate: NewDeliveryData[] = plannedDeliveries.map(
-      (plan) =>
-        createSingleDeliveryDocument(
-          plan,
-          originalOrder,
-          originalLinesMap,
-          user
-        )
+    // 1. Construim documentul de livrare
+    const deliveryData = createSingleDeliveryDocument(
+      plan,
+      originalOrder,
+      originalLinesMap,
+      user
     )
 
-    let savedDeliveries: IDelivery[] = []
-    await mongoSession.withTransaction(
-      async (transactionSession: ClientSession) => {
-        // Ștergem livrările vechi
-        console.log(`Ștergere livrări existente pentru comanda ${orderId}`)
-        await DeliveryModel.deleteMany(
-          { orderId: new Types.ObjectId(orderId) },
-          { session: transactionSession }
-        )
+    // 2. Generăm numărul de livrare folosind funcția atomică
 
-        // Inserăm livrările noi (dacă există)
-        const deliveriesForInsert: DeliveryDataForInsert[] = []
-        if (deliveriesToCreate.length > 0) {
-          deliveriesToCreate.forEach((data, i) => {
-            // Noul format: NumarComanda-IndexBazatPe1 (ex: 202510230033-1, 202510230033-2)
-            const deliveryNumber = `${originalOrder.orderNumber}-${i + 1}`
-            deliveriesForInsert.push({
-              ...data,
-              deliveryNumber: deliveryNumber,
-            })
-          })
-          savedDeliveries = await DeliveryModel.insertMany(
-            deliveriesForInsert,
-            { session: transactionSession }
-          )
-          if (savedDeliveries.length !== deliveriesForInsert.length)
-            throw new Error('Nu s-au salvat toate livrările.')
-        } else {
-          console.log(`Nicio livrare nouă de creat pentru ${orderId}.`)
-          savedDeliveries = []
-        }
-
-        // Actualizăm statusul comenzii
-        const newOrderStatus =
-          savedDeliveries.length > 0 ? 'SCHEDULED' : 'CONFIRMED'
-        console.log(
-          `Actualizare status comandă ${orderId} la ${newOrderStatus}`
-        )
-        await OrderModel.findByIdAndUpdate(
-          orderId,
-          { $set: { status: newOrderStatus } },
-          { session: transactionSession }
-        )
-      }
+    const deliveryNumber = await generateDeliveryNumber(
+      originalOrder.orderNumber,
+      { session: mongoSession }
     )
+
+    const deliveryForInsert: DeliveryDataForInsert = {
+      ...deliveryData,
+      deliveryNumber: deliveryNumber,
+    }
+
+    // 3. Inserăm livrarea
+    const [savedDelivery] = await DeliveryModel.insertMany(
+      [deliveryForInsert],
+      { session: mongoSession }
+    )
+
+    // 4. Actualizăm statusul comenzii la 'SCHEDULED' (dacă nu e deja)
+    if (
+      originalOrder.status !== 'SCHEDULED' &&
+      originalOrder.status !== 'PARTIALLY_DELIVERED'
+    ) {
+      await OrderModel.findByIdAndUpdate(
+        orderId,
+        { $set: { status: 'SCHEDULED' } },
+        { session: mongoSession }
+      )
+    }
+
+    await mongoSession.commitTransaction()
 
     revalidatePath(`/orders/${orderId}`)
     revalidatePath('/deliveries')
-    const message =
-      savedDeliveries.length > 0
-        ? `${savedDeliveries.length} livrări planificate/actualizate.`
-        : `Livrări existente șterse.`
-    return { success: true, message: message }
+
+    return {
+      success: true,
+      message: `Livrarea ${deliveryNumber} a fost creată cu succes.`,
+      data: JSON.parse(JSON.stringify(savedDelivery)),
+    }
   } catch (error) {
-    console.error(
-      'Eroare detaliată la crearea/actualizarea planificărilor:',
-      error
-    )
+    await mongoSession.abortTransaction()
+    console.error('Eroare la crearea livrării:', error)
     return {
       success: false,
-      message: formatError(error) || 'Eroare la salvarea planificărilor.',
+      message: formatError(error) || 'Eroare la salvarea livrării.',
     }
   } finally {
     await mongoSession.endSession()
   }
 }
 
+export async function deleteDeliveryPlan(deliveryId: string) {
+  const mongoSession = await mongoose.startSession()
+  mongoSession.startTransaction()
+  try {
+    await connectToDatabase()
+
+    const authSession = await auth()
+    if (!authSession?.user?.id || !authSession?.user?.name)
+      throw new Error('Utilizator neautentificat.')
+
+    if (!deliveryId || !mongoose.Types.ObjectId.isValid(deliveryId)) {
+      throw new Error('ID Livrare invalid.')
+    }
+
+    const delivery =
+      await DeliveryModel.findById(deliveryId).session(mongoSession)
+    if (!delivery) {
+      throw new Error('Livrarea nu a fost găsită. Poate a fost ștearsă deja.')
+    }
+
+    const cancellableStatuses: DeliveryStatusKey[] = ['CREATED', 'SCHEDULED'] // Folosim tipul corect
+    if (!cancellableStatuses.includes(delivery.status)) {
+      throw new Error(
+        `Nu se poate anula o livrare cu statusul "${delivery.status}".`
+      )
+    }
+
+    // Setăm statusul la 'CANCELLED'
+    delivery.status = 'CANCELLED'
+    // Salvăm și informațiile utilizatorului care a anulat
+    delivery.lastUpdatedBy = new Types.ObjectId(authSession.user.id)
+    delivery.lastUpdatedByName = authSession.user.name || 'Sistem'
+
+    await delivery.save({ session: mongoSession })
+
+    const remainingActiveDeliveries = await DeliveryModel.countDocuments({
+      orderId: delivery.orderId,
+      status: { $nin: ['CANCELLED'] }, // Excludem livrările anulate
+    }).session(mongoSession)
+
+    // Dacă nu mai rămâne nicio livrare activă, setăm statusul comenzii înapoi la CONFIRMED
+    if (remainingActiveDeliveries === 0) {
+      // Găsim comanda și verificăm statusul curent înainte de a-l schimba
+      const order = await OrderModel.findById(delivery.orderId).session(
+        mongoSession
+      )
+      // Schimbăm statusul doar dacă e 'SCHEDULED' sau 'PARTIALLY_DELIVERED'
+      if (
+        order &&
+        (order.status === 'SCHEDULED' || order.status === 'PARTIALLY_DELIVERED')
+      ) {
+        await OrderModel.findByIdAndUpdate(
+          delivery.orderId,
+          { $set: { status: 'CONFIRMED' } },
+          { session: mongoSession }
+        )
+      }
+    }
+
+    await mongoSession.commitTransaction()
+
+    revalidatePath(`/orders/${delivery.orderId.toString()}`)
+    revalidatePath('/deliveries')
+
+    return { success: true, message: 'Livrarea a fost anulată cu succes.' }
+  } catch (error) {
+    await mongoSession.abortTransaction()
+    console.error('Eroare la anularea livrării:', error)
+    return {
+      success: false,
+      message: formatError(error) || 'Eroare la anularea livrării.',
+    }
+  } finally {
+    await mongoSession.endSession()
+  }
+}
+export async function updateSingleDelivery(
+  deliveryId: string,
+  plan: PlannedDelivery
+) {
+  const mongoSession = await mongoose.startSession()
+  mongoSession.startTransaction()
+  try {
+    await connectToDatabase()
+
+    const authSession = await auth()
+    if (!authSession?.user?.id || !authSession?.user?.name)
+      throw new Error('Utilizator neautentificat.')
+    const user = { id: authSession.user.id, name: authSession.user.name }
+
+    if (!deliveryId || !mongoose.Types.ObjectId.isValid(deliveryId)) {
+      throw new Error('ID Livrare invalid.')
+    }
+
+    // 1. Găsim livrarea existentă
+    const delivery =
+      await DeliveryModel.findById(deliveryId).session(mongoSession)
+    if (!delivery) {
+      throw new Error('Livrarea nu a fost găsită.')
+    }
+
+    // 2. Verificăm statusul
+    const readOnlyStatuses: string[] = ['INVOICED', 'CANCELLED']
+    if (readOnlyStatuses.includes(delivery.status)) {
+      throw new Error(
+        `Nu se poate modifica o livrare cu statusul "${delivery.status}".`
+      )
+    }
+
+    // 3. Preluăm comanda originală
+    const originalOrder: IOrder | null = await OrderModel.findById(
+      delivery.orderId
+    ).lean<IOrder>()
+    if (!originalOrder) throw new Error('Comanda sursă nu a fost găsită.')
+
+    const originalLinesMap = new Map<string, IOrderLineItem>(
+      originalOrder.lineItems.map((line: IOrderLineItem) => [
+        line._id.toString(),
+        line,
+      ])
+    )
+
+    // 4. Reconstruim datele
+    const newDeliveryLinesData = plan.items.map((item) => {
+      const originalLine = originalLinesMap.get(item.orderLineItemId!)
+      if (!originalLine)
+        throw new Error(
+          `Integrity Error: Linia originală ${item.orderLineItemId} nu a fost găsită.`
+        )
+      return buildDeliveryLine(item, originalLine)
+    })
+    const newDeliveryTotals = calculateDeliveryTotals(newDeliveryLinesData)
+
+    // 5. Actualizăm documentul de livrare
+    delivery.set({
+      requestedDeliveryDate: plan.requestedDeliveryDate,
+      requestedDeliverySlot: plan.requestedDeliverySlot,
+      deliveryNotes: plan.deliveryNotes,
+      uitCode: plan.uitCode,
+      deliveryDate: plan.deliveryDate,
+      deliverySlot: plan.deliverySlot,
+      items: newDeliveryLinesData as Types.DocumentArray<IDeliveryLineItem>,
+      totals: newDeliveryTotals,
+      lastUpdatedBy: new Types.ObjectId(user.id),
+      lastUpdatedByName: user.name,
+    })
+
+    const savedDelivery = await delivery.save({ session: mongoSession })
+
+    await mongoSession.commitTransaction()
+
+    revalidatePath(`/orders/${delivery.orderId.toString()}`)
+    revalidatePath('/deliveries')
+
+    return {
+      success: true,
+      message: `Livrarea ${savedDelivery.deliveryNumber} a fost actualizată.`,
+      data: JSON.parse(JSON.stringify(savedDelivery)),
+    }
+  } catch (error) {
+    await mongoSession.abortTransaction()
+    console.error('Eroare la actualizarea livrării:', error)
+    return {
+      success: false,
+      message: formatError(error) || 'Eroare la actualizarea livrării.',
+    }
+  } finally {
+    await mongoSession.endSession()
+  }
+}
 /** Preia livrările asociate unei comenzi */
 export async function getDeliveriesByOrderId(
   orderId: string

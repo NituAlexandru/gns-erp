@@ -1,23 +1,26 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useTransition, useEffect } from 'react'
 import { useForm, FormProvider } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { PopulatedOrder } from '@/lib/db/modules/order/types'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { Loader2, ListPlus, Send, Boxes } from 'lucide-react'
+import { Loader2, ListPlus, Boxes } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid'
 import { useRouter } from 'next/navigation'
-import { createDeliveryPlans } from '@/lib/db/modules/deliveries/delivery.actions'
+import {
+  createSingleDelivery,
+  deleteDeliveryPlan,
+} from '@/lib/db/modules/deliveries/delivery.actions'
 import {
   IDelivery,
   IDeliveryLineItem,
 } from '@/lib/db/modules/deliveries/delivery.model'
-import { DeliveryHeader } from './DeliveryHeader'
-import { DeliveryItemsAllocator } from './DeliveryItemsAllocator'
-import { PlannedDeliveriesList } from './PlannedDeliveriesList'
+import { DeliveryHeader } from './new/DeliveryHeader'
+import { DeliveryItemsAllocator } from './new/DeliveryItemsAllocator'
+import { PlannedDeliveriesList } from './new/PlannedDeliveriesList'
 import {
   PackagingOption,
   PlannerItem,
@@ -25,26 +28,36 @@ import {
   HeaderInput,
 } from '@/lib/db/modules/deliveries/types'
 import { HeaderSchema } from '@/lib/db/modules/deliveries/validator'
+import { EditDeliveryModal } from './new/EditDeliveryModal'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
-// --- Funcții Helper ---
+// --- Funcții Helper  ---
 function mapOrderItemsToPlannerItems(
   orderItems: PopulatedOrder['lineItems'],
   existingDeliveries: IDelivery[]
 ): PlannerItem[] {
   const plannedQuantitiesMap = new Map<string, number>()
   existingDeliveries.forEach((delivery) => {
+    if (delivery.status === 'CANCELLED') {
+      return
+    }
+
     if (!Array.isArray(delivery.items)) {
       return
-    } // Skip
+    }
     delivery.items.forEach((line: IDeliveryLineItem) => {
-      const lineIdStr = line.orderLineItemId
+      const lineIdStr = line.orderLineItemId?.toString()
       const qtyBase = line.quantityInBaseUnit ?? line.quantity ?? 0
-      if (
-        lineIdStr &&
-        typeof lineIdStr === 'string' &&
-        typeof qtyBase === 'number' &&
-        qtyBase >= 0
-      ) {
+      if (lineIdStr && typeof qtyBase === 'number' && qtyBase >= 0) {
         const currentPlanned = plannedQuantitiesMap.get(lineIdStr) || 0
         plannedQuantitiesMap.set(lineIdStr, currentPlanned + qtyBase)
       }
@@ -56,7 +69,6 @@ function mapOrderItemsToPlannerItems(
     const qtyOrdered = item.quantityInBaseUnit ?? item.quantity ?? 0
     const qtyShipped = item.quantityShipped ?? 0
     const qtyPlanned = plannedQuantitiesMap.get(orderLineIdStr) || 0
-
     const baseUnit = item.baseUnit || item.unitOfMeasure
     const vatRate = item.vatRateDetails?.rate ?? 0
     const priceAtOrder = item.priceAtTimeOfOrder ?? 0
@@ -92,9 +104,9 @@ function mapDbDeliveriesToPlannedDeliveries(
 ): PlannedDelivery[] {
   return dbDeliveries.map((dbDelivery) => ({
     id: dbDelivery._id.toString(),
-    requestedDeliveryDate: dbDelivery.requestedDeliveryDate
-      ? new Date(dbDelivery.requestedDeliveryDate)
-      : new Date(),
+    deliveryNumber: dbDelivery.deliveryNumber,
+    status: dbDelivery.status,
+    requestedDeliveryDate: new Date(dbDelivery.requestedDeliveryDate),
     requestedDeliverySlot: dbDelivery.requestedDeliverySlot,
     deliveryDate: dbDelivery.deliveryDate
       ? new Date(dbDelivery.deliveryDate)
@@ -127,6 +139,7 @@ function mapDbDeliveriesToPlannedDeliveries(
     })),
   }))
 }
+// --- Sfârșit Funcții Helper ---
 
 interface DeliveryPlannerClientProps {
   order: PopulatedOrder
@@ -137,8 +150,20 @@ export function DeliveryPlannerClient({
   order,
   existingDeliveries,
 }: DeliveryPlannerClientProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isPending, startTransition] = useTransition()
   const router = useRouter()
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [deliveryToEdit, setDeliveryToEdit] = useState<PlannedDelivery | null>(
+    null
+  )
+  const [deliveryToDeleteId, setDeliveryToDeleteId] = useState<string | null>(
+    null
+  ) 
+  const handleEditDelivery = (delivery: PlannedDelivery) => {
+    setDeliveryToEdit(delivery)
+    setIsModalOpen(true)
+  }
+
   const [plannerItems, setPlannerItems] = useState<PlannerItem[]>(() =>
     mapOrderItemsToPlannerItems(
       order.lineItems,
@@ -146,8 +171,21 @@ export function DeliveryPlannerClient({
     )
   )
   const [plannedDeliveries, setPlannedDeliveries] = useState<PlannedDelivery[]>(
-    () => mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[]) // Cast necesar
+    () => mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[])
   )
+
+    useEffect(() => {
+    setPlannerItems(
+      mapOrderItemsToPlannerItems(
+        order.lineItems,
+        existingDeliveries as IDelivery[]
+      )
+    )
+    setPlannedDeliveries(
+      mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[])
+    )
+  }, [order.lineItems, existingDeliveries])
+
   const methods = useForm<HeaderInput>({
     resolver: zodResolver(HeaderSchema),
     defaultValues: {
@@ -164,7 +202,7 @@ export function DeliveryPlannerClient({
     )
   }
 
-  const handleAddToPlanning = () => {
+  const handleAddToPlanning = async () => {
     const headerData = methods.getValues()
     const validationResult = HeaderSchema.safeParse(headerData)
     if (!validationResult.success) {
@@ -188,7 +226,7 @@ export function DeliveryPlannerClient({
     }
 
     const newPlannedDelivery: PlannedDelivery = {
-      id: uuidv4(),
+      id: uuidv4(), 
       requestedDeliveryDate: requestedDeliveryDate,
       requestedDeliverySlot: requestedDeliverySlot,
       deliveryDate: undefined,
@@ -196,37 +234,33 @@ export function DeliveryPlannerClient({
       items: itemsToPlan,
       deliveryNotes: deliveryNotes || undefined,
       uitCode: uitCode || undefined,
+      status: 'CREATED',
     }
-    setPlannedDeliveries((prev) => [...prev, newPlannedDelivery])
 
-    setPlannerItems((currentItems) =>
-      currentItems.map((item) => {
-        const plannedItem = itemsToPlan.find((p) => p.id === item.id)
-        if (!plannedItem) return item
-        const allUnits = [
-          { unitName: item.baseUnit, baseUnitEquivalent: 1 },
-          ...item.packagingOptions,
-        ]
-        const unitInfo = allUnits.find(
-          (u) => u.unitName === plannedItem.unitOfMeasure
+    startTransition(async () => {
+      try {
+        const result = await createSingleDelivery(
+          order._id.toString(),
+          newPlannedDelivery
         )
-        const factor = unitInfo?.baseUnitEquivalent || 1
-        const allocatedBase = plannedItem.quantityToAllocate * factor
-        return {
-          ...item,
-          quantityAlreadyPlanned: item.quantityAlreadyPlanned + allocatedBase,
-          quantityToAllocate: 0,
+        if (result.success) {
+          toast.success(result.message)
+          methods.resetField('requestedDeliveryDate')
+          methods.resetField('requestedDeliverySlot')
+          methods.resetField('deliveryNotes')
+          methods.resetField('uitCode')
+          router.refresh()
+        } else {
+          toast.error('Eroare la creare:', { description: result.message }) // Folosit
         }
-      })
-    )
-    toast.success('Livrarea adăugată în planificare.') // <-- Folosim toast
-    methods.resetField('requestedDeliveryDate')
-    methods.resetField('deliveryNotes')
-    methods.resetField('uitCode')
+      } catch (error) {
+        toast.error('Eroare neașteptată la salvare.')
+        console.error(error)
+      }
+    })
   }
 
-  const handleDeliverAll = () => {
-    // 1. Validăm header-ul (la fel ca la 'Adaugă')
+  const handleDeliverAll = async () => {
     const headerData = methods.getValues()
     const validationResult = HeaderSchema.safeParse(headerData)
     if (!validationResult.success) {
@@ -242,20 +276,14 @@ export function DeliveryPlannerClient({
       uitCode,
     } = validationResult.data
 
-    // 2. Găsim TOATE item-urile care mai au ceva de livrat
     let totalAllocatedBase = 0
     const itemsToPlan = plannerItems
       .map((item) => {
-        // Calculăm rămasul în unitatea de bază
         const remainingInBaseUnit =
           item.quantityOrdered -
           item.quantityAlreadyShipped -
           item.quantityAlreadyPlanned
-
-        // Dacă nu mai e nimic de livrat, returnăm null
         if (remainingInBaseUnit <= 0.001) return null
-
-        // Calculăm factorul de conversie pt UM selectată
         const allUnits = [
           { unitName: item.baseUnit, baseUnitEquivalent: 1 },
           ...item.packagingOptions,
@@ -264,28 +292,22 @@ export function DeliveryPlannerClient({
           (u) => u.unitName === item.unitOfMeasure
         ) || { baseUnitEquivalent: 1 }
         const factor = unitInfo.baseUnitEquivalent || 1
-
-        // Calculăm rămasul în UM selectată
         const remainingInSelectedUnit = remainingInBaseUnit / factor
-
         totalAllocatedBase += remainingInBaseUnit
-
-        // Returnăm un obiect PlannerItem care reprezintă ce alocăm
         return {
           ...item,
-          quantityToAllocate: parseFloat(remainingInSelectedUnit.toFixed(2)), // Alocăm tot ce a rămas
+          quantityToAllocate: parseFloat(remainingInSelectedUnit.toFixed(2)),
         }
       })
-      .filter(Boolean) as PlannerItem[] // Filtrăm null-urile
+      .filter(Boolean) as PlannerItem[]
 
     if (itemsToPlan.length === 0 || totalAllocatedBase <= 0) {
       toast.error('Toate articolele au fost deja planificate integral.')
       return
     }
 
-    // 3. Creăm noul card de livrare
     const newPlannedDelivery: PlannedDelivery = {
-      id: uuidv4(),
+      id: uuidv4(), 
       requestedDeliveryDate: requestedDeliveryDate,
       requestedDeliverySlot: requestedDeliverySlot,
       deliveryDate: undefined,
@@ -293,113 +315,85 @@ export function DeliveryPlannerClient({
       items: itemsToPlan,
       deliveryNotes: deliveryNotes || undefined,
       uitCode: uitCode || undefined,
+      status: 'CREATED',
     }
 
-    // 4. Adăugăm cardul în lista din dreapta
-    setPlannedDeliveries((prev) => [...prev, newPlannedDelivery])
-
-    // 5. Actualizăm starea din stânga (setăm totul ca planificat)
-    setPlannerItems((currentItems) =>
-      currentItems.map((item) => {
-        const plannedItem = itemsToPlan.find((p) => p.id === item.id)
-        if (!plannedItem) return item
-
-        // Calculăm cât am alocat (tot ce a rămas)
-        const remainingInBaseUnit =
-          item.quantityOrdered -
-          item.quantityAlreadyShipped -
-          item.quantityAlreadyPlanned
-
-        return {
-          ...item,
-          // Adăugăm tot restul la planificat
-          quantityAlreadyPlanned:
-            item.quantityAlreadyPlanned +
-            (remainingInBaseUnit > 0 ? remainingInBaseUnit : 0),
-          quantityToAllocate: 0, // Resetăm inputul
+    startTransition(async () => {
+      try {
+        const result = await createSingleDelivery(
+          order._id.toString(),
+          newPlannedDelivery
+        )
+        if (result.success) {
+          toast.success(result.message)
+          methods.resetField('requestedDeliveryDate')
+          methods.resetField('requestedDeliverySlot')
+          methods.resetField('deliveryNotes')
+          methods.resetField('uitCode')
+          router.refresh()
+        } else {
+          toast.error('Eroare la creare:', { description: result.message }) // Folosit
         }
-      })
-    )
-
-    toast.success('Toate articolele rămase au fost adăugate într-o livrare.')
-    // Resetăm câmpurile
-    methods.resetField('requestedDeliveryDate')
-    methods.resetField('deliveryNotes')
-    methods.resetField('uitCode')
+      } catch (error) {
+        toast.error('Eroare neașteptată la salvare.')
+        console.error(error)
+      }
+    })
   }
 
   const handleRemovePlannedDelivery = (deliveryId: string) => {
     const deliveryToRemove = plannedDeliveries.find((d) => d.id === deliveryId)
     if (!deliveryToRemove) return
-    setPlannedDeliveries((prev) => prev.filter((d) => d.id !== deliveryId))
-    setPlannerItems((currentItems) =>
-      currentItems.map((item) => {
-        const plannedItem = deliveryToRemove.items.find((p) => p.id === item.id)
-        if (!plannedItem) return item
-        const allUnits = [
-          { unitName: item.baseUnit, baseUnitEquivalent: 1 },
-          ...item.packagingOptions,
-        ]
-        const unitInfo = allUnits.find(
-          (u) => u.unitName === plannedItem.unitOfMeasure
-        )
-        const factor = unitInfo?.baseUnitEquivalent || 1
-        const allocatedBase = plannedItem.quantityToAllocate * factor
-        return {
-          ...item,
-          quantityAlreadyPlanned: item.quantityAlreadyPlanned - allocatedBase,
-        }
+
+    if (deliveryToRemove.status !== 'CREATED') {
+      toast.error('Acțiune Interzisă', {
+        description: `Nu poți șterge o livrare cu statusul "${deliveryToRemove.status}".`,
       })
-    )
-    toast.warning('Livrarea eliminată din planificare.')
-  }
-
-  const totalRemaining = useMemo(
-    () =>
-      plannerItems.reduce((acc, item) => {
-        const remaining =
-          item.quantityOrdered -
-          item.quantityAlreadyShipped -
-          item.quantityAlreadyPlanned
-        return acc + (remaining > 0.0001 ? remaining : 0)
-      }, 0),
-    [plannerItems]
-  )
-  const allItemsPlanned = totalRemaining < 0.0001
-
-  const onFinalSubmit = async () => {
-    if (plannedDeliveries.length === 0 && existingDeliveries.length === 0) {
-      toast.error('Nu ai nicio livrare planificată de salvat.')
       return
     }
-    if (plannedDeliveries.length === 0 && existingDeliveries.length > 0) {
-      if (
-        !confirm(
-          'Ești sigur că vrei să ștergi toate livrările planificate anterior?'
-        )
-      ) {
-        return
-      }
-    }
-    setIsSubmitting(true)
-    try {
-      const result = await createDeliveryPlans(
-        order._id.toString(),
-        plannedDeliveries
-      )
-      if (result.success) {
-        toast.success(result.message)
-        router.push(`/orders/${order._id}`)
-      } else {
-        toast.error('Eroare la salvare:', { description: result.message }) // <-- Folosim toast
-      }
-    } catch (error) {
-      toast.error('Eroare la salvarea planificărilor.')
-      console.error(error)
-    } finally {
-      setIsSubmitting(false)
-    }
+
+    setDeliveryToDeleteId(deliveryId)
   }
+  const onConfirmDelete = () => {
+    if (!deliveryToDeleteId) return
+
+    startTransition(async () => {
+      try {
+        const result = await deleteDeliveryPlan(deliveryToDeleteId) // Folosim ID-ul din stare
+        if (result.success) {
+          toast.success(result.message)
+          router.refresh() 
+        } else {
+          toast.error('Eroare la ștergere:', { description: result.message })
+        }
+      } catch (error) {
+        toast.error('Eroare neașteptată la ștergere.')
+        console.error(error)
+      } finally {
+        setDeliveryToDeleteId(null)
+      }
+    })
+  }
+
+  const deliveryToDelete = useMemo(() => {
+    if (!deliveryToDeleteId) return null
+    return plannedDeliveries.find((d) => d.id === deliveryToDeleteId) ?? null
+  }, [deliveryToDeleteId, plannedDeliveries])
+
+  const deliveryIndex = deliveryToDelete
+    ? plannedDeliveries.indexOf(deliveryToDelete) + 1
+    : ''
+ 
+  const totalRemaining = useMemo(() => {
+    return plannerItems.reduce((acc, item) => {
+      const remaining =
+        item.quantityOrdered -
+        item.quantityAlreadyShipped -
+        item.quantityAlreadyPlanned
+      return acc + (remaining > 0.0001 ? remaining : 0)
+    }, 0)
+  }, [plannerItems])
+  const allItemsPlanned = totalRemaining < 0.0001
 
   return (
     <div className='space-y-6'>
@@ -407,27 +401,17 @@ export function DeliveryPlannerClient({
         <h1 className='text-2xl font-bold'>
           Planificare Livrări Comanda #{order.orderNumber}
         </h1>
+
         <div className='flex gap-2'>
           <Button asChild variant='outline' type='button'>
-            <Link href={`/orders/${order._id}`}>Înapoi</Link>
+            <Link href={`/orders/${order._id}`}>Înapoi La Comanda</Link>
           </Button>
-          <Button
-            type='button'
-            onClick={onFinalSubmit}
-            disabled={isSubmitting}
-            className='bg-red-600 hover:bg-red-700'
-          >
-            {isSubmitting ? (
-              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-            ) : (
-              <Send className='mr-2 h-4 w-4' />
-            )}
-            {plannedDeliveries.length > 0
-              ? 'Confirmă Planificările'
-              : 'Confirmă Ștergerea'}
+          <Button asChild variant='outline' type='button'>
+            <Link href='/orders/new'>Comandă Nouă</Link>
           </Button>
         </div>
       </div>
+
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
         <div className='lg:col-span-2 space-y-6'>
           <FormProvider {...methods}>
@@ -438,6 +422,7 @@ export function DeliveryPlannerClient({
               orderNotes={order.notes}
             />
           </FormProvider>
+
           <div className='flex gap-5'>
             <Button
               type='button'
@@ -445,9 +430,13 @@ export function DeliveryPlannerClient({
               className='w-[49%]'
               variant='outline'
               size='lg'
-              disabled={allItemsPlanned}
+              disabled={allItemsPlanned || isPending}
             >
-              <Boxes className='mr-2 h-4 w-4' />
+              {isPending ? (
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              ) : (
+                <Boxes className='mr-2 h-4 w-4' />
+              )}
               Livrează Tot
             </Button>
 
@@ -456,26 +445,68 @@ export function DeliveryPlannerClient({
               className='w-[49%]'
               onClick={handleAddToPlanning}
               size='lg'
-              disabled={allItemsPlanned}
+              disabled={allItemsPlanned || isPending}
             >
-              <ListPlus className='mr-2 h-5 w-5' />
+              {isPending ? (
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              ) : (
+                <ListPlus className='mr-2 h-5 w-5' />
+              )}
+
               {allItemsPlanned
                 ? 'Toate articolele planificate'
                 : 'Adaugă la Planificare'}
             </Button>
           </div>
+
           <DeliveryItemsAllocator
             itemsToAllocate={plannerItems}
             onAllocationChange={handleItemChange}
           />
         </div>
+
         <div className='lg:col-span-1'>
           <PlannedDeliveriesList
             plannedDeliveries={plannedDeliveries}
             onRemoveDelivery={handleRemovePlannedDelivery}
+            onEditDelivery={handleEditDelivery}
           />
         </div>
       </div>
+      <EditDeliveryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        deliveryToEdit={deliveryToEdit}
+        currentPlannerItems={plannerItems}
+      />
+      <AlertDialog
+        open={!!deliveryToDeleteId}
+        onOpenChange={(open) => {
+          if (!open) setDeliveryToDeleteId(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmare Anulare Livrarii</AlertDialogTitle>
+            <AlertDialogDescription>
+              Ești sigur că vrei să ștergi{' '}
+              <strong>
+                Livrarea {deliveryToDelete?.deliveryNumber || deliveryIndex}?
+              </strong>
+              <br />
+              Această acțiune este ireversibilă și va elibera articolele înapoi
+              în comandă.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Anulează</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmDelete} disabled={isPending}>
+              {isPending && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+              Confirmă Anularea
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

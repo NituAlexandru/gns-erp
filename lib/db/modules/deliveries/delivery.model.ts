@@ -144,6 +144,8 @@ export interface IDelivery extends Document {
   status: DeliveryStatusKey
   createdBy: Types.ObjectId
   createdByName: string
+  lastUpdatedBy?: Types.ObjectId
+  lastUpdatedByName?: string
   items: Types.DocumentArray<IDeliveryLineItem>
   totals: {
     productsSubtotal: number
@@ -186,8 +188,8 @@ const DeliverySchema = new Schema<IDelivery>(
       enum: DELIVERY_SLOTS,
       required: true,
     },
-    deliveryDate: { type: Date, required: true },
-    deliverySlot: { type: String, enum: DELIVERY_SLOTS, required: true },
+    deliveryDate: { type: Date },
+    deliverySlot: { type: String, enum: DELIVERY_SLOTS },
     vehicleType: { type: String, required: true },
     deliveryNotes: { type: String },
     orderNotes: { type: String },
@@ -208,6 +210,8 @@ const DeliverySchema = new Schema<IDelivery>(
     },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
+    lastUpdatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    lastUpdatedByName: { type: String },
     items: [DeliveryLineItemSchema],
     totals: {
       productsSubtotal: { type: Number, default: 0 },
@@ -228,5 +232,4 @@ const DeliveryModel: Model<IDelivery> =
   (models.Delivery as Model<IDelivery>) ||
   mongoose.model<IDelivery>('Delivery', DeliverySchema)
 
-export { DELIVERY_SLOTS }
 export default DeliveryModel

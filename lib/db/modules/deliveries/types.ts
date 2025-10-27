@@ -70,10 +70,12 @@ export type PlannerItem = {
 
 export type PlannedDelivery = {
   id: string
+  deliveryNumber?: string
+  status: DeliveryStatusKey
   requestedDeliveryDate: Date
-  requestedDeliverySlot: string
+  requestedDeliverySlot: (typeof DELIVERY_SLOTS)[number]
   deliveryDate?: Date
-  deliverySlot?: string
+  deliverySlot?: (typeof DELIVERY_SLOTS)[number]
   items: PlannerItem[]
   deliveryNotes?: string
   uitCode?: string
@@ -124,6 +126,8 @@ export interface NewDeliveryData {
   uitCode?: string
   createdBy: Types.ObjectId
   createdByName: string
+  lastUpdatedBy?: Types.ObjectId
+  lastUpdatedByName?: string
   items: NewDeliveryLineData[]
   totals: {
     productsSubtotal: number

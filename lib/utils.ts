@@ -82,8 +82,13 @@ export const formatError = (error: any): string => {
     })
     return fieldErrors.join('. ')
   } else if (error.code === 11000) {
-    const duplicateField = Object.keys(error.keyValue)[0]
-    return `${duplicateField} deja exista. Va rugam selectati alt ${duplicateField}`
+    if (error.keyValue) {
+      const duplicateField = Object.keys(error.keyValue)[0]
+      return `${duplicateField} deja există. Vă rugăm selectați alt ${duplicateField}`
+    } else {
+      // Fallback pentru erorile (ca MongoBulkWriteError) care nu au 'keyValue' la rădăcină
+      return 'Eroare de cheie duplicat (E11000). O intrare similară există deja.'
+    }
   } else {
     // return 'Something went wrong. please try again'
     return typeof error.message === 'string'

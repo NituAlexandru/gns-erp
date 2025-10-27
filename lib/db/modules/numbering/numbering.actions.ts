@@ -64,7 +64,6 @@ async function getNextOrderSequence(
   }
   return counter.currentNumber
 }
-
 export async function generateOrderNumber(
   options: { session?: ClientSession } = {}
 ): Promise<string> {
@@ -73,4 +72,31 @@ export async function generateOrderNumber(
   const datePrefix = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
   const paddedSequence = String(nextSequence).padStart(4, '0')
   return `${datePrefix}${paddedSequence}`
+}
+
+// --- FUNCȚII PENTRU LIVRĂRI ---
+async function getNextDeliverySequence(
+  options: { session?: ClientSession } = {}
+): Promise<number> {
+  const currentYear = new Date().getFullYear()
+  const counter = await DocumentCounter.findOneAndUpdate(
+    { seriesName: 'DELIVERY', year: currentYear },
+    { $inc: { currentNumber: 1 } },
+    { new: true, upsert: true, session: options.session }
+  )
+  if (!counter) {
+    throw new Error('Nu s-a putut genera numărul secvențial pentru livrare.')
+  }
+  return counter.currentNumber
+}
+
+export async function generateDeliveryNumber(
+  orderNumber: string, // Primim numărul comenzii ca parametru
+  options: { session?: ClientSession } = {}
+): Promise<string> {
+  const nextSequence = await getNextDeliverySequence(options)
+  // Padăm la 5 cifre
+  const paddedSequence = String(nextSequence).padStart(5, '0')
+  // Format: 00001-NumarComanda
+  return `${paddedSequence}-${orderNumber}`
 }

@@ -20,10 +20,13 @@ import {
 } from '@/lib/db/modules/deliveries/delivery.model'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
-import { Download, Truck } from 'lucide-react'
+import { Download, Pencil, Truck } from 'lucide-react'
 import { useMemo } from 'react' // Păstrăm useMemo
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { DELIVERY_STATUS_MAP } from '@/lib/db/modules/deliveries/constants'
+import Link from 'next/link'
 
 interface OrderDetailsViewProps {
   order: PopulatedOrder
@@ -83,7 +86,19 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
             {order.salesAgent?.name || 'N/A'}
           </p>
         </div>
-        <div className='flex items-center gap-10'>
+        <div className='flex items-center gap-2'>
+          <Button variant='outline' asChild title='Editează Comanda'>
+            <Link href={`/orders/${order._id}/edit`}>
+              Modifică Comanda <Pencil className='h-3 w-3' />
+            </Link>
+          </Button>
+
+          {/* Buton Planificare Livrări */}
+          <Button variant='outline' asChild title='Planifică Livrări'>
+            <Link href={`/deliveries/new?orderId=${order._id}`}>
+              Modifică Livrarile <Truck />
+            </Link>
+          </Button>
           <Button variant='outline'>
             Proforma <Download />
           </Button>
@@ -340,70 +355,120 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                 <CardTitle>Livrări Planificate ({deliveries.length})</CardTitle>
               </CardHeader>
               <CardContent className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
-                {deliveries.map((delivery, index) => (
-                  <Card
-                    key={delivery._id.toString()}
-                    className='bg-muted/50 flex flex-col'
-                  >
-                    <CardHeader className='p-4 pb-2'>
-                      <div className='flex flex-row items-center justify-between'>
-                        <CardTitle className='text-base font-semibold flex items-center'>
-                          <Truck className='h-4 w-4 mr-2' />
-                          Livrarea {index + 1}
-                        </CardTitle>
-                        <span className='text-xs font-mono'>
-                          Nr. {delivery.deliveryNumber}
-                        </span>{' '}
-                        <Button variant='outline'>
-                          Aviz <Download />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className='p-4 pt-0 text-sm space-y-3 flex-grow flex flex-col'>
-                      <div className='flex-grow space-y-3'>
-                        <div>
-                          <strong>Data:</strong>{' '}
-                          {format(new Date(delivery.deliveryDate), 'PPP', {
-                            locale: ro,
-                          })}
-                          <br />
-                          <strong>Interval:</strong> {delivery.deliverySlot}
-                        </div>
-                        {delivery.deliveryNotes && (
-                          <div>
-                            <strong>Note Livrare:</strong>{' '}
-                            <i className='text-muted-foreground'>
-                              {' '}
-                              {delivery.deliveryNotes}
-                            </i>
+                {deliveries.map((delivery) => {
+                  const statusInfo = DELIVERY_STATUS_MAP[delivery.status] || {
+                    name: 'Necunoscut',
+                    variant: 'secondary',
+                  }
+
+                  return (
+                    <Card
+                      key={delivery._id.toString()}
+                      className='bg-muted/50 flex flex-col'
+                    >
+                      <CardHeader className='p-4 pb-2'>
+                        {/* Am folosit flexbox pentru aliniere */}
+                        <div className='flex flex-row items-center justify-between gap-2'>
+                          {/* Titlu cu numărul livrării */}
+                          <CardTitle className='text-base font-semibold flex items-center gap-1 flex-wrap'>
+                            <h3 className='font-mono text-xs sm:text-sm whitespace-nowrap'>
+                              Livrarea Nr. {delivery.deliveryNumber}
+                            </h3>
+                          </CardTitle>
+                          {/* Container dreapta pt badge și buton aviz */}
+                          <div className='flex items-center gap-1 flex-shrink-0'>
+                            {/* Badge-ul de status (adăugat) */}
+                            <Badge
+                              variant={statusInfo.variant}
+                              className='text-xs'
+                            >
+                              {statusInfo.name}
+                            </Badge>
+
+                            {/* Buton Aviz (ajustat stil) */}
+                            <Button size='sm' variant='outline'>
+                              <Download className='h-3 w-3 sm:mr-1' />
+                              <span className='hidden sm:inline'>Aviz</span>
+                            </Button>
                           </div>
-                        )}
-                        {delivery.uitCode && (
-                          <div>
-                            <strong>Cod UIT:</strong> {delivery.uitCode}
-                          </div>
-                        )}
-                        <ul className='list-disc pl-5 text-muted-foreground'>
-                          {delivery.items.map((item: IDeliveryLineItem) => (
-                            <li key={item._id.toString()}>
-                              {item.quantity} {item.unitOfMeasure}
-                              {' - '}
-                              {item.productName}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div className='mt-auto pt-2 border-t'>
-                        <div className='flex justify-between font-semibold'>
-                          <span>Total Livrare</span>
-                          <span>
-                            {formatCurrency(delivery.totals.grandTotal)}
-                          </span>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardHeader>
+                      {/* CardContent rămâne la fel */}
+                      <CardContent className='p-4 pt-0 text-sm space-y-3 flex-grow flex flex-col'>
+                        <div className='flex-grow space-y-3'>
+                          {delivery.deliveryDate ? (
+                            // CAZ 1: Există dată programată de logistică
+                            <div className='text-green-600 font-semibold border-l-2 border-green-600 pl-2'>
+                              <strong>Programat:</strong>{' '}
+                              {format(
+                                new Date(delivery.deliveryDate), // Folosim deliveryDate
+                                'PPP',
+                                { locale: ro }
+                              )}
+                              {delivery.deliverySlot && ( // Verificăm și afișăm deliverySlot
+                                <>
+                                  <br />
+                                  <strong>Interval:</strong>{' '}
+                                  {delivery.deliverySlot}
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            // CAZ 2: Nu există dată programată, afișăm data solicitată
+                            <div>
+                              <strong>Livrare Solicitata la:</strong>{' '}
+                              {/* Am schimbat label-ul */}
+                              {format(
+                                new Date(delivery.requestedDeliveryDate), // Folosim requestedDeliveryDate
+                                'PPP',
+                                { locale: ro }
+                              )}
+                              {delivery.requestedDeliverySlot && ( // Verificăm și afișăm requestedDeliverySlot
+                                <>
+                                  <br />
+                                  <strong>Interval:</strong>{' '}
+                                  {delivery.requestedDeliverySlot}
+                                </>
+                              )}
+                            </div>
+                          )}
+                          {delivery.deliveryNotes && (
+                            <div>
+                              <strong>Note Livrare:</strong>{' '}
+                              <i className='text-muted-foreground'>
+                                {' '}
+                                {delivery.deliveryNotes}
+                              </i>
+                            </div>
+                          )}
+                          {delivery.uitCode && (
+                            <div>
+                              <strong>Cod UIT:</strong> {delivery.uitCode}
+                            </div>
+                          )}
+                          <ul className='list-disc pl-5 text-muted-foreground'>
+                            {delivery.items.map((item: IDeliveryLineItem) => (
+                              <li key={item._id.toString()}>
+                                {item.quantity} {item.unitOfMeasure}
+                                {' - '}
+                                {item.productName}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className='mt-auto pt-2 border-t'>
+                          <div className='flex justify-between font-semibold'>
+                            <span>Total Livrare</span>
+                            <span>
+                              {formatCurrency(delivery.totals.grandTotal)}
+                            </span>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+                {/* --- SFÂRȘIT BLOC ÎNLOCUIT --- */}
               </CardContent>
             </Card>
           </div>

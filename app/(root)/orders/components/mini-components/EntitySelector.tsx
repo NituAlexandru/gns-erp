@@ -42,7 +42,7 @@ export function EntitySelector({
             <FormControl>
               <RadioGroup
                 onValueChange={field.onChange}
-                defaultValue={field.value}
+                defaultValue='client'
                 className='flex items-center space-x-4'
               >
                 {/* --- OPȚIUNEA "CLIENT" --- */}
