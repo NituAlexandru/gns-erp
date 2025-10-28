@@ -9,6 +9,7 @@ export const DELIVERY_SLOTS = [
   '12:30 - 14:00',
   '14:00 - 15:30',
   '15:30 - 17:00',
+  '08:00 - 17:00',
 ] as const
 
 export const DELIVERY_STATUS_MAP: Record<

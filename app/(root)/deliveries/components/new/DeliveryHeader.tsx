@@ -10,13 +10,6 @@ import {
 } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   FormControl,
   FormField,
   FormItem,
@@ -29,6 +22,7 @@ import { cn } from '@/lib/utils'
 import { format } from 'date-fns'
 import { PopulatedOrder } from '@/lib/db/modules/order/types'
 import { DELIVERY_SLOTS } from '@/lib/db/modules/deliveries/constants'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface DeliveryHeaderProps {
   clientSnapshot: PopulatedOrder['clientSnapshot']
@@ -76,88 +70,110 @@ export function DeliveryHeader({
         )}
 
         {/* Rând 2: Inputuri Formular (Interactive) */}
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
-          <FormField
-            control={control}
-            name='requestedDeliveryDate'
-            render={({ field }) => (
-              <FormItem className='flex flex-col'>
-                <FormLabel>Data Solicitată de Livrare</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <FormControl>
-                      <Button
-                        variant={'outline'}
-                        className={cn(
-                          'pl-3 text-left font-normal',
-                          !field.value && 'text-muted-foreground'
-                        )}
-                      >
-                        {field.value ? (
-                          format(field.value, 'PPP')
-                        ) : (
-                          <span>Alege o dată</span>
-                        )}
-                        <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
-                      </Button>
-                    </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className='w-auto p-0' align='start'>
-                    <Calendar
-                      mode='single'
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      disabled={(date) =>
-                        date < new Date(new Date().setHours(0, 0, 0, 0))
-                      }
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={control}
-            name='requestedDeliverySlot'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Interval Orar Solicitat pentru Livrare</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value || ''}
-                >
-                  <FormControl>
-                    <SelectTrigger className='w-full'>
-                      <SelectValue placeholder='Alege un interval...' />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {DELIVERY_SLOTS.map((slot: string) => (
-                      <SelectItem key={slot} value={slot}>
-                        {slot}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormItem>
-            <FormLabel>Tip Vehicul (din comandă)</FormLabel>
-            <Input disabled value={vehicleType} />
-            {/* Stocăm valoarea în formular, dar ascuns */}
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 items-start'>
+          <div className='space-y-4'>
+            <FormField
+              control={control}
+              name='requestedDeliveryDate'
+              render={({ field }) => (
+                <FormItem className='flex flex-col'>
+                  <FormLabel>Data Solicitată</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={'outline'}
+                          className={cn(
+                            'pl-3 text-left font-normal w-full', // w-full
+                            !field.value && 'text-muted-foreground'
+                          )}
+                        >
+                          {field.value ? (
+                            format(field.value, 'PPP')
+                          ) : (
+                            <span>Alege o dată</span>
+                          )}
+                          <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className='w-auto p-0' align='start'>
+                      <Calendar
+                        mode='single'
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) =>
+                          date < new Date(new Date().setHours(0, 0, 0, 0))
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormItem>
+              <FormLabel>Tip Vehicul (din comandă)</FormLabel>
+              <Input disabled value={vehicleType} className='bg-muted' />{' '}
+                      <Controller
+                control={control}
+                name='vehicleType'
+                defaultValue={vehicleType}
+                render={({ field }) => <input type='hidden' {...field} />}
+              />
+            </FormItem>
+          </div>
+          {/* Coloana 2 & 3 (Ocupă 2/3) */}
+          <div className='md:col-span-2'>
+           
             <Controller
               control={control}
-              name='vehicleType'
-              defaultValue={vehicleType}
-              render={({ field }) => <input type='hidden' {...field} />}
+              name='requestedDeliverySlots'
+              render={(
+                { field } 
+              ) => (
+                <FormItem>
+                  <div className='mb-2'>
+                    <FormLabel>Interval(e) Orar(e) Solicitat(e)</FormLabel>
+                  </div>
+                  {/* Container Grid pt Checkboxes */}
+                  <div className='grid grid-cols-3 gap-x-4 gap-y-2'>
+                    {DELIVERY_SLOTS.map((slot) => (
+                      <FormItem
+                        key={slot}
+                        className='flex flex-row items-center space-x-2 space-y-0'
+                      >
+                        <FormControl>
+                          <Checkbox
+                           checked={(field.value || []).includes(slot)}
+                            onCheckedChange={(checked) => {
+                              const currentValue = field.value || [] // Array-ul curent
+                              let newValue: string[]
+                              if (checked) {
+                              
+                                newValue = [...currentValue, slot]
+                              } else {
+                              
+                                newValue = currentValue.filter(
+                                  (value: string) => value !== slot
+                                )
+                              }
+                              field.onChange(newValue) 
+                            }}
+                          />
+                        </FormControl>
+                        <FormLabel className='font-normal text-sm whitespace-nowrap'>
+                          {slot}
+                        </FormLabel>
+                      </FormItem>
+                    ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </FormItem>
+          </div>
         </div>
         {/* Rând 3: Câmpuri Noi (Note Livrare, UIT) --- */}
         <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>

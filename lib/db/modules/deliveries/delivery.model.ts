@@ -134,14 +134,20 @@ export interface IDelivery extends Document {
   deliveryAddress: DeliveryAddress
   deliveryAddressId: Types.ObjectId
   requestedDeliveryDate: Date
-  requestedDeliverySlot: (typeof DELIVERY_SLOTS)[number]
-  deliveryDate: Date
-  deliverySlot: (typeof DELIVERY_SLOTS)[number]
+  requestedDeliverySlots: string[]
+  deliveryDate?: Date
+  deliverySlots?: string[]
   vehicleType: string
   deliveryNotes?: string
   orderNotes?: string
   uitCode?: string
   status: DeliveryStatusKey
+  assemblyId?: Types.ObjectId
+  driverName?: string
+  vehicleNumber?: string
+  trailerNumber?: string
+  isNoticed: boolean
+  isInvoiced: boolean
   createdBy: Types.ObjectId
   createdByName: string
   lastUpdatedBy?: Types.ObjectId
@@ -183,13 +189,13 @@ const DeliverySchema = new Schema<IDelivery>(
     salesAgentSnapshot: { type: SalesAgentSnapshotSchema, required: true },
     deliveryAddress: { type: DeliveryAddressSchema, required: true }, // Snapshot-ul adresei
     requestedDeliveryDate: { type: Date, required: true },
-    requestedDeliverySlot: {
-      type: String,
+    requestedDeliverySlots: {
+      type: [String],
       enum: DELIVERY_SLOTS,
       required: true,
     },
     deliveryDate: { type: Date },
-    deliverySlot: { type: String, enum: DELIVERY_SLOTS },
+    deliverySlots: { type: [String], enum: DELIVERY_SLOTS },
     vehicleType: { type: String, required: true },
     deliveryNotes: { type: String },
     orderNotes: { type: String },
@@ -208,6 +214,12 @@ const DeliverySchema = new Schema<IDelivery>(
       required: true,
       index: true,
     },
+    assemblyId: { type: Schema.Types.ObjectId, ref: 'Assignment', index: true },
+    driverName: { type: String },
+    vehicleNumber: { type: String },
+    trailerNumber: { type: String },
+    isNoticed: { type: Boolean, default: false, index: true },
+    isInvoiced: { type: Boolean, default: false, index: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
     lastUpdatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
@@ -227,6 +239,23 @@ const DeliverySchema = new Schema<IDelivery>(
   },
   { timestamps: true }
 )
+
+DeliverySchema.path('status').validate(function (value) {
+  if (
+    value === 'SCHEDULED' &&
+    (!this.deliverySlots || this.deliverySlots.length === 0)
+  ) {
+    return false // Invalidează dacă e SCHEDULED și nu are sloturi
+  }
+  return true
+}, 'Intervalele orare (deliverySlots) sunt obligatorii pentru o livrare programată (SCHEDULED).')
+
+DeliverySchema.path('status').validate(function (value) {
+  if (value === 'SCHEDULED' && !this.assemblyId) {
+    return false // Invalidează dacă e SCHEDULED și nu are ansamblu
+  }
+  return true
+}, 'Ansamblul (assemblyId) este obligatoriu pentru o livrare programată (SCHEDULED).')
 
 const DeliveryModel: Model<IDelivery> =
   (models.Delivery as Model<IDelivery>) ||

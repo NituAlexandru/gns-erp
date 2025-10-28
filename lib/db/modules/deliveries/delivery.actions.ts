@@ -16,7 +16,6 @@ import {
   PlannedDelivery,
   DeliveryStatusKey,
 } from './types'
-import { DELIVERY_SLOTS } from './constants'
 import { generateDeliveryNumber } from '../numbering/numbering.actions'
 
 function buildDeliveryLine(
@@ -127,12 +126,9 @@ function createSingleDeliveryDocument(
 
   const deliveryData: NewDeliveryData = {
     requestedDeliveryDate: plan.requestedDeliveryDate,
-    requestedDeliverySlot:
-      plan.requestedDeliverySlot as (typeof DELIVERY_SLOTS)[number],
-    deliveryDate: plan.deliveryDate,
-    deliverySlot: plan.deliverySlot as
-      | (typeof DELIVERY_SLOTS)[number]
-      | undefined,
+    requestedDeliverySlots: plan.requestedDeliverySlots, // Folosim array-ul
+    deliveryDate: plan.deliveryDate, // Rămâne undefined la creare
+    deliverySlots: plan.deliverySlots, //
     vehicleType: originalOrder.estimatedVehicleType || 'N/A',
     createdBy: new Types.ObjectId(user.id),
     createdByName: user.name,
@@ -197,6 +193,7 @@ export async function createSingleDelivery(
     const deliveryForInsert: DeliveryDataForInsert = {
       ...deliveryData,
       deliveryNumber: deliveryNumber,
+      status: 'CREATED',
     }
 
     // 3. Inserăm livrarea
@@ -375,11 +372,11 @@ export async function updateSingleDelivery(
     // 5. Actualizăm documentul de livrare
     delivery.set({
       requestedDeliveryDate: plan.requestedDeliveryDate,
-      requestedDeliverySlot: plan.requestedDeliverySlot,
+      requestedDeliverySlots: plan.requestedDeliverySlots,
       deliveryNotes: plan.deliveryNotes,
       uitCode: plan.uitCode,
       deliveryDate: plan.deliveryDate,
-      deliverySlot: plan.deliverySlot,
+      deliverySlots: plan.deliverySlots,
       items: newDeliveryLinesData as Types.DocumentArray<IDeliveryLineItem>,
       totals: newDeliveryTotals,
       lastUpdatedBy: new Types.ObjectId(user.id),

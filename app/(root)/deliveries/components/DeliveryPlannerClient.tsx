@@ -107,11 +107,11 @@ function mapDbDeliveriesToPlannedDeliveries(
     deliveryNumber: dbDelivery.deliveryNumber,
     status: dbDelivery.status,
     requestedDeliveryDate: new Date(dbDelivery.requestedDeliveryDate),
-    requestedDeliverySlot: dbDelivery.requestedDeliverySlot,
+    requestedDeliverySlots: dbDelivery.requestedDeliverySlots,
     deliveryDate: dbDelivery.deliveryDate
       ? new Date(dbDelivery.deliveryDate)
       : undefined,
-    deliverySlot: dbDelivery.deliverySlot || undefined,
+    deliverySlots: dbDelivery.deliverySlots || undefined,
     deliveryNotes: dbDelivery.deliveryNotes || undefined,
     uitCode: dbDelivery.uitCode || undefined,
     items: dbDelivery.items.map((dbLine: IDeliveryLineItem) => ({
@@ -158,7 +158,7 @@ export function DeliveryPlannerClient({
   )
   const [deliveryToDeleteId, setDeliveryToDeleteId] = useState<string | null>(
     null
-  ) 
+  )
   const handleEditDelivery = (delivery: PlannedDelivery) => {
     setDeliveryToEdit(delivery)
     setIsModalOpen(true)
@@ -174,7 +174,7 @@ export function DeliveryPlannerClient({
     () => mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[])
   )
 
-    useEffect(() => {
+  useEffect(() => {
     setPlannerItems(
       mapOrderItemsToPlannerItems(
         order.lineItems,
@@ -190,6 +190,7 @@ export function DeliveryPlannerClient({
     resolver: zodResolver(HeaderSchema),
     defaultValues: {
       requestedDeliveryDate: new Date(),
+      requestedDeliverySlots: [],
       deliveryNotes: '',
       uitCode: '',
     },
@@ -206,14 +207,14 @@ export function DeliveryPlannerClient({
     const headerData = methods.getValues()
     const validationResult = HeaderSchema.safeParse(headerData)
     if (!validationResult.success) {
-      toast.error('Completează Data și Intervalul Orar.', {
+      toast.error('Completează Datași cel puțin un Interval Orar.', {
         description: validationResult.error.errors[0].message,
       })
       return
     }
     const {
       requestedDeliveryDate,
-      requestedDeliverySlot,
+      requestedDeliverySlots,
       deliveryNotes,
       uitCode,
     } = validationResult.data
@@ -226,11 +227,11 @@ export function DeliveryPlannerClient({
     }
 
     const newPlannedDelivery: PlannedDelivery = {
-      id: uuidv4(), 
+      id: uuidv4(),
       requestedDeliveryDate: requestedDeliveryDate,
-      requestedDeliverySlot: requestedDeliverySlot,
+      requestedDeliverySlots: requestedDeliverySlots,
       deliveryDate: undefined,
-      deliverySlot: undefined,
+      deliverySlots: undefined,
       items: itemsToPlan,
       deliveryNotes: deliveryNotes || undefined,
       uitCode: uitCode || undefined,
@@ -245,10 +246,12 @@ export function DeliveryPlannerClient({
         )
         if (result.success) {
           toast.success(result.message)
-          methods.resetField('requestedDeliveryDate')
-          methods.resetField('requestedDeliverySlot')
-          methods.resetField('deliveryNotes')
-          methods.resetField('uitCode')
+          methods.reset({
+            requestedDeliveryDate: new Date(),
+            requestedDeliverySlots: [],
+            deliveryNotes: '',
+            uitCode: '',
+          })
           router.refresh()
         } else {
           toast.error('Eroare la creare:', { description: result.message }) // Folosit
@@ -264,14 +267,14 @@ export function DeliveryPlannerClient({
     const headerData = methods.getValues()
     const validationResult = HeaderSchema.safeParse(headerData)
     if (!validationResult.success) {
-      toast.error('Completează Data și Intervalul Orar.', {
+      toast.error('Completează Data și cel puțin un Interval Orar.', {
         description: validationResult.error.errors[0].message,
       })
       return
     }
     const {
       requestedDeliveryDate,
-      requestedDeliverySlot,
+      requestedDeliverySlots,
       deliveryNotes,
       uitCode,
     } = validationResult.data
@@ -307,11 +310,11 @@ export function DeliveryPlannerClient({
     }
 
     const newPlannedDelivery: PlannedDelivery = {
-      id: uuidv4(), 
+      id: uuidv4(),
       requestedDeliveryDate: requestedDeliveryDate,
-      requestedDeliverySlot: requestedDeliverySlot,
+      requestedDeliverySlots: requestedDeliverySlots,
       deliveryDate: undefined,
-      deliverySlot: undefined,
+      deliverySlots: undefined,
       items: itemsToPlan,
       deliveryNotes: deliveryNotes || undefined,
       uitCode: uitCode || undefined,
@@ -326,10 +329,12 @@ export function DeliveryPlannerClient({
         )
         if (result.success) {
           toast.success(result.message)
-          methods.resetField('requestedDeliveryDate')
-          methods.resetField('requestedDeliverySlot')
-          methods.resetField('deliveryNotes')
-          methods.resetField('uitCode')
+          methods.reset({
+            requestedDeliveryDate: new Date(),
+            requestedDeliverySlots: [],
+            deliveryNotes: '',
+            uitCode: '',
+          })
           router.refresh()
         } else {
           toast.error('Eroare la creare:', { description: result.message }) // Folosit
@@ -362,7 +367,7 @@ export function DeliveryPlannerClient({
         const result = await deleteDeliveryPlan(deliveryToDeleteId) // Folosim ID-ul din stare
         if (result.success) {
           toast.success(result.message)
-          router.refresh() 
+          router.refresh()
         } else {
           toast.error('Eroare la ștergere:', { description: result.message })
         }
@@ -383,7 +388,7 @@ export function DeliveryPlannerClient({
   const deliveryIndex = deliveryToDelete
     ? plannedDeliveries.indexOf(deliveryToDelete) + 1
     : ''
- 
+
   const totalRemaining = useMemo(() => {
     return plannerItems.reduce((acc, item) => {
       const remaining =

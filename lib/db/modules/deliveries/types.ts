@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { HeaderSchema } from './validator'
 import { IOrder } from '../order/order.model'
 import { Types } from 'mongoose'
-import { DELIVERY_SLOTS } from './constants'
 
 export type DeliveryStatusKey =
   | 'CREATED' // Creata (starea inițială, creată de tine)
@@ -73,9 +72,9 @@ export type PlannedDelivery = {
   deliveryNumber?: string
   status: DeliveryStatusKey
   requestedDeliveryDate: Date
-  requestedDeliverySlot: (typeof DELIVERY_SLOTS)[number]
+  requestedDeliverySlots: string[]
   deliveryDate?: Date
-  deliverySlot?: (typeof DELIVERY_SLOTS)[number]
+  deliverySlots?: string[]
   items: PlannerItem[]
   deliveryNotes?: string
   uitCode?: string
@@ -117,9 +116,9 @@ export interface NewDeliveryData {
   deliveryAddress: DeliveryAddress
   deliveryAddressId: Types.ObjectId
   requestedDeliveryDate: Date
-  requestedDeliverySlot: (typeof DELIVERY_SLOTS)[number]
+  requestedDeliverySlots: string[]
   deliveryDate?: Date
-  deliverySlot?: (typeof DELIVERY_SLOTS)[number]
+  deliverySlots?: string[]
   vehicleType: string
   deliveryNotes?: string
   orderNotes?: string
@@ -128,6 +127,10 @@ export interface NewDeliveryData {
   createdByName: string
   lastUpdatedBy?: Types.ObjectId
   lastUpdatedByName?: string
+  assemblyId?: Types.ObjectId
+  driverName?: string
+  vehicleNumber?: string
+  trailerNumber?: string
   items: NewDeliveryLineData[]
   totals: {
     productsSubtotal: number
@@ -145,6 +148,7 @@ export interface NewDeliveryData {
 // Tipul final pentru insert (backend)
 export type DeliveryDataForInsert = NewDeliveryData & {
   deliveryNumber: string
+  status: 'CREATED'
 }
 
 // Tipul pentru Header (client)

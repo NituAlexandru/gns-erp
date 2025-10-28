@@ -1,7 +1,12 @@
 'use client'
 
 import { useTransition, useEffect, useMemo, useState } from 'react'
-import { useForm, useFieldArray, FormProvider } from 'react-hook-form'
+import {
+  useForm,
+  useFieldArray,
+  FormProvider,
+  Controller,
+} from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Dialog,
@@ -10,18 +15,13 @@ import {
   DialogTitle,
   DialogFooter,
   DialogClose,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -56,6 +56,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { DELIVERY_SLOTS } from '@/lib/db/modules/deliveries/constants'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface EditDeliveryModalProps {
   isOpen: boolean
@@ -71,9 +72,10 @@ function isDeliverySlot(slot: unknown): slot is DeliverySlot {
 }
 
 type EditDeliveryFormInput = HeaderInput & {
+  // HeaderInput are acum requestedDeliverySlots[]
   items: PlannerItem[]
   deliveryDate?: Date
-  deliverySlot?: DeliverySlot
+  deliverySlots?: string[]
 }
 
 export function EditDeliveryModal({
@@ -93,12 +95,12 @@ export function EditDeliveryModal({
     resolver: zodResolver(HeaderSchema),
     defaultValues: {
       requestedDeliveryDate: new Date(),
-      requestedDeliverySlot: undefined,
+      requestedDeliverySlots: [],
       deliveryNotes: '',
       uitCode: '',
       items: [],
       deliveryDate: undefined,
-      deliverySlot: undefined,
+      deliverySlots: undefined,
     },
   })
 
@@ -112,26 +114,51 @@ export function EditDeliveryModal({
   // Resetăm formularul de fiecare dată când `deliveryToEdit` se schimbă (când se deschide modalul)
   useEffect(() => {
     if (deliveryToEdit) {
-      const validReqSlot = isDeliverySlot(deliveryToEdit.requestedDeliverySlot)
-        ? deliveryToEdit.requestedDeliverySlot
-        : undefined
-      const validSlot = isDeliverySlot(deliveryToEdit.deliverySlot)
-        ? deliveryToEdit.deliverySlot
-        : undefined
+      // Validăm fiecare slot din array-ul solicitat
+      const validReqSlots = Array.isArray(deliveryToEdit.requestedDeliverySlots)
+        ? deliveryToEdit.requestedDeliverySlots.filter(isDeliverySlot) // Filtrează doar sloturile valide
+        : [] // Default la array gol dacă nu e array
+
+      // Validăm fiecare slot din array-ul programat (dacă există)
+      const validSlots = Array.isArray(deliveryToEdit.deliverySlots)
+        ? deliveryToEdit.deliverySlots.filter(isDeliverySlot)
+        : undefined 
+
+      console.log('Resetting form with:', {
+        requestedDeliveryDate: new Date(deliveryToEdit.requestedDeliveryDate),
+        requestedDeliverySlots: validReqSlots, // Verifică acest array în consolă
+        deliveryNotes: deliveryToEdit.deliveryNotes || '',
+        uitCode: deliveryToEdit.uitCode || '',
+        items: deliveryToEdit.items.length, // Logăm doar lungimea pt claritate
+        deliveryDate: deliveryToEdit.deliveryDate
+          ? new Date(deliveryToEdit.deliveryDate)
+          : undefined,
+        deliverySlots: validSlots,
+      })
 
       reset({
         requestedDeliveryDate: new Date(deliveryToEdit.requestedDeliveryDate),
-        requestedDeliverySlot: validReqSlot,
+        requestedDeliverySlots: validReqSlots,
         deliveryNotes: deliveryToEdit.deliveryNotes || '',
         uitCode: deliveryToEdit.uitCode || '',
         items: deliveryToEdit.items,
         deliveryDate: deliveryToEdit.deliveryDate
           ? new Date(deliveryToEdit.deliveryDate)
           : undefined,
-        deliverySlot: validSlot,
+
+        deliverySlots: validSlots,
       })
     } else {
-      reset()
+      // La închidere, resetăm la valorile default (care includ requestedDeliverySlots: [])
+      reset({
+        requestedDeliveryDate: new Date(),
+        requestedDeliverySlots: [], // Resetăm la array gol
+        deliveryNotes: '',
+        uitCode: '',
+        items: [],
+        deliveryDate: undefined,
+        deliverySlots: undefined,
+      })
     }
   }, [deliveryToEdit, isOpen, reset])
 
@@ -158,12 +185,24 @@ export function EditDeliveryModal({
     if (!deliveryToEdit) return
 
     const items = methods.getValues('items')
+    const requestedDeliverySlots = methods.getValues('requestedDeliverySlots')
 
-    const updatedPlannedDelivery: PlannedDelivery = {
-      ...deliveryToEdit,
-      ...data,
+   const updatedPlannedDelivery: PlannedDelivery = {
+      ...deliveryToEdit, 
+      requestedDeliveryDate: data.requestedDeliveryDate,
+      deliveryNotes: data.deliveryNotes,
+      uitCode: data.uitCode,
+      requestedDeliverySlots: requestedDeliverySlots,
       items: items,
+      deliveryDate: deliveryToEdit.deliveryDate,
+      deliverySlots: deliveryToEdit.deliverySlots,
+      deliveryNumber: deliveryToEdit.deliveryNumber, 
     }
+
+    console.log(
+      'Obiect trimis la updateSingleDelivery:',
+      updatedPlannedDelivery
+    ) 
 
     startTransition(async () => {
       try {
@@ -192,7 +231,6 @@ export function EditDeliveryModal({
       return
     }
 
-    // Găsim item-ul corespondent în props pentru a calcula corect rămasul TOTAL
     const originalPlannerItem = currentPlannerItems.find(
       (p) => p.id === item.id
     )
@@ -201,7 +239,6 @@ export function EditDeliveryModal({
       return
     }
 
-    // Calculăm rămasul TOTAL pe comandă (în unitatea de măsură selectată)
     const remainingBase =
       originalPlannerItem.quantityOrdered -
       originalPlannerItem.quantityAlreadyShipped -
@@ -218,19 +255,16 @@ export function EditDeliveryModal({
       toast.error('Cantitate Invalidă', {
         description: `Nu puteți adăuga mai mult decât cantitatea rămasă (${remainingRounded.toFixed(2)} ${item.unitOfMeasure}).`,
       })
-      // Resetăm inputul la maximul posibil
       setQuantitiesToAdd((prev) => ({ ...prev, [item.id]: remainingRounded }))
       return
     }
 
-    // Adăugăm item-ul în array-ul formularului
     append({
       ...item,
       quantityToAllocate: parseFloat(quantity.toFixed(2)),
     })
 
-    // Resetăm inputul specific după adăugare
-    setQuantitiesToAdd((prev) => ({ ...prev, [item.id]: 0 }))
+     setQuantitiesToAdd((prev) => ({ ...prev, [item.id]: 0 }))
   }
 
   const handleRemoveItem = (index: number) => {
@@ -296,6 +330,9 @@ export function EditDeliveryModal({
       <DialogContent className='sm:max-w-none w-[90vw] md:w-[70vw] max-h-[90vh] flex flex-col'>
         <DialogHeader>
           <DialogTitle>Editare Livrare</DialogTitle>
+          <DialogDescription className='sr-only'>
+            Formular pentru editarea detaliilor livrării.
+          </DialogDescription>
         </DialogHeader>
 
         <FormProvider {...methods}>
@@ -346,30 +383,57 @@ export function EditDeliveryModal({
                   </FormItem>
                 )}
               />
-              <FormField
+              <Controller
                 control={control}
-                name='requestedDeliverySlot'
-                render={({ field }) => (
+                name='requestedDeliverySlots'
+                render={(
+                  { field } 
+                ) => (
                   <FormItem>
-                    <FormLabel>Interval Orar Solicitat</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder='Alege un interval...' />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {DELIVERY_SLOTS.map((slot) => (
-                          <SelectItem key={slot} value={slot}>
+                    <div className='mb-4'>
+                      <FormLabel>Interval(e) Orar(e) Solicitat(e)</FormLabel>
+                      <FormDescription>
+                        Selectează unul sau mai multe intervale preferate.
+                      </FormDescription>
+                    </div>
+                    {/* Container Grid pt Checkboxes */}
+                    <div className='grid grid-cols-3 gap-x-4 gap-y-2'>
+                      {DELIVERY_SLOTS.map((slot) => (
+                        <FormItem
+                          key={slot}
+                          className='flex flex-row items-center space-x-3 space-y-0 mb-2'
+                        >
+                          <FormControl>
+                            <Checkbox
+    
+                              checked={(field.value || []).includes(slot)}
+                              onCheckedChange={(checked) => {
+                                const currentValue = field.value || [] 
+                                let newValue: string[]
+                                if (checked) {
+                                 
+                                  newValue = [...currentValue, slot]
+                                } else {
+                              
+                                  newValue = currentValue.filter(
+                                    (value: string) => value !== slot
+                                  )
+                                }
+                                field.onChange(newValue) 
+                              }}
+                            />
+                          </FormControl>
+                          <FormLabel className='font-normal text-sm whitespace-nowrap'>
                             {slot}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                          </FormLabel>
+                        </FormItem>
+                      ))}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+          
             </div>
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <FormField

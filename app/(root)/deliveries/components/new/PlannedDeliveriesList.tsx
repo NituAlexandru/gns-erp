@@ -36,12 +36,12 @@ export function PlannedDeliveriesList({
           </p>
         )}
         {plannedDeliveries.map((delivery) => {
-           const statusInfo = DELIVERY_STATUS_MAP[delivery.status] || {
+          const statusInfo = DELIVERY_STATUS_MAP[delivery.status] || {
             name: 'Necunoscut',
             variant: 'secondary',
           }
-         const canEdit = !lockedStatuses.includes(delivery.status)
-         
+          const canEdit = !lockedStatuses.includes(delivery.status)
+
           const canCancel = ['CREATED', 'SCHEDULED'].includes(delivery.status)
 
           return (
@@ -52,7 +52,6 @@ export function PlannedDeliveriesList({
                     Nr. {delivery.deliveryNumber}
                   </CardTitle>
                   <div className='flex items-center'>
-
                     <Badge variant={statusInfo.variant}>
                       {statusInfo.name}
                     </Badge>
@@ -66,7 +65,6 @@ export function PlannedDeliveriesList({
                       <Pencil className='h-4 w-4' />
                     </Button>
 
-                
                     <Button
                       variant='ghost'
                       size='sm'
@@ -74,7 +72,6 @@ export function PlannedDeliveriesList({
                       disabled={!canCancel}
                       title='Anulează livrarea'
                     >
-                    
                       <Ban className='h-4 w-4 text-destructive' />
                     </Button>
                   </div>
@@ -82,40 +79,53 @@ export function PlannedDeliveriesList({
               </CardHeader>
 
               <CardContent className='p-4 pt-0 text-sm space-y-1'>
+                {/* Afișăm Data Solicitată */}
                 <div>
-                  <strong>Dată Solicitată:</strong>
+                  <strong>Dată Solicitată: </strong>
                   {delivery.requestedDeliveryDate &&
                   !isNaN(new Date(delivery.requestedDeliveryDate).getTime())
                     ? format(delivery.requestedDeliveryDate, 'PPP', {
                         locale: ro,
                       })
                     : 'Dată invalidă'}
-                  <br /> <strong>Interval Solicitat:</strong>  {' '}
-                  {delivery.requestedDeliverySlot}{' '}
+                  {/* Afișăm Intervalele Solicitate (ca listă separată prin virgulă) */}
+                  {delivery.requestedDeliverySlots &&
+                    delivery.requestedDeliverySlots.length > 0 && (
+                      <>
+                        <br /> <strong>Interval(e) Solicitat(e):</strong>{' '}
+                        {delivery.requestedDeliverySlots.join(', ')}
+                      </>
+                    )}
                 </div>
-               {delivery.deliveryDate && (
+
+                {/* Afișăm Data/Intervalele Programate (dacă există) */}
+                {delivery.deliveryDate && (
                   <div className='text-sm font-semibold text-green-600 border-l-2 border-green-600 pl-2'>
                     Programat:{' '}
                     {format(new Date(delivery.deliveryDate), 'PPP', {
                       locale: ro,
-                    })}{' '}
-                    {delivery.deliverySlot && ` (${delivery.deliverySlot})`}   
-                     {' '}
+                    })}
+                    {/* Afișăm Intervalele Programate (ca listă separată prin virgulă) */}
+                    {delivery.deliverySlots &&
+                      delivery.deliverySlots.length > 0 &&
+                      ` (${delivery.deliverySlots.join(', ')})`}
                   </div>
                 )}
+
                 {/* Cod UIT */}
                 {delivery.uitCode && (
                   <div className='text-xs'>
                     <strong>Cod UIT:</strong>
-                    <span className='font-mono'>{delivery.uitCode}</span> 
+                    <span className='font-mono'>{delivery.uitCode}</span>
                   </div>
                 )}
-                {/* Note Livrare */}
+                {/* Note Livrare  */}
                 {delivery.deliveryNotes && (
                   <div className='text-xs'>
                     <strong>Note Livrare:</strong> {delivery.deliveryNotes}
                   </div>
-                )}{' '}
+                )}
+                {/* Lista Articole*/}
                 <ol className='list-disc pl-5 text-muted-foreground'>
                   {' '}
                   {delivery.items.map((item) => (

@@ -405,11 +405,11 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                                 'PPP',
                                 { locale: ro }
                               )}
-                              {delivery.deliverySlot && ( // Verificăm și afișăm deliverySlot
+                              {delivery.deliverySlots && ( // Verificăm și afișăm deliverySlot
                                 <>
                                   <br />
                                   <strong>Interval:</strong>{' '}
-                                  {delivery.deliverySlot}
+                                  {delivery.deliverySlots.join(', ')}
                                 </>
                               )}
                             </div>
@@ -423,11 +423,11 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                                 'PPP',
                                 { locale: ro }
                               )}
-                              {delivery.requestedDeliverySlot && ( // Verificăm și afișăm requestedDeliverySlot
+                              {delivery.requestedDeliverySlots && ( // Verificăm și afișăm requestedDeliverySlot
                                 <>
                                   <br />
                                   <strong>Interval:</strong>{' '}
-                                  {delivery.requestedDeliverySlot}
+                                  {delivery.requestedDeliverySlots.join(', ')}
                                 </>
                               )}
                             </div>
