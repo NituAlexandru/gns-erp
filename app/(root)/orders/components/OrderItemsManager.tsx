@@ -129,9 +129,6 @@ export function OrderItemsManager({
     }
 
     const updateAllPrices = async () => {
-      console.log(
-        `[OrderItemsManager] Se recalculează prețurile (pt ${fields.length} itemi) din cauza schimbării deliveryMethod.`
-      )
       const currentItems = getValues('lineItems') as OrderLineItemInput[]
 
       const pricePromises = currentItems.map((item, index) => {
@@ -213,7 +210,7 @@ export function OrderItemsManager({
       const defaultVat = vatRates.find((v) => v.isDefault) || vatRates[0]
       if (!defaultVat) {
         toast.error('EROARE: Nu a fost găsită nicio cotă de TVA.')
-        setIsAddingItem(false) 
+        setIsAddingItem(false)
         return
       }
 
@@ -253,7 +250,7 @@ export function OrderItemsManager({
       const newItem: OrderLineItemInput = {
         productId: fullData._id.toString(),
         stockableItemType:
-          item.itemType === 'Ambalaj' ? 'Packaging' : 'ERPProduct',
+          item.itemType === 'Packaging' ? 'Packaging' : 'ERPProduct',
         isManualEntry: false,
         productName: fullData.name,
         productCode: fullData.productCode,

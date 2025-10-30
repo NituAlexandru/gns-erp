@@ -244,3 +244,15 @@ export function calculatePastDate(days: number) {
 export function chunkString(str: string, size = 4): string {
   return (str.match(new RegExp(`.{1,${size}}`, 'g')) || []).join(' ')
 }
+export function sanitizeForClient<T>(data: T): T {
+  try {
+    // Chiar dacă acțiunile server fac asta, o dublă verificare nu strică.
+    // Sau, dacă acțiunile returnează date Mongoose, acest pas e CRITIC.
+    return JSON.parse(JSON.stringify(data))
+  } catch (error) {
+    console.error('Eroare la serializarea datelor:', error)
+    // Returnează datele originale dacă serializarea eșuează
+    // (deși în cazul datelor server -> client, asta ar putea crăpa clientul)
+    return data as T
+  }
+}

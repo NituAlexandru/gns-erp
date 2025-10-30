@@ -1,7 +1,7 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-import mongoose, { Types } from 'mongoose'
+import mongoose, { FilterQuery, Types } from 'mongoose'
 import { revalidatePath } from 'next/cache'
 import { formatError, round2 } from '@/lib/utils'
 import { auth } from '@/auth'
@@ -17,6 +17,11 @@ import {
   DeliveryStatusKey,
 } from './types'
 import { generateDeliveryNumber } from '../numbering/numbering.actions'
+import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns'
+import { ScheduleDeliveryInput } from './planner-validator'
+import AssignmentModel from '../fleet/assignments/assignments.model'
+import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
+import { PAGE_SIZE } from '@/lib/constants'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -70,7 +75,6 @@ function buildDeliveryLine(
   }
   return lineData
 }
-
 function calculateDeliveryTotals(
   deliveryLines: NewDeliveryLineData[]
 ): IDelivery['totals'] {
@@ -104,7 +108,6 @@ function calculateDeliveryTotals(
   })
   return totals
 }
-
 function createSingleDeliveryDocument(
   plan: PlannedDelivery,
   originalOrder: IOrder,
@@ -148,7 +151,6 @@ function createSingleDeliveryDocument(
   }
   return deliveryData
 }
-
 export async function createSingleDelivery(
   orderId: string,
   plan: PlannedDelivery
@@ -235,7 +237,6 @@ export async function createSingleDelivery(
     await mongoSession.endSession()
   }
 }
-
 export async function deleteDeliveryPlan(deliveryId: string) {
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
@@ -423,4 +424,346 @@ export async function getDeliveriesByOrderId(
     console.error(`Eroare preluare livrări pt comanda ${orderId}:`, error)
     return []
   }
+}
+// ----------------------- For Delivery Planner ----------------------- //
+export async function getUnassignedDeliveriesForDate(
+  selectedDate: Date
+): Promise<IDelivery[]> {
+  try {
+    await connectToDatabase()
+
+    const startDate = startOfDay(selectedDate)
+    const endDate = endOfDay(selectedDate)
+
+    const deliveries = await DeliveryModel.find({
+      status: 'CREATED', // Doar cele create, neprogramate
+      requestedDeliveryDate: {
+        $gte: startDate, // Mai mare sau egal cu începutul zilei
+        $lte: endDate, // Mai mic sau egal cu sfârșitul zilei
+      },
+    })
+      .sort({ requestedDeliverySlots: 1, createdAt: 1 }) // Sortează după slotul cerut, apoi data creării
+      .lean<IDelivery[]>()
+
+    return JSON.parse(JSON.stringify(deliveries))
+  } catch (error) {
+    console.error('Eroare la preluarea livrărilor neasignate:', error)
+    return []
+  }
+}
+/**
+ * Preia livrările DEJA ASIGNATE (programate) pentru o anumită zi.
+ * Acestea sunt livrările care apar în grid-ul din dreapta.
+ */
+export async function getAssignedDeliveriesForDate(
+  selectedDate: Date
+): Promise<IDelivery[]> {
+  try {
+    await connectToDatabase()
+
+    const startDate = startOfDay(selectedDate)
+    const endDate = endOfDay(selectedDate)
+
+    const deliveries = await DeliveryModel.find({
+      // --- MODIFICARE AICI ---
+      // Căutăm orice livrare care are data programată în ziua selectată,
+      // indiferent de status, pentru a avea istoricul complet.
+      deliveryDate: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+      // Nu mai filtrăm după status.
+      // status: { $in: ['SCHEDULED', 'IN_TRANSIT', 'DELIVERED'] }, // <-- AM ȘTERS ASTA
+      // --- SFÂRȘIT MODIFICARE ---
+    })
+      .sort({ assemblyId: 1, 'deliverySlots.0': 1 }) // Sortează după ansamblu, apoi după primul slot orar
+      .lean<IDelivery[]>()
+
+    return JSON.parse(JSON.stringify(deliveries))
+  } catch (error) {
+    console.error('Eroare la preluarea livrărilor asignate:', error)
+    return []
+  }
+}
+
+export async function scheduleDelivery(
+  deliveryId: string,
+  data: ScheduleDeliveryInput // Datele din formularul modalului
+) {
+  const mongoSession = await mongoose.startSession()
+  mongoSession.startTransaction()
+  try {
+    await connectToDatabase()
+
+    const authSession = await auth()
+    if (!authSession?.user?.id || !authSession?.user?.name)
+      throw new Error('Utilizator neautentificat.')
+    const user = { id: authSession.user.id, name: authSession.user.name }
+
+    if (!deliveryId || !mongoose.Types.ObjectId.isValid(deliveryId)) {
+      throw new Error('ID Livrare invalid.')
+    }
+    if (!data.assemblyId || !mongoose.Types.ObjectId.isValid(data.assemblyId)) {
+      throw new Error('ID Ansamblu invalid.')
+    }
+
+    // 1. Găsim livrarea
+    const delivery =
+      await DeliveryModel.findById(deliveryId).session(mongoSession)
+    if (!delivery) {
+      throw new Error('Livrarea nu a fost găsită.')
+    }
+
+    // 2. Verificăm statusul (nu poți programa ceva anulat/facturat)
+    const editableStatuses: DeliveryStatusKey[] = ['CREATED', 'SCHEDULED']
+    if (!editableStatuses.includes(delivery.status)) {
+      throw new Error(
+        `Nu se poate (re)programa o livrare cu statusul "${delivery.status}".`
+      )
+    }
+
+    // --- VALIDARE SUPRAPUNERE (BLOC NOU) ---
+
+    const slotsToBook = data.deliverySlots
+    // Verificăm dacă se dorește blocarea întregii zile
+    const isBookingAllDay = slotsToBook.includes('08:00 - 17:00')
+
+    // Construim interogarea de bază pentru suprapunere
+    const overlapQuery: FilterQuery<IDelivery> = {
+      _id: { $ne: deliveryId }, // Exclude livrarea curentă
+      assemblyId: new Types.ObjectId(data.assemblyId), // Același ansamblu
+      deliveryDate: startOfDay(data.deliveryDate), // Aceeași zi
+      status: { $ne: 'CANCELLED' }, // Ignoră livrările anulate
+    }
+
+    if (isBookingAllDay) {
+      // Dacă vrem să rezervăm TOATĂ ziua, verificăm dacă există ORICE altă livrare (care are sloturi) în acea zi
+      overlapQuery.deliverySlots = { $exists: true, $ne: [] }
+    } else {
+      // Dacă vrem să rezervăm sloturi individuale, verificăm dacă se suprapun
+      // cu alte sloturi individuale SAU cu o rezervare "Toată Ziua" existentă
+      overlapQuery.$or = [
+        { deliverySlots: { $in: slotsToBook } }, // Se suprapune cu cel puțin un slot
+        { deliverySlots: '08:00 - 17:00' }, // Sau există deja o rezervare "Toată Ziua"
+      ]
+    }
+
+    // Căutăm suprapunerea
+    const existingOverlap = await DeliveryModel.findOne(overlapQuery)
+      .session(mongoSession)
+      .lean()
+
+    if (existingOverlap) {
+      throw new Error(
+        `Suprapunere detectată. Ansamblul este deja programat pe slotul/sloturile selectate (Livrarea ${existingOverlap.deliveryNumber}).`
+      )
+    }
+    // --- SFÂRȘIT VALIDARE SUPRAPUNERE ---
+
+    // 3. Găsim ansamblul pentru a crea snapshot-ul
+    const assignment = await AssignmentModel.findById(data.assemblyId)
+      .populate<{ driverId: { name: string } }>('driverId', 'name')
+      .populate<{ vehicleId: { carNumber: string } }>('vehicleId', 'carNumber')
+      .populate<{
+        trailerId: { licensePlate: string }
+      }>('trailerId', 'licensePlate')
+      .lean<IPopulatedAssignmentDoc>()
+
+    if (!assignment) {
+      throw new Error('Ansamblul selectat nu a fost găsit.')
+    }
+
+    // Verificăm tipurile populate (Fără 'as any')
+    const driverName =
+      assignment.driverId && typeof assignment.driverId === 'object'
+        ? assignment.driverId.name
+        : 'N/A'
+    const vehicleNumber =
+      assignment.vehicleId && typeof assignment.vehicleId === 'object'
+        ? assignment.vehicleId.carNumber
+        : 'N/A'
+    const trailerNumber =
+      assignment.trailerId && typeof assignment.trailerId === 'object'
+        ? assignment.trailerId.licensePlate
+        : undefined
+
+    // 4. Actualizăm documentul de livrare
+    delivery.set({
+      status: 'SCHEDULED', // Setăm statusul
+      deliveryDate: data.deliveryDate, // Data programată
+      deliverySlots: data.deliverySlots, // Sloturile programate
+      assemblyId: new Types.ObjectId(data.assemblyId), // ID-ul ansamblului
+      deliveryNotes: data.deliveryNotes, // Notele de logistică
+
+      // Snapshot-uri
+      driverName: driverName,
+      vehicleNumber: vehicleNumber,
+      trailerNumber: trailerNumber,
+
+      // User-ul care a făcut modificarea
+      lastUpdatedBy: new Types.ObjectId(user.id),
+      lastUpdatedByName: user.name,
+    })
+
+    const savedDelivery = await delivery.save({ session: mongoSession })
+
+    await mongoSession.commitTransaction()
+
+    // Revalidăm pagina comenzii ȘI pagina planner-ului
+    revalidatePath(`/orders/${delivery.orderId.toString()}`)
+    revalidatePath('/deliveries')
+
+    return {
+      success: true,
+      message: `Livrarea ${savedDelivery.deliveryNumber} a fost programată.`,
+    }
+  } catch (error) {
+    await mongoSession.abortTransaction()
+    console.error('Eroare la programarea livrării:', error)
+    return {
+      success: false,
+      message: formatError(error) || 'Eroare la programarea livrării.',
+    }
+  } finally {
+    await mongoSession.endSession()
+  }
+}
+
+/**
+ * Dezalocă o livrare, mutând-o înapoi la statusul 'CREATED'.
+ * Resetează câmpurile de programare.
+ */
+export async function unassignDelivery(deliveryId: string) {
+  const mongoSession = await mongoose.startSession()
+  mongoSession.startTransaction()
+  try {
+    await connectToDatabase()
+
+    const authSession = await auth()
+    if (!authSession?.user?.id || !authSession?.user?.name)
+      throw new Error('Utilizator neautentificat.')
+    const user = { id: authSession.user.id, name: authSession.user.name }
+
+    if (!deliveryId || !mongoose.Types.ObjectId.isValid(deliveryId)) {
+      throw new Error('ID Livrare invalid.')
+    }
+
+    // 1. Găsim livrarea
+    const delivery =
+      await DeliveryModel.findById(deliveryId).session(mongoSession)
+    if (!delivery) {
+      throw new Error('Livrarea nu a fost găsită.')
+    }
+
+    // 2. Verificăm statusul (nu poți dezaloca ceva în tranzit, livrat etc.)
+    const unassignableStatuses: DeliveryStatusKey[] = ['SCHEDULED']
+    if (!unassignableStatuses.includes(delivery.status)) {
+      throw new Error(
+        `Nu se poate dezaloca o livrare cu statusul "${delivery.status}".`
+      )
+    }
+
+    // 4. Resetăm câmpurile și setăm statusul 'CREATED'
+    delivery.set({
+      status: 'CREATED', // Statusul revine la 'Creat'
+      deliveryDate: undefined, // Ștergem data programată
+      deliverySlots: [], // Ștergem sloturile programate
+      assemblyId: undefined, // Ștergem ansamblul
+
+      // Ștergem snapshot-urile
+      driverName: undefined,
+      vehicleNumber: undefined,
+      trailerNumber: undefined,
+
+      // Păstrăm notele (poate sunt utile), dar setăm user-ul
+      lastUpdatedBy: new Types.ObjectId(user.id),
+      lastUpdatedByName: user.name,
+    })
+
+    await delivery.save({ session: mongoSession })
+
+    await mongoSession.commitTransaction()
+
+    // Revalidăm pagina comenzii ȘI pagina planner-ului
+    revalidatePath(`/orders/${delivery.orderId.toString()}`)
+    revalidatePath('/deliveries')
+
+    return {
+      success: true,
+      message: 'Livrarea a fost dezalocată și mutată la "De Programat".',
+    }
+  } catch (error) {
+    await mongoSession.abortTransaction()
+    console.error('Eroare la dezalocarea livrării:', error)
+    return {
+      success: false,
+      message: formatError(error) || 'Eroare la dezalocarea livrării.',
+    }
+  } finally {
+    await mongoSession.endSession()
+  }
+}
+
+// deliveries list page
+
+export async function getFilteredDeliveries({
+  search,
+  status,
+  date,
+  page = 1,
+}: {
+  search?: string
+  status?: string
+  date?: string
+  page?: number
+}) {
+  await connectToDatabase()
+
+  const query: FilterQuery<IDelivery> = {}
+
+  // căutare: client / nr comandă / nr livrare
+  if (search) {
+    const regex = { $regex: search, $options: 'i' }
+    query.$or = [
+      { 'clientSnapshot.name': regex },
+      { orderNumber: regex },
+      { deliveryNumber: regex },
+    ]
+  }
+
+  // filtrare după zi (pe deliveryDate)
+  if (date) {
+    const d = parseISO(date)
+    if (isValid(d)) {
+      query.deliveryDate = { $gte: startOfDay(d), $lte: endOfDay(d) }
+    }
+  }
+
+  // status
+  if (status && status !== 'all') {
+    query.status = status
+  }
+
+  const safePage = Math.max(1, page)
+  const skipCount = (safePage - 1) * PAGE_SIZE
+
+  const totalCount = await DeliveryModel.countDocuments(query)
+
+  const deliveries = await DeliveryModel.find(query)
+    .sort({ createdAt: -1 }) // afișăm după data creării
+    .skip(skipCount)
+    .limit(PAGE_SIZE)
+    .lean()
+
+  return JSON.parse(
+    JSON.stringify({
+      data: deliveries,
+      pagination: {
+        totalCount,
+        currentPage: safePage,
+        totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
+        pageSize: PAGE_SIZE,
+      },
+    })
+  )
 }

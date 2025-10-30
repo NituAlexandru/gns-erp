@@ -28,11 +28,6 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Calendar } from '@/components/ui/calendar'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import { CalendarIcon, Loader2, PlusCircle, Trash2, Save } from 'lucide-react'
 import { HeaderSchema } from '@/lib/db/modules/deliveries/validator'
 import {
@@ -57,6 +52,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { DELIVERY_SLOTS } from '@/lib/db/modules/deliveries/constants'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 
 interface EditDeliveryModalProps {
   isOpen: boolean
@@ -72,7 +72,6 @@ function isDeliverySlot(slot: unknown): slot is DeliverySlot {
 }
 
 type EditDeliveryFormInput = HeaderInput & {
-  // HeaderInput are acum requestedDeliverySlots[]
   items: PlannerItem[]
   deliveryDate?: Date
   deliverySlots?: string[]
@@ -89,6 +88,7 @@ export function EditDeliveryModal({
   const [quantitiesToAdd, setQuantitiesToAdd] = useState<
     Record<string, number>
   >({})
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
 
   // --- Definirea Formularului ---
   const methods = useForm<EditDeliveryFormInput>({
@@ -108,7 +108,7 @@ export function EditDeliveryModal({
   const { fields, append, remove, update } = useFieldArray({
     control,
     name: 'items',
-    keyName: 'keyId', // Folosim un nume diferit de 'id' pentru a evita conflicte
+    keyName: 'keyId',
   })
 
   // Resetăm formularul de fiecare dată când `deliveryToEdit` se schimbă (când se deschide modalul)
@@ -122,19 +122,7 @@ export function EditDeliveryModal({
       // Validăm fiecare slot din array-ul programat (dacă există)
       const validSlots = Array.isArray(deliveryToEdit.deliverySlots)
         ? deliveryToEdit.deliverySlots.filter(isDeliverySlot)
-        : undefined 
-
-      console.log('Resetting form with:', {
-        requestedDeliveryDate: new Date(deliveryToEdit.requestedDeliveryDate),
-        requestedDeliverySlots: validReqSlots, // Verifică acest array în consolă
-        deliveryNotes: deliveryToEdit.deliveryNotes || '',
-        uitCode: deliveryToEdit.uitCode || '',
-        items: deliveryToEdit.items.length, // Logăm doar lungimea pt claritate
-        deliveryDate: deliveryToEdit.deliveryDate
-          ? new Date(deliveryToEdit.deliveryDate)
-          : undefined,
-        deliverySlots: validSlots,
-      })
+        : undefined
 
       reset({
         requestedDeliveryDate: new Date(deliveryToEdit.requestedDeliveryDate),
@@ -149,10 +137,9 @@ export function EditDeliveryModal({
         deliverySlots: validSlots,
       })
     } else {
-      // La închidere, resetăm la valorile default (care includ requestedDeliverySlots: [])
       reset({
         requestedDeliveryDate: new Date(),
-        requestedDeliverySlots: [], // Resetăm la array gol
+        requestedDeliverySlots: [],
         deliveryNotes: '',
         uitCode: '',
         items: [],
@@ -187,8 +174,8 @@ export function EditDeliveryModal({
     const items = methods.getValues('items')
     const requestedDeliverySlots = methods.getValues('requestedDeliverySlots')
 
-   const updatedPlannedDelivery: PlannedDelivery = {
-      ...deliveryToEdit, 
+    const updatedPlannedDelivery: PlannedDelivery = {
+      ...deliveryToEdit,
       requestedDeliveryDate: data.requestedDeliveryDate,
       deliveryNotes: data.deliveryNotes,
       uitCode: data.uitCode,
@@ -196,13 +183,8 @@ export function EditDeliveryModal({
       items: items,
       deliveryDate: deliveryToEdit.deliveryDate,
       deliverySlots: deliveryToEdit.deliverySlots,
-      deliveryNumber: deliveryToEdit.deliveryNumber, 
+      deliveryNumber: deliveryToEdit.deliveryNumber,
     }
-
-    console.log(
-      'Obiect trimis la updateSingleDelivery:',
-      updatedPlannedDelivery
-    ) 
 
     startTransition(async () => {
       try {
@@ -264,7 +246,7 @@ export function EditDeliveryModal({
       quantityToAllocate: parseFloat(quantity.toFixed(2)),
     })
 
-     setQuantitiesToAdd((prev) => ({ ...prev, [item.id]: 0 }))
+    setQuantitiesToAdd((prev) => ({ ...prev, [item.id]: 0 }))
   }
 
   const handleRemoveItem = (index: number) => {
@@ -348,13 +330,16 @@ export function EditDeliveryModal({
                 render={({ field }) => (
                   <FormItem className='flex flex-col'>
                     <FormLabel>Data Solicitată</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
+                    <Collapsible
+                      open={isCalendarOpen}
+                      onOpenChange={setIsCalendarOpen}
+                    >
+                      <CollapsibleTrigger asChild>
                         <FormControl>
                           <Button
                             variant={'outline'}
                             className={cn(
-                              'pl-3 text-left font-normal',
+                              'pl-3 text-left font-normal w-full',
                               !field.value && 'text-muted-foreground'
                             )}
                           >
@@ -366,19 +351,24 @@ export function EditDeliveryModal({
                             <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
                           </Button>
                         </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className='w-auto p-0' align='start'>
+                      </CollapsibleTrigger>
+
+                      <CollapsibleContent>
                         <Calendar
                           mode='single'
                           selected={field.value}
-                          onSelect={field.onChange}
+                          onSelect={(date) => {
+                            field.onChange(date)
+                            setIsCalendarOpen(false)
+                          }}
                           disabled={(date) =>
                             date < new Date(new Date().setHours(0, 0, 0, 0))
                           }
                           initialFocus
+                          className='mt-2 border rounded-md'
                         />
-                      </PopoverContent>
-                    </Popover>
+                      </CollapsibleContent>
+                    </Collapsible>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -386,9 +376,7 @@ export function EditDeliveryModal({
               <Controller
                 control={control}
                 name='requestedDeliverySlots'
-                render={(
-                  { field } 
-                ) => (
+                render={({ field }) => (
                   <FormItem>
                     <div className='mb-4'>
                       <FormLabel>Interval(e) Orar(e) Solicitat(e)</FormLabel>
@@ -405,21 +393,18 @@ export function EditDeliveryModal({
                         >
                           <FormControl>
                             <Checkbox
-    
                               checked={(field.value || []).includes(slot)}
                               onCheckedChange={(checked) => {
-                                const currentValue = field.value || [] 
+                                const currentValue = field.value || []
                                 let newValue: string[]
                                 if (checked) {
-                                 
                                   newValue = [...currentValue, slot]
                                 } else {
-                              
                                   newValue = currentValue.filter(
                                     (value: string) => value !== slot
                                   )
                                 }
-                                field.onChange(newValue) 
+                                field.onChange(newValue)
                               }}
                             />
                           </FormControl>
@@ -433,7 +418,6 @@ export function EditDeliveryModal({
                   </FormItem>
                 )}
               />
-          
             </div>
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <FormField

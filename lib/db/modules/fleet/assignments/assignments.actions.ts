@@ -8,7 +8,11 @@ import {
   ASSIGNMENT_STATUSES,
 } from './validator'
 
-import type { IAssignmentDoc, IAssignmentInput } from './types'
+import type {
+  IAssignmentDoc,
+  IAssignmentInput,
+  IPopulatedAssignmentDoc,
+} from './types'
 import { logAudit } from '../../audit-logs/audit.actions'
 import AssignmentModel from './assignments.model'
 
@@ -18,6 +22,10 @@ import DriverModel from '../drivers/drivers.model'
 import VehicleModel from '../vehicle/vehicle.model'
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import TrailerModel from '../trailers/trailers.model'
+
+import '../drivers/drivers.model'
+import '../vehicle/vehicle.model'
+import '../trailers/trailers.model'
 
 const REVALIDATE_PATH = '/admin/management/fleet/assignments'
 
@@ -142,4 +150,36 @@ export async function updateAssignmentStatus(
   })
 
   return { success: true, message: 'Status actualizat cu succes.' }
+}
+
+// for deliveries
+export async function getActiveAssignments(): Promise<
+  IPopulatedAssignmentDoc[]
+> {
+  try {
+    await connectToDatabase()
+
+    const assignments = await AssignmentModel.find({
+      status: 'Activ', // Filtrăm doar ansamblurile active
+    })
+      .populate<{ driverId: IPopulatedAssignmentDoc['driverId'] }>({
+        path: 'driverId',
+        select: 'name phone drivingLicenses', // Selectăm doar câmpurile necesare
+      })
+      .populate<{ vehicleId: IPopulatedAssignmentDoc['vehicleId'] }>({
+        path: 'vehicleId',
+        select: 'name carNumber carType maxLoadKg', // Selectăm câmpurile necesare
+      })
+      .populate<{ trailerId: IPopulatedAssignmentDoc['trailerId'] }>({
+        path: 'trailerId',
+        select: 'name licensePlate maxLoadKg', // Selectăm câmpurile necesare
+      })
+      .sort({ name: 1 }) // Ordonăm alfabetic după numele ansamblului
+      .lean()
+
+    return JSON.parse(JSON.stringify(assignments))
+  } catch (error) {
+    console.error('Eroare la preluarea ansamblurilor active:', error)
+    return []
+  }
 }

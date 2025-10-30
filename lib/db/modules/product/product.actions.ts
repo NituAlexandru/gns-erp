@@ -9,7 +9,6 @@ import { CategoryModel } from '../category'
 import '@/lib/db/modules/suppliers/supplier.model'
 import { FilterQuery, Types } from 'mongoose'
 import { PRODUCT_PAGE_SIZE } from './constants'
-import ERPProductModel from './product.model'
 import { getGlobalHighestCostInStock } from '../inventory/pricing'
 import {
   IProductDoc,
@@ -22,6 +21,7 @@ import {
 } from './types'
 import InventoryItemModel from '../inventory/inventory.model'
 import PackagingModel from '../packaging-products/packaging.model'
+import ERPProductModel from './product.model'
 
 // O funcție helper pentru a verifica duplicatele
 async function checkForDuplicateCodes(payload: {
@@ -348,7 +348,6 @@ export async function searchStockableItems(
         {
           $lookup: {
             from: 'inventoryitems',
-            // Folosim let/pipeline pentru a agrega sumarul
             let: { productId: '$_id' },
             pipeline: [
               { $match: { $expr: { $eq: ['$stockableItem', '$$productId'] } } },
@@ -356,7 +355,7 @@ export async function searchStockableItems(
                 $group: {
                   _id: '$stockableItem',
                   totalStock: { $sum: '$totalStock' },
-                  totalReserved: { $sum: '$quantityReserved' }, 
+                  totalReserved: { $sum: '$quantityReserved' },
                 },
               },
             ],
@@ -370,9 +369,9 @@ export async function searchStockableItems(
             _id: 1,
             name: 1,
             productCode: 1,
-            image: { $first: '$images' }, 
-            itemType: 'Produs', 
-            unit: 1, 
+            image: { $first: '$images' },
+            itemType: 'Produs',
+            unit: 1,
             packagingUnit: 1,
             packagingQuantity: 1,
             itemsPerPallet: 1,
@@ -450,7 +449,7 @@ export async function searchStockableItems(
                 $group: {
                   _id: '$stockableItem',
                   totalStock: { $sum: '$totalStock' },
-                  totalReserved: { $sum: '$quantityReserved' }, 
+                  totalReserved: { $sum: '$quantityReserved' },
                 },
               },
             ],
@@ -465,7 +464,7 @@ export async function searchStockableItems(
             name: 1,
             productCode: 1,
             image: { $first: '$images' },
-            itemType: 'Ambalaj', 
+            itemType: 'Ambalaj',
             unit: '$packagingUnit',
             totalStock: { $ifNull: ['$inventoryDoc.totalStock', 0] },
             totalReserved: { $ifNull: ['$inventoryDoc.totalReserved', 0] },
@@ -481,9 +480,8 @@ export async function searchStockableItems(
       ]),
     ])
 
-    // Combinăm și sortăm EXACT ca în codul tău original 
     const combinedResults = [...products, ...packagings].sort(
-      (a, b) => (b.totalStock || 0) - (a.totalStock || 0) 
+      (a, b) => (b.totalStock || 0) - (a.totalStock || 0)
     )
 
     return combinedResults.map((r) => ({

@@ -6,7 +6,10 @@ const BaseAssignmentSchema = z.object({
   name: z.string().min(3, 'Numele ansamblului este obligatoriu.'),
   driverId: z.string().min(1, 'Trebuie să selectezi un șofer.'),
   vehicleId: z.string().min(1, 'Trebuie să selectezi un vehicul.'),
-  trailerId: z.string().optional(),
+  trailerId: z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z.string().optional()
+  ),
   status: z.enum(ASSIGNMENT_STATUSES).default('Activ'),
   notes: z.string().optional(),
 })
