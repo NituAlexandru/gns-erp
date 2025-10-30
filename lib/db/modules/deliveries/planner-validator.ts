@@ -13,6 +13,7 @@ export const ScheduleDeliverySchema = z.object({
   assemblyId: z
     .string()
     .min(1, { message: 'Trebuie să selectezi un ansamblu.' }),
+  trailerId: z.string().optional().nullable(),
   deliveryNotes: z.string().optional(),
 })
 

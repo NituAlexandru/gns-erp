@@ -146,6 +146,9 @@ export interface IDelivery extends Document {
   driverName?: string
   vehicleNumber?: string
   trailerNumber?: string
+  driverId?: Types.ObjectId 
+  vehicleId?: Types.ObjectId
+  trailerId?: Types.ObjectId 
   isNoticed: boolean
   isInvoiced: boolean
   createdBy: Types.ObjectId
@@ -215,6 +218,9 @@ const DeliverySchema = new Schema<IDelivery>(
       index: true,
     },
     assemblyId: { type: Schema.Types.ObjectId, ref: 'Assignment', index: true },
+    driverId: { type: Schema.Types.ObjectId, ref: 'Driver' }, 
+    vehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle' },
+    trailerId: { type: Schema.Types.ObjectId, ref: 'Trailer' },
     driverName: { type: String },
     vehicleNumber: { type: String },
     trailerNumber: { type: String },

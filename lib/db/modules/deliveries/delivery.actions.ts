@@ -22,6 +22,7 @@ import { ScheduleDeliveryInput } from './planner-validator'
 import AssignmentModel from '../fleet/assignments/assignments.model'
 import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
 import { PAGE_SIZE } from '@/lib/constants'
+import TrailerModel from '../fleet/trailers/trailers.model'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -558,15 +559,14 @@ export async function scheduleDelivery(
         `Suprapunere detectată. Ansamblul este deja programat pe slotul/sloturile selectate (Livrarea ${existingOverlap.deliveryNumber}).`
       )
     }
-    // --- SFÂRȘIT VALIDARE SUPRAPUNERE ---
 
     // 3. Găsim ansamblul pentru a crea snapshot-ul
     const assignment = await AssignmentModel.findById(data.assemblyId)
       .populate<{ driverId: { name: string } }>('driverId', 'name')
       .populate<{ vehicleId: { carNumber: string } }>('vehicleId', 'carNumber')
-      .populate<{
-        trailerId: { licensePlate: string }
-      }>('trailerId', 'licensePlate')
+      // .populate<{
+      //   trailerId: { licensePlate: string }
+      // }>('trailerId', 'licensePlate')
       .lean<IPopulatedAssignmentDoc>()
 
     if (!assignment) {
@@ -578,27 +578,58 @@ export async function scheduleDelivery(
       assignment.driverId && typeof assignment.driverId === 'object'
         ? assignment.driverId.name
         : 'N/A'
+    const finalDriverId =
+      assignment.driverId && typeof assignment.driverId === 'object'
+        ? assignment.driverId._id // <-- ID-ul șoferului
+        : null
+
     const vehicleNumber =
       assignment.vehicleId && typeof assignment.vehicleId === 'object'
         ? assignment.vehicleId.carNumber
         : 'N/A'
-    const trailerNumber =
-      assignment.trailerId && typeof assignment.trailerId === 'object'
-        ? assignment.trailerId.licensePlate
-        : undefined
+    const finalVehicleId =
+      assignment.vehicleId && typeof assignment.vehicleId === 'object'
+        ? assignment.vehicleId._id // <-- ID-ul vehiculului
+        : null
+
+    // --- ÎNLOCUIEȘTE CU ACEST BLOC NOU ---
+    let finalTrailerId: Types.ObjectId | null = null
+    let finalTrailerNumber: string | undefined = undefined // 'undefined' va șterge câmpul
+
+    if (data.trailerId && data.trailerId !== 'none') {
+      // Cazul 1: O remorcă specifică a fost selectată în formular
+      finalTrailerId = new Types.ObjectId(data.trailerId)
+
+      // Căutăm remorca pentru a-i crea snapshot-ul
+      const selectedTrailer = await TrailerModel.findById(finalTrailerId)
+        .lean()
+        .session(mongoSession)
+
+      if (!selectedTrailer) {
+        throw new Error('Remorca selectată (trailerId) nu a fost găsită.')
+      }
+      finalTrailerNumber = selectedTrailer.licensePlate
+    } else if (data.trailerId === 'none') {
+      // Cazul 2: S-a selectat explicit "Fără Remorcă"
+      finalTrailerId = null
+      finalTrailerNumber = undefined // Se va salva null sau se va șterge câmpul
+    }
 
     // 4. Actualizăm documentul de livrare
     delivery.set({
-      status: 'SCHEDULED', // Setăm statusul
-      deliveryDate: data.deliveryDate, // Data programată
-      deliverySlots: data.deliverySlots, // Sloturile programate
-      assemblyId: new Types.ObjectId(data.assemblyId), // ID-ul ansamblului
-      deliveryNotes: data.deliveryNotes, // Notele de logistică
+      status: 'SCHEDULED',
+      deliveryDate: data.deliveryDate,
+      deliverySlots: data.deliverySlots,
+      assemblyId: new Types.ObjectId(data.assemblyId),
+      driverId: finalDriverId,
+      vehicleId: finalVehicleId,
+      trailerId: finalTrailerId,
+      deliveryNotes: data.deliveryNotes,
 
       // Snapshot-uri
       driverName: driverName,
       vehicleNumber: vehicleNumber,
-      trailerNumber: trailerNumber,
+      trailerNumber: finalTrailerNumber,
 
       // User-ul care a făcut modificarea
       lastUpdatedBy: new Types.ObjectId(user.id),

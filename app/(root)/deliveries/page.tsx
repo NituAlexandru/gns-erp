@@ -9,6 +9,8 @@ import { parse, startOfDay } from 'date-fns'
 import { IPopulatedAssignmentDoc } from '@/lib/db/modules/fleet/assignments/types'
 import { IDelivery } from '@/lib/db/modules/deliveries/delivery.model'
 import { sanitizeForClient } from '@/lib/utils'
+import TrailerModel from '@/lib/db/modules/fleet/trailers/trailers.model'
+import { ITrailerDoc } from '@/lib/db/modules/fleet/trailers/types'
 
 interface PlannerPageProps {
   searchParams: Promise<{ date?: string }>
@@ -24,16 +26,22 @@ export default async function LogisticsPlannerPage({
     ? parse(selectedDateStr, 'yyyy-MM-dd', new Date())
     : startOfDay(new Date())
 
-  const [unassignedDeliveriesRaw, assignedDeliveriesRaw, assignmentsRaw] =
-    await Promise.all([
-      getUnassignedDeliveriesForDate(selectedDate),
-      getAssignedDeliveriesForDate(selectedDate),
-      getActiveAssignments(),
-    ])
+  const [
+    unassignedDeliveriesRaw,
+    assignedDeliveriesRaw,
+    assignmentsRaw,
+    trailersRaw,
+  ] = await Promise.all([
+    getUnassignedDeliveriesForDate(selectedDate),
+    getAssignedDeliveriesForDate(selectedDate),
+    getActiveAssignments(),
+    TrailerModel.find().lean(),
+  ])
 
   const unassignedDeliveries = sanitizeForClient(unassignedDeliveriesRaw)
   const assignedDeliveries = sanitizeForClient(assignedDeliveriesRaw)
   const assignments = sanitizeForClient(assignmentsRaw)
+  const availableTrailers = sanitizeForClient(trailersRaw)
 
   return (
     <div className=' space-y-1'>
@@ -43,6 +51,7 @@ export default async function LogisticsPlannerPage({
           unassignedDeliveries={unassignedDeliveries as IDelivery[]}
           assignedDeliveries={assignedDeliveries as IDelivery[]}
           assignments={assignments as IPopulatedAssignmentDoc[]}
+          availableTrailers={availableTrailers as ITrailerDoc[]}
         />
       </Suspense>
     </div>

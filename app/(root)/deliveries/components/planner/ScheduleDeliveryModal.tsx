@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/form'
 import { Calendar } from '@/components/ui/calendar'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Textarea } from '@/components/ui/textarea' 
+import { Textarea } from '@/components/ui/textarea'
 import { CalendarIcon, Loader2, Save, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
@@ -52,6 +52,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { ITrailerDoc } from '@/lib/db/modules/fleet/trailers/types'
 
 interface ScheduleDeliveryModalProps {
   isOpen: boolean
@@ -59,6 +60,7 @@ interface ScheduleDeliveryModalProps {
   delivery: IDelivery | null
   assignments: IPopulatedAssignmentDoc[]
   assignedDeliveries: IDelivery[]
+  availableTrailers: ITrailerDoc[]
 }
 
 type DeliverySlot = (typeof DELIVERY_SLOTS)[number]
@@ -73,14 +75,14 @@ const totalDisplaySlots = displaySlots.length
 
 function areSlotsConsecutive(slots: string[]): boolean {
   if (slots.length <= 1) {
-    return true 
+    return true
   }
 
   // 1. Obține indicii sloturilor selectate din lista 'displaySlots'
   const indices = slots
     .map((slot) => displaySlots.indexOf(slot as DisplaySlot))
-    .filter((index) => index !== -1) 
-  
+    .filter((index) => index !== -1)
+
   // Trebuie să avem același număr de indici ca și sloturi
   if (indices.length !== slots.length) {
     console.error('Eroare: Unele sloturi selectate nu sunt în displaySlots.')
@@ -109,6 +111,7 @@ export function ScheduleDeliveryModal({
   delivery,
   assignments,
   assignedDeliveries,
+  availableTrailers,
 }: ScheduleDeliveryModalProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -120,6 +123,7 @@ export function ScheduleDeliveryModal({
       deliveryDate: undefined,
       deliverySlots: [],
       assemblyId: undefined,
+      trailerId: undefined,
       deliveryNotes: '',
     },
   })
@@ -129,7 +133,6 @@ export function ScheduleDeliveryModal({
   // 1. Un useEffect care populează formularul DOAR când se schimbă livrarea
   useEffect(() => {
     if (delivery) {
-    
       const validSlots = Array.isArray(delivery.deliverySlots)
         ? delivery.deliverySlots.filter(isDeliverySlot)
         : []
@@ -151,7 +154,7 @@ export function ScheduleDeliveryModal({
         assemblyId: delivery.assemblyId?.toString() || undefined,
         deliveryNotes: delivery.deliveryNotes || '',
       })
-    } 
+    }
   }, [delivery, reset])
 
   // 2. Un useEffect care resetează formularul DOAR când se închide modalul
@@ -172,7 +175,29 @@ export function ScheduleDeliveryModal({
     name: 'assemblyId',
   })
   const selectedDate = useWatch({ control: form.control, name: 'deliveryDate' })
-  console.log('Data (din useWatch) s-a actualizat:', selectedDate)
+
+  const { setValue } = form
+  useEffect(() => {
+    // Găsim ansamblul selectat în lista completă
+    const selectedAsm = assignments.find(
+      (asm) => asm._id === selectedAssemblyId
+    )
+
+    if (selectedAsm) {
+      // Verificăm dacă ansamblul are o remorcă POPULATĂ
+      if (selectedAsm.trailerId && typeof selectedAsm.trailerId === 'object') {
+        // Dacă da, setăm valoarea selectorului de remorcă la ID-ul ei
+        setValue('trailerId', selectedAsm.trailerId._id.toString())
+      } else {
+        // Dacă ansamblul NU are remorcă, setăm "Fără Remorcă"
+        setValue('trailerId', 'none')
+      }
+    } else {
+      // Dacă se deselectează ansamblul, resetăm și remorca
+      setValue('trailerId', undefined)
+    }
+  }, [selectedAssemblyId, assignments, setValue])
+
   const blockedSlots = useMemo(() => {
     if (!selectedAssemblyId || !selectedDate) {
       return []
@@ -263,7 +288,7 @@ export function ScheduleDeliveryModal({
       const currentSlots = slotUsage.get(asmId)!
 
       if (d.deliverySlots.includes('08:00 - 17:00')) {
-         displaySlots.forEach((slot) => currentSlots.add(slot))
+        displaySlots.forEach((slot) => currentSlots.add(slot))
       } else {
         d.deliverySlots.forEach((slot) => currentSlots.add(slot))
       }
@@ -291,7 +316,7 @@ export function ScheduleDeliveryModal({
         return usedSlots.size < totalDisplaySlots
       })
       .sort((a: IPopulatedAssignmentDoc, b: IPopulatedAssignmentDoc) => {
-         const typeA =
+        const typeA =
           a.vehicleId && typeof a.vehicleId === 'object'
             ? a.vehicleId.carType
             : ''
@@ -303,6 +328,30 @@ export function ScheduleDeliveryModal({
       })
   }, [assignments, assignedDeliveries, selectedDate, delivery])
 
+  // Creăm o hartă <TrailerID, VehicleNumber>
+  // pentru a ști ce remorcă e deja într-un ansamblu
+  const assignedTrailerMap = useMemo(() => {
+    const map = new Map<string, string>() // <trailerId, vehicleNumber>
+
+    for (const asm of assignments) {
+      // Verificăm dacă ansamblul are o remorcă ȘI o mașină
+      // și dacă ambele sunt populate ca obiecte
+      if (
+        asm.trailerId &&
+        typeof asm.trailerId === 'object' &&
+        asm.vehicleId &&
+        typeof asm.vehicleId === 'object'
+      ) {
+        const trailerId = asm.trailerId._id.toString()
+        const vehicleNumber = asm.vehicleId.carNumber // Nr. mașinii din ansamblu
+
+        if (trailerId && vehicleNumber) {
+          map.set(trailerId, vehicleNumber)
+        }
+      }
+    }
+    return map
+  }, [assignments])
   // --- Funcția de Salvare (Programare) ---
   const onSave = (data: ScheduleDeliveryInput) => {
     if (!delivery) return
@@ -410,12 +459,12 @@ export function ScheduleDeliveryModal({
                             mode='single'
                             selected={field.value}
                             onSelect={(date) => {
-                              field.onChange(date) 
-                              setIsCalendarOpen(false) 
+                              field.onChange(date)
+                              setIsCalendarOpen(false)
                             }}
                             disabled={(date) => isWeekend(date)}
                             initialFocus
-                            className='mt-2 border rounded-md' 
+                            className='mt-2 border rounded-md'
                           />
                         </CollapsibleContent>
                       </Collapsible>
@@ -457,13 +506,12 @@ export function ScheduleDeliveryModal({
                                       newValue = checked
                                         ? ['08:00 - 17:00']
                                         : []
-                                      field.onChange(newValue) 
+                                      field.onChange(newValue)
                                       return
                                     }
 
                                     // --- LOGICA PENTRU SLOTURI INDIVIDUALE ---
                                     if (checked) {
-                                    
                                       const potentialValue = [
                                         ...currentValue.filter(
                                           (s) => s !== '08:00 - 17:00'
@@ -581,7 +629,64 @@ export function ScheduleDeliveryModal({
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name='trailerId'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Asignează Remorcă (Opțional)</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value || ''}
+                        // Dezactivăm selectorul dacă nu e ales un ansamblu
+                        disabled={!selectedAssemblyId}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder='Selectează o remorcă...' />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {/* Opțiune pentru "Fără Remorcă" */}
+                          <SelectItem value='none'>
+                            <span className='text-muted-foreground'>
+                              Fără Remorcă
+                            </span>
+                          </SelectItem>
 
+                          {/* Listă remorci disponibile */}
+                          {(availableTrailers || []).map((trailer) => {
+                            // Verificăm dacă remorca curentă este pe harta noastră
+                            const assignedVehicleNumber =
+                              assignedTrailerMap.get(trailer._id.toString())
+
+                            return (
+                              <SelectItem key={trailer._id} value={trailer._id}>
+                                <div className='flex justify-between w-full items-center'>
+                                  {/* Partea principală (Stânga) */}
+                                  <span>
+                                    {trailer.licensePlate}{' '}
+                                    <span className='text-muted-foreground ml-2 text-xs'>
+                                      ({trailer.type || 'N/A'})
+                                    </span>
+                                  </span>
+
+                                  {/* Avertismentul (Dreapta) */}
+                                  {assignedVehicleNumber && (
+                                    <span className='text-red-500 text-xs ml-4 font-medium'>
+                                      (Folosită de {assignedVehicleNumber})
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            )
+                          })}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 {/* Note Livrare */}
                 <FormField
                   control={form.control}

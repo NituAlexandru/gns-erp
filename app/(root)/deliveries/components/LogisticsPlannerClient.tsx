@@ -7,12 +7,14 @@ import { IPopulatedAssignmentDoc } from '@/lib/db/modules/fleet/assignments/type
 import { ScheduleDeliveryModal } from './planner/ScheduleDeliveryModal'
 import { DateHeader } from './planner/DateHeader'
 import { AssignmentGrid } from './planner/AssignmentGrid'
+import { ITrailerDoc } from '@/lib/db/modules/fleet/trailers/types'
 
 interface LogisticsPlannerClientProps {
   initialSelectedDate: Date
   unassignedDeliveries: IDelivery[]
   assignedDeliveries: IDelivery[]
   assignments: IPopulatedAssignmentDoc[]
+  availableTrailers: ITrailerDoc[]
 }
 
 export function LogisticsPlannerClient({
@@ -20,6 +22,7 @@ export function LogisticsPlannerClient({
   unassignedDeliveries,
   assignedDeliveries,
   assignments,
+  availableTrailers,
 }: LogisticsPlannerClientProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedDelivery, setSelectedDelivery] = useState<IDelivery | null>(
@@ -59,13 +62,13 @@ export function LogisticsPlannerClient({
                 <UnassignedDeliveryCard
                   key={delivery._id.toString()}
                   delivery={delivery}
-                  onSchedule={handleOpenScheduleModal} // <-- Trimitem funcția
+                  onSchedule={handleOpenScheduleModal} 
                 />
               ))}
             </div>
           )}
         </div>
-        {/* --- COLOANA DREAPTĂ (MODIFICATĂ) --- */}
+        {/* --- COLOANA DREAPTĂ --- */}
         <div className='w-5/6 flex-grow rounded-lg overflow-auto'>
           <AssignmentGrid
             assignments={assignments}
@@ -81,6 +84,7 @@ export function LogisticsPlannerClient({
         delivery={selectedDelivery}
         assignments={assignments}
         assignedDeliveries={assignedDeliveries}
+        availableTrailers={availableTrailers}
       />
     </div>
   )
