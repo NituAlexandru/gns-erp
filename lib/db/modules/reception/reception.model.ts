@@ -6,6 +6,21 @@ export interface ITertiaryTransporter {
   regCom?: string
   address?: string
 }
+export interface ISupplierSnapshot {
+  name: string
+  cui?: string
+  regCom?: string
+  address?: {
+    judet: string
+    localitate: string
+    strada: string
+    numar: string
+    codPostal: string
+    alteDetalii?: string
+  }
+  iban?: string
+  bank?: string
+}
 
 export interface IDelivery {
   dispatchNoteSeries?: string
@@ -45,7 +60,9 @@ export interface IReceptionItemCost {
 export interface IReceptionDoc extends Document {
   _id: Types.ObjectId
   createdBy: Types.ObjectId
+  createdByName: string
   supplier: Types.ObjectId
+  supplierSnapshot: ISupplierSnapshot
   destinationType: 'DEPOZIT' | 'PROIECT'
   destinationId?: Types.ObjectId
   // TODO (Proiecte): Refactorizează logica de destinație.
@@ -58,6 +75,8 @@ export interface IReceptionDoc extends Document {
   products: ({
     _id: Types.ObjectId
     product: Types.ObjectId
+    productName: string
+    productCode?: string
     quantity: number
     unitMeasure: string
     unitMeasureCode?: string
@@ -68,6 +87,8 @@ export interface IReceptionDoc extends Document {
   packagingItems: ({
     _id: Types.ObjectId
     packaging: Types.ObjectId
+    packagingName: string
+    packagingCode?: string
     quantity: number
     unitMeasure: string
     unitMeasureCode?: string
@@ -147,6 +168,14 @@ const receptionItemCostSchema = {
   vatValuePerUnit: { type: Number, required: true, default: 0 },
 }
 
+const supplierSnapshotSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    cui: { type: String },
+  },
+  { _id: false }
+)
+
 // --- Schema Principală ---
 const receptionSchema = new Schema<IReceptionDoc>(
   {
@@ -155,11 +184,13 @@ const receptionSchema = new Schema<IReceptionDoc>(
       ref: 'User',
       required: true,
     },
+    createdByName: { type: String, required: true },
     supplier: {
       type: Schema.Types.ObjectId,
       ref: 'Supplier',
       required: true,
     },
+    supplierSnapshot: { type: supplierSnapshotSchema, required: true },
     destinationType: {
       type: String,
       enum: ['DEPOZIT', 'PROIECT'],
@@ -176,26 +207,30 @@ const receptionSchema = new Schema<IReceptionDoc>(
       {
         _id: false,
         product: { type: Schema.Types.ObjectId, ref: 'ERPProduct' },
+        productName: { type: String, required: true },
+        productCode: { type: String },
         quantity: { type: Number, required: true },
         unitMeasure: { type: String, required: true },
         unitMeasureCode: { type: String, required: false },
         originalQuantity: { type: Number, required: false },
         originalUnitMeasure: { type: String, required: false },
         originalInvoicePricePerUnit: { type: Number, required: false },
-        ...receptionItemCostSchema, 
+        ...receptionItemCostSchema,
       },
     ],
     packagingItems: [
       {
         _id: false,
         packaging: { type: Schema.Types.ObjectId, ref: 'Packaging' },
+        packagingName: { type: String, required: true },
+        packagingCode: { type: String },
         quantity: { type: Number, required: true },
         unitMeasure: { type: String, required: true },
         unitMeasureCode: { type: String, required: false },
         originalQuantity: { type: Number, required: false },
         originalUnitMeasure: { type: String, required: false },
         originalInvoicePricePerUnit: { type: Number, required: false },
-        ...receptionItemCostSchema, 
+        ...receptionItemCostSchema,
       },
     ],
     receptionDate: {

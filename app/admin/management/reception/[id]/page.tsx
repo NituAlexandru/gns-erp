@@ -178,7 +178,7 @@ export default async function ReceptionDetailPage({ params }: Props) {
                   ...products.map((p, i) => ({
                     key: `prod-${i}`,
                     type: 'Produs',
-                    name: p.product.name,
+                    name: p.productName || p.product?.name || 'N/A',
                     quantity: p.quantity,
                     unit: p.unitMeasure,
                     price: p.invoicePricePerUnit,
@@ -187,7 +187,7 @@ export default async function ReceptionDetailPage({ params }: Props) {
                   ...packages.map((p, i) => ({
                     key: `amb-${i}`,
                     type: 'Ambalaj',
-                    name: p.packaging.name,
+                    name: p.packagingName || p.packaging?.name || 'N/A',
                     quantity: p.quantity,
                     unit: p.unitMeasure,
                     price: p.invoicePricePerUnit,

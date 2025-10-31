@@ -23,6 +23,8 @@ export type PopulatedReceptionProduct = Omit<
   'product'
 > & {
   product: PopulatedProductDetails
+  productName?: string
+  productCode?: string
   distributedTransportCostPerUnit?: number
   totalDistributedTransportCost?: number
   landedCostPerUnit?: number
@@ -34,6 +36,8 @@ export type PopulatedReceptionPackaging = Omit<
   'packaging'
 > & {
   packaging: PopulatedPackagingDetails
+  packagingName?: string
+  packagingCode?: string
   distributedTransportCostPerUnit?: number
   totalDistributedTransportCost?: number
   landedCostPerUnit?: number
@@ -47,6 +51,7 @@ export type PopulatedReception = Omit<
   supplier?: PopulatedItem
   products?: PopulatedReceptionProduct[]
   createdBy: PopulatedItem
+  createdByName?: string
   createdAt: string
   packagingItems?: PopulatedReceptionPackaging[]
   deliveries?: z.infer<typeof DeliverySchema>[]

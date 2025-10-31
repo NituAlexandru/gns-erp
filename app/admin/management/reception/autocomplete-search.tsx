@@ -1,12 +1,21 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Image from 'next/image' // <-- MODIFICARE: Adăugat import pentru Imagine
+import { Package } from 'lucide-react' // <-- MODIFICARE: Adăugat icon placeholder
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
 
 export type SearchResult = {
   _id: string
   name: string
+  images?: string[]
+  productCode?: string
   unit?: string
   packagingUnit?: string
   packagingQuantity?: number
@@ -94,16 +103,70 @@ export function AutocompleteSearch({
           &times;
         </Button>
       )}
+
       {isOpen && options.length > 0 && (
-        <ul className='absolute z-10 mt-1 w-full max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md'>
+        <ul className='absolute z-10 mt-1 w-full max-h-60 overflow-auto rounded-md border bg-popover text-popover-foreground shadow-md p-1'>
           {options.map((item) => (
             <li
               key={item._id}
-              className='cursor-pointer px-3 py-2 text-sm hover:bg-accent'
+              className='cursor-pointer p-2 text-sm hover:bg-accent rounded-md'
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelect(item)}
             >
-              {item.name}
+              {/* Aici e noua structură vizuală, ca în Comenzi */}
+              <div className='flex items-center gap-3'>
+                {/* 1. Imaginea */}
+                <HoverCard openDelay={200} closeDelay={100}>
+                  <HoverCardTrigger asChild>
+                    <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-muted/50 cursor-pointer'>
+                      {item.images && item.images[0] ? (
+                        <Image
+                          src={item.images[0]}
+                          alt={item.name}
+                          width={40}
+                          height={40}
+                          className='h-full w-full object-cover'
+                        />
+                      ) : (
+                        <Package className='h-5 w-5 text-muted-foreground' />
+                      )}
+                    </div>
+                  </HoverCardTrigger>
+
+                  {/* Acesta este conținutul pop-up-ului */}
+                  <HoverCardContent
+                    side='top'
+                    align='start'
+                    className='w-auto p-1' 
+                     onPointerDownOutside={(e) => e.preventDefault()}
+                  >
+                    {item.images && item.images[0] ? (
+                      <Image
+                        src={item.images[0]}
+                        alt={item.name}
+                        width={250}
+                        height={250} 
+                        className='h-60 w-60 rounded-md object-cover'
+                      />
+                    ) : (
+                      // Fallback dacă nu există imagine
+                      <div className='flex h-48 w-48 items-center justify-center rounded-md bg-muted text-muted-foreground'>
+                        (Fără imagine)
+                      </div>
+                    )}
+                  </HoverCardContent>
+                </HoverCard>
+
+                {/* 2. Nume și Cod */}
+                <div className='flex flex-col'>
+                  <span className='font-semibold'>{item.name}</span>
+                  {searchType !== 'supplier' && (
+                    <span className='text-xs text-muted-foreground'>
+                      Cod produs: {item.productCode || 'N/A'}
+                    </span>
+                  )}
+                </div>
+              </div>
             </li>
           ))}
         </ul>

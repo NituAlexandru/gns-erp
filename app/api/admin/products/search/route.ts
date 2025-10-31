@@ -74,6 +74,20 @@ export async function GET(request: NextRequest) {
         },
       },
     },
+    {
+      $project: {
+        _id: 1,
+        name: 1,
+        unit: 1,
+        packagingUnit: 1,
+        packagingQuantity: 1,
+        itemsPerPallet: 1,
+        averagePurchasePrice: 1,
+        packagingOptions: 1,
+        productCode: 1, 
+        images: 1, 
+      },
+    },
   ]
 
   // --- Pipeline-ul pentru Produse ---

@@ -381,7 +381,9 @@ export default function ReceptionList() {
                         {rec.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>{rec.createdBy?.name || '–'}</TableCell>
+                    <TableCell>
+                      {rec.createdByName || rec.createdBy?.name || '–'}
+                    </TableCell>
                     <TableCell>
                       {rec.createdAt
                         ? format(new Date(rec.createdAt), 'dd/MM/yyyy HH:mm')

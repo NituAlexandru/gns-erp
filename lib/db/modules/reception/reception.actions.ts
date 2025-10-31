@@ -14,7 +14,7 @@ import {
 import z from 'zod'
 import { connectToDatabase } from '../..'
 import Supplier from '../suppliers/supplier.model'
-import User from '../user/user.model'
+import User, { IUser } from '../user/user.model'
 import {
   calculateInvoiceTotals,
   distributeTransportCost,
@@ -24,6 +24,10 @@ import {
   roundToTwoDecimals,
   sumToTwoDecimals,
 } from '@/lib/finance/money'
+import { ISupplierDoc } from '../suppliers/types'
+import ERPProductModel, { IERPProductDoc } from '../product/product.model'
+import { IPackagingDoc } from '../packaging-products/types'
+import PackagingModel from '../packaging-products/packaging.model'
 
 export type ActionResultWithData<T> =
   | { success: true; data: T; message?: string }
@@ -65,7 +69,66 @@ export async function createReception(
   try {
     const payloadToValidate = processReceptionInputData(data)
     const payload = ReceptionCreateSchema.parse(payloadToValidate)
-    const newReception = await ReceptionModel.create(payload)
+
+    const [creator, supplier, productsData, packagingData] = await Promise.all([
+      User.findById(payload.createdBy).lean<IUser>(),
+      Supplier.findById(payload.supplier).lean<ISupplierDoc>(), // Folosim 'Supplier', nu 'SupplierModel'
+      ERPProductModel.find({
+        _id: { $in: (payload.products || []).map((item) => item.product) },
+      }).lean<IERPProductDoc[]>(), // <-- Am adăugat '[]' la tip
+      PackagingModel.find({
+        _id: {
+          $in: (payload.packagingItems || []).map((item) => item.packaging),
+        },
+      }).lean<IPackagingDoc[]>(), // <-- Am adăugat '[]' la tip
+    ])
+
+    if (!creator) throw new Error('Utilizatorul creator nu a fost găsit.')
+    if (!supplier) throw new Error('Furnizorul nu a fost găsit.')
+
+    const productsMap = new Map(
+      productsData.map((p: IERPProductDoc) => [p._id.toString(), p])
+    )
+    const packagingMap = new Map(
+      packagingData.map((p: IPackagingDoc) => [p._id.toString(), p])
+    )
+
+    const payloadWithSnapshots = {
+      ...payload,
+      createdByName: creator.name,
+      supplierSnapshot: {
+        name: supplier.name,
+        cui: supplier.fiscalCode || undefined, 
+        regCom: supplier.regComNumber || undefined, 
+        address: supplier.address, 
+        iban: supplier.bankAccountLei?.iban || undefined, 
+      },
+      products: (payload.products || []).map((item) => {
+        const productDoc = productsMap.get(item.product)
+        if (!productDoc)
+          throw new Error(`Produsul cu ID ${item.product} nu a fost găsit.`)
+        return {
+          ...item,
+          productName: productDoc.name,
+          productCode: productDoc.productCode || 'N/A', 
+        }
+      }),
+      packagingItems: (payload.packagingItems || []).map((item) => {
+        const packagingDoc = packagingMap.get(item.packaging)
+        if (!packagingDoc)
+          throw new Error(`Ambalajul cu ID ${item.packaging} nu a fost găsit.`)
+        return {
+          ...item,
+          packagingName: packagingDoc.name,
+          packagingCode: packagingDoc.productCode || 'N/A', // (Te rog verifică 'code' în modelul Packaging)
+        }
+      }),
+    }
+    // --- Sfârșit logică snapshot-uri ---
+
+    // --- AICI ERA EROAREA MEA ---
+    // Folosim payload-ul îmbogățit, nu cel vechi
+    const newReception = await ReceptionModel.create(payloadWithSnapshots)
 
     return {
       success: true,
@@ -100,9 +163,64 @@ export async function updateReception(
     const payload = ReceptionUpdateSchema.parse(payloadToValidate)
     const { _id, ...updateData } = payload
 
+    const [creator, supplier, productsData, packagingData] = await Promise.all([
+      User.findById(updateData.createdBy).lean<IUser>(),
+      Supplier.findById(updateData.supplier).lean<ISupplierDoc>(), // Folosim 'Supplier'
+      ERPProductModel.find({
+        _id: { $in: (updateData.products || []).map((item) => item.product) },
+      }).lean<IERPProductDoc[]>(), 
+      PackagingModel.find({
+        _id: {
+          $in: (updateData.packagingItems || []).map((item) => item.packaging),
+        },
+      }).lean<IPackagingDoc[]>(), 
+    ])
+
+    if (!creator) throw new Error('Utilizatorul creator nu a fost găsit.')
+    if (!supplier) throw new Error('Furnizorul nu a fost găsit.')
+
+    const productsMap = new Map(
+      productsData.map((p: IERPProductDoc) => [p._id.toString(), p])
+    )
+    const packagingMap = new Map(
+      packagingData.map((p: IPackagingDoc) => [p._id.toString(), p])
+    )
+
+    const updateDataWithSnapshots = {
+      ...updateData,
+      createdByName: creator.name,
+      supplierSnapshot: {
+        name: supplier.name,
+        cui: supplier.fiscalCode || undefined, 
+        regCom: supplier.regComNumber || undefined, 
+      },
+      products: (updateData.products || []).map((item) => {
+        const productDoc = productsMap.get(item.product)
+        if (!productDoc)
+          throw new Error(`Produsul cu ID ${item.product} nu a fost găsit.`)
+        return {
+          ...item,
+          productName: productDoc.name,
+          productCode: productDoc.productCode || 'N/A', // (Verifică 'productCode')
+        }
+      }),
+      packagingItems: (updateData.packagingItems || []).map((item) => {
+        const packagingDoc = packagingMap.get(item.packaging)
+        if (!packagingDoc)
+          throw new Error(`Ambalajul cu ID ${item.packaging} nu a fost găsit.`)
+        return {
+          ...item,
+          packagingName: packagingDoc.name,
+          packagingCode: packagingDoc.productCode || 'N/A', 
+        }
+      }),
+    }
+    // --- Sfârșit logică snapshot-uri ---
+
+    // Folosim payload-ul îmbogățit
     const updatedReception = await ReceptionModel.findByIdAndUpdate(
       _id,
-      updateData,
+      updateDataWithSnapshots, 
       { new: true }
     )
     if (!updatedReception) {
