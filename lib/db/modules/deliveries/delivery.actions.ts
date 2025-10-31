@@ -23,6 +23,8 @@ import AssignmentModel from '../fleet/assignments/assignments.model'
 import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
 import { PAGE_SIZE } from '@/lib/constants'
 import TrailerModel from '../fleet/trailers/trailers.model'
+import ablyRest from '../ably/ably-rest'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '../ably/constants'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -640,6 +642,17 @@ export async function scheduleDelivery(
 
     await mongoSession.commitTransaction()
 
+    try {
+      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
+      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
+        message: `Delivery ${savedDelivery.deliveryNumber} scheduled.`,
+        user: user.name,
+      })
+    } catch (ablyError) {
+      console.error('Ably publish error:', ablyError)
+      // Nu arunca eroare aici, livrarea s-a salvat, doar notificarea a eșuat
+    }
+
     // Revalidăm pagina comenzii ȘI pagina planner-ului
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
     revalidatePath('/deliveries')
@@ -714,6 +727,16 @@ export async function unassignDelivery(deliveryId: string) {
     await delivery.save({ session: mongoSession })
 
     await mongoSession.commitTransaction()
+
+    try {
+      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
+      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
+        message: `Delivery ${delivery.deliveryNumber} unassigned.`,
+        user: user.name,
+      })
+    } catch (ablyError) {
+      console.error('Ably publish error:', ablyError)
+    }
 
     // Revalidăm pagina comenzii ȘI pagina planner-ului
     revalidatePath(`/orders/${delivery.orderId.toString()}`)

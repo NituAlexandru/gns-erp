@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { UnassignedDeliveryCard } from './planner/UnassignedDeliveryCard'
 import { IDelivery } from '@/lib/db/modules/deliveries/delivery.model'
 import { IPopulatedAssignmentDoc } from '@/lib/db/modules/fleet/assignments/types'
@@ -8,6 +8,13 @@ import { ScheduleDeliveryModal } from './planner/ScheduleDeliveryModal'
 import { DateHeader } from './planner/DateHeader'
 import { AssignmentGrid } from './planner/AssignmentGrid'
 import { ITrailerDoc } from '@/lib/db/modules/fleet/trailers/types'
+import Ably, { Message } from 'ably' // Importăm clasa Ably
+import { useRouter } from 'next/navigation'
+import {
+  ABLY_API_ENDPOINTS,
+  ABLY_CHANNELS,
+  ABLY_EVENTS,
+} from '@/lib/db/modules/ably/constants'
 
 interface LogisticsPlannerClientProps {
   initialSelectedDate: Date
@@ -24,10 +31,34 @@ export function LogisticsPlannerClient({
   assignments,
   availableTrailers,
 }: LogisticsPlannerClientProps) {
+  const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedDelivery, setSelectedDelivery] = useState<IDelivery | null>(
     null
   )
+
+  useEffect(() => {
+    // Inițiem clientul Ably Realtime (pentru conexiune live)
+    // Îi spunem să-și ia token-ul de la API-ul nostru securizat
+    const ably = new Ably.Realtime({ authUrl: ABLY_API_ENDPOINTS.AUTH })
+    // Ne conectăm la același canal pe care "anunță" backend-ul
+    const channel = ably.channels.get(ABLY_CHANNELS.PLANNER)
+
+    const onDataChanged = (message: Message) => {
+      console.log('Ably: Data change received!', message.data)
+      router.refresh()
+    }
+
+    // 2. Ne abonăm la eveniment folosind funcția
+    channel.subscribe(ABLY_EVENTS.DATA_CHANGED, onDataChanged)
+
+    // 3. Funcția de curățare
+    return () => {
+      // Ne dezabonăm de la eveniment folosind EXACT aceeași funcție
+      channel.unsubscribe(ABLY_EVENTS.DATA_CHANGED, onDataChanged)
+      ably.close()
+    }
+  }, [router])
 
   const handleOpenScheduleModal = (delivery: IDelivery) => {
     setSelectedDelivery(delivery)
@@ -62,7 +93,7 @@ export function LogisticsPlannerClient({
                 <UnassignedDeliveryCard
                   key={delivery._id.toString()}
                   delivery={delivery}
-                  onSchedule={handleOpenScheduleModal} 
+                  onSchedule={handleOpenScheduleModal}
                 />
               ))}
             </div>
