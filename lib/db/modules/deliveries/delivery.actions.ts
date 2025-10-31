@@ -18,10 +18,11 @@ import {
 } from './types'
 import { generateDeliveryNumber } from '../numbering/numbering.actions'
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns'
+import { fromZonedTime } from 'date-fns-tz'
 import { ScheduleDeliveryInput } from './planner-validator'
 import AssignmentModel from '../fleet/assignments/assignments.model'
 import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import TrailerModel from '../fleet/trailers/trailers.model'
 import ablyRest from '../ably/ably-rest'
 import { ABLY_CHANNELS, ABLY_EVENTS } from '../ably/constants'
@@ -435,8 +436,11 @@ export async function getUnassignedDeliveriesForDate(
   try {
     await connectToDatabase()
 
-    const startDate = startOfDay(selectedDate)
-    const endDate = endOfDay(selectedDate)
+    const startOfDayLocal = startOfDay(selectedDate)
+    const endOfDayLocal = endOfDay(selectedDate)
+
+    const startDate = fromZonedTime(startOfDayLocal, TIMEZONE)
+    const endDate = fromZonedTime(endOfDayLocal, TIMEZONE)
 
     const deliveries = await DeliveryModel.find({
       status: 'CREATED', // Doar cele create, neprogramate
@@ -464,20 +468,17 @@ export async function getAssignedDeliveriesForDate(
   try {
     await connectToDatabase()
 
-    const startDate = startOfDay(selectedDate)
-    const endDate = endOfDay(selectedDate)
+    const startOfDayLocal = startOfDay(selectedDate)
+    const endOfDayLocal = endOfDay(selectedDate)
+
+    const startDate = fromZonedTime(startOfDayLocal, TIMEZONE)
+    const endDate = fromZonedTime(endOfDayLocal, TIMEZONE)
 
     const deliveries = await DeliveryModel.find({
-      // --- MODIFICARE AICI ---
-      // Căutăm orice livrare care are data programată în ziua selectată,
-      // indiferent de status, pentru a avea istoricul complet.
       deliveryDate: {
         $gte: startDate,
         $lte: endDate,
       },
-      // Nu mai filtrăm după status.
-      // status: { $in: ['SCHEDULED', 'IN_TRANSIT', 'DELIVERED'] }, // <-- AM ȘTERS ASTA
-      // --- SFÂRȘIT MODIFICARE ---
     })
       .sort({ assemblyId: 1, 'deliverySlots.0': 1 }) // Sortează după ansamblu, apoi după primul slot orar
       .lean<IDelivery[]>()
