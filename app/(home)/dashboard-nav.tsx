@@ -12,7 +12,7 @@ const DASHBOARD_LINKS = [
     label: 'Comandă Nouă',
     icon: <PlusCircle size={16} />,
   },
-  { href: '/clients', label: 'Clienți', icon: <Users size={16} /> },
+  { href: '/clients/new', label: 'Client nou', icon: <Users size={16} /> }, // Adaugat cu iconanți', icon: <Users size={16} /> },
   {
     href: '/admin/management/suppliers',
     label: 'Furnizori',

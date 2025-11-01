@@ -1,7 +1,10 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-import InventoryItemModel, { IInventoryItemDoc } from './inventory.model'
+import InventoryItemModel, {
+  IInventoryBatch,
+  IInventoryItemDoc,
+} from './inventory.model'
 import StockMovementModel, { IStockMovementDoc } from './movement.model'
 import { StockMovementInput, StockMovementSchema } from './validator'
 import mongoose, {
@@ -13,6 +16,8 @@ import mongoose, {
 import { IN_TYPES, OUT_TYPES } from './constants'
 import {
   AggregatedStockItem,
+  FifoCostInfo,
+  ICostBreakdownBatch,
   InventoryLocation,
   PackagingOption,
   ProductStockDetails,
@@ -28,6 +33,7 @@ import PackagingModel from '@/lib/db/modules/packaging-products/packaging.model'
 import ReceptionModel from '@/lib/db/modules/reception/reception.model'
 import { IOrderLineItem } from '../order/types'
 import StockReservationModel from './reservation.model'
+import User from '@/lib/db/modules/user/user.model'
 
 /**
  * Înregistrează o mișcare de stoc (IN/OUT) conform logicii FIFO.
@@ -35,14 +41,17 @@ import StockReservationModel from './reservation.model'
  * Câmpurile `locationTo` și `locationFrom` pot fi locații predefinite (ex: 'DEPOZIT')
  * sau ID-ul unui Proiect, pentru gestiunea stocurilor pe proiecte.
  * Această operație este tranzacțională.
- * @param input Detaliile mișcării de stoc.
- * @returns Documentul de mișcare de stoc creat.
+ *
+ * 🔽 --- MODIFICARE: Returnează acum un obiect complex --- 🔽
+ * @returns {Promise<{ movement: IStockMovementDoc, costInfo: FifoCostInfo | null }>}
+ * Documentul de mișcare creat și (dacă e ieșire) costul FIFO calculat.
  */
 
 export async function recordStockMovement(
   input: StockMovementInput,
   existingSession?: ClientSession
-) {
+): Promise<{ movement: IStockMovementDoc; costInfo: FifoCostInfo | null }> {
+  // <--- MODIFICARE RETUR
   const payload = StockMovementSchema.parse(input)
 
   const executeLogic = async (session: ClientSession) => {
@@ -82,11 +91,30 @@ export async function recordStockMovement(
       0
     )
 
+    let responsibleUserName = 'Sistem'
+    if (payload.responsibleUser) {
+      // 🔽 --- Folosim 'User' --- 🔽
+      const user = await User.findById(payload.responsibleUser)
+        .select('name')
+        .session(session)
+        .lean()
+      if (user) {
+        responsibleUserName = user.name
+      }
+    }
+
     const movement = new StockMovementModel({
       ...payload,
+      responsibleUser: payload.responsibleUser
+        ? new Types.ObjectId(payload.responsibleUser)
+        : undefined,
+      responsibleUserName: responsibleUserName,
       balanceBefore,
-      balanceAfter: 0,
+      balanceAfter: 0, // Se setează la final
     })
+
+    // 🔽 --- Variabile de cost pe care le vom returna --- 🔽
+    let costInfo: FifoCostInfo | null = null
 
     if (isInput) {
       if (payload.unitCost === undefined) {
@@ -103,58 +131,104 @@ export async function recordStockMovement(
       inventoryItem.batches.sort(
         (a, b) => a.entryDate.getTime() - b.entryDate.getTime()
       )
+
+      // 🔽 --- NOU: Salvăm costul pe mișcarea de INTRARE --- 🔽
+      movement.unitCost = payload.unitCost
+      movement.lineCost = payload.quantity * payload.unitCost
     } else {
       // Logică de ieșire (FIFO)
       let quantityToDecrease = payload.quantity
       if (quantityToDecrease > balanceBefore) {
         throw new Error('Stoc insuficient.')
       }
-      const newBatches = []
+
+      // 🔽 --- NOU: Inițializăm variabilele pentru calculul costului --- 🔽
+      const newBatches: IInventoryBatch[] = []
+      const costBreakdown: ICostBreakdownBatch[] = []
+      let lineCostFIFO = 0
+
       for (const batch of inventoryItem.batches) {
         if (quantityToDecrease <= 0) {
           newBatches.push(batch)
           continue
         }
-        if (batch.quantity > quantityToDecrease) {
-          // Creăm un obiect nou cu proprietățile copiate manual
+
+        const consumedQuantity = Math.min(batch.quantity, quantityToDecrease)
+
+        // 🔽 --- NOU: Calculăm costul și îl adăugăm la breakdown --- 🔽
+        const costOfThisPortion = consumedQuantity * batch.unitCost
+        lineCostFIFO += costOfThisPortion
+        costBreakdown.push({
+          movementId: batch.movementId,
+          entryDate: batch.entryDate,
+          quantity: consumedQuantity,
+          unitCost: batch.unitCost,
+        })
+        // 🔼 --- SFÂRȘIT BLOC NOU --- 🔼
+
+        if (batch.quantity > consumedQuantity) {
+          // Lotul e consumat parțial, păstrăm restul
           newBatches.push({
-            quantity: batch.quantity - quantityToDecrease,
+            quantity: batch.quantity - consumedQuantity,
             unitCost: batch.unitCost,
             entryDate: batch.entryDate,
             movementId: batch.movementId,
           })
           quantityToDecrease = 0
         } else {
+          // Lotul e consumat complet
           quantityToDecrease -= batch.quantity
         }
       }
       inventoryItem.batches = newBatches
+
+      // 🔽 --- NOU: Salvăm costul pe mișcarea de IEȘIRE --- 🔽
+      const unitCostFIFO = lineCostFIFO / payload.quantity
+      movement.unitCost = unitCostFIFO
+      movement.lineCost = lineCostFIFO
+      movement.costBreakdown = costBreakdown
+
+      // 🔽 --- NOU: Pregătim obiectul de return --- 🔽
+      costInfo = {
+        unitCostFIFO,
+        lineCostFIFO,
+        costBreakdown,
+      }
     }
 
     await recalculateInventorySummary(inventoryItem)
-
     await inventoryItem.save({ session })
 
-    const balanceAfter = inventoryItem.batches.reduce(
-      (sum, batch) => sum + batch.quantity,
-      0
-    )
+    const balanceAfter = inventoryItem.totalStock // Citim din sumarul actualizat
     movement.balanceAfter = balanceAfter
 
     await movement.save({ session })
 
-    return movement
+    // 🔽 --- MODIFICARE: Returnăm obiectul complex --- 🔽
+    return { movement, costInfo }
   }
 
+  // --- Logica de gestionare a sesiunii (modificată să returneze obiectul complet) ---
   if (existingSession) {
     return executeLogic(existingSession)
   } else {
     const session = await startSession()
     try {
-      let result
+      // Tipăm corect 'result'
+      let result:
+        | {
+            movement: IStockMovementDoc
+            costInfo: FifoCostInfo | null
+          }
+        | undefined
+
       await session.withTransaction(async (transactionSession) => {
         result = await executeLogic(transactionSession)
       })
+
+      if (!result) {
+        throw new Error('Tranzacția nu a returnat un rezultat.')
+      }
       return result
     } finally {
       await session.endSession()
@@ -1013,6 +1087,8 @@ export async function getProductStockDetails(
 export async function recalculateInventorySummary(item: IInventoryItemDoc) {
   if (!item) return
 
+  item.batches.sort((a, b) => a.entryDate.getTime() - b.entryDate.getTime())
+
   const totalStock = item.batches.reduce(
     (sum, batch) => sum + batch.quantity,
     0
@@ -1036,11 +1112,16 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
       if (batch.unitCost < minPrice) minPrice = batch.unitCost
     }
 
-    // Setăm noile valori calculate direct pe document
     item.averageCost = totalValue / totalStock
     item.maxPurchasePrice = maxPrice
     item.minPurchasePrice = minPrice === Infinity ? 0 : minPrice
     item.lastPurchasePrice = item.batches[item.batches.length - 1].unitCost
+  } else {
+    // 🔽 --- NOU: Resetăm valorile dacă stocul e 0 --- 🔽
+    item.averageCost = 0
+    item.maxPurchasePrice = 0
+    item.minPurchasePrice = 0
+    item.lastPurchasePrice = 0
   }
   // Dacă stocul este 0, nu se intră în acest bloc, iar prețurile vechi rămân nemodificate.
 }

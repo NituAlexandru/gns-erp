@@ -1,45 +1,54 @@
 import { z } from 'zod'
 
-export const SettingInputSchema = z.object({
-  common: z.object({
-    pageSize: z.coerce.number().min(1).default(9),
-    isMaintenanceMode: z.boolean().default(false),
-    freeShippingMinPrice: z.coerce.number().min(0).default(0),
-    defaultTheme: z.string().min(1).default('light'),
-    currency: z.string().min(1).default('RON'),
-  }),
-  site: z.object({
-    name: z.string().min(1),
-    logo: z.string().min(1),
-    slogan: z.string().min(1),
-    description: z.string().min(1),
-    keywords: z.string().min(1),
-    url: z.string().min(1),
-    email: z.string().min(1),
-    phone: z.string().min(1),
-    author: z.string().min(1),
-    copyright: z.string().min(1),
-    address: z.string().min(1),
-  }),
-  availablePaymentMethods: z
-    .array(
-      z.object({
-        name: z.string().min(1),
-        commission: z.coerce.number().min(0),
-      })
-    )
-    .min(1),
-  defaultPaymentMethod: z.string().min(1),
-  availableDeliveryDates: z
-    .array(
-      z.object({
-        name: z.string().min(1),
-        daysToDeliver: z.number().min(0),
-        shippingPrice: z.coerce.number().min(0),
-        freeShippingMinPrice: z.coerce.number().min(0),
-      })
-    )
-    .min(1),
-  defaultDeliveryDate: z.string().min(1),
+// Schema pentru adresa
+export const AddressSchema = z.object({
+  judet: z.string().min(1, 'Județul este obligatoriu.'),
+  localitate: z.string().min(1, 'Localitatea este obligatorie.'),
+  strada: z.string().min(1, 'Strada este obligatorie.'),
+  numar: z.string().optional(),
+  alteDetalii: z.string().optional(),
+  codPostal: z.string().min(4, 'Codul poștal este obligatoriu.'),
+  tara: z.string().min(2, 'Țara este obligatorie (ex: RO)').default('RO'),
 })
-// Trebuie modificat
+
+// Schema pentru un singur cont bancar
+export const BankAccountSchema = z.object({
+  bankName: z.string().min(1, 'Numele băncii este obligatoriu.'),
+  iban: z.string().min(1, 'IBAN-ul este obligatoriu.'),
+  currency: z
+    .string()
+    .min(3, 'Moneda este obligatorie (ex: RON)')
+    .default('RON'),
+  isDefault: z.boolean().default(false),
+})
+
+// Schema pentru un singur email
+export const EmailSchema = z.object({
+  address: z
+    .string()
+    .min(1, 'Adresa de email este obligatorie.')
+    .email('Email invalid.'),
+  isDefault: z.boolean().default(false),
+})
+
+// Schema pentru un singur telefon
+export const PhoneSchema = z.object({
+  number: z.string().min(1, 'Numărul de telefon este obligatoriu.'),
+  isDefault: z.boolean().default(false),
+})
+
+// Schema principală pentru setările companiei
+export const SettingInputSchema = z.object({
+  name: z.string().min(1, 'Numele companiei este obligatoriu.'),
+  cui: z.string().min(1, 'CUI-ul este obligatoriu.'),
+  regCom: z.string().min(1, 'Nr. Reg. Com. este obligatoriu.'),
+  address: AddressSchema,
+  web: z.string().url('URL invalid.').optional(),
+
+  // Array-uri pentru date multiple
+  bankAccounts: z
+    .array(BankAccountSchema)
+    .min(1, 'Adaugă cel puțin un cont bancar.'),
+  emails: z.array(EmailSchema).min(1, 'Adaugă cel puțin un email.'),
+  phones: z.array(PhoneSchema).min(1, 'Adaugă cel puțin un telefon.'),
+})

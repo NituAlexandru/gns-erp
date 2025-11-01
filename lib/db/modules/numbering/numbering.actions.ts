@@ -3,9 +3,11 @@
 import { connectToDatabase } from '@/lib/db'
 import DocumentCounter from './documentCounter.model'
 import { ClientSession } from 'mongoose'
+import Series, { ISeries } from './series.model'
 
 export async function generateNextDocumentNumber(
-  seriesName: string
+  seriesName: string,
+  options: { session?: ClientSession } = {}
 ): Promise<number> {
   try {
     await connectToDatabase()
@@ -23,6 +25,7 @@ export async function generateNextDocumentNumber(
       {
         new: true,
         upsert: true,
+        session: options.session,
       }
     )
 
@@ -99,4 +102,22 @@ export async function generateDeliveryNumber(
   const paddedSequence = String(nextSequence).padStart(5, '0')
   // Format: 00001-NumarComanda
   return `${paddedSequence}-${orderNumber}`
+}
+/**
+ * Returnează toate seriile ACTIVE pentru un anumit tip de document.
+ * Ex: getActiveSeriesForDocumentType('Aviz')
+ */
+export async function getActiveSeriesForDocumentType(
+  documentType: ISeries['documentType']
+) {
+  await connectToDatabase()
+
+  const activeSeries = await Series.find({
+    documentType,
+    isActive: true,
+  })
+    .sort({ name: 1 })
+    .lean()
+
+  return JSON.parse(JSON.stringify(activeSeries))
 }

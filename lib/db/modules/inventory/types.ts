@@ -1,7 +1,23 @@
+import { Types } from 'mongoose'
 import { IDelivery, IInvoice } from '../reception/reception.model'
 import { INVENTORY_LOCATIONS, StockMovementType } from './constants'
 import { IInventoryItemDoc } from './inventory.model'
 import { IStockMovementDoc } from './movement.model'
+
+// Tipul pentru un lot de cost (folosit în Aviz și Mișcare Stoc)
+export interface ICostBreakdownBatch {
+  movementId: Types.ObjectId // ID-ul mișcării de INTRARE
+  entryDate: Date
+  quantity: number
+  unitCost: number
+}
+
+// Tipul pentru returnul funcției FIFO
+export interface FifoCostInfo {
+  unitCostFIFO: number // Costul mediu ponderat al ieșirii
+  lineCostFIFO: number // Costul total al ieșirii
+  costBreakdown: ICostBreakdownBatch[] // Detalierea loturilor
+}
 
 export type InventoryItemDTO = Omit<
   IInventoryItemDoc,

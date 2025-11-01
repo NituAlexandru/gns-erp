@@ -222,6 +222,19 @@ export async function createSingleDelivery(
 
     await mongoSession.commitTransaction()
 
+    try {
+      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
+      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
+        message: `Livrare nouă ${savedDelivery.deliveryNumber} creată.`,
+        deliveryId: savedDelivery._id.toString(),
+        newStatus: savedDelivery.status,
+        user: user.name,
+      })
+    } catch (ablyError) {
+      console.error('Ably publish error (createDelivery):', ablyError)
+      // Nu bloca execuția
+    }
+
     revalidatePath(`/orders/${orderId}`)
     revalidatePath('/deliveries')
 
@@ -301,6 +314,18 @@ export async function deleteDeliveryPlan(deliveryId: string) {
     }
 
     await mongoSession.commitTransaction()
+
+    try {
+      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
+      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
+        message: `Livrare ${delivery.deliveryNumber} a fost anulată.`,
+        deliveryId: delivery._id.toString(),
+        newStatus: delivery.status, // 'CANCELLED'
+        user: authSession.user.name,
+      })
+    } catch (ablyError) {
+      console.error('Ably publish error (deleteDelivery):', ablyError)
+    }
 
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
     revalidatePath('/deliveries')
@@ -698,6 +723,16 @@ export async function unassignDelivery(deliveryId: string) {
       await DeliveryModel.findById(deliveryId).session(mongoSession)
     if (!delivery) {
       throw new Error('Livrarea nu a fost găsită.')
+    }
+    try {
+      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
+      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
+        deliveryId: delivery._id.toString(),
+        newStatus: delivery.status, // CREATED
+        message: `Livrare ${delivery.deliveryNumber} a fost dezalocată.`,
+      })
+    } catch (ablyError) {
+      console.error('❌ Eroare la publicarea pe Ably (unassign):', ablyError)
     }
 
     // 2. Verificăm statusul (nu poți dezaloca ceva în tranzit, livrat etc.)

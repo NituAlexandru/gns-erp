@@ -11,11 +11,7 @@ export const links = [
   { title: 'Produse', href: '/catalog-produse' },
   { title: 'Comenzi', href: '/orders' },
   { title: 'Livrări', href: '/deliveries' },
-  { title: 'NIR', href: '/nir' },
-  { title: 'Proforme', href: '/proforme' },
-  { title: 'Avize', href: '/avize' },
-  { title: 'Facturi', href: '/facturi' },
-  { title: 'Storno', href: '/storno' },
+  { title: 'Documente', href: '/financial' },
 ]
 
 export function MainNav({

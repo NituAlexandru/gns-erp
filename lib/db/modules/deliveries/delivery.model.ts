@@ -14,7 +14,7 @@ export interface ClientSnapshot {
   statusAtCreation?: string
 }
 // Schema pentru ClientSnapshot
-const ClientSnapshotSchema = new Schema<ClientSnapshot>(
+export const ClientSnapshotSchema = new Schema<ClientSnapshot>(
   {
     name: { type: String, required: true },
     cui: { type: String, required: true },
@@ -38,7 +38,7 @@ export interface DeliveryAddress {
   alteDetalii?: string
 }
 
-const DeliveryAddressSchema = new Schema<DeliveryAddress>(
+export const DeliveryAddressSchema = new Schema<DeliveryAddress>(
   {
     judet: { type: String, required: true },
     localitate: { type: String, required: true },
@@ -53,7 +53,7 @@ export interface SalesAgentSnapshot {
   name: string
 }
 
-const SalesAgentSnapshotSchema = new Schema<SalesAgentSnapshot>(
+export const SalesAgentSnapshotSchema = new Schema<SalesAgentSnapshot>(
   {
     name: { type: String, required: true },
   },
@@ -94,7 +94,7 @@ export interface IDeliveryLineItem extends Types.Subdocument {
   packagingOptions: { unitName: string; baseUnitEquivalent: number }[]
 }
 
-const DeliveryLineItemSchema = new Schema<IDeliveryLineItem>({
+export const DeliveryLineItemSchema = new Schema<IDeliveryLineItem>({
   orderLineItemId: { type: Schema.Types.ObjectId, ref: 'Order.lineItems' },
   productId: { type: Schema.Types.ObjectId, refPath: 'stockableItemType' },
   serviceId: { type: Schema.Types.ObjectId, ref: 'Service' },
@@ -146,9 +146,9 @@ export interface IDelivery extends Document {
   driverName?: string
   vehicleNumber?: string
   trailerNumber?: string
-  driverId?: Types.ObjectId 
+  driverId?: Types.ObjectId
   vehicleId?: Types.ObjectId
-  trailerId?: Types.ObjectId 
+  trailerId?: Types.ObjectId
   isNoticed: boolean
   isInvoiced: boolean
   createdBy: Types.ObjectId
@@ -218,7 +218,7 @@ const DeliverySchema = new Schema<IDelivery>(
       index: true,
     },
     assemblyId: { type: Schema.Types.ObjectId, ref: 'Assignment', index: true },
-    driverId: { type: Schema.Types.ObjectId, ref: 'Driver' }, 
+    driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
     vehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle' },
     trailerId: { type: Schema.Types.ObjectId, ref: 'Trailer' },
     driverName: { type: String },

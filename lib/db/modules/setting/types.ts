@@ -1,8 +1,12 @@
 import { z } from 'zod'
-import { SettingInputSchema } from './validator'
+import {
+  SettingInputSchema,
+  BankAccountSchema,
+  EmailSchema,
+  PhoneSchema,
+} from './validator'
 
 export type ISettingInput = z.infer<typeof SettingInputSchema>
-export type ClientSetting = ISettingInput & {
-  currency: string
-}
-// Trebuie modificat 
+export type IBankAccount = z.infer<typeof BankAccountSchema>
+export type IEmail = z.infer<typeof EmailSchema>
+export type IPhone = z.infer<typeof PhoneSchema>

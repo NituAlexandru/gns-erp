@@ -397,6 +397,10 @@ export function ScheduleDeliveryModal({
   }
 
   const isScheduled = delivery?.status === 'SCHEDULED'
+  const isReadOnly =
+    delivery?.status === 'IN_TRANSIT' ||
+    delivery?.status === 'DELIVERED' ||
+    delivery?.status === 'INVOICED'
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -495,7 +499,9 @@ export function ScheduleDeliveryModal({
                               <FormControl>
                                 <Checkbox
                                   checked={isChecked}
-                                  disabled={isBlocked && !isChecked}
+                                  disabled={
+                                    (isBlocked && !isChecked) || isReadOnly
+                                  }
                                   // --- MODIFICĂ ACEASTĂ FUNCȚIE ---
                                   onCheckedChange={(checked) => {
                                     const currentValue = field.value || []
@@ -699,6 +705,7 @@ export function ScheduleDeliveryModal({
                           placeholder='Note interne, detalii programare, observații...'
                           className='resize-none h-32'
                           {...field}
+                          disabled={isReadOnly}
                         />
                       </FormControl>
                       <FormMessage />
@@ -732,12 +739,14 @@ export function ScheduleDeliveryModal({
                     <XCircle className='mr-2 h-4 w-4' /> Inchide
                   </Button>
                 </DialogClose>
-                <Button type='submit' disabled={isPending}>
+                <Button type='submit' disabled={isPending || isReadOnly}>
                   {isPending ? (
                     <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                   ) : (
                     <Save className='mr-2 h-4 w-4' />
                   )}
+
+                  {/* Textul butonului a fost simplificat, deoarece e dezactivat oricum */}
                   {isScheduled
                     ? 'Actualizează Programarea'
                     : 'Salvează Programarea'}
