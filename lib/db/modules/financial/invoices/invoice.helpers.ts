@@ -46,83 +46,81 @@ export function consolidateInvoiceFromNotes(notes: IDeliveryNoteDoc[]): {
   totals: InvoiceTotals
 } {
   const invoiceItems: InvoiceLineInput[] = []
-  const invoiceTotals = notes.reduce(
-    (acc, note) => {
-      for (const item of note.items as IDeliveryNoteLine[]) {
-        const lineValue = item?.lineValue || 0
-        const vatValue = item?.vatRateDetails?.value || 0
-        const lineCost = item?.lineCostFIFO || 0
-        const lineProfit = round2(lineValue - lineCost)
-        const lineMargin =
-          lineValue > 0 ? round2((lineProfit / lineValue) * 100) : 0
+  const invoiceTotals = notes.reduce((acc, note) => {
+    for (const item of note.items as IDeliveryNoteLine[]) {
+      const lineValue = item?.lineValue || 0
+      const vatValue = item?.vatRateDetails?.value || 0
+      const lineCost = item?.lineCostFIFO || 0
+      const lineProfit = round2(lineValue - lineCost)
+      const lineMargin =
+        lineValue > 0 ? round2((lineProfit / lineValue) * 100) : 0
 
-        invoiceItems.push({
-          sourceDeliveryNoteId: note._id.toString(),
-          sourceDeliveryNoteLineId: item._id.toString(),
-          productId: item.productId?.toString(),
-          serviceId: item.serviceId?.toString(),
-          stockableItemType: item.stockableItemType,
-          isManualEntry: item.isManualEntry,
-          productName: item.productName,
-          productCode: item.productCode,
-          codNC: item.codNC,
-          quantity: item.quantity,
-          unitOfMeasure: item.unitOfMeasure,
-          unitOfMeasureCode: item.unitOfMeasureCode,
-          unitPrice: item.priceAtTimeOfOrder,
-          vatRateDetails: item.vatRateDetails,
-          lineValue: lineValue,
-          lineTotal: item.lineTotal,
-          baseUnit: item.baseUnit,
-          conversionFactor: item.conversionFactor || 1,
-          quantityInBaseUnit: item.quantityInBaseUnit,
-          priceInBaseUnit: item.priceInBaseUnit,
-          minimumSalePrice: item.minimumSalePrice,
-          packagingOptions: item.packagingOptions || [],
-          lineCostFIFO: lineCost,
-          lineProfit: lineProfit,
-          lineMargin: lineMargin,
-          costBreakdown: (item.costBreakdown || []).map((cb) => ({
-            movementId: cb.movementId?.toString(), // Convertim ObjectId în string
-            entryDate: new Date(cb.entryDate), // Convertim string-ul Date în obiect Date (Zod o cere)
-            quantity: cb.quantity,
-            unitCost: cb.unitCost,
-            type: cb.type,
-          })),
-        })
+      invoiceItems.push({
+        sourceDeliveryNoteId: note._id.toString(),
+        sourceDeliveryNoteLineId: item._id.toString(),
+        productId: item.productId?.toString(),
+        serviceId: item.serviceId?.toString(),
+        stockableItemType: item.stockableItemType,
+        isManualEntry: item.isManualEntry,
+        productName: item.productName,
+        productCode: item.productCode,
+        codNC: item.codNC,
+        quantity: item.quantity,
+        unitOfMeasure: item.unitOfMeasure,
+        unitOfMeasureCode: item.unitOfMeasureCode,
+        unitPrice: item.priceAtTimeOfOrder,
+        vatRateDetails: item.vatRateDetails,
+        lineValue: lineValue,
+        lineTotal: item.lineTotal,
+        baseUnit: item.baseUnit,
+        conversionFactor: item.conversionFactor || 1,
+        quantityInBaseUnit: item.quantityInBaseUnit,
+        priceInBaseUnit: item.priceInBaseUnit,
+        minimumSalePrice: item.minimumSalePrice,
+        packagingOptions: item.packagingOptions || [],
+        lineCostFIFO: lineCost,
+        lineProfit: lineProfit,
+        lineMargin: lineMargin,
+        costBreakdown: (item.costBreakdown || []).map((cb) => ({
+          movementId: cb.movementId?.toString(), // Convertim ObjectId în string
+          entryDate: new Date(cb.entryDate), // Convertim string-ul Date în obiect Date (Zod o cere)
+          quantity: cb.quantity,
+          unitCost: cb.unitCost,
+          type: cb.type,
+        })),
+        stornedQuantity: 0,
+        relatedAdvanceId: undefined,
+      })
 
-
-        // B. Calculează totalurile agregate
-        if (item.isManualEntry) {
-          // Caz 1: Este MANUALĂ (prioritatea 1)
-          acc.manualSubtotal += lineValue
-          acc.manualVat += vatValue
-          acc.manualCost += lineCost
-          acc.manualProfit += lineProfit
-        } else if (item.serviceId) {
-          // Caz 2: Este un Serviciu
-          acc.servicesSubtotal += lineValue
-          acc.servicesVat += vatValue
-          acc.servicesCost += lineCost
-          acc.servicesProfit += lineProfit
-        } else if (item.stockableItemType === 'Packaging') {
-          // Caz 3: Este un Ambalaj
-          acc.packagingSubtotal += lineValue
-          acc.packagingVat += vatValue
-          acc.packagingCost += lineCost
-          acc.packagingProfit += lineProfit
-        } else if (item.productId || item.stockableItemType === 'ERPProduct') {
-          // Caz 4: Este un Produs
-          acc.productsSubtotal += lineValue
-          acc.productsVat += vatValue
-          acc.productsCost += lineCost
-          acc.productsProfit += lineProfit
-        }
+      // B. Calculează totalurile agregate
+      if (item.isManualEntry) {
+        // Caz 1: Este MANUALĂ (prioritatea 1)
+        acc.manualSubtotal += lineValue
+        acc.manualVat += vatValue
+        acc.manualCost += lineCost
+        acc.manualProfit += lineProfit
+      } else if (item.serviceId) {
+        // Caz 2: Este un Serviciu
+        acc.servicesSubtotal += lineValue
+        acc.servicesVat += vatValue
+        acc.servicesCost += lineCost
+        acc.servicesProfit += lineProfit
+      } else if (item.stockableItemType === 'Packaging') {
+        // Caz 3: Este un Ambalaj
+        acc.packagingSubtotal += lineValue
+        acc.packagingVat += vatValue
+        acc.packagingCost += lineCost
+        acc.packagingProfit += lineProfit
+      } else if (item.productId || item.stockableItemType === 'ERPProduct') {
+        // Caz 4: Este un Produs
+        acc.productsSubtotal += lineValue
+        acc.productsVat += vatValue
+        acc.productsCost += lineCost
+        acc.productsProfit += lineProfit
       }
-      return acc
-    },
-    getInitialTotals() 
-  )
+    }
+    return acc
+  }, getInitialTotals())
 
   // --- Calculăm Totalurile Generale și Marjele ---
   invoiceTotals.subtotal = round2(

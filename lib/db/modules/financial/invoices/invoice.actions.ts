@@ -2,17 +2,14 @@
 
 import mongoose, { startSession, Types } from 'mongoose'
 import { auth } from '@/auth'
-// Am scos 'round2', nu mai e necesar aici
 import { getSetting } from '../../setting/setting.actions'
 import { generateNextDocumentNumber } from '../../numbering/numbering.actions'
 import DeliveryNoteModel, {
   IDeliveryNoteDoc,
-  // Am scos 'IDeliveryNoteLine'
 } from '../delivery-notes/delivery-note.model'
 import InvoiceModel, { IInvoiceDoc } from './invoice.model'
 import {
   InvoiceActionResult,
-  // Am scos 'InvoiceLineInput' și 'InvoiceTotals'
   CompanySnapshot,
   ClientSnapshot,
   InvoiceInput,
@@ -26,6 +23,9 @@ import {
   updateRelatedDocuments,
 } from './invoice.helpers'
 import { round2 } from '@/lib/utils'
+import { IOrderLineItem } from '../../order/types'
+import { InvoiceLineInput } from './invoice.types'
+import Order, { IOrder } from '../../order/order.model'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -142,16 +142,30 @@ export async function createInvoice(
       const nextSeq = await generateNextDocumentNumber(data.seriesName, {
         session,
       })
-      const invoiceNumber = `${data.seriesName}-${String(nextSeq).padStart(5, '0')}`
+      const invoiceNumber = String(nextSeq).padStart(5, '0')
 
       const sourceNotes = await DeliveryNoteModel.find({
         _id: { $in: data.sourceDeliveryNotes },
       })
         .select(
-          'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId items' // <-- ACUM E CORECT
+          'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId items salesAgentId salesAgentSnapshot'
         )
         .lean()
         .session(session)
+
+      let agentId: Types.ObjectId
+      let agentSnapshot: { name: string }
+
+      if (sourceNotes && sourceNotes.length > 0) {
+        // Cazul 1: Factură bazată pe avize
+        agentId = sourceNotes[0].salesAgentId
+        agentSnapshot = sourceNotes[0].salesAgentSnapshot
+      } else {
+        // Cazul 2: Factură goală / doar linii manuale / Avans
+        // Agentul este persoana care creează factura
+        agentId = new Types.ObjectId(userId)
+        agentSnapshot = { name: userName }
+      }
 
       const orderNumbers = [
         ...new Set(sourceNotes.map((n) => n.orderNumberSnapshot)),
@@ -206,9 +220,13 @@ export async function createInvoice(
             relatedOrders: relatedOrderIds,
             relatedDeliveries: relatedDeliveryIds,
             logisticSnapshots: logisticSnapshots,
+            deliveryAddressId: new Types.ObjectId(data.deliveryAddressId),
+            deliveryAddress: data.deliveryAddress,
+            invoiceType: data.invoiceType,
             status: status,
             eFacturaStatus: 'PENDING',
-            invoiceType: 'STANDARD', // TODO: De gestionat 'STORNO'
+            salesAgentId: agentId,
+            salesAgentSnapshot: agentSnapshot,
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
             notes: data.notes,
@@ -236,6 +254,180 @@ export async function createInvoice(
   } catch (error) {
     await session.endSession()
     console.error('❌ Eroare createInvoice:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+export async function generateProformaFromOrder(
+  orderId: string,
+  seriesName: string
+): Promise<InvoiceActionResult> {
+  const session = await startSession()
+  try {
+    let newProforma: IInvoiceDoc | null = null
+
+    await session.withTransaction(async (session) => {
+      // 1. Validare și Autentificare
+      const authSession = await auth()
+      const userId = authSession?.user?.id
+      const userName = authSession?.user?.name
+      if (!userId || !userName) throw new Error('Utilizator neautentificat.')
+
+      // 2. Găsește Comanda Sursă
+      const order = (await Order.findById(orderId)
+        .lean()
+        .session(session)) as unknown as IOrder
+      if (!order) {
+        throw new Error('Comanda originală nu a fost găsită.')
+      }
+
+      // 3. Preluare Setări Companie (Snapshot)
+      const companySettings = await getSetting()
+      if (!companySettings)
+        throw new Error('Setările companiei nu sunt configurate.')
+      const companySnapshot = buildCompanySnapshot(companySettings)
+
+      // 4. Preluare Client FULL (pentru snapshot fiscal corect)
+      const client = (await ClientModel.findById(order.client)
+        .lean()
+        .session(session)) as IClientDoc | null
+      if (!client) {
+        throw new Error('Clientul asociat comenzii nu a fost găsit.')
+      }
+
+      // 5. Construire Snapshot Client CORECT
+      const clientSnapshot: ClientSnapshot = {
+        name: client.name,
+        cui: client.vatId || client.cnp || '',
+        regCom: client.nrRegComert || '',
+        bank: client.bankAccountLei?.bankName || '',
+        iban: client.bankAccountLei?.iban || '',
+        address: {
+          // Construim obiectul adresă imbricat
+          judet: client.address.judet,
+          localitate: client.address.localitate,
+          strada: client.address.strada,
+          numar: client.address.numar || '',
+          codPostal: client.address.codPostal,
+          tara: client.address.tara || 'RO',
+          alteDetalii: client.address.alteDetalii || '',
+        },
+      }
+
+      // 6. Preluare și Corectare Adresă Livrare (pentru eroarea 2)
+      const deliveryAddressId = order.deliveryAddressId
+      if (!deliveryAddressId) {
+        throw new Error('Datele de adresă de livrare lipsesc din comandă.')
+      }
+
+      const deliveryAddress = {
+        judet: order.deliveryAddress.judet,
+        localitate: order.deliveryAddress.localitate,
+        strada: order.deliveryAddress.strada,
+        numar: order.deliveryAddress.numar,
+        codPostal: order.deliveryAddress.codPostal,
+        tara: 'RO', // <-- ADAUGĂM CÂMPUL OBLIGATORIU 'tara'
+        alteDetalii: order.deliveryAddress.alteDetalii || '',
+      }
+
+      // 7. Mapează Liniile (fără costuri)
+      const invoiceItems: InvoiceLineInput[] = order.lineItems.map(
+        (item: IOrderLineItem) => {
+          return {
+            productId: item.productId?.toString(),
+            serviceId: item.serviceId?.toString(),
+            isManualEntry: item.isManualEntry,
+            productName: item.productName,
+            productCode: item.productCode || 'N/A',
+            stockableItemType: item.stockableItemType,
+            quantity: item.quantity,
+            unitOfMeasure: item.unitOfMeasure,
+            unitOfMeasureCode: item.unitOfMeasureCode,
+            unitPrice: item.priceAtTimeOfOrder,
+            lineValue: item.lineValue,
+            vatRateDetails: item.vatRateDetails,
+            lineTotal: item.lineTotal,
+            baseUnit: item.baseUnit,
+            conversionFactor: item.conversionFactor || 1,
+            quantityInBaseUnit: item.quantityInBaseUnit,
+            priceInBaseUnit: item.priceInBaseUnit,
+            minimumSalePrice: item.minimumSalePrice,
+            packagingOptions: item.packagingOptions || [],
+            codNC: item.codNC,
+            lineCostFIFO: 0,
+            lineProfit: 0,
+            lineMargin: 0,
+            costBreakdown: [],
+            stornedQuantity: 0,
+            relatedAdvanceId: undefined,
+          }
+        }
+      )
+
+      // 8. Recalculare Totaluri (pe Server)
+      const totals = calculateInvoiceTotals(invoiceItems)
+
+      // 9. Generare Număr Factură (Atomic)
+      const year = new Date().getFullYear()
+      const nextSeq = await generateNextDocumentNumber(seriesName, {
+        session,
+      })
+      const invoiceNumber = String(nextSeq).padStart(5, '0')
+
+      // 10. Creare Obiect Factură Proformă
+      const [createdProforma] = await InvoiceModel.create(
+        [
+          {
+            sequenceNumber: nextSeq,
+            invoiceNumber: invoiceNumber,
+            seriesName: seriesName,
+            year: year,
+            invoiceDate: new Date(),
+            dueDate: new Date(),
+            invoiceType: 'PROFORMA',
+            status: 'APPROVED',
+            eFacturaStatus: 'NOT_REQUIRED',
+            clientId: order.client,
+            clientSnapshot: clientSnapshot,
+            deliveryAddressId: deliveryAddressId,
+            deliveryAddress: deliveryAddress,
+            companySnapshot: companySnapshot,
+            items: invoiceItems,
+            totals: totals,
+            relatedOrders: [order._id],
+            sourceDeliveryNotes: [],
+            relatedDeliveries: [],
+            relatedInvoiceIds: [],
+            relatedAdvanceIds: [],
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+            notes: `Proformă generată automat din Comanda ${order.orderNumber}.`,
+            logisticSnapshots: {
+              orderNumbers: [order.orderNumber],
+              deliveryNumbers: [],
+              deliveryNoteNumbers: [],
+            },
+            remainingAmount: 0,
+          },
+        ],
+        { session }
+      )
+
+      newProforma = createdProforma
+    })
+    await session.endSession()
+
+    if (newProforma) {
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(newProforma)),
+      }
+    } else {
+      throw new Error('Tranzacția nu a returnat o factură proformă.')
+    }
+  } catch (error) {
+    await session.endSession()
+    console.error('❌ Eroare generateProformaFromOrder:', error)
     return { success: false, message: (error as Error).message }
   }
 }

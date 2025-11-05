@@ -3,6 +3,7 @@ import { InvoiceForm } from '../components/InvoiceForm'
 import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbering.actions'
 import { SeriesDTO } from '@/lib/db/modules/numbering/types'
 import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
+import { getActiveServices } from '@/lib/db/modules/setting/services/service.actions'
 
 export default async function NewInvoicePage() {
   const companySettings = await getSetting()
@@ -23,6 +24,7 @@ export default async function NewInvoicePage() {
 
   const vatRatesResult = await getVatRates()
   const vatRates = vatRatesResult.data || []
+  const servicesResult = await getActiveServices('Serviciu')
 
   return (
     <div className='flex flex-col gap-2'>
@@ -33,6 +35,7 @@ export default async function NewInvoicePage() {
         seriesList={invoiceSeries}
         companySettings={companySettings}
         vatRates={vatRates}
+        services={servicesResult}
       />
     </div>
   )

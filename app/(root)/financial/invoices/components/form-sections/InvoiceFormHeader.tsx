@@ -42,6 +42,7 @@ interface InvoiceFormHeaderProps {
   selectedAddress: IAddress | null
   onAddressSelect: (address: IAddress | null) => void
   onShowNoteLoader: () => void
+  initialData: Partial<InvoiceInput> | null
 }
 
 export function InvoiceFormHeader({
@@ -50,8 +51,10 @@ export function InvoiceFormHeader({
   selectedAddress,
   onAddressSelect,
   onShowNoteLoader,
+  initialData,
 }: InvoiceFormHeaderProps) {
   const form = useFormContext<InvoiceInput>()
+  const watchedInvoiceType = form.watch('invoiceType')
 
   return (
     <Card>
@@ -62,6 +65,35 @@ export function InvoiceFormHeader({
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
           {/* --- COLOANA 1: Client & Adresă --- */}
           <div className='space-y-6'>
+            <FormField
+              control={form.control}
+              name='invoiceType'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tip Document</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value || 'STANDARD'}
+                    // Blochează selectorul dacă edităm o factură existentă
+                    disabled={!!initialData}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Alege tipul documentului...' />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value='STANDARD'>Factură Standard</SelectItem>
+                      <SelectItem value='AVANS'>Factură Avans</SelectItem>
+                      {/* Vom adăuga 'STORNO' când facem Faza 4 */}
+                      {/* <SelectItem value="PROFORMA">Factură Proformă</SelectItem> */}
+                      {/* Proforma se face din Comandă, deci nu o punem aici */}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name='clientId'
@@ -196,17 +228,19 @@ export function InvoiceFormHeader({
                 </FormItem>
               )}
             />
-            <div className='flex justify-center items-center pt-6'>
-              <Button
-                type='button'
-                variant='outline'
-                disabled={!selectedClient || !selectedAddress}
-                onClick={onShowNoteLoader}
-              >
-                <Download className='mr-2 h-4 w-4' />
-                Încarcă Avize Nefacturate
-              </Button>
-            </div>
+            {watchedInvoiceType === 'STANDARD' && (
+              <div className='flex justify-center items-center pt-6'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  disabled={!selectedClient || !selectedAddress}
+                  onClick={onShowNoteLoader}
+                >
+                  <Download className='mr-2 h-4 w-4' />
+                  Încarcă Avize Nefacturate
+                </Button>
+              </div>
+            )}
           </div>
 
           {/* --- COLOANA 3: Totaluri (Componenta Nouă) --- */}

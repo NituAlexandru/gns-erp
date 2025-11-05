@@ -81,6 +81,8 @@ export const InvoiceLineSchema = z.object({
   lineProfit: z.number().optional().default(0), // Profitul în RON
   lineMargin: z.number().optional().default(0),
   costBreakdown: z.array(CostBreakdownBatchSchema).optional().default([]),
+  stornedQuantity: z.number().optional().default(0),
+  relatedAdvanceId: MongoId.optional().nullable(),
 })
 
 // Totalurile facturii
@@ -126,7 +128,13 @@ export const InvoiceTotalsSchema = z.object({
 export const InvoiceInputSchema = z.object({
   clientId: MongoId.optional(),
   clientSnapshot: ClientSnapshotSchema.optional(),
+  deliveryAddressId: MongoId,
+  deliveryAddress: FiscalAddressSchema,
+  invoiceNumber: z.string().optional(),
   seriesName: z.string().min(1, 'Seria este obligatorie.'),
+  invoiceType: z
+    .enum(['STANDARD', 'AVANS', 'PROFORMA', 'STORNO'])
+    .default('STANDARD'),
   invoiceDate: z.date({ required_error: 'Data emiterii este obligatorie.' }),
   dueDate: z.date({ required_error: 'Data scadenței este obligatorie.' }),
 

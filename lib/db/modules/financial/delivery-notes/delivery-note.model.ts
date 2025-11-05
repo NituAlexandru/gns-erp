@@ -90,6 +90,8 @@ export interface IDeliveryNoteDoc extends Document {
   deliveryNumberSnapshot: string
   clientId: Types.ObjectId
   deliveryAddressId: Types.ObjectId
+  salesAgentId: Types.ObjectId
+  salesAgentSnapshot: { name: string }
   status: (typeof DELIVERY_NOTE_STATUSES)[number]
   isInvoiced: boolean
   createdBy: Types.ObjectId
@@ -118,7 +120,6 @@ export interface IDeliveryNoteDoc extends Document {
     codPostal: string
     alteDetalii?: string
   }
-  salesAgentSnapshot: { name: string }
   items: IDeliveryNoteLine[]
   totals: IDeliveryNoteTotals
   eTransportStatus: (typeof E_TRANSPORT_STATUSES)[number]
@@ -284,6 +285,7 @@ const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
       codPostal: { type: String, required: true },
       alteDetalii: { type: String },
     },
+    salesAgentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     salesAgentSnapshot: {
       name: { type: String, required: true },
     },

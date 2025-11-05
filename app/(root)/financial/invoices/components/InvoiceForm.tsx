@@ -4,6 +4,7 @@ import { useForm, FormProvider, useWatch, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   InvoiceInput,
+  InvoiceLineInput,
   InvoiceTotals,
 } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { InvoiceInputSchema } from '@/lib/db/modules/financial/invoices/invoice.validator'
@@ -28,12 +29,14 @@ import { round2 } from '@/lib/utils'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { createInvoice } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { useRouter } from 'next/navigation'
+import { SearchedService } from '@/lib/db/modules/setting/services/types'
 
 interface InvoiceFormProps {
   initialData: Partial<InvoiceInput> | null
   companySettings: ISettingInput
   seriesList: SeriesDTO[]
   vatRates: VatRateDTO[]
+  services: SearchedService[]
 }
 
 export function InvoiceForm({
@@ -41,6 +44,7 @@ export function InvoiceForm({
   companySettings,
   seriesList,
   vatRates,
+  services,
 }: InvoiceFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
@@ -54,6 +58,7 @@ export function InvoiceForm({
   const defaultValues: Partial<InvoiceInput> = {
     invoiceDate: new Date(),
     dueDate: new Date(),
+    invoiceType: 'STANDARD',
     items: [],
     totals: {
       productsSubtotal: 0,
@@ -118,7 +123,7 @@ export function InvoiceForm({
     if (!watchedItems) return
 
     const newTotals = watchedItems.reduce(
-      (acc, item) => {
+      (acc: InvoiceTotals, item: InvoiceLineInput) => {
         const lineValue = item?.lineValue || 0
         const vatValue = item?.vatRateDetails?.value || 0
         const lineCost =
@@ -294,6 +299,27 @@ export function InvoiceForm({
     }
   }, [watchedInvoiceDate, selectedClient, setValue])
 
+  useEffect(() => {
+    if (selectedAddress) {
+      // Setează valorile în formular pentru validare și submit
+      form.setValue('deliveryAddressId', selectedAddress._id as string)
+      form.setValue('deliveryAddress', {
+        judet: selectedAddress.judet,
+        localitate: selectedAddress.localitate,
+        strada: selectedAddress.strada,
+        numar: selectedAddress.numar || '',
+        codPostal: selectedAddress.codPostal,
+        tara: selectedAddress.tara || 'RO',
+        alteDetalii: selectedAddress.alteDetalii || '',
+      })
+    } else {
+      // Resetează câmpurile dacă adresa e anulată
+      form.resetField('deliveryAddressId')
+      form.resetField('deliveryAddress')
+    }
+    // Trebuie să urmărim 'selectedAddress' și să avem acces la 'form'
+  }, [selectedAddress, form])
+
   const handleLoadNotes = (selectedNotes: IDeliveryNoteDoc[]) => {
     remove()
     const newInvoiceItems = selectedNotes.flatMap((note) =>
@@ -322,7 +348,7 @@ export function InvoiceForm({
           unitOfMeasureCode: item.unitOfMeasureCode,
           unitPrice: item.priceAtTimeOfOrder,
           vatRateDetails: item.vatRateDetails,
-          lineValue: lineValue, 
+          lineValue: lineValue,
           lineTotal: item.lineTotal,
           baseUnit: item.baseUnit,
           conversionFactor: item.conversionFactor || 1,
@@ -332,7 +358,7 @@ export function InvoiceForm({
           packagingOptions: item.packagingOptions || [],
           lineCostFIFO: lineCost,
           lineProfit: lineProfit,
-          lineMargin: lineMargin, 
+          lineMargin: lineMargin,
           costBreakdown: (item.costBreakdown || []).map((cb) => ({
             movementId: cb.movementId?.toString(),
             entryDate: new Date(cb.entryDate),
@@ -340,6 +366,8 @@ export function InvoiceForm({
             unitCost: cb.unitCost,
             type: cb.type,
           })),
+          stornedQuantity: 0,
+          relatedAdvanceId: undefined,
         }
       })
     )
@@ -365,17 +393,17 @@ export function InvoiceForm({
   const handleRemoveNote = (noteIdToRemove: string) => {
     const currentItems = getValues('items')
     const indicesToRemove = currentItems
-      .map((item, index) =>
+      .map((item: InvoiceLineInput, index: number) =>
         item.sourceDeliveryNoteId === noteIdToRemove ? index : -1
       )
-      .filter((index) => index !== -1)
+      .filter((index: number) => index !== -1)
       .reverse()
     if (indicesToRemove.length > 0) {
       remove(indicesToRemove)
     }
     setLoadedNotes((prev) => prev.filter((n) => n.id !== noteIdToRemove))
     const newSourceIds = getValues('sourceDeliveryNotes').filter(
-      (id) => id !== noteIdToRemove
+      (id: string) => id !== noteIdToRemove
     )
     setValue('sourceDeliveryNotes', newSourceIds)
     toast.info('Avizul și liniile asociate au fost scoase din factură.')
@@ -428,6 +456,7 @@ export function InvoiceForm({
             selectedAddress={selectedAddress}
             onAddressSelect={setSelectedAddress}
             onShowNoteLoader={() => setShowNoteLoaderModal(true)}
+            initialData={initialData}
           />
           <InvoiceFormItems
             fields={fields}
@@ -436,6 +465,7 @@ export function InvoiceForm({
             loadedNotes={loadedNotes}
             onRemoveNote={handleRemoveNote}
             vatRates={vatRates}
+            services={services}
           />
 
           <Button type='submit' disabled={isLoading}>

@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, round2 } from '@/lib/utils'
 import { PlusCircle, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
@@ -22,6 +22,13 @@ import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
 import { UNITS } from '@/lib/constants'
 import { InvoiceFormProductRow } from './mini-components/InvoiceFormProductRow'
 import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { SearchedService } from '@/lib/db/modules/setting/services/types'
 
 interface InvoiceFormItemsProps {
   fields: FieldArrayWithId<InvoiceInput, 'items', 'id'>[]
@@ -30,6 +37,7 @@ interface InvoiceFormItemsProps {
   loadedNotes: { id: string; ref: string }[]
   onRemoveNote: (noteId: string) => void
   vatRates: VatRateDTO[]
+  services: SearchedService[]
 }
 
 export function InvoiceFormItems({
@@ -39,6 +47,7 @@ export function InvoiceFormItems({
   loadedNotes,
   onRemoveNote,
   vatRates,
+  services,
 }: InvoiceFormItemsProps) {
   const form = useFormContext<InvoiceInput>()
   const totals = form.watch('totals')
@@ -48,7 +57,7 @@ export function InvoiceFormItems({
     const defaultVat: number = vatRates[0]?.rate || 21
     append({
       productName: '',
-      productCode: 'MANUAL', 
+      productCode: 'MANUAL',
       quantity: 1,
       unitOfMeasure: defaultUnit,
       unitOfMeasureCode: getEFacturaUomCode(defaultUnit),
@@ -73,6 +82,62 @@ export function InvoiceFormItems({
       lineMargin: 0, // Marja e 0
       isManualEntry: true,
       costBreakdown: [],
+      stornedQuantity: 0,
+      relatedAdvanceId: undefined,
+    })
+  }
+  const handleSelectService = (service: SearchedService) => {
+    const vat = vatRates.find((v) => v._id === service.vatRateId)
+    const defaultVat = vatRates[0]
+    const vatRate = vat ? vat.rate : defaultVat ? defaultVat.rate : 19
+
+    // --- Logica de Cost/Profit CORECTATĂ (pe baza Pas 1 și 2) ---
+    const lineValue = service.price // Prețul de vânzare
+    const lineCost = service.cost // Costul real preluat din BD
+    const lineProfit = round2(lineValue - lineCost)
+    const lineMargin =
+      lineValue > 0 ? round2((lineProfit / lineValue) * 100) : 0
+    const lineVatValue = round2(lineValue * (vatRate / 100))
+    const lineTotal = round2(lineValue + lineVatValue)
+
+    append({
+      // Câmpuri specifice Serviciului
+      serviceId: service._id.toString(),
+      isManualEntry: false,
+      productName: service.name,
+      productCode: service.code,
+      unitOfMeasure: service.unitOfMeasure,
+      unitOfMeasureCode: getEFacturaUomCode(service.unitOfMeasure),
+      unitPrice: service.price,
+      minimumSalePrice: service.price,
+      stockableItemType: 'Service',
+
+      // Câmpuri de Cantitate (Default 1)
+      quantity: 1,
+      baseUnit: service.unitOfMeasure,
+      conversionFactor: 1,
+      quantityInBaseUnit: 1,
+      priceInBaseUnit: service.price,
+
+      // Câmpuri de Totaluri
+      lineValue: lineValue,
+      vatRateDetails: { rate: vatRate, value: lineVatValue },
+      lineTotal: lineTotal,
+
+      // Câmpuri de Cost/Profit
+      lineCostFIFO: lineCost,
+      lineProfit: lineProfit,
+      lineMargin: lineMargin,
+      costBreakdown: [],
+
+      // Câmpuri Nule/Goale
+      sourceDeliveryNoteId: undefined,
+      sourceDeliveryNoteLineId: undefined,
+      productId: undefined,
+      codNC: undefined,
+      packagingOptions: [],
+      stornedQuantity: 0,
+      relatedAdvanceId: undefined,
     })
   }
 
@@ -187,6 +252,26 @@ export function InvoiceFormItems({
       <Button onClick={handleManualAdd} variant='secondary' size='sm'>
         <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
       </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant='outline' size='sm'>
+            <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent className='w-[450px]'>
+          {/* Aici poți adăuga un <CommandInput> dacă lista e lungă */}
+          {services.map((service: SearchedService) => (
+            <DropdownMenuItem
+              key={service._id}
+              onSelect={() => handleSelectService(service)}
+            >
+              <span>
+                {service.name} ({formatCurrency(service.price)})
+              </span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }

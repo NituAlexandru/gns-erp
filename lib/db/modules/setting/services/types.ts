@@ -17,6 +17,7 @@ export type SearchedService = {
   name: string
   code: string
   price: number
+  cost: number
   unitOfMeasure: string
   vatRateId: string
   isPerDelivery?: boolean

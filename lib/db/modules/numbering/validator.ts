@@ -14,5 +14,6 @@ export const SeriesSchema = z.object({
     'Chitanta',
     'BonConsum',
     'DispozitiePlata',
+    'NotaRetur',
   ]),
 })

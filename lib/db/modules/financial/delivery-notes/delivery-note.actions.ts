@@ -28,6 +28,8 @@ import { getSetting } from '../../setting/setting.actions'
 import Order from '../../order/order.model'
 import { IOrderLineItem } from '../../order/types'
 import { auth } from '@/auth'
+import Service from '../../setting/services/service.model'
+import { round2 } from '@/lib/utils'
 
 // -------------------------------------------------------------
 // CREATE DELIVERY NOTE
@@ -167,6 +169,7 @@ export async function createDeliveryNote({
             clientId: delivery.client,
             clientSnapshot: delivery.clientSnapshot,
             companySnapshot: companySnapshot,
+            salesAgentId: delivery.salesAgent,
             salesAgentSnapshot: delivery.salesAgentSnapshot,
             deliveryAddress: delivery.deliveryAddress,
             deliveryAddressId: delivery.deliveryAddressId,
@@ -244,14 +247,12 @@ export async function confirmDeliveryNote({
 }): Promise<{ success: boolean; message: string; data?: DeliveryNoteDTO }> {
   const session = await startSession()
 
-  // 🔽 --- CORECȚIE (pt. eroarea 'never' și 'order not found') --- 🔽
   // Declarăm variabilele în scopul exterior
   let confirmedNote: DeliveryNoteDTO | null = null
   let deliveryForAbly: { number: string; status: string } | null = null
   let orderForAbly: { id: string; status: string } | null = null
 
   try {
-    // 🔽 --- CORECȚIE: Facem tranzacția să returneze valorile --- 🔽
     const transactionResult = await session.withTransaction(async (session) => {
       // 1. Găsește Avizul și Comanda
       const note =
@@ -262,7 +263,7 @@ export async function confirmDeliveryNote({
       }
 
       const order = await Order.findById(note.orderId)
-        .populate('lineItems') // Populăm liniile comenzii
+        .populate('lineItems')
         .session(session)
       if (!order) throw new Error('Comanda asociată nu a fost găsită.')
 
@@ -283,43 +284,52 @@ export async function confirmDeliveryNote({
 
       // 3. Consumă Stocul (FIFO) și salvează Costul
       for (const item of note.items) {
+        // --- CAZ 1: Este Produs Stocabil (Logica ta existentă) ---
         if (
-          !item.productId ||
-          !item.stockableItemType ||
-          !item.quantityInBaseUnit
+          item.productId &&
+          item.stockableItemType &&
+          item.quantityInBaseUnit
         ) {
-          continue
-        }
-
-        const { costInfo } = await recordStockMovement(
-          {
-            stockableItem: item.productId.toString(),
-            stockableItemType: item.stockableItemType,
-            movementType: 'VANZARE_DEPOZIT',
-            quantity: item.quantityInBaseUnit,
-            unitMeasure: item.baseUnit || item.unitOfMeasure,
-            locationFrom: 'DEPOZIT',
-
-            // 🔽 --- CORECȚIE (pt. eroarea 'ObjectId vs string') --- 🔽
-            referenceId: note._id.toString(), // <-- Convertim în string
-            responsibleUser: userId, // <-- Folosim direct string-ul
-
-            note: `Livrare conf. Aviz Seria ${note.seriesName} nr. ${note.noteNumber}`,
-            timestamp: new Date(),
-          },
-          session
-        )
-
-        // Salvează costul returnat direct pe linia avizului
-        if (costInfo) {
-          item.unitCostFIFO = costInfo.unitCostFIFO
-          item.lineCostFIFO = costInfo.lineCostFIFO
-          item.costBreakdown = costInfo.costBreakdown
-        } else {
-          console.warn(
-            `Nu s-a putut calcula costul FIFO pentru ${item.productName} pe avizul ${note.noteNumber}`
+          const { costInfo } = await recordStockMovement(
+            {
+              stockableItem: item.productId.toString(),
+              stockableItemType: item.stockableItemType,
+              movementType: 'VANZARE_DEPOZIT',
+              quantity: item.quantityInBaseUnit,
+              unitMeasure: item.baseUnit || item.unitOfMeasure,
+              locationFrom: 'DEPOZIT',
+              referenceId: note._id.toString(),
+              responsibleUser: userId,
+              note: `Livrare conf. Aviz Seria ${note.seriesName} nr. ${note.noteNumber}`,
+              timestamp: new Date(),
+            },
+            session
           )
-        }
+
+          if (costInfo) {
+            item.unitCostFIFO = costInfo.unitCostFIFO
+            item.lineCostFIFO = costInfo.lineCostFIFO
+            item.costBreakdown = costInfo.costBreakdown
+          } else {
+            console.warn(
+              `Nu s-a putut calcula costul FIFO pentru ${item.productName} pe avizul ${note.noteNumber}`
+            )
+          }
+        } else if (item.serviceId) {
+          // --- CAZ 2: Este Serviciu (Blocul nou) ---
+          const service = await Service.findById(item.serviceId)
+            .select('cost')
+            .lean()
+            .session(session)
+
+          const serviceCost = service?.cost || 0
+          const quantity = item.quantityInBaseUnit || item.quantity
+
+          item.lineCostFIFO = round2(serviceCost * quantity)
+          item.unitCostFIFO = serviceCost
+          item.costBreakdown = []
+        } // Liniile manuale (isManualEntry: true) vor fi ignorate,
+        // așa cum sunt și acum, și vor păstra costul default (0).
       }
 
       // 4. Actualizează Statusurile

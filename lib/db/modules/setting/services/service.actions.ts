@@ -94,7 +94,7 @@ export async function searchServices(
       isActive: true,
     })
       .limit(10)
-      .select('_id name code price unitOfMeasure vatRate')
+      .select('_id name code price cost unitOfMeasure vatRate')
       .lean()
 
     return services.map((service) => ({
@@ -102,6 +102,7 @@ export async function searchServices(
       name: service.name,
       code: service.code,
       price: service.price,
+      cost: service.cost,
       unitOfMeasure: service.unitOfMeasure,
       vatRateId: service.vatRate.toString(),
     }))
@@ -118,11 +119,12 @@ export async function getActiveServices(
 
     const filter: { isActive: boolean; category?: string } = { isActive: true }
     if (category) {
-      filter.category = category    }
+      filter.category = category
+    }
 
     const services = await Service.find(filter)
       .sort({ name: 1 })
-      .select('_id name code price unitOfMeasure vatRate isPerDelivery')
+      .select('_id name code price cost unitOfMeasure vatRate isPerDelivery')
       .lean()
 
     return services.map((service) => ({
@@ -130,6 +132,7 @@ export async function getActiveServices(
       name: service.name,
       code: service.code,
       price: service.price,
+      cost: service.cost,
       unitOfMeasure: service.unitOfMeasure,
       vatRateId: service.vatRate.toString(),
       isPerDelivery: service.isPerDelivery || false,

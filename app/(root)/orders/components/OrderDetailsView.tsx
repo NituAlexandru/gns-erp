@@ -21,12 +21,33 @@ import {
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { Download, Pencil, Truck } from 'lucide-react'
-import { useMemo } from 'react' // Păstrăm useMemo
+import { useMemo, useState } from 'react' 
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DELIVERY_STATUS_MAP } from '@/lib/db/modules/deliveries/constants'
 import Link from 'next/link'
+import { toast } from 'sonner'
+import { generateProformaFromOrder } from '@/lib/db/modules/financial/invoices/invoice.actions'
+import { SeriesDTO } from '@/lib/db/modules/numbering/types'
+import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbering.actions'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 interface OrderDetailsViewProps {
   order: PopulatedOrder
@@ -75,6 +96,80 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
     )
   }, [order.lineItems])
 
+  const [isProformaModalOpen, setIsProformaModalOpen] = useState(false)
+  const [proformaSeries, setProformaSeries] = useState<SeriesDTO[]>([])
+  const [selectedSeries, setSelectedSeries] = useState<string>('')
+  const [isGenerating, setIsGenerating] = useState(false)
+
+  const handleGenerateProforma = async (seriesName: string) => {
+    if (!seriesName) {
+      toast.error('Vă rugăm selectați o serie.')
+      return
+    }
+
+    setIsGenerating(true)
+    const toastId = toast.loading('Se generează proforma...')
+
+    try {
+      const result = await generateProformaFromOrder(order._id, seriesName)
+
+      if (result.success) {
+        toast.success('Proforma a fost generată cu succes.', {
+          id: toastId,
+          description: `Nr. ${result.data.invoiceNumber}`,
+        })
+        setIsProformaModalOpen(false) 
+      } else {
+        toast.error('Eroare la generare:', {
+          id: toastId,
+          description: result.message,
+        })
+      }
+    } catch (error) {
+      toast.error('Eroare neașteptată.', {
+        id: toastId,
+        description: (error as Error).message,
+      })
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const handleOpenProformaModal = async () => {
+    setIsGenerating(true)
+    try {
+      const documentType = 'Proforma' as unknown as DocumentType
+      const series = (await getActiveSeriesForDocumentType(
+        documentType
+      )) as SeriesDTO[]
+
+      if (!series || series.length === 0) {
+        toast.error('Eroare: Nu există serii active pentru Proforme.', {
+          description: 'Vă rugăm să configurați o serie în setări.',
+        })
+        setIsGenerating(false)
+        return
+      }
+
+      if (series.length === 1) {
+        // CAZ 1: O singură serie. Generăm direct.
+        await handleGenerateProforma(series[0].name)
+        // Funcția de mai sus se ocupă de oprirea loader-ului
+      } else {
+        // CAZ 2: Mai multe serii. Deschidem modalul.
+        setProformaSeries(series)
+        setSelectedSeries(series[0].name)
+        setIsProformaModalOpen(true)
+        setIsGenerating(false) // Oprim loader-ul butonului, modalul e activ
+      }
+    } catch (error) {
+      toast.error('Eroare la încărcarea seriilor.', {
+        description: (error as Error).message,
+      })
+      setIsGenerating(false) 
+    }
+  }
+
   return (
     <div className='space-y-6'>
       {/* 1. Header Pagina  */}
@@ -99,7 +194,11 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
               Modifică Livrarile <Truck />
             </Link>
           </Button>
-          <Button variant='outline'>
+          <Button
+            variant='outline'
+            onClick={handleOpenProformaModal}
+            disabled={order.status === 'CANCELLED' || isGenerating}
+          >
             Proforma <Download />
           </Button>
           <OrderStatusBadge status={order.status} />
@@ -474,6 +573,54 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={isProformaModalOpen}
+        onOpenChange={setIsProformaModalOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Generează Factură Proformă</AlertDialogTitle>
+            <AlertDialogDescription>
+              Vei genera o Factură Proformă, care este o fotografie a comenzii
+              la momentul actual. Acest document <strong>NU</strong> are impact
+              fiscal și <strong>NU</strong> mișcă stocul. <br />
+              <br />
+              Dacă vei modifica ulterior comanda, vei putea genera o nouă
+              proformă. <br />
+              <br />
+              Alege seria de documente de mai jos:
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className='py-4'>
+            <Select value={selectedSeries} onValueChange={setSelectedSeries}>
+              <SelectTrigger>
+                <SelectValue placeholder='Alege o serie...' />
+              </SelectTrigger>
+              <SelectContent>
+                {proformaSeries.map((serie) => (
+                  <SelectItem key={serie._id} value={serie.name}>
+                    {serie.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isGenerating}>
+              Anulează
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleGenerateProforma(selectedSeries)}
+              disabled={isGenerating || !selectedSeries}
+            >
+              {isGenerating ? 'Se generează...' : 'Generează'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

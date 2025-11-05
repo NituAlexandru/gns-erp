@@ -7,6 +7,7 @@ export type DocumentType =
   | 'FacturaStorno'
   | 'NIR'
   | 'Chitanta'
+  | 'NotaRetur' 
   | 'BonConsum'
   | 'DispozitiePlata'
 

@@ -14,7 +14,7 @@ import { CostBreakdownBatchSchema } from '../../inventory/movement.model'
 export interface IInvoiceDoc extends Document {
   _id: Types.ObjectId
   sequenceNumber: number
-  invoiceNumber: string // Numărul complet (ex: F-GNS/00001)
+  invoiceNumber: string
   seriesName: string
   year: number
   invoiceDate: Date
@@ -32,19 +32,26 @@ export interface IInvoiceDoc extends Document {
   eFacturaStatus: EFacturaStatusKey
   eFacturaError?: string
   eFacturaUploadId?: string
-  invoiceType: 'STANDARD' | 'STORNO'
+  invoiceType: 'STANDARD' | 'STORNO' | 'AVANS' | 'PROFORMA'
+  relatedInvoiceIds: Types.ObjectId[] // Pt Storno (leagă facturile stornate)
+  relatedAdvanceIds: Types.ObjectId[] // Pt Standard (leagă avansurile folosite)
   notes?: string
   createdBy: Types.ObjectId
   createdByName: string
   approvedBy?: Types.ObjectId
   approvedByName?: string
-  createdAt: Date
-  updatedAt: Date
+  salesAgentId: Types.ObjectId
+  salesAgentSnapshot: { name: string }
+  deliveryAddressId: Types.ObjectId
+  deliveryAddress: ClientSnapshot['address']
   logisticSnapshots: {
     orderNumbers: string[]
     deliveryNumbers: string[]
     deliveryNoteNumbers: string[]
   }
+  remainingAmount: number
+  createdAt: Date
+  updatedAt: Date
 }
 
 // --- Sub-schemele ---
@@ -125,6 +132,12 @@ const InvoiceLineSubSchema = new Schema<InvoiceLineInput>(
     lineProfit: { type: Number, default: 0 },
     lineMargin: { type: Number, default: 0 },
     costBreakdown: { type: [CostBreakdownBatchSchema], default: [] },
+    stornedQuantity: { type: Number, default: 0 },
+    relatedAdvanceId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Invoice',
+      required: false,
+    },
   },
   { _id: true }
 ) // Permitem _id pe linii
@@ -201,7 +214,7 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
     eFacturaUploadId: { type: String },
     invoiceType: {
       type: String,
-      enum: ['STANDARD', 'STORNO'],
+      enum: ['STANDARD', 'STORNO', 'AVANS', 'PROFORMA'],
       default: 'STANDARD',
       required: true,
     },
@@ -210,11 +223,25 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
     createdByName: { type: String, required: true },
     approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     approvedByName: { type: String },
+    salesAgentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    salesAgentSnapshot: { name: { type: String, required: true } },
     logisticSnapshots: {
       orderNumbers: [{ type: String }],
       deliveryNumbers: [{ type: String }],
       deliveryNoteNumbers: [{ type: String }],
     },
+    deliveryAddressId: {
+      type: Schema.Types.ObjectId,
+      ref: 'DeliveryAddress',
+      required: true,
+    },
+    deliveryAddress: {
+      type: FiscalAddressSubSchema,
+      required: true,
+    },
+    relatedInvoiceIds: [{ type: Schema.Types.ObjectId, ref: 'Invoice' }],
+    relatedAdvanceIds: [{ type: Schema.Types.ObjectId, ref: 'Invoice' }],
+    remainingAmount: { type: Number, default: 0 },
   },
   { timestamps: true }
 )

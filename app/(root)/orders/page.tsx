@@ -17,12 +17,10 @@ export default async function OrdersPage({
   const initialData = await getAllOrders(page)
 
   return (
-    <div className='p-4 sm:p-6 lg:p-8'>
-      <OrdersList
-        initialData={initialData}
-        currentPage={page}
-        isAdmin={isAdmin}
-      />
-    </div>
+    <OrdersList
+      initialData={initialData}
+      currentPage={page}
+      isAdmin={isAdmin}
+    />
   )
 }
