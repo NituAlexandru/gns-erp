@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { useFormContext, useWatch } from 'react-hook-form'
 import {
   Select,
   SelectContent,
@@ -11,73 +10,46 @@ import {
 } from '@/components/ui/select'
 import { IClientDoc, IAddress } from '@/lib/db/modules/client/types'
 import { MapPin, Clock } from 'lucide-react'
-import { formatMinutes } from '@/lib/db/modules/client/client.utils'
+import { formatMinutes } from '@/lib/db/modules/client/client.utils' // Verifică calea
 
-interface DeliveryAddressSelectorProps {
+interface InvoiceAddressSelectorProps {
   client: IClientDoc | null
   onAddressSelect: (address: IAddress | null) => void
 }
 
-export function DeliveryAddressSelector({
+export function InvoiceAddressSelector({
   client,
   onAddressSelect,
-}: DeliveryAddressSelectorProps) {
-  const { control, setValue } = useFormContext()
+}: InvoiceAddressSelectorProps) {
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
+
   const activeDeliveryAddresses = useMemo(() => {
     return client?.deliveryAddresses.filter((addr) => addr.isActive) || []
   }, [client])
+
   const isDisabled = !client || activeDeliveryAddresses.length === 0
 
-  const deliveryAddressIdFromForm = useWatch({
-    control,
-    name: 'deliveryAddressId',
-  })
-
+  // Setează o valoare default (prima adresă) când clientul se schimbă
   useEffect(() => {
     let addressToSelect: IAddress | null = null
 
     if (client && activeDeliveryAddresses.length > 0) {
-      if (
-        deliveryAddressIdFromForm &&
-        typeof deliveryAddressIdFromForm === 'string'
-      ) {
-        const initialAddress = activeDeliveryAddresses.find(
-          (addr) => addr._id === deliveryAddressIdFromForm
-        )
-        if (initialAddress) {
-          addressToSelect = initialAddress
-          console.log('DAS: Found initial address:', initialAddress?.strada)
-        } else {
-          console.warn('DAS: ID from form not found. Defaulting.')
-        }
-      }
-
-      if (!addressToSelect) {
-        addressToSelect = activeDeliveryAddresses[0]
-        console.log(
-          'DAS: Defaulting to first address:',
-          addressToSelect?.strada
-        )
-      }
-    } else {
-      console.log('DAS: No client or addresses.')
+      addressToSelect = activeDeliveryAddresses[0]
     }
 
     setSelectedAddress(addressToSelect)
     onAddressSelect(addressToSelect)
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, onAddressSelect, deliveryAddressIdFromForm])
+  }, [client])
 
   const handleSelectChange = (addressId: string) => {
     const addressObject = activeDeliveryAddresses.find(
-      (addr) => addr._id === addressId
+      (addr) => addr._id?.toString() === addressId
     )
     if (addressObject) {
       setSelectedAddress(addressObject)
       onAddressSelect(addressObject)
-      setValue('deliveryAddress', { ...addressObject }, { shouldDirty: true })
-      setValue('deliveryAddressId', addressObject._id, { shouldDirty: true })
     }
   }
 
@@ -93,19 +65,22 @@ export function DeliveryAddressSelector({
         <label
           className={`font-medium ${!client ? 'text-muted-foreground' : ''}`}
         >
-          Selectează Adresa de Livrare
+          Selectează Adresa de Livrare (Șantier)
         </label>
         <Select
           onValueChange={handleSelectChange}
           disabled={isDisabled}
-          value={selectedAddress?._id || ''}
+          value={selectedAddress?._id?.toString() || ''}
         >
           <SelectTrigger>
             <SelectValue placeholder={getPlaceholder()} />
           </SelectTrigger>
           <SelectContent>
             {activeDeliveryAddresses.map((addr) => (
-              <SelectItem key={addr._id!} value={addr._id!}>
+              <SelectItem
+                key={addr._id?.toString()}
+                value={addr._id?.toString() || ''}
+              >
                 {`${addr.strada}, ${addr.numar}, ${addr.localitate}`}
               </SelectItem>
             ))}

@@ -3,7 +3,7 @@ import {
   DELIVERY_NOTE_STATUSES,
   E_TRANSPORT_STATUSES,
 } from './delivery-note.constants'
-import { MongoId } from '@/lib/validator' // presupunem că există deja în app (așa cum apare în inventory)
+import { MongoId } from '@/lib/validator' 
 
 // -------------------------------------------------------------
 // Subschemas

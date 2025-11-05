@@ -10,6 +10,7 @@ export const AddressSchema = z.object({
     .string()
     .min(6, 'Codul poștal este obligatoriu')
     .max(6, 'Codul poștal trebuie să aibă 6 cifre'),
+  tara: z.string().min(2, 'Țara este obligatorie').default('RO'),
   alteDetalii: z.string().optional(),
   distanceInKm: z.number().optional(),
   travelTimeInMinutes: z.number().optional(),

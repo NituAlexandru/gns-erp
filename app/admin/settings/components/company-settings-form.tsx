@@ -64,7 +64,7 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
     defaultValues: initialData || clientSideDefaults,
   })
 
-  // ... (useFieldArray hooks - neschimbate)
+  // ... (useFieldArray hooks )
   const {
     fields: phoneFields,
     append: appendPhone,
@@ -83,7 +83,7 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
     remove: removeBank,
   } = useFieldArray({ control: form.control, name: 'bankAccounts' })
 
-  // ... (funcțiile setDefault - neschimbate)
+  // ... (funcțiile setDefault )
   const setDefaultBank = (index: number) => {
     const currentValues = form.getValues('bankAccounts')
     const newValues = currentValues.map((item, idx) => ({
@@ -130,20 +130,17 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
       const result = await updateSetting(values)
 
       if (result.success) {
-        // Închidem toast-ul de loading și afișăm succes
         toast.success('Setările companiei au fost salvate!', { id: toastId })
         if (result.data) {
           form.reset(result.data)
         }
       } else {
-        // Închidem toast-ul de loading și afișăm eroarea
         toast.error('Eroare la salvare:', {
           id: toastId,
           description: result.message,
         })
       }
     } catch (err) {
-      // Asta prinde erorile neașteptate (de rețea, etc.)
       console.error('Eroare neașteptată la onSubmit:', err)
       toast.error('Eroare necunoscută', {
         id: toastId,
@@ -151,31 +148,26 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
           err instanceof Error ? err.message : 'Te rugăm să încerci din nou.',
       })
     } finally {
-      // Acest bloc rulează întotdeauna și deblochează butonul
       setIsSaving(false)
     }
   }
 
   return (
     <Card>
-      {/* 1. <Form> wrapper-ul trebuie să fie aici, sus */}
       <Form {...form}>
-        {/* 2. <form> tag-ul trebuie să înconjoare <CardHeader> și <CardContent> */}
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <CardHeader>
             <CardTitle>Datele Companiei</CardTitle>
-            {/* 3. <FormDescription> este acum ÎNĂUNTRUL contextului <Form> */}
             <FormDescription>
               Informațiile legale și de contact ale companiei tale. Aceste date
               vor fi folosite la generarea documentelor.
             </FormDescription>
           </CardHeader>
-          {/* 4. Am mutat 'space-y-8' de pe <form> aici */}
           <CardContent className='space-y-8'>
             {/* Secțiunea Date Fiscale */}
             <div className='space-y-4'>
               <h3 className='text-lg font-medium'>Date Fiscale</h3>
-              {/* ... (câmpurile neschimbate) ... */}
+
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                 <FormField
                   control={form.control}
@@ -241,7 +233,7 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
             {/* Secțiunea Sediu Social */}
             <div className='space-y-4'>
               <h3 className='text-lg font-medium'>Sediu Social</h3>
-              {/* ... (câmpurile neschimbate) ... */}
+
               <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
                 <FormField
                   control={form.control}
@@ -350,7 +342,7 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
                         id={`bank-default-${index}`}
                       />
                     </FormControl>
-                    {/* 🔽 --- MODIFICAT: grid-cols-3 --- 🔽 */}
+
                     <div className='flex-1 grid grid-cols-1 md:grid-cols-3 gap-4'>
                       <FormField
                         control={form.control}
@@ -392,7 +384,7 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
                           </FormItem>
                         )}
                       />
-                      {/* 🔽 --- NOU: Câmp pentru Monedă --- 🔽 */}
+                      {/* 🔽 --- Câmp pentru Monedă --- 🔽 */}
                       <FormField
                         control={form.control}
                         name={`bankAccounts.${index}.currency`}
@@ -441,7 +433,7 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
             {/* Secțiunea Email-uri */}
             <div className='space-y-4'>
               <h3 className='text-lg font-medium'>Adrese de Email</h3>
-              {/* ... (codul pentru emailuri neschimbat) ... */}
+
               <RadioGroup
                 onValueChange={(value) => setDefaultEmail(parseInt(value))}
                 defaultValue={emailFields
@@ -499,7 +491,7 @@ export function CompanySettingsForm({ initialData }: CompanySettingsFormProps) {
             {/* Secțiunea Telefoane */}
             <div className='space-y-4'>
               <h3 className='text-lg font-medium'>Numere de Telefon</h3>
-              {/* ... (codul pentru telefoane neschimbat) ... */}
+
               <RadioGroup
                 onValueChange={(value) => setDefaultPhone(parseInt(value))}
                 defaultValue={phoneFields

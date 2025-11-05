@@ -74,7 +74,7 @@ export function UnassignedDeliveryCard({
                 {delivery.clientSnapshot.name}
               </span>
             </div>
-            {/* Adresa (NOU) */}
+            {/* Adresa */}
             <div className='flex items-center gap-2'>
               <MapPin className='h-3 w-3 flex-shrink-0' />
               <span className='truncate'>

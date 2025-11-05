@@ -176,7 +176,7 @@ export function OrderItemsManager({
 
     if (item.totalStock <= 0) {
       toast.warning('Atenție: Stoc insuficient', {
-        description: `Produsul "${item.name}" nu are stoc disponibil. Te rugăm să soliciți aprovizionarea pentru a putea onora comanda.`,
+        description: `Produsul "${item.name}" nu are stoc disponibil. Te rugăm să verifici pretul de vanzare si sa soliciți aprovizionarea pentru a putea onora comanda.`,
       })
     }
 

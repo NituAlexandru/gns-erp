@@ -6,9 +6,7 @@ import { formatError } from '@/lib/utils'
 import { ISettingInput } from './types'
 import { revalidatePath } from 'next/cache'
 
-// Cache-ul global
 const globalForSettings = global as unknown as {
-  // Acum poate fi ISettingInput sau null
   cachedSettings: ISettingInput | null
 }
 
@@ -22,12 +20,10 @@ export const getNoCachedSetting = async (): Promise<ISettingInput | null> => {
 }
 
 export const getSetting = async (): Promise<ISettingInput | null> => {
-  // Verificăm dacă 'cachedSettings' a fost setat (chiar și la null)
   if (globalForSettings.cachedSettings !== undefined) {
     return globalForSettings.cachedSettings
   }
 
-  console.log('🟡 Info: Preluare setări companie din DB.')
   await connectToDatabase()
   const setting = await Setting.findOne().lean()
 

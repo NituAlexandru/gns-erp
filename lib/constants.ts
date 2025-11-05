@@ -10,8 +10,8 @@ export const APP_DESCRIPTION =
 export const TIMEZONE = 'Europe/Bucharest'
 
 export const UNITS = [
-  'sac',
   'bucata',
+  'sac',
   'rola',
   'set',
   'balot',

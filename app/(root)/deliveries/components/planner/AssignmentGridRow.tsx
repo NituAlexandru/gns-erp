@@ -8,10 +8,8 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AssignmentHeaderCell } from './grid/AssignmentHeaderCell'
 import { AssignedDeliveryCard } from './grid/AssignedDeliveryCard'
 
-// Definim tipurile (le-am copiat și aici pentru a fi clare)
 type DeliverySlot = (typeof DELIVERY_SLOTS)[number]
 type DisplaySlot = Exclude<DeliverySlot, '08:00 - 17:00'>
-
 // Tipul pentru harta globală a livrărilor
 type DeliveryMap = Map<string, DeliveryCardInfo>
 
@@ -69,7 +67,7 @@ export function AssignmentGridRow({
           <Fragment key={slot}>
             {/* Celula 1: Ora */}
             <div
-              key={slot} // Cheia e necesară și aici
+              key={slot} 
               className='p-2 border-r border-b border-border bg-muted/30 text-xs font-medium sticky left-0'
               style={{ gridRow: slotIndex + 2 }}
             >
@@ -94,7 +92,6 @@ export function AssignmentGridRow({
                       gridRow: `${slotIndex + 2} / span ${span}`, // Întindere
                     }}
                   >
-                    {/* Folosim componenta extrasă */}
                     <AssignedDeliveryCard
                       cardInfo={cardInfo}
                       onSchedule={onSchedule}

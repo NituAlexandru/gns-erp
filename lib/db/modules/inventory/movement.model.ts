@@ -24,16 +24,22 @@ export interface IStockMovementDoc extends Document {
   updatedAt: Date
 }
 
-const CostBreakdownBatchSchema = new Schema<ICostBreakdownBatch>(
+export const CostBreakdownBatchSchema = new Schema<ICostBreakdownBatch>(
   {
     movementId: {
       type: Schema.Types.ObjectId,
       ref: 'StockMovement',
-      required: true,
+      required: false,
     },
     entryDate: { type: Date, required: true },
     quantity: { type: Number, required: true },
     unitCost: { type: Number, required: true },
+    type: {
+      type: String,
+      enum: ['REAL', 'PROVISIONAL'],
+      required: true,
+      default: 'REAL',
+    },
   },
   { _id: false }
 )

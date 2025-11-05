@@ -1,4 +1,3 @@
-// app/(root)/financial/components/FinancialHeader.tsx
 'use client'
 
 import { Button } from '@/components/ui/button'
@@ -6,11 +5,11 @@ import { FileCheck, FileText, PlusCircle } from 'lucide-react'
 
 export default function FinancialHeader() {
   return (
-    <div className='flex flex-wrap items-center justify-between gap-4'>
+    <div className='flex flex-wrap items-center justify-between gap-2'>
       {/* Titlu și descriere */}
       <div>
         <h1 className='text-3xl font-bold tracking-tight'>
-          Platforma Financiară Genesis
+          Documente Financiare Genesis
         </h1>
         <p className='text-muted-foreground'>
           Vizualizează și gestionează documentele financiare.

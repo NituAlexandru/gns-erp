@@ -54,7 +54,7 @@ function buildDeliveryLine(
       : undefined,
     productId: originalLine.productId,
     serviceId: originalLine.serviceId,
-    isManualEntry: false,
+    isManualEntry: originalLine.isManualEntry,
     isPerDelivery: originalLine.isPerDelivery,
     productName: originalLine.productName,
     productCode: productCodeValue,
@@ -463,18 +463,17 @@ export async function getUnassignedDeliveriesForDate(
 
     const startOfDayLocal = startOfDay(selectedDate)
     const endOfDayLocal = endOfDay(selectedDate)
-
     const startDate = fromZonedTime(startOfDayLocal, TIMEZONE)
     const endDate = fromZonedTime(endOfDayLocal, TIMEZONE)
 
     const deliveries = await DeliveryModel.find({
-      status: 'CREATED', // Doar cele create, neprogramate
+      status: 'CREATED', 
       requestedDeliveryDate: {
-        $gte: startDate, // Mai mare sau egal cu începutul zilei
-        $lte: endDate, // Mai mic sau egal cu sfârșitul zilei
+        $gte: startDate,
+        $lte: endDate, 
       },
     })
-      .sort({ requestedDeliverySlots: 1, createdAt: 1 }) // Sortează după slotul cerut, apoi data creării
+      .sort({ requestedDeliverySlots: 1, createdAt: 1 }) 
       .lean<IDelivery[]>()
 
     return JSON.parse(JSON.stringify(deliveries))
@@ -517,7 +516,7 @@ export async function getAssignedDeliveriesForDate(
 
 export async function scheduleDelivery(
   deliveryId: string,
-  data: ScheduleDeliveryInput // Datele din formularul modalului
+  data: ScheduleDeliveryInput 
 ) {
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
@@ -536,14 +535,14 @@ export async function scheduleDelivery(
       throw new Error('ID Ansamblu invalid.')
     }
 
-    // 1. Găsim livrarea
+    //  Găsim livrarea
     const delivery =
       await DeliveryModel.findById(deliveryId).session(mongoSession)
     if (!delivery) {
       throw new Error('Livrarea nu a fost găsită.')
     }
 
-    // 2. Verificăm statusul (nu poți programa ceva anulat/facturat)
+    //  Verificăm statusul (nu poți programa ceva anulat/facturat)
     const editableStatuses: DeliveryStatusKey[] = ['CREATED', 'SCHEDULED']
     if (!editableStatuses.includes(delivery.status)) {
       throw new Error(
@@ -551,7 +550,7 @@ export async function scheduleDelivery(
       )
     }
 
-    // --- VALIDARE SUPRAPUNERE (BLOC NOU) ---
+    // --- VALIDARE SUPRAPUNERE  ---
 
     const slotsToBook = data.deliverySlots
     // Verificăm dacă se dorește blocarea întregii zile
@@ -562,7 +561,7 @@ export async function scheduleDelivery(
       _id: { $ne: deliveryId }, // Exclude livrarea curentă
       assemblyId: new Types.ObjectId(data.assemblyId), // Același ansamblu
       deliveryDate: startOfDay(data.deliveryDate), // Aceeași zi
-      status: { $ne: 'CANCELLED' }, // Ignoră livrările anulate
+      status: { $ne: 'CANCELLED' }, 
     }
 
     if (isBookingAllDay) {
@@ -588,13 +587,10 @@ export async function scheduleDelivery(
       )
     }
 
-    // 3. Găsim ansamblul pentru a crea snapshot-ul
+    // Găsim ansamblul pentru a crea snapshot-ul
     const assignment = await AssignmentModel.findById(data.assemblyId)
       .populate<{ driverId: { name: string } }>('driverId', 'name')
       .populate<{ vehicleId: { carNumber: string } }>('vehicleId', 'carNumber')
-      // .populate<{
-      //   trailerId: { licensePlate: string }
-      // }>('trailerId', 'licensePlate')
       .lean<IPopulatedAssignmentDoc>()
 
     if (!assignment) {
@@ -608,7 +604,7 @@ export async function scheduleDelivery(
         : 'N/A'
     const finalDriverId =
       assignment.driverId && typeof assignment.driverId === 'object'
-        ? assignment.driverId._id // <-- ID-ul șoferului
+        ? assignment.driverId._id 
         : null
 
     const vehicleNumber =
@@ -617,12 +613,11 @@ export async function scheduleDelivery(
         : 'N/A'
     const finalVehicleId =
       assignment.vehicleId && typeof assignment.vehicleId === 'object'
-        ? assignment.vehicleId._id // <-- ID-ul vehiculului
+        ? assignment.vehicleId._id 
         : null
 
-    // --- ÎNLOCUIEȘTE CU ACEST BLOC NOU ---
     let finalTrailerId: Types.ObjectId | null = null
-    let finalTrailerNumber: string | undefined = undefined // 'undefined' va șterge câmpul
+    let finalTrailerNumber: string | undefined = undefined 
 
     if (data.trailerId && data.trailerId !== 'none') {
       // Cazul 1: O remorcă specifică a fost selectată în formular
@@ -640,10 +635,10 @@ export async function scheduleDelivery(
     } else if (data.trailerId === 'none') {
       // Cazul 2: S-a selectat explicit "Fără Remorcă"
       finalTrailerId = null
-      finalTrailerNumber = undefined // Se va salva null sau se va șterge câmpul
+      finalTrailerNumber = undefined 
     }
 
-    // 4. Actualizăm documentul de livrare
+    // Actualizăm documentul de livrare
     delivery.set({
       status: 'SCHEDULED',
       deliveryDate: data.deliveryDate,
@@ -653,13 +648,9 @@ export async function scheduleDelivery(
       vehicleId: finalVehicleId,
       trailerId: finalTrailerId,
       deliveryNotes: data.deliveryNotes,
-
-      // Snapshot-uri
       driverName: driverName,
       vehicleNumber: vehicleNumber,
       trailerNumber: finalTrailerNumber,
-
-      // User-ul care a făcut modificarea
       lastUpdatedBy: new Types.ObjectId(user.id),
       lastUpdatedByName: user.name,
     })
@@ -676,10 +667,8 @@ export async function scheduleDelivery(
       })
     } catch (ablyError) {
       console.error('Ably publish error:', ablyError)
-      // Nu arunca eroare aici, livrarea s-a salvat, doar notificarea a eșuat
     }
 
-    // Revalidăm pagina comenzii ȘI pagina planner-ului
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
     revalidatePath('/deliveries')
 
@@ -718,7 +707,7 @@ export async function unassignDelivery(deliveryId: string) {
       throw new Error('ID Livrare invalid.')
     }
 
-    // 1. Găsim livrarea
+    // Găsim livrarea
     const delivery =
       await DeliveryModel.findById(deliveryId).session(mongoSession)
     if (!delivery) {
@@ -735,7 +724,7 @@ export async function unassignDelivery(deliveryId: string) {
       console.error('❌ Eroare la publicarea pe Ably (unassign):', ablyError)
     }
 
-    // 2. Verificăm statusul (nu poți dezaloca ceva în tranzit, livrat etc.)
+    // Verificăm statusul (nu poți dezaloca ceva în tranzit, livrat etc.)
     const unassignableStatuses: DeliveryStatusKey[] = ['SCHEDULED']
     if (!unassignableStatuses.includes(delivery.status)) {
       throw new Error(
@@ -743,19 +732,15 @@ export async function unassignDelivery(deliveryId: string) {
       )
     }
 
-    // 4. Resetăm câmpurile și setăm statusul 'CREATED'
+    // Resetăm câmpurile și setăm statusul 'CREATED'
     delivery.set({
       status: 'CREATED', // Statusul revine la 'Creat'
       deliveryDate: undefined, // Ștergem data programată
       deliverySlots: [], // Ștergem sloturile programate
       assemblyId: undefined, // Ștergem ansamblul
-
-      // Ștergem snapshot-urile
       driverName: undefined,
       vehicleNumber: undefined,
       trailerNumber: undefined,
-
-      // Păstrăm notele (poate sunt utile), dar setăm user-ul
       lastUpdatedBy: new Types.ObjectId(user.id),
       lastUpdatedByName: user.name,
     })
@@ -774,7 +759,6 @@ export async function unassignDelivery(deliveryId: string) {
       console.error('Ably publish error:', ablyError)
     }
 
-    // Revalidăm pagina comenzii ȘI pagina planner-ului
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
     revalidatePath('/deliveries')
 

@@ -19,7 +19,7 @@ const AddressSubSchema = new Schema(
     alteDetalii: { type: String },
   },
   { _id: false }
-) // _id: false e important pentru sub-documente simple
+)
 
 // Sub-schema pentru Cont Bancar
 const BankAccountSubSchema = new Schema(

@@ -29,15 +29,18 @@ export interface ICompanySnapshot {
 
 // --- Interfața pentru detaliile loturilor (pt. audit FIFO) ---
 export interface ICostBreakdown {
-  movementId: Types.ObjectId // ID-ul mișcării de INTRARE
+  movementId?: Types.ObjectId // ID-ul mișcării de INTRARE
   entryDate: Date // Data intrării
   quantity: number // Cât s-a consumat din acest lot
   unitCost: number // Costul lotului respectiv
+  type: 'REAL' | 'PROVISIONAL'
 }
 
 export interface IDeliveryNoteLine {
+  _id: Types.ObjectId
   orderLineItemId?: Types.ObjectId
   productId?: Types.ObjectId
+  codNC?: string
   serviceId?: Types.ObjectId
   stockableItemType?: 'ERPProduct' | 'Packaging'
   isManualEntry: boolean
@@ -86,6 +89,7 @@ export interface IDeliveryNoteDoc extends Document {
   orderNumberSnapshot: string
   deliveryNumberSnapshot: string
   clientId: Types.ObjectId
+  deliveryAddressId: Types.ObjectId
   status: (typeof DELIVERY_NOTE_STATUSES)[number]
   isInvoiced: boolean
   createdBy: Types.ObjectId
@@ -133,11 +137,17 @@ const CostBreakdownSchema = new Schema<ICostBreakdown>(
     movementId: {
       type: Schema.Types.ObjectId,
       ref: 'StockMovement',
-      required: true,
+      required: false,
     },
     entryDate: { type: Date, required: true },
     quantity: { type: Number, required: true },
     unitCost: { type: Number, required: true },
+    type: {
+      type: String,
+      enum: ['REAL', 'PROVISIONAL'],
+      required: true,
+      default: 'REAL',
+    },
   },
   { _id: false }
 )
@@ -237,6 +247,11 @@ const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
     orderNumberSnapshot: { type: String, required: true },
     deliveryNumberSnapshot: { type: String, required: true },
     clientId: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
+    deliveryAddressId: {
+      type: Schema.Types.ObjectId,
+      ref: 'DeliveryAddress',
+      required: true,
+    },
     status: {
       type: String,
       enum: DELIVERY_NOTE_STATUSES,

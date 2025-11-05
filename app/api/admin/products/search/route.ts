@@ -84,8 +84,8 @@ export async function GET(request: NextRequest) {
         itemsPerPallet: 1,
         averagePurchasePrice: 1,
         packagingOptions: 1,
-        productCode: 1, 
-        images: 1, 
+        productCode: 1,
+        images: 1,
       },
     },
   ]
@@ -115,7 +115,6 @@ export async function GET(request: NextRequest) {
         ],
       },
     },
-    // Adăugăm câmpul 'unit' pentru consistență
     { $addFields: { unit: '$packagingUnit' } },
     ...addInventoryAndPackagingOptionsPipeline,
     { $limit: 50 },

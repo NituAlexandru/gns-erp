@@ -1,4 +1,3 @@
-// app/(root)/financial/page.tsx
 import {
   FileCheck,
   FileText,
@@ -12,7 +11,7 @@ import FinancialHeader from './components/FinancialHeader'
 
 export default function FinancialDashboardPage() {
   return (
-    <div className='space-y-8'>
+    <div className='space-y-2'>
       {/* Header */}
       <FinancialHeader />
 

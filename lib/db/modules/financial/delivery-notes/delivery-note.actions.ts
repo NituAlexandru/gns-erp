@@ -4,7 +4,6 @@ import { connectToDatabase } from '@/lib/db'
 import mongoose, { startSession, FilterQuery, Types } from 'mongoose'
 import DeliveryNoteModel, { IDeliveryNoteDoc } from './delivery-note.model'
 import { UpdateDeliveryNoteStatusSchema } from './delivery-note.validator'
-
 import { DELIVERY_NOTE_STATUSES } from './delivery-note.constants'
 import { revalidatePath } from 'next/cache'
 import DeliveryModel, {
@@ -170,6 +169,7 @@ export async function createDeliveryNote({
             companySnapshot: companySnapshot,
             salesAgentSnapshot: delivery.salesAgentSnapshot,
             deliveryAddress: delivery.deliveryAddress,
+            deliveryAddressId: delivery.deliveryAddressId,
             items: noteItems,
             totals: delivery.totals,
             status: 'IN_TRANSIT',

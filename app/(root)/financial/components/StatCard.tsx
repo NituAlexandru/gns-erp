@@ -1,4 +1,3 @@
-// app/(root)/financial/components/StatCard.tsx
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface StatCardProps {

@@ -6,10 +6,11 @@ import { IStockMovementDoc } from './movement.model'
 
 // Tipul pentru un lot de cost (folosit în Aviz și Mișcare Stoc)
 export interface ICostBreakdownBatch {
-  movementId: Types.ObjectId // ID-ul mișcării de INTRARE
+  movementId?: Types.ObjectId // ID-ul mișcării de INTRARE
   entryDate: Date
   quantity: number
   unitCost: number
+  type: 'REAL' | 'PROVISIONAL'
 }
 
 // Tipul pentru returnul funcției FIFO

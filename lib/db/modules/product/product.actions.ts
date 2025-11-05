@@ -50,7 +50,7 @@ async function checkForDuplicateCodes(payload: {
     }
   }
 
-  return null // Nicio eroare
+  return null
 }
 // CREATE
 export async function createProduct(data: IProductInput) {
@@ -314,12 +314,12 @@ export async function updateProductMarkup(
 }
 
 export async function updateProductAveragePurchasePrice(productId: string) {
-  // 1. Calculăm cel mai mare cost din stocul curent
-  const highestCost = await getGlobalHighestCostInStock(productId) // <-- Schimbă numele funcției aici
+  // Calculăm cel mai mare cost din stocul curent
+  const highestCost = await getGlobalHighestCostInStock(productId) 
 
-  // 2. Actualizăm câmpul pe documentul de produs
+  // Actualizăm câmpul pe documentul de produs
   await ERPProductModel.findByIdAndUpdate(productId, {
-    averagePurchasePrice: highestCost, // Folosim noul cost
+    averagePurchasePrice: highestCost, 
   })
 
   console.log(
@@ -456,7 +456,6 @@ export async function searchStockableItems(
             as: 'inventorySummary',
           },
         },
-        // Extragem sumarul
         { $addFields: { inventoryDoc: { $first: '$inventorySummary' } } },
         {
           $project: {
@@ -528,7 +527,7 @@ export async function calculateMinimumPrice(
     if (!itemWithMarkups) {
       itemWithMarkups = await PackagingModel.findById(itemId)
         .select('defaultMarkups')
-        .lean<ItemWithMarkups>() // Și aici
+        .lean<ItemWithMarkups>() 
     }
 
     if (!itemWithMarkups) {

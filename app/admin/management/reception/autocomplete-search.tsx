@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image' // <-- MODIFICARE: Adăugat import pentru Imagine
-import { Package } from 'lucide-react' // <-- MODIFICARE: Adăugat icon placeholder
+import Image from 'next/image'
+import { Package } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -137,15 +137,15 @@ export function AutocompleteSearch({
                   <HoverCardContent
                     side='top'
                     align='start'
-                    className='w-auto p-1' 
-                     onPointerDownOutside={(e) => e.preventDefault()}
+                    className='w-auto p-1'
+                    onPointerDownOutside={(e) => e.preventDefault()}
                   >
                     {item.images && item.images[0] ? (
                       <Image
                         src={item.images[0]}
                         alt={item.name}
                         width={250}
-                        height={250} 
+                        height={250}
                         className='h-60 w-60 rounded-md object-cover'
                       />
                     ) : (

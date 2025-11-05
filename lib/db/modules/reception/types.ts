@@ -62,7 +62,7 @@ export type PopulatedReception = Omit<
 export interface ReceptionFilters {
   q?: string // text liber
   status?: string // "DRAFT", "CONFIRMAT" etc.
-  createdBy?: string // ObjectId al utilizatorului
+  createdBy?: string 
   page: number
   pageSize: number
 }

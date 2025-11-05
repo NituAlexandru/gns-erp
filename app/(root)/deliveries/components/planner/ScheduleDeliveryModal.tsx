@@ -444,7 +444,7 @@ export function ScheduleDeliveryModal({
                             <Button
                               variant={'outline'}
                               className={cn(
-                                'pl-3 text-left font-normal w-full', // Asigură-te că e w-full
+                                'pl-3 text-left font-normal w-full',
                                 !field.value && 'text-muted-foreground'
                               )}
                             >
@@ -502,7 +502,6 @@ export function ScheduleDeliveryModal({
                                   disabled={
                                     (isBlocked && !isChecked) || isReadOnly
                                   }
-                                  // --- MODIFICĂ ACEASTĂ FUNCȚIE ---
                                   onCheckedChange={(checked) => {
                                     const currentValue = field.value || []
                                     let newValue: string[]

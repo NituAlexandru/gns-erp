@@ -9,6 +9,7 @@ const addressSchema = new Schema(
     strada: { type: String, required: true },
     numar: { type: String, required: true },
     codPostal: { type: String, required: true },
+    tara: { type: String, required: true, default: 'RO' },
     alteDetalii: { type: String },
     distanceInKm: { type: Number },
     travelTimeInMinutes: { type: Number },

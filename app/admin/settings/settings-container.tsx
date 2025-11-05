@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import React from 'react'
-import SettingNav from './setting-nav' // Asigură-te că e calea corectă
+import SettingNav from './setting-nav'
 import { VatRatesManager } from './vat-rate/vat-rates-manager'
 import { ServiceDTO } from '@/lib/db/modules/setting/services/types'
 import { ServicesManager } from './services/services-manager'
@@ -13,10 +13,8 @@ import { ShippingRateDTO } from '@/lib/db/modules/setting/shipping-rates/types'
 import { ShippingRatesManager } from './shipping-rates/shipping-manager'
 import { ISettingInput } from '@/lib/db/modules/setting/types'
 import { CompanySettingsForm } from './components/company-settings-form'
-// Asigură-te că e calea corectă
 
 interface SettingsContainerProps {
-  // 🔽 MODIFICARE AICI: Acceptă null 🔽
   initialCompanySettings: ISettingInput | null
   initialVatRates: VatRateDTO[]
   initialServices: ServiceDTO[]

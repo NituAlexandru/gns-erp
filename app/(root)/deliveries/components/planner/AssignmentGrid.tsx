@@ -40,7 +40,7 @@ export function AssignmentGrid({
   assignedDeliveries,
   onSchedule,
 }: AssignmentGridProps) {
-  // --- 1. Pregătirea Datelor (Map-ul global - neschimbat) ---
+  // --- Pregătirea Datelor (Map-ul global - neschimbat) ---
   const deliveryMap = useMemo(() => {
     const map = new Map<string, DeliveryCardInfo>()
 
@@ -77,14 +77,14 @@ export function AssignmentGrid({
     return map
   }, [assignedDeliveries])
 
-  // --- 2. Logica de Împărțire (Chunking) ---
+  // --- Logica de Împărțire (Chunking) ---
   const CHUNK_SIZE = 7 // Afișăm 7 ansambluri pe rând
   const assignmentChunks = useMemo(
     () => chunkArray(assignments, CHUNK_SIZE),
     [assignments]
   )
 
-  // --- 3. Randarea ---
+  // --- Randarea ---
   return (
     // Container principal care ține rândurile de grid stivuite vertical
     <div className='space-y-4'>
