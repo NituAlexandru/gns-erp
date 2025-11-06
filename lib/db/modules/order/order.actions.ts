@@ -294,7 +294,8 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     }
 
     const wasConfirmed =
-      oldOrder.status === 'CONFIRMED' || oldOrder.status === 'PARTIALLY_SHIPPED'
+      oldOrder.status === 'CONFIRMED' ||
+      oldOrder.status === 'PARTIALLY_DELIVERED'
     // O comandă editată este considerată confirmată (dacă nu e DRAFT)
     const newStatus = oldOrder.status === 'DRAFT' ? 'DRAFT' : 'CONFIRMED'
 
