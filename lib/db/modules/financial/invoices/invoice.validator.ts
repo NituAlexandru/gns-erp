@@ -137,15 +137,14 @@ export const InvoiceInputSchema = z.object({
     .default('STANDARD'),
   invoiceDate: z.date({ required_error: 'Data emiterii este obligatorie.' }),
   dueDate: z.date({ required_error: 'Data scadenței este obligatorie.' }),
-
   items: z
     .array(InvoiceLineSchema)
     .min(1, 'Factura trebuie să aibă cel puțin o linie.'),
   totals: InvoiceTotalsSchema,
-
   sourceDeliveryNotes: z.array(MongoId).default([]), // Lista ID-urilor avizelor folosite
-
   // Câmpuri opționale
-  notes: z.string().optional(), // Observații factură
-  rejectionReason: z.string().optional(), // Motivul respingerii de către admin
+  notes: z.string().optional(), 
+  rejectionReason: z.string().optional(), 
+  paidAmount: z.number().optional(),
+  remainingAmount: z.number().optional(),
 })

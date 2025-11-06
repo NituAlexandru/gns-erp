@@ -6,10 +6,9 @@ export type DocumentType =
   | 'Factura'
   | 'FacturaStorno'
   | 'NIR'
-  | 'Chitanta'
-  | 'NotaRetur' 
   | 'BonConsum'
   | 'DispozitiePlata'
+  | 'NotaRetur'
 
 export interface IDocumentCounter extends Document {
   seriesName: string

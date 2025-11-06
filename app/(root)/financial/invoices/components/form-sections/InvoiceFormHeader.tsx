@@ -62,7 +62,7 @@ export function InvoiceFormHeader({
         <CardTitle>Antet Factură</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+        <div className='grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6'>
           {/* --- COLOANA 1: Client & Adresă --- */}
           <div className='space-y-6'>
             <FormField
@@ -120,7 +120,7 @@ export function InvoiceFormHeader({
 
           {/* --- COLOANA 2: Date, Serie, Buton --- */}
           <div className='space-y-6'>
-            <div className='grid grid-cols-2 gap-4'>
+            <div className='grid grid-cols-1 gap-4'>
               <FormField
                 control={form.control}
                 name='invoiceDate'
@@ -197,50 +197,51 @@ export function InvoiceFormHeader({
                   </FormItem>
                 )}
               />
-            </div>
-            <FormField
-              control={form.control}
-              name='seriesName'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Serie Factură</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value || ''}
+              <FormField
+                control={form.control}
+                name='seriesName'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Serie Factură</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || ''}
+                    >
+                      <FormControl>
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Alege o serie...' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {seriesList.map((series) => (
+                          <SelectItem
+                            key={series._id.toString()}
+                            value={series.name}
+                          >
+                            {series.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {watchedInvoiceType === 'STANDARD' && (
+                <div className='flex items-center pt-2'>
+                  <Button
+                    className=' w-full  text-left '
+                    type='button'
+                    variant='outline'
+                    disabled={!selectedClient || !selectedAddress}
+                    onClick={onShowNoteLoader}
                   >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder='Alege o serie...' />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {seriesList.map((series) => (
-                        <SelectItem
-                          key={series._id.toString()}
-                          value={series.name}
-                        >
-                          {series.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
+                    <Download className='mr-2 h-4 w-4' />
+                    Încarcă Avize Nefacturate
+                  </Button>
+                </div>
               )}
-            />
-            {watchedInvoiceType === 'STANDARD' && (
-              <div className='flex justify-center items-center pt-6'>
-                <Button
-                  type='button'
-                  variant='outline'
-                  disabled={!selectedClient || !selectedAddress}
-                  onClick={onShowNoteLoader}
-                >
-                  <Download className='mr-2 h-4 w-4' />
-                  Încarcă Avize Nefacturate
-                </Button>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* --- COLOANA 3: Totaluri (Componenta Nouă) --- */}

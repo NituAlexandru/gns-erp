@@ -49,9 +49,10 @@ export interface IInvoiceDoc extends Document {
     deliveryNumbers: string[]
     deliveryNoteNumbers: string[]
   }
-  remainingAmount: number
   createdAt: Date
   updatedAt: Date
+  paidAmount: number
+  remainingAmount: number
 }
 
 // --- Sub-schemele ---
@@ -241,10 +242,21 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
     },
     relatedInvoiceIds: [{ type: Schema.Types.ObjectId, ref: 'Invoice' }],
     relatedAdvanceIds: [{ type: Schema.Types.ObjectId, ref: 'Invoice' }],
+    paidAmount: { type: Number, default: 0 },
     remainingAmount: { type: Number, default: 0 },
   },
   { timestamps: true }
 )
+
+InvoiceSchema.pre('save', function (next) {
+  if (this.isNew) {
+    // Setăm remainingAmount inițial ca fiind totalul facturii
+    // (pentru Standard și Avans)
+    this.paidAmount = 0
+    this.remainingAmount = this.totals.grandTotal
+  }
+  next()
+})
 
 // Index compus pentru unicitatea Seriei+Numărului
 InvoiceSchema.index(

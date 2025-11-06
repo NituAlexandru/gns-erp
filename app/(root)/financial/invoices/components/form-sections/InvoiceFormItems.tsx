@@ -51,6 +51,7 @@ export function InvoiceFormItems({
 }: InvoiceFormItemsProps) {
   const form = useFormContext<InvoiceInput>()
   const totals = form.watch('totals')
+  const watchedInvoiceType = form.watch('invoiceType')
 
   const handleManualAdd = () => {
     const defaultUnit: string = UNITS[0] || 'bucata'
@@ -144,14 +145,50 @@ export function InvoiceFormItems({
   if (fields.length === 0) {
     return (
       <div className='border rounded-lg p-8 bg-card text-center space-y-4'>
-        <p className='text-muted-foreground'>
-          Factura nu conține linii. Te rog folosește butonul{' '}
-          <strong>Încarcă Avize Nefacturate</strong> (din antet) pentru a adăuga
-          produse/servicii.
-        </p>
-        <Button onClick={handleManualAdd} variant='secondary'>
-          <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Produs Manual
-        </Button>
+        {watchedInvoiceType === 'STANDARD' ? (
+          // --- Mesaj pentru STANDARD ---
+          <p className='text-muted-foreground'>
+            Factura nu conține linii. Te rog folosește butonul{' '}
+            <strong>Încarcă Avize Nefacturate</strong> (din antet) pentru a
+            adăuga produse/servicii <strong>sau</strong> <br /> Folosește
+            butoanele de mai jos pentru a adăuga manual o descriere și o
+            valoare.
+          </p>
+        ) : (
+          // --- Mesaj pentru AVANS (sau altele) ---
+          <p className='text-muted-foreground'>
+            Aceasta este o factură de avans si nu poti incarca avize. <br />
+            Folosește butoanele de mai jos pentru a adăuga manual o descriere și
+            o valoare.
+          </p>
+        )}
+
+        {/* Afișăm ambele butoane în "zero state" */}
+        <div className='flex justify-center gap-4'>
+          <Button onClick={handleManualAdd} variant='outline'>
+            <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant='outline'>
+                <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className='w-[450px]'>
+              {services.map((service: SearchedService) => (
+                <DropdownMenuItem
+                  key={service._id}
+                  onSelect={() => handleSelectService(service)}
+                >
+                  <span>
+                    {service.name} ({formatCurrency(service.price)})
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     )
   }
