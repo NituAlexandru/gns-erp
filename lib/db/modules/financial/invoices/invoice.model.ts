@@ -178,7 +178,7 @@ const InvoiceTotalsSubSchema = new Schema<InvoiceTotals>(
 const InvoiceSchema = new Schema<IInvoiceDoc>(
   {
     sequenceNumber: { type: Number, required: true },
-    invoiceNumber: { type: String, required: true, unique: true, index: true },
+    invoiceNumber: { type: String, required: true, index: true },
     seriesName: { type: String, required: true },
     year: { type: Number, required: true, index: true },
     invoiceDate: { type: Date, required: true, index: true },

@@ -39,7 +39,7 @@ export default async function CreateDeliveryPage({
   const allowedPlanningStatuses: string[] = [
     'CONFIRMED',
     'SCHEDULED',
-    'PARTIALLY_SHIPPED',
+    'PARTIALLY_DELIVERED',
     'DELIVERED',
   ]
   let existingDeliveriesRaw: IDelivery[] = []

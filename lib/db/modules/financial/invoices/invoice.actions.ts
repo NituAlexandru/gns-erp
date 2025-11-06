@@ -3,7 +3,10 @@
 import mongoose, { startSession, Types } from 'mongoose'
 import { auth } from '@/auth'
 import { getSetting } from '../../setting/setting.actions'
-import { generateNextDocumentNumber } from '../../numbering/numbering.actions'
+import {
+  generateNextDocumentNumber,
+  getActiveSeriesForDocumentType,
+} from '../../numbering/numbering.actions'
 import DeliveryNoteModel, {
   IDeliveryNoteDoc,
 } from '../delivery-notes/delivery-note.model'
@@ -13,6 +16,7 @@ import {
   CompanySnapshot,
   ClientSnapshot,
   InvoiceInput,
+  InvoiceActionSelectionRequired,
 } from './invoice.types'
 import { ISettingInput } from '../../setting/types'
 import { IClientDoc } from '../../client/types'
@@ -20,12 +24,15 @@ import ClientModel from '../../client/client.model'
 import { connectToDatabase } from '@/lib/db'
 import {
   calculateInvoiceTotals,
+  consolidateInvoiceFromNotes,
   updateRelatedDocuments,
 } from './invoice.helpers'
 import { round2 } from '@/lib/utils'
 import { IOrderLineItem } from '../../order/types'
 import { InvoiceLineInput } from './invoice.types'
 import Order, { IOrder } from '../../order/order.model'
+import { addDays } from 'date-fns'
+import { ISeries } from '../../numbering/series.model'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -49,7 +56,6 @@ function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
     currency: defaultBank.currency,
   }
 }
-
 /**
  * Găsește toate avizele livrate și nefacturate pentru un client specific,
  * filtrate după o anumită adresă de livrare (șantier).
@@ -428,6 +434,115 @@ export async function generateProformaFromOrder(
   } catch (error) {
     await session.endSession()
     console.error('❌ Eroare generateProformaFromOrder:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+export async function createInvoiceFromSingleNote(
+  deliveryId: string, // Primește ID-ul Livrării
+  seriesName?: string
+): Promise<InvoiceActionResult> {
+  const session = await startSession()
+  try {
+    const result = await session.withTransaction(async (session) => {
+      // 1. Validare și Autentificare
+      const authSession = await auth()
+      if (!authSession?.user?.id) throw new Error('Utilizator neautentificat.')
+
+      // 2. Găsește Avizul Sursă (folosind deliveryId)
+      const note = (await DeliveryNoteModel.findOne({
+        deliveryId: deliveryId,
+        status: 'DELIVERED',
+      })
+        .lean()
+        .session(session)) as unknown as IDeliveryNoteDoc
+
+      if (!note) {
+        throw new Error(
+          'Avizul (status "Livrat") nu a fost găsit pentru această livrare.'
+        )
+      }
+      if (note.isInvoiced) {
+        throw new Error('Acest aviz este deja facturat.')
+      }
+
+      // 3. Găsește Clientul (pentru termenul de plată)
+      const client = (await ClientModel.findById(note.clientId)
+        .select('paymentTerm')
+        .lean()
+        .session(session)) as IClientDoc | null
+      if (!client) {
+        throw new Error('Clientul de pe aviz nu a fost găsit.')
+      }
+
+      // 4. Calculează Datele
+      const invoiceDate = new Date()
+      const dueDate = addDays(invoiceDate, client.paymentTerm || 0)
+
+      // 5. Verifică Seria
+      let activeSeries = seriesName
+      if (!activeSeries) {
+        const documentType = 'Factura' as unknown as DocumentType
+        const seriesList = await getActiveSeriesForDocumentType(documentType)
+
+        if (seriesList.length === 0) {
+          throw new Error('Nu există nicio serie activă pentru Facturi.')
+        }
+        if (seriesList.length === 1) {
+          activeSeries = seriesList[0].name
+        } else {
+          const seriesNames: string[] = seriesList.map((s: ISeries) => s.name)
+          return {
+            success: false,
+            requireSelection: true,
+            message: `Există mai multe serii active (${seriesNames.join(
+              ', '
+            )}).`,
+            series: seriesNames,
+          } as InvoiceActionSelectionRequired
+        }
+      }
+
+      // 6. Preia Liniile și Totalurile
+      const { items, totals } = consolidateInvoiceFromNotes([
+        note as IDeliveryNoteDoc,
+      ])
+
+      // 7. Verificare de siguranță (aici era eroarea ta de sintaxă)
+      if (!activeSeries) {
+        throw new Error('Seria activă nu a putut fi determinată.')
+      }
+
+      // 8. Construiește Obiectul `InvoiceInput`
+      const invoiceInput: InvoiceInput = {
+        clientId: note.clientId.toString(),
+        deliveryAddressId: note.deliveryAddressId.toString(),
+        deliveryAddress: {
+          judet: note.deliveryAddress.judet,
+          localitate: note.deliveryAddress.localitate,
+          strada: note.deliveryAddress.strada,
+          numar: note.deliveryAddress.numar || '',
+          codPostal: note.deliveryAddress.codPostal,
+          tara: 'RO',
+          alteDetalii: note.deliveryAddress.alteDetalii || '',
+        },
+        seriesName: activeSeries,
+        invoiceType: 'STANDARD',
+        invoiceDate: invoiceDate,
+        dueDate: dueDate,
+        items: items,
+        totals: totals,
+        sourceDeliveryNotes: [note._id.toString()],
+        notes: `Factură generată automat din Avizul ${note.seriesName}-${note.noteNumber}.`,
+      }
+
+      // 9. Apelează funcția principală de creare
+      return createInvoice(invoiceInput, 'CREATED')
+    })
+
+    return result
+  } catch (error) {
+    await session.endSession()
+    console.error('❌ Eroare createInvoiceFromSingleNote:', error)
     return { success: false, message: (error as Error).message }
   }
 }

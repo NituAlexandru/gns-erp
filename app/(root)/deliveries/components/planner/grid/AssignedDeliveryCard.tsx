@@ -14,9 +14,12 @@ import { cn } from '@/lib/utils'
 import {
   Box,
   CheckCircle2,
+  DollarSign,
+  FilePenLine,
   FileText,
   Loader2,
   MapPin,
+  Pencil,
   Truck,
   User,
   XCircle,
@@ -37,6 +40,10 @@ import { CreateDeliveryNoteResult } from '@/lib/db/modules/financial/delivery-no
 import { useRouter } from 'next/navigation'
 import { CancelNoteModal } from '@/components/shared/modals/CancelNoteModal'
 import { ConfirmDeliveryModal } from '@/components/shared/modals/ConfirmDeliveryModal'
+import { createInvoiceFromSingleNote } from '@/lib/db/modules/financial/invoices/invoice.actions'
+import { InvoiceActionResult } from '@/lib/db/modules/financial/invoices/invoice.types'
+import { DocumentType } from '@/lib/db/modules/numbering/documentCounter.model'
+import Link from 'next/link'
 
 type DeliveryCardInfo = {
   delivery: IDelivery
@@ -63,6 +70,9 @@ export function AssignedDeliveryCard({
   const [showSeriesModal, setShowSeriesModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
+  // Generate Invoice
+  const [showInvoiceSeriesModal, setShowInvoiceSeriesModal] = useState(false)
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false)
 
   async function handleGenerateDeliveryNote(seriesName?: string) {
     setIsGenerating(true)
@@ -78,7 +88,7 @@ export function AssignedDeliveryCard({
       if (result.success) {
         toast.success('Avizul a fost generat cu succes!', { id: toastId })
         router.refresh()
-      } else if (result.requireSelection) {
+      } else if ('requireSelection' in result && result.requireSelection) {
         toast.dismiss(toastId)
         setShowSeriesModal(true)
       } else {
@@ -144,6 +154,41 @@ export function AssignedDeliveryCard({
     delivery.isNoticed && delivery.status === 'IN_TRANSIT'
   const isLoading = isGenerating || isConfirming || isCancelling
   const canCancelNote = delivery.isNoticed && delivery.status === 'IN_TRANSIT'
+  const canEditDelivery = ['CREATED', 'SCHEDULED'].includes(delivery.status)
+  const canGenerateInvoice =
+    delivery.status === 'DELIVERED' && !delivery.isInvoiced
+
+  async function handleGenerateInvoice(seriesName?: string) {
+    setIsGeneratingInvoice(true)
+    const toastId = `generate-invoice-${delivery._id}`
+    toast.loading('Se generează factura...', { id: toastId })
+
+    try {
+      // 🔽 APELEAZĂ ACȚIUNEA DE SERVER (pe care am reparat-o) 🔽
+      const result: InvoiceActionResult = await createInvoiceFromSingleNote(
+        delivery._id.toString(), // Trimitem ID-ul Livrării
+        seriesName
+      )
+
+      if (result.success) {
+        toast.success('Factura a fost generată cu succes!', { id: toastId })
+        router.refresh()
+      } else if ('requireSelection' in result && result.requireSelection) {
+        toast.dismiss(toastId)
+        setShowInvoiceSeriesModal(true) // Deschide modalul de facturi
+      } else {
+        toast.error(result.message || 'Eroare la generarea facturii', {
+          id: toastId,
+        })
+      }
+    } catch (err) {
+      console.error('❌ Eroare la generare factură:', err)
+      toast.error('Eroare internă la generarea facturii', {
+        id: toastId,
+      })
+    }
+    setIsGeneratingInvoice(false)
+  }
 
   return (
     <Tooltip delayDuration={500}>
@@ -157,7 +202,7 @@ export function AssignedDeliveryCard({
               'border-red-500': delivery.status === 'SCHEDULED',
               'border-yellow-500': delivery.status === 'IN_TRANSIT',
               'border-green-500': delivery.status === 'DELIVERED',
-              'border-blue-500': delivery.status === 'INVOICED',
+              'border-blue-400': delivery.status === 'INVOICED',
               'border-white opacity-60': delivery.status === 'CANCELLED',
               'border-border': delivery.status === 'CREATED',
             }
@@ -262,6 +307,37 @@ export function AssignedDeliveryCard({
           </div>
 
           <div className='border-t pt-3 mt-3 flex items-center justify-end gap-2'>
+            {/* --- MODIFICĂ COMANDA (Link)  --- */}
+            {canEditDelivery && (
+              <Button
+                size='sm'
+                variant='outline'
+                asChild
+                onClick={(e) => e.stopPropagation()}
+                disabled={isLoading}
+              >
+                <Link href={`/orders/${delivery.orderId.toString()}/edit`}>
+                  <Pencil className='mr-2 h-4 w-4' /> Modifică Comanda
+                </Link>
+              </Button>
+            )}
+            {/* --- MODIFICĂ LIVRAREA --- */}
+            {canEditDelivery && (
+              <Button
+                size='sm'
+                variant='outline'
+                asChild
+                onClick={(e) => e.stopPropagation()}
+                disabled={isLoading}
+              >
+                <Link
+                  href={`/deliveries/new?orderId=${delivery.orderId.toString()}`}
+                >
+                  <FilePenLine className='mr-2 h-4 w-4' /> Modifică Livrarea
+                </Link>
+              </Button>
+            )}
+
             {/* --- Butonul GENEREAZĂ AVIZ --- */}
             {canGenerateNote && (
               <Button
@@ -281,7 +357,6 @@ export function AssignedDeliveryCard({
                 Generează Aviz
               </Button>
             )}
-
             {/* --- NOU: Butonul ANULEAZĂ AVIZ --- */}
             {canCancelNote && (
               <Button
@@ -301,7 +376,6 @@ export function AssignedDeliveryCard({
                 Anulează Aviz
               </Button>
             )}
-
             {/* --- NOU: Butonul CONFIRMĂ (cu Alert Dialog) --- */}
             {canConfirmDelivery && (
               <Button
@@ -309,7 +383,7 @@ export function AssignedDeliveryCard({
                 variant='outline'
                 onClick={(e) => {
                   e.stopPropagation()
-                  setShowConfirmModal(true) // <-- Doar deschide modalul
+                  setShowConfirmModal(true) 
                 }}
                 disabled={isLoading}
               >
@@ -319,6 +393,25 @@ export function AssignedDeliveryCard({
                   <CheckCircle2 className='mr-2 h-4 w-4' />
                 )}
                 Confirmă Livrarea
+              </Button>
+            )}
+            {/* --- GENEREAZĂ FACTURĂ --- */}
+            {canGenerateInvoice && (
+              <Button
+                size='sm'
+                variant='outline'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleGenerateInvoice() // Apelează funcția wrapper
+                }}
+                disabled={isLoading}
+              >
+                {isGeneratingInvoice ? (
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                ) : (
+                  <DollarSign className='mr-2 h-4 w-4' />
+                )}
+                Generează Factură
               </Button>
             )}
           </div>
@@ -380,6 +473,17 @@ export function AssignedDeliveryCard({
             await handleGenerateDeliveryNote(series)
           }}
           onCancel={() => setShowSeriesModal(false)}
+        />
+      )}
+
+      {showInvoiceSeriesModal && (
+        <SelectSeriesModal
+          documentType={'Factura' as unknown as DocumentType}
+          onSelect={async (series) => {
+            setShowInvoiceSeriesModal(false)
+            await handleGenerateInvoice(series) // Apelează handler-ul cu seria selectată
+          }}
+          onCancel={() => setShowInvoiceSeriesModal(false)}
         />
       )}
     </Tooltip>

@@ -7,7 +7,7 @@ import { InvoiceLineInput, InvoiceTotals } from './invoice.types'
 import { ClientSession } from 'mongoose'
 import { IInvoiceDoc } from './invoice.model'
 import DeliveryModel from '../../deliveries/delivery.model'
-import Order from '../../order/order.model'
+import Order, { IOrder } from '../../order/order.model'
 
 // Helper pentru inițializarea totalurilor
 function getInitialTotals(): InvoiceTotals {
@@ -57,7 +57,7 @@ export function consolidateInvoiceFromNotes(notes: IDeliveryNoteDoc[]): {
 
       invoiceItems.push({
         sourceDeliveryNoteId: note._id.toString(),
-        sourceDeliveryNoteLineId: item._id.toString(),
+        sourceDeliveryNoteLineId: item._id?.toString() || undefined,
         productId: item.productId?.toString(),
         serviceId: item.serviceId?.toString(),
         stockableItemType: item.stockableItemType,
@@ -330,17 +330,42 @@ export async function updateRelatedDocuments(
 
   // 4. Actualizăm Comenzile (Order) - cu logica PARTIALLY_INVOICED
   for (const orderId of orderIds) {
-    // Găsim TOATE avizele pentru această comandă
-    const allNotesForOrder = await DeliveryNoteModel.find({ orderId: orderId })
-      .select('isInvoiced')
+    // A. Găsim TOATE livrările (deliveries) pentru această comandă
+    const allDeliveriesForOrder = await DeliveryModel.find({
+      orderId: orderId,
+      status: { $ne: 'CANCELLED' }, // Ignorăm livrările anulate
+    })
+      .select('status') // Avem nevoie doar de status
       .lean()
       .session(session)
 
-    // Verificăm dacă TOATE sunt facturate
-    const allInvoiced = allNotesForOrder.every((n) => n.isInvoiced)
+    if (allDeliveriesForOrder.length === 0) {
+      continue // Nu există livrări, nu schimba statusul
+    }
 
-    const newStatus = allInvoiced ? 'INVOICED' : 'PARTIALLY_INVOICED'
+    // B. Verificăm dacă TOATE livrările sunt facturate
+    const allInvoiced = allDeliveriesForOrder.every(
+      (d) => d.status === 'INVOICED'
+    )
 
+    // C. Verificăm dacă MĂCAR UNA este facturată (dar nu toate)
+    const partiallyInvoiced = allDeliveriesForOrder.some(
+      (d) => d.status === 'INVOICED'
+    )
+
+    let newStatus: IOrder['status'] // Tipul corect
+
+    if (allInvoiced) {
+      newStatus = 'INVOICED'
+    } else if (partiallyInvoiced) {
+      newStatus = 'PARTIALLY_INVOICED' // Noul tău status
+    } else {
+      // Dacă nicio livrare nu e facturată încă, nu schimbăm statusul comenzii
+      // (rămâne ex: 'DELIVERED' sau 'PARTIALLY_DELIVERED')
+      continue
+    }
+
+    // D. Actualizăm statusul comenzii
     await Order.findByIdAndUpdate(
       orderId,
       { $set: { status: newStatus } },

@@ -189,7 +189,7 @@ const DeliveryNoteLineSchema = new Schema<IDeliveryNoteLine>(
     lineCostFIFO: { type: Number, required: false },
     costBreakdown: { type: [CostBreakdownSchema], required: false },
   },
-  { _id: false }
+  { _id: true }
 )
 
 const DeliveryNoteTotalsSchema = new Schema<IDeliveryNoteTotals>(

@@ -53,6 +53,7 @@ export interface IOrder extends Document {
     | 'SCHEDULED'
     | 'PARTIALLY_DELIVERED'
     | 'DELIVERED'
+    | 'PARTIALLY_INVOICED'
     | 'INVOICED'
     | 'COMPLETED'
     | 'CANCELLED'
@@ -123,6 +124,7 @@ const OrderSchema = new Schema<IOrder>(
         'CONFIRMED',
         'PARTIALLY_DELIVERED',
         'DELIVERED',
+        'PARTIALLY_INVOICED',
         'INVOICED',
         'COMPLETED',
         'CANCELLED',

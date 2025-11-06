@@ -68,8 +68,14 @@ type InvoiceActionResultError = {
   success: false
   message: string
 }
-
+export type InvoiceActionSelectionRequired = {
+  success: false
+  requireSelection: true
+  message: string
+  series: string[]
+}
 // Tipul uniune pentru funcțiile de creare/update
 export type InvoiceActionResult =
   | InvoiceActionResultSuccess
   | InvoiceActionResultError
+  | InvoiceActionSelectionRequired
