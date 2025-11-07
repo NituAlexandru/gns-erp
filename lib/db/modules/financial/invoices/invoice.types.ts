@@ -79,3 +79,22 @@ export type InvoiceActionResult =
   | InvoiceActionResultSuccess
   | InvoiceActionResultError
   | InvoiceActionSelectionRequired
+
+export interface UnsettledAdvanceDTO {
+  _id: string
+  seriesName: string
+  invoiceNumber: string
+  invoiceDate: string
+  totalAmount: number // Suma totală a facturii de avans
+  remainingAmount: number // Suma rămasă de folosit
+  advanceScope: 'GLOBAL' | 'ADDRESS_SPECIFIC'
+}
+
+export interface StornoSourceInvoiceDTO {
+  _id: string
+  seriesName: string
+  invoiceNumber: string
+  invoiceDate: string
+  grandTotal: number
+  remainingToStorno: number // Cât a mai rămas de stornat din ea
+}

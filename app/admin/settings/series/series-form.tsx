@@ -29,6 +29,7 @@ const DOCUMENT_TYPES = [
   { value: 'Aviz', label: 'Aviz' },
   { value: 'NIR', label: 'NIR' },
   { value: 'Chitanta', label: 'Chitanță' },
+  { value: 'NotaRetur', label: 'Notă de Retur' },
   { value: 'BonConsum', label: 'Bon de Consum' },
   { value: 'DispozitiePlata', label: 'Dispoziție de Plată' },
 ]

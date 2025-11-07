@@ -25,6 +25,7 @@ const SeriesSchema: Schema = new Schema(
         'Chitanta',
         'BonConsum',
         'DispozitiePlata',
+        'NotaRetur',
       ],
       required: true,
     },

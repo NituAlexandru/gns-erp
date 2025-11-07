@@ -7,7 +7,12 @@ import {
   InvoiceTotals,
   InvoiceLineInput,
 } from './invoice.types'
-import { EFACTURA_STATUSES, INVOICE_STATUSES } from './invoice.constants'
+import {
+  ADVANCE_SCOPES,
+  AdvanceScopeKey,
+  EFACTURA_STATUSES,
+  INVOICE_STATUSES,
+} from './invoice.constants'
 import { CostBreakdownBatchSchema } from '../../inventory/movement.model'
 
 // --- Interfața Documentului Mongoose ---
@@ -49,10 +54,11 @@ export interface IInvoiceDoc extends Document {
     deliveryNumbers: string[]
     deliveryNoteNumbers: string[]
   }
-  createdAt: Date
-  updatedAt: Date
   paidAmount: number
   remainingAmount: number
+  advanceScope?: AdvanceScopeKey
+  createdAt: Date
+  updatedAt: Date
 }
 
 // --- Sub-schemele ---
@@ -244,14 +250,17 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
     relatedAdvanceIds: [{ type: Schema.Types.ObjectId, ref: 'Invoice' }],
     paidAmount: { type: Number, default: 0 },
     remainingAmount: { type: Number, default: 0 },
+    advanceScope: {
+      type: String,
+      enum: ADVANCE_SCOPES,
+      default: 'GLOBAL',
+    },
   },
   { timestamps: true }
 )
 
 InvoiceSchema.pre('save', function (next) {
   if (this.isNew) {
-    // Setăm remainingAmount inițial ca fiind totalul facturii
-    // (pentru Standard și Avans)
     this.paidAmount = 0
     this.remainingAmount = this.totals.grandTotal
   }

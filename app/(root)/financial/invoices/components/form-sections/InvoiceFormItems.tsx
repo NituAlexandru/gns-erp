@@ -38,6 +38,9 @@ interface InvoiceFormItemsProps {
   onRemoveNote: (noteId: string) => void
   vatRates: VatRateDTO[]
   services: SearchedService[]
+  onShowStornoModal: () => void
+  loadedStornoSources: { id: string; ref: string }[]
+  onRemoveStornoSource: (invoiceId: string) => void
 }
 
 export function InvoiceFormItems({
@@ -48,6 +51,9 @@ export function InvoiceFormItems({
   onRemoveNote,
   vatRates,
   services,
+  onShowStornoModal,
+  loadedStornoSources,
+  onRemoveStornoSource,
 }: InvoiceFormItemsProps) {
   const form = useFormContext<InvoiceInput>()
   const totals = form.watch('totals')
@@ -146,49 +152,100 @@ export function InvoiceFormItems({
     return (
       <div className='border rounded-lg p-8 bg-card text-center space-y-4'>
         {watchedInvoiceType === 'STANDARD' ? (
-          // --- Mesaj pentru STANDARD ---
-          <p className='text-muted-foreground'>
-            Factura nu conține linii. Te rog folosește butonul{' '}
-            <strong>Încarcă Avize Nefacturate</strong> (din antet) pentru a
-            adăuga produse/servicii <strong>sau</strong> <br /> Folosește
-            butoanele de mai jos pentru a adăuga manual o descriere și o
-            valoare.
-          </p>
-        ) : (
-          // --- Mesaj pentru AVANS (sau altele) ---
-          <p className='text-muted-foreground'>
-            Aceasta este o factură de avans si nu poti incarca avize. <br />
-            Folosește butoanele de mai jos pentru a adăuga manual o descriere și
-            o valoare.
-          </p>
-        )}
-
-        {/* Afișăm ambele butoane în "zero state" */}
-        <div className='flex justify-center gap-4'>
-          <Button onClick={handleManualAdd} variant='outline'>
-            <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant='outline'>
-                <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+          <>
+            {/* --- 1. Mesajul pentru STANDARD --- */}
+            <p className='text-muted-foreground'>
+              Factura nu conține linii. Te rog folosește butonul{' '}
+              <strong>Încarcă Avize Nefacturate</strong> (din antet) pentru a
+              adăuga produse/servicii <strong>sau</strong> <br /> Folosește
+              butoanele de mai jos pentru a adăuga manual o descriere și o
+              valoare.
+            </p>
+            {/* Afișăm ambele butoane și pentru Standard */}
+            <div className='flex justify-center gap-4'>
+              <Button onClick={handleManualAdd} variant='outline'>
+                <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className='w-[450px]'>
-              {services.map((service: SearchedService) => (
-                <DropdownMenuItem
-                  key={service._id}
-                  onSelect={() => handleSelectService(service)}
-                >
-                  <span>
-                    {service.name} ({formatCurrency(service.price)})
-                  </span>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant='outline'>
+                    <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className='w-[450px]'>
+                  {services.map((service: SearchedService) => (
+                    <DropdownMenuItem
+                      key={service._id}
+                      onSelect={() => handleSelectService(service)}
+                    >
+                      <span>
+                        {service.name} ({formatCurrency(service.price)})
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </>
+        ) : watchedInvoiceType === 'AVANS' ? (
+          <>
+            {/* --- 2. Mesajul pentru AVANS --- */}
+            <p className='text-muted-foreground'>
+              Aceasta este o factură de avans si nu poti incarca avize. <br />
+              Folosește butoanele de mai jos pentru a adăuga manual o descriere
+              și o valoare.
+            </p>
+            {/* Butoanele pentru Avans */}
+            <div className='flex justify-center gap-4'>
+              <Button onClick={handleManualAdd} variant='outline'>
+                <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant='outline'>
+                    <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className='w-[450px]'>
+                  {services.map((service: SearchedService) => (
+                    <DropdownMenuItem
+                      key={service._id}
+                      onSelect={() => handleSelectService(service)}
+                    >
+                      <span>
+                        {service.name} ({formatCurrency(service.price)})
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </>
+        ) : (
+          // --- 3. Cazul NOU pentru STORNO ---
+          <>
+            <p className='text-muted-foreground'>
+              Acesta este un formular de <strong>Stornare</strong>. Poți anula
+              (storna) doar linii din facturi care au fost deja finalizate (cu
+              statusul <strong>Aprobat</strong> sau <strong>Plătit</strong>).{' '}
+              <br />
+              <span>
+                (Facturile cu statusul <strong>Creată</strong> trebuie anulate
+                sau editate, nu stornate.)
+              </span>
+            </p>
+            <div className='flex justify-center gap-4'>
+              <Button variant='outline' onClick={onShowStornoModal}>
+                <PlusCircle className='mr-2 h-4 w-4' />
+                Selectează Facturi de Stornat
+              </Button>
+              <Button variant='outline' disabled>
+                Selectează Produse (în curând)
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     )
   }
@@ -217,6 +274,32 @@ export function InvoiceFormItems({
                   size='icon'
                   className='h-5 w-5 -mr-1 text-muted-foreground hover:text-destructive'
                   onClick={() => onRemoveNote(note.id)}
+                >
+                  <X className='h-3 w-3' />
+                </Button>
+              </Badge>
+            ))}
+          </div>
+        )}
+        {loadedStornoSources.length > 0 && (
+          <div className='flex flex-wrap items-center gap-2'>
+            <span className='text-sm text-destructive-foreground'>
+              Stornare Facturi:
+            </span>
+            {loadedStornoSources.map((inv) => (
+              <Badge
+                key={inv.id}
+                variant='destructive'
+                className='flex items-center gap-1'
+              >
+                <span>{inv.ref}</span>
+
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='h-5 w-5 -mr-1 text-destructive-foreground hover:text-destructive-foreground/70'
+                  onClick={() => onRemoveStornoSource(inv.id)}
                 >
                   <X className='h-3 w-3' />
                 </Button>
@@ -286,29 +369,33 @@ export function InvoiceFormItems({
         </Table>
       </div>
 
-      <Button onClick={handleManualAdd} variant='secondary' size='sm'>
-        <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
-      </Button>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant='outline' size='sm'>
-            <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+      {/* 🔽 --- AICI SUNT BUTOANELE CONDIȚIONATE --- 🔽 */}
+      {watchedInvoiceType !== 'STORNO' && (
+        <div className='flex gap-2'>
+          <Button onClick={handleManualAdd} variant='secondary' size='sm'>
+            <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className='w-[450px]'>
-          {/* Aici poți adăuga un <CommandInput> dacă lista e lungă */}
-          {services.map((service: SearchedService) => (
-            <DropdownMenuItem
-              key={service._id}
-              onSelect={() => handleSelectService(service)}
-            >
-              <span>
-                {service.name} ({formatCurrency(service.price)})
-              </span>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant='outline' size='sm'>
+                <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className='w-[450px]'>
+              {services.map((service: SearchedService) => (
+                <DropdownMenuItem
+                  key={service._id}
+                  onSelect={() => handleSelectService(service)}
+                >
+                  <span>
+                    {service.name} ({formatCurrency(service.price)})
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   )
 }

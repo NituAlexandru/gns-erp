@@ -55,7 +55,7 @@ const ProfitRow = ({
       <span
         className={cn(
           'font-medium w-[100px] text-right',
-          getProfitColorClass(profit) 
+          getProfitColorClass(profit)
         )}
       >
         {formatCurrency(profit)}
@@ -67,6 +67,8 @@ const ProfitRow = ({
 export function InvoiceFormTotals() {
   const { watch } = useFormContext<InvoiceInput>()
   const totals = watch('totals') as InvoiceTotals
+  const watchedInvoiceType = watch('invoiceType')
+  const isStorno = watchedInvoiceType === 'STORNO'
 
   const { data: session, status } = useSession()
   const userRole = session?.user?.role || 'user'
@@ -110,7 +112,7 @@ export function InvoiceFormTotals() {
             value={formatCurrency(productsSubtotal)}
           />
           <TotalRow label='TVA Produse' value={formatCurrency(productsVat)} />
-          {isAdmin && (
+          {isAdmin && !isStorno && (
             <ProfitRow
               label='Profit Produse'
               profit={productsProfit}
@@ -127,7 +129,7 @@ export function InvoiceFormTotals() {
             value={formatCurrency(packagingSubtotal)}
           />
           <TotalRow label='TVA Ambalaje' value={formatCurrency(packagingVat)} />
-          {isAdmin && (
+          {isAdmin && !isStorno && (
             <ProfitRow
               label='Profit Ambalaje'
               profit={packagingProfit}
@@ -144,7 +146,7 @@ export function InvoiceFormTotals() {
             value={formatCurrency(servicesSubtotal)}
           />
           <TotalRow label='TVA Servicii' value={formatCurrency(servicesVat)} />
-          {isAdmin && (
+          {isAdmin && !isStorno && (
             <ProfitRow
               label='Profit Servicii'
               profit={servicesProfit}
@@ -164,7 +166,7 @@ export function InvoiceFormTotals() {
             label='TVA Linii Manuale'
             value={formatCurrency(manualVat)}
           />
-          {isAdmin && (
+          {isAdmin && !isStorno && (
             <ProfitRow
               label='Profit Linii Manuale'
               profit={manualProfit}
@@ -189,7 +191,7 @@ export function InvoiceFormTotals() {
 
         {/* --- Total Profit (Doar Admin) --- */}
         {isLoadingSession && <Skeleton className='h-5 w-full mt-1' />}
-        {isAdmin && !isLoadingSession && (
+        {isAdmin && !isStorno && !isLoadingSession && (
           <div className='space-y-1 pt-1 border-t border-dashed'>
             <TotalRow
               label='Total Cost (FIFO)'

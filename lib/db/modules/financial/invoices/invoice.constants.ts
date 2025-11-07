@@ -44,3 +44,22 @@ export const EFACTURA_STATUS_MAP: Record<
   ACCEPTED: { name: 'Acceptată (ANAF)', variant: 'success' },
   REJECTED_ANAF: { name: 'Respinsă (ANAF)', variant: 'destructive' },
 }
+
+export const ADVANCE_SCOPES = ['GLOBAL', 'ADDRESS_SPECIFIC'] as const
+
+export type AdvanceScopeKey = (typeof ADVANCE_SCOPES)[number]
+
+export const ADVANCE_SCOPE_MAP: Record<
+  AdvanceScopeKey,
+  { name: string; description: string }
+> = {
+  GLOBAL: {
+    name: 'Avans Pentru Toate Adresele',
+    description:
+      'Acest avans poate fi folosit pentru orice adresă a clientului.',
+  },
+  ADDRESS_SPECIFIC: {
+    name: 'Avans Specific Unei Adrese',
+    description: 'Acest avans poate fi folosit DOAR pentru adresa selectată.',
+  },
+}

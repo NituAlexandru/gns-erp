@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { MongoId } from '@/lib/validator' // Presupunem că ai acest validator
+import { ADVANCE_SCOPES } from './invoice.constants'
 
 export const CostBreakdownBatchSchema = z.object({
   movementId: MongoId.optional(),
@@ -46,13 +47,14 @@ export const ClientSnapshotSchema = z.object({
 export const InvoiceLineSchema = z.object({
   sourceDeliveryNoteId: MongoId.optional(), // ID-ul avizului sursă
   sourceDeliveryNoteLineId: MongoId.optional(), // ID-ul liniei din aviz
+  sourceInvoiceLineId: MongoId.optional(),
   productId: MongoId.optional(),
   serviceId: MongoId.optional(),
   stockableItemType: z.enum(['ERPProduct', 'Packaging', 'Service']).optional(),
   isManualEntry: z.boolean().default(false),
   productName: z.string().min(1),
   productCode: z.string().optional(),
-  quantity: z.number().positive('Cantitatea trebuie să fie pozitivă.'),
+  quantity: z.number(),
   unitOfMeasure: z.string().min(1),
   unitOfMeasureCode: z.string().optional(), // Cod UN/ECE
   codNC: z.string().optional(), // Cod Vamal (opțional)
@@ -71,12 +73,12 @@ export const InvoiceLineSchema = z.object({
     .optional()
     .default([]),
   unitPrice: z.number().nonnegative(), // Prețul unitar (fără TVA)
-  lineValue: z.number().nonnegative(), // Valoarea liniei (fără TVA)
+  lineValue: z.number(), // Valoarea liniei (fără TVA)
   vatRateDetails: z.object({
     rate: z.number().nonnegative(),
-    value: z.number().nonnegative(),
+    value: z.number(),
   }),
-  lineTotal: z.number().nonnegative(), // Valoarea totală (cu TVA)
+  lineTotal: z.number(), // Valoarea totală (cu TVA)
   lineCostFIFO: z.number().optional(),
   lineProfit: z.number().optional().default(0), // Profitul în RON
   lineMargin: z.number().optional().default(0),
@@ -130,6 +132,8 @@ export const InvoiceInputSchema = z.object({
   clientSnapshot: ClientSnapshotSchema.optional(),
   deliveryAddressId: MongoId,
   deliveryAddress: FiscalAddressSchema,
+  salesAgentId: MongoId.optional(),
+  salesAgentSnapshot: z.object({ name: z.string() }).optional(),
   invoiceNumber: z.string().optional(),
   seriesName: z.string().min(1, 'Seria este obligatorie.'),
   invoiceType: z
@@ -142,9 +146,11 @@ export const InvoiceInputSchema = z.object({
     .min(1, 'Factura trebuie să aibă cel puțin o linie.'),
   totals: InvoiceTotalsSchema,
   sourceDeliveryNotes: z.array(MongoId).default([]), // Lista ID-urilor avizelor folosite
+  relatedInvoiceIds: z.array(MongoId).default([]), // (pentru a ține minte ce stornăm)
   // Câmpuri opționale
-  notes: z.string().optional(), 
-  rejectionReason: z.string().optional(), 
+  notes: z.string().optional(),
+  rejectionReason: z.string().optional(),
   paidAmount: z.number().optional(),
   remainingAmount: z.number().optional(),
+  advanceScope: z.enum(ADVANCE_SCOPES).optional(),
 })

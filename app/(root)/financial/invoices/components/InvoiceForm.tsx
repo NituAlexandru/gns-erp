@@ -3,6 +3,7 @@
 import { useForm, FormProvider, useWatch, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
+  InvoiceActionResult,
   InvoiceInput,
   InvoiceLineInput,
   InvoiceTotals,
@@ -27,9 +28,17 @@ import {
 } from '@/lib/db/modules/financial/delivery-notes/delivery-note.model'
 import { round2 } from '@/lib/utils'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
-import { createInvoice } from '@/lib/db/modules/financial/invoices/invoice.actions'
+import {
+  createInvoice,
+  createStornoInvoice,
+  getLinesFromInvoices,
+  getStornoSourceInvoices,
+} from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { useRouter } from 'next/navigation'
 import { SearchedService } from '@/lib/db/modules/setting/services/types'
+import { SelectStornoInvoicesModal } from './form-sections/SelectStornoInvoicesModal'
+import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbering.actions'
+import { CreateStornoInput } from '@/lib/db/modules/financial/invoices/storno.validator'
 
 interface InvoiceFormProps {
   initialData: Partial<InvoiceInput> | null
@@ -50,9 +59,13 @@ export function InvoiceForm({
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
   const [showNoteLoaderModal, setShowNoteLoaderModal] = useState(false)
+  const [showStornoModal, setShowStornoModal] = useState(false)
   const [loadedNotes, setLoadedNotes] = useState<{ id: string; ref: string }[]>(
     []
   )
+  const [loadedStornoSources, setLoadedStornoSources] = useState<
+    { id: string; ref: string }[]
+  >([])
   const router = useRouter()
 
   const defaultValues: Partial<InvoiceInput> = {
@@ -118,6 +131,7 @@ export function InvoiceForm({
     control: form.control,
     name: 'invoiceDate',
   })
+  const watchedDeliveryAddressId = form.watch('deliveryAddressId')
 
   useEffect(() => {
     if (!watchedItems) return
@@ -389,7 +403,76 @@ export function InvoiceForm({
     )
     setShowNoteLoaderModal(false)
   }
+  const handleLoadStornoInvoices = async (selectedInvoiceIds: string[]) => {
+    if (isLoading) return
+    setIsLoading(true)
+    const toastId = toast.loading('Se încarcă liniile pentru stornare...')
 
+    try {
+      const result = await getLinesFromInvoices(selectedInvoiceIds)
+
+      if (result.success) {
+        remove()
+
+        // 1. Convertim datele înapoi în obiecte Date
+        const linesWithDates = result.data.lines.map(
+          (line: InvoiceLineInput) => ({
+            ...line,
+            costBreakdown: line.costBreakdown.map((cb) => ({
+              ...cb,
+              entryDate: new Date(cb.entryDate),
+            })),
+          })
+        )
+
+        // 2. Adaugă liniile corectate
+        append(linesWithDates)
+
+        // 3. Setează antetul formularului (codul tău existent)
+
+        setValue('clientId', result.data.header.clientId)
+        setValue('clientSnapshot', result.data.header.clientSnapshot)
+        setValue('deliveryAddressId', result.data.header.deliveryAddressId)
+        setValue('deliveryAddress', result.data.header.deliveryAddress)
+        setValue('salesAgentId', result.data.header.salesAgentId)
+        setValue('salesAgentSnapshot', result.data.header.salesAgentSnapshot)
+        setValue('relatedInvoiceIds', selectedInvoiceIds)
+
+        const sourceInvoices = await getStornoSourceInvoices(
+          result.data.header.clientId,
+          result.data.header.deliveryAddressId
+        )
+        if (sourceInvoices.success) {
+          setLoadedStornoSources(
+            sourceInvoices.data
+              .filter((inv) => selectedInvoiceIds.includes(inv._id))
+              .map((inv) => ({
+                id: inv._id,
+                ref: `${inv.seriesName}-${inv.invoiceNumber}`,
+              }))
+          )
+        }
+
+        toast.success(
+          `${result.data.lines.length} linii de stornat au fost încărcate.`,
+          { id: toastId }
+        )
+        setShowStornoModal(false)
+      } else {
+        toast.error('Eroare la încărcarea liniilor', {
+          id: toastId,
+          description: result.message,
+        })
+      }
+    } catch (error) {
+      toast.error('Eroare neașteptată', {
+        id: toastId,
+        description: (error as Error).message,
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
   const handleRemoveNote = (noteIdToRemove: string) => {
     const currentItems = getValues('items')
     const indicesToRemove = currentItems
@@ -409,46 +492,119 @@ export function InvoiceForm({
     toast.info('Avizul și liniile asociate au fost scoase din factură.')
   }
 
-  async function onSubmit(values: InvoiceInput) {
-    // console.log(
-    //   'DATE TRIMISE DE LA CLIENT:',
-    //   JSON.stringify(values.items, null, 2)
-    // )
+  const handleRemoveStornoSource = (invoiceIdToRemove: string) => {
+    // Găsește facturile originale rămase (cele pe care NU le ștergem)
+    const remainingSourceInvoices = getValues('relatedInvoiceIds').filter(
+      (id: string) => id !== invoiceIdToRemove
+    )
 
+    // Dacă nu mai avem facturi sursă, ștergem tot
+    if (remainingSourceInvoices.length === 0) {
+      remove() // Șterge toate liniile
+      setLoadedStornoSources([])
+      setValue('relatedInvoiceIds', [])
+      toast.info('Toate liniile de stornare au fost eliminate.')
+      return
+    }
+
+    // Dacă mai avem facturi, re-calculăm liniile
+    // (Asta e mult mai sigur decât să încercăm să ștergem linii individuale
+    // și să riscăm să lăsăm date orfane)
+    toast.promise(
+      // Apelăm din nou funcția de încărcare, dar doar cu facturile rămase
+      handleLoadStornoInvoices(remainingSourceInvoices),
+      {
+        loading: 'Se recalculează liniile de stornare...',
+        success: 'Lista de stornare a fost actualizată.',
+        error: 'Eroare la recalcularea liniilor.',
+      }
+    )
+  }
+
+  async function onSubmit(values: InvoiceInput) {
     setIsLoading(true)
-    const loadingToastId = toast.loading('Se salvează factura...') // 1. Capturăm ID-ul toast-ului
+    const loadingToastId = toast.loading('Se salvează factura...')
 
     try {
-      const result = await createInvoice(values, 'CREATED')
+      let result: InvoiceActionResult
+      if (values.invoiceType === 'STORNO') {
+        // --- CAZUL 1: E FACTURĂ STORNO ---
+
+        // 1. Găsim o serie validă pentru Nota de Retur (fără hardcodare)
+        const returnNoteSeriesList = (await getActiveSeriesForDocumentType(
+          'NotaRetur' as unknown as DocumentType
+        )) as SeriesDTO[]
+
+        if (!returnNoteSeriesList || returnNoteSeriesList.length === 0) {
+          toast.error(
+            'Eroare Critică: Nu există serii active pentru "NotaRetur".',
+            {
+              id: loadingToastId,
+              description: 'Vă rugăm configurați o serie în Setări.',
+            }
+          )
+          setIsLoading(false)
+          return
+        }
+
+        const returnNoteSeriesName = returnNoteSeriesList[0].name
+
+        // 2. Facem cast la tipul de Storno (care e mai strict)
+        const stornoData = {
+          ...values,
+          invoiceType: 'STORNO',
+          returnNoteSeriesName: returnNoteSeriesName,
+          salesAgentId: values.salesAgentId,
+          salesAgentSnapshot: values.salesAgentSnapshot,
+        } as CreateStornoInput
+
+        // 3. Apelăm noua acțiune de stornare
+        result = await createStornoInvoice(stornoData)
+      } else {
+        // --- CAZUL 2: E FACTURĂ STANDARD sau AVANS ---
+        result = await createInvoice(values, 'CREATED')
+      }
 
       if (result.success) {
-        // 2. Oprim loader-ul TOAST și afișăm succesul
         toast.dismiss(loadingToastId)
-        toast.success(
-          `Factura ${result.data.invoiceNumber} a fost creată cu succes.`
-        )
 
-        // 3. Oprim starea de încărcare a butonului ÎNAINTE de redirect
+        const successMessage =
+          values.invoiceType === 'STORNO'
+            ? `Factura Storno ${result.data.invoiceNumber} a fost creată.`
+            : `Factura ${result.data.invoiceNumber} a fost creată.`
+
+        toast.success(successMessage)
+        // 🔼 --- SFÂRȘIT CORECȚIE --- 🔼
+
         setIsLoading(false)
-
-        // 4. Facem redirect-ul
         router.push('/financial/invoices')
       } else {
         toast.dismiss(loadingToastId)
         toast.error('Eroare la salvare:', { description: result.message })
         setIsLoading(false)
       }
-    } catch {
+    } catch (error) {
       toast.dismiss(loadingToastId)
-      toast.error('A apărut o eroare neașteptată în comunicarea cu serverul.')
+      toast.error('A apărut o eroare neașteptată.', {
+        description: (error as Error).message,
+      })
       setIsLoading(false)
     }
+  }
+
+  const onValidationErrors = () => {
+    toast.error('Formularul este invalid!', {
+      description: 'Vă rugăm verificați câmpurile marcate cu roșu.',
+    })
   }
 
   return (
     <FormProvider {...form}>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
+        <form
+          onSubmit={form.handleSubmit(onSubmit, onValidationErrors)}
+          className='space-y-4'
+        >
           <InvoiceFormHeader
             companySettings={companySettings}
             seriesList={seriesList}
@@ -466,6 +622,9 @@ export function InvoiceForm({
             onRemoveNote={handleRemoveNote}
             vatRates={vatRates}
             services={services}
+            onShowStornoModal={() => setShowStornoModal(true)}
+            loadedStornoSources={loadedStornoSources}
+            onRemoveStornoSource={handleRemoveStornoSource}
           />
 
           <Button type='submit' disabled={isLoading}>
@@ -486,6 +645,15 @@ export function InvoiceForm({
             onConfirm={handleLoadNotes}
           />
         )}
+
+      {showStornoModal && watchedClientId && watchedDeliveryAddressId && (
+        <SelectStornoInvoicesModal
+          clientId={watchedClientId}
+          addressId={watchedDeliveryAddressId}
+          onClose={() => setShowStornoModal(false)}
+          onConfirm={handleLoadStornoInvoices}
+        />
+      )}
     </FormProvider>
   )
 }

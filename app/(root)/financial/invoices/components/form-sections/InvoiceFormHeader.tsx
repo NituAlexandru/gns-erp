@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils' // Am scos 'formatCurrency'
+import { cn } from '@/lib/utils'
 import { CalendarIcon, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
@@ -34,6 +34,17 @@ import { SeriesDTO } from '@/lib/db/modules/numbering/types'
 import { InvoiceAddressSelector } from './InvoiceAddressSelector'
 import { ISettingInput } from '@/lib/db/modules/setting/types'
 import { InvoiceFormTotals } from './InvoiceFormTotals'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  ADVANCE_SCOPE_MAP,
+  ADVANCE_SCOPES,
+} from '@/lib/db/modules/financial/invoices/invoice.constants'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface InvoiceFormHeaderProps {
   companySettings: ISettingInput
@@ -65,35 +76,86 @@ export function InvoiceFormHeader({
         <div className='grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6'>
           {/* --- COLOANA 1: Client & Adresă --- */}
           <div className='space-y-6'>
-            <FormField
-              control={form.control}
-              name='invoiceType'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tip Document</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value || 'STANDARD'}
-                    // Blochează selectorul dacă edităm o factură existentă
-                    disabled={!!initialData}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder='Alege tipul documentului...' />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value='STANDARD'>Factură Standard</SelectItem>
-                      <SelectItem value='AVANS'>Factură Avans</SelectItem>
-                      {/* Vom adăuga 'STORNO' când facem Faza 4 */}
-                      {/* <SelectItem value="PROFORMA">Factură Proformă</SelectItem> */}
-                      {/* Proforma se face din Comandă, deci nu o punem aici */}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
+            <div className='flex gap-4'>
+              <FormField
+                control={form.control}
+                name='invoiceType'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tip Document</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || 'STANDARD'}
+                      // Blochează selectorul dacă edităm o factură existentă
+                      disabled={!!initialData}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder='Alege tipul documentului...' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value='STANDARD'>
+                          Factură Standard
+                        </SelectItem>
+                        <SelectItem value='AVANS'>Factură Avans</SelectItem>
+                        <SelectItem value='STORNO'>
+                          Factură Storno
+                        </SelectItem>{' '}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {/* Selector Scop Avans  */}
+              {watchedInvoiceType === 'AVANS' && (
+                <FormField
+                  control={form.control}
+                  name='advanceScope'
+                  defaultValue={'GLOBAL'}
+                  render={({ field }) => (
+                    <FormItem className='flex gap-1 space-y-0 rounded-md border p-3 bg-muted/50'>
+                      <FormLabel>Tipul Avansului</FormLabel>
+                      <FormControl>
+                        <TooltipProvider>
+                          <RadioGroup
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                            className='space-y-0'
+                          >
+                            {ADVANCE_SCOPES.map((scope) => (
+                              <FormItem
+                                key={scope}
+                                className='flex items-center space-x-0 space-y-0'
+                              >
+                                <FormControl>
+                                  <RadioGroupItem value={scope} />
+                                </FormControl>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <FormLabel className='font-normal cursor-pointer'>
+                                      {ADVANCE_SCOPE_MAP[scope].name}
+                                    </FormLabel>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>
+                                      {ADVANCE_SCOPE_MAP[scope].description}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </FormItem>
+                            ))}
+                          </RadioGroup>
+                        </TooltipProvider>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
-            />
+            </div>
+
             <FormField
               control={form.control}
               name='clientId'

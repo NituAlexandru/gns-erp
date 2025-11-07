@@ -17,6 +17,8 @@ import {
   ClientSnapshot,
   InvoiceInput,
   InvoiceActionSelectionRequired,
+  UnsettledAdvanceDTO,
+  StornoSourceInvoiceDTO,
 } from './invoice.types'
 import { ISettingInput } from '../../setting/types'
 import { IClientDoc } from '../../client/types'
@@ -33,6 +35,10 @@ import { InvoiceLineInput } from './invoice.types'
 import Order, { IOrder } from '../../order/order.model'
 import { addDays } from 'date-fns'
 import { ISeries } from '../../numbering/series.model'
+import { CreateStornoInput, CreateStornoSchema } from './storno.validator'
+import { CreateReturnNoteInput } from '../return-notes/return-note.validator'
+import { createReturnNote } from '../return-notes/return-note.actions'
+import ReturnNoteModel from '../return-notes/return-note.model'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -92,6 +98,144 @@ export async function getUninvoicedDeliveryNotes(
     return { success: false, message: (error as Error).message }
   }
 }
+
+export async function getUnsettledAdvances(
+  clientId: string,
+  deliveryAddressId: string
+): Promise<
+  | { success: true; data: UnsettledAdvanceDTO[] }
+  | { success: false; message: string }
+> {
+  try {
+    await connectToDatabase()
+
+    if (
+      !Types.ObjectId.isValid(clientId) ||
+      !Types.ObjectId.isValid(deliveryAddressId)
+    ) {
+      console.warn('ID Client sau Adresă invalid în getUnsettledAdvances')
+      return { success: true, data: [] } // Returnează gol, nu e o eroare
+    }
+
+    const advances = await InvoiceModel.find({
+      clientId: new Types.ObjectId(clientId),
+      invoiceType: 'AVANS',
+
+      // 1. Avansul trebuie să fie PLĂTIT
+      status: 'PAID',
+      // 2. Avansul trebuie să mai aibă bani pe el
+      remainingAmount: { $gt: 0 },
+
+      // 3. Avansul trebuie să fie GLOBAL SAU specific acestei adrese
+      $or: [
+        { advanceScope: 'GLOBAL' },
+        {
+          advanceScope: 'ADDRESS_SPECIFIC',
+          deliveryAddressId: new Types.ObjectId(deliveryAddressId),
+        },
+      ],
+    })
+      .select(
+        'seriesName invoiceNumber invoiceDate totals.grandTotal remainingAmount advanceScope'
+      )
+      .sort({ invoiceDate: 1 }) // Le folosim pe cele mai vechi prima dată
+      .lean()
+
+    // Mapăm la DTO-ul curat
+    const resultData: UnsettledAdvanceDTO[] = advances.map((adv) => ({
+      _id: adv._id.toString(),
+      seriesName: adv.seriesName,
+      invoiceNumber: adv.invoiceNumber,
+      invoiceDate: adv.invoiceDate.toISOString(),
+      totalAmount: adv.totals.grandTotal,
+      remainingAmount: adv.remainingAmount,
+      advanceScope: adv.advanceScope as 'GLOBAL' | 'ADDRESS_SPECIFIC',
+    }))
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(resultData)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getUnsettledAdvances:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+export async function getStornoSourceInvoices(
+  clientId: string,
+  deliveryAddressId: string
+): Promise<
+  | { success: true; data: StornoSourceInvoiceDTO[] }
+  | { success: false; message: string }
+> {
+  try {
+    await connectToDatabase()
+
+    if (
+      !Types.ObjectId.isValid(clientId) ||
+      !Types.ObjectId.isValid(deliveryAddressId)
+    ) {
+      return { success: true, data: [] }
+    }
+
+    const invoices = await InvoiceModel.find({
+      clientId: new Types.ObjectId(clientId),
+      deliveryAddressId: new Types.ObjectId(deliveryAddressId),
+      invoiceType: 'STANDARD',
+      // Stornăm doar facturi finalizate (Aprobate sau Plătite)
+      status: { $in: ['APPROVED', 'PAID'] },
+
+      // --- Logica Cheie ---
+      // Căutăm facturi care au cel puțin o linie
+      // unde cantitatea stornată e mai mică decât cantitatea facturată
+      'items.stornedQuantity': { $exists: true },
+      $expr: {
+        $gt: [
+          { $sum: '$items.quantity' }, // Suma tuturor cantităților
+          { $sum: '$items.stornedQuantity' }, // Suma tuturor cantităților stornate
+        ],
+      },
+    })
+      .select(
+        'seriesName invoiceNumber invoiceDate totals items.quantity items.stornedQuantity'
+      )
+      .sort({ invoiceDate: -1 }) // Cele mai noi prima dată
+      .lean()
+
+    // Mapăm la DTO-ul curat
+    const resultData: StornoSourceInvoiceDTO[] = invoices.map((inv) => {
+      // Calculăm cât mai e de stornat pe întreaga factură
+      const totalQuantity = inv.items.reduce(
+        (sum, item) => sum + (item.quantity || 0),
+        0
+      )
+      const totalStorned = inv.items.reduce(
+        (sum, item) => sum + (item.stornedQuantity || 0),
+        0
+      )
+
+      return {
+        _id: inv._id.toString(),
+        seriesName: inv.seriesName,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceDate: inv.invoiceDate.toISOString(),
+        grandTotal: inv.totals.grandTotal,
+        // Acest câmp e doar informativ, logica reală e pe linii
+        remainingToStorno: totalQuantity - totalStorned,
+      }
+    })
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(resultData)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getStornoSourceInvoices:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
 /**
  * Primește datele complete din formular și noul status
  */
@@ -532,6 +676,7 @@ export async function createInvoiceFromSingleNote(
         items: items,
         totals: totals,
         sourceDeliveryNotes: [note._id.toString()],
+        relatedInvoiceIds: [],
         notes: `Factură generată automat din Avizul ${note.seriesName}-${note.noteNumber}.`,
       }
 
@@ -543,6 +688,258 @@ export async function createInvoiceFromSingleNote(
   } catch (error) {
     await session.endSession()
     console.error('❌ Eroare createInvoiceFromSingleNote:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
+  | {
+      success: true
+      data: {
+        lines: InvoiceLineInput[]
+        header: {
+          clientId: string
+          clientSnapshot: ClientSnapshot
+          deliveryAddressId: string
+          deliveryAddress: ClientSnapshot['address']
+          salesAgentId: string
+          salesAgentSnapshot: { name: string }
+        }
+      }
+    }
+  | { success: false; message: string }
+> {
+  try {
+    await connectToDatabase()
+
+    const objectIds = invoiceIds.map((id) => new Types.ObjectId(id))
+
+    const sourceInvoices = await InvoiceModel.find({
+      _id: { $in: objectIds },
+      invoiceType: 'STANDARD',
+    })
+      .select(
+        'clientId clientSnapshot deliveryAddressId deliveryAddress ' +
+          'salesAgentId salesAgentSnapshot ' +
+          'items totals'
+      )
+      .lean()
+
+    if (!sourceInvoices || sourceInvoices.length === 0) {
+      throw new Error('Facturile sursă nu au fost găsite.')
+    }
+
+    const firstInvoice = sourceInvoices[0]
+    const headerData = {
+      clientId: firstInvoice.clientId.toString(),
+      clientSnapshot: firstInvoice.clientSnapshot,
+      deliveryAddressId: firstInvoice.deliveryAddressId.toString(),
+      deliveryAddress: firstInvoice.deliveryAddress,
+      salesAgentId: firstInvoice.salesAgentId.toString(),
+      salesAgentSnapshot: firstInvoice.salesAgentSnapshot,
+    }
+
+    const stornoLines: InvoiceLineInput[] = []
+
+    for (const invoice of sourceInvoices) {
+      for (const item of invoice.items) {
+        const stornedQty = item.stornedQuantity || 0
+        const originalQty = item.quantity
+        const remainingQty = round2(originalQty - stornedQty)
+
+        if (remainingQty > 0) {
+          stornoLines.push({
+            // Datele liniei originale
+            ...item,
+
+            // Legătura cu sursa
+            sourceInvoiceLineId: item._id?.toString(),
+
+            // --- Cantitățile Negative (cu fallback) ---
+            quantity: -remainingQty,
+            quantityInBaseUnit: -(item.quantityInBaseUnit || remainingQty),
+
+            // --- Calculele Financiare (Negative) (cu fallback) ---
+            lineValue: -(item.lineValue || 0),
+            vatRateDetails: {
+              ...item.vatRateDetails,
+              value: -(item.vatRateDetails.value || 0),
+            },
+            lineTotal: -(item.lineTotal || 0),
+
+            // Costurile și profitul (cu fallback)
+            lineCostFIFO: -(item.lineCostFIFO || 0),
+            lineProfit: -(item.lineProfit || 0),
+
+            // Resetăm câmpurile noi
+            stornedQuantity: 0,
+            relatedAdvanceId: undefined,
+          })
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        lines: JSON.parse(JSON.stringify(stornoLines)),
+        header: JSON.parse(JSON.stringify(headerData)),
+      },
+    }
+  } catch (error) {
+    console.error('❌ Eroare getLinesFromInvoices:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+export async function createStornoInvoice(
+  data: CreateStornoInput
+): Promise<InvoiceActionResult> {
+  const session = await startSession()
+  try {
+    const newStornoInvoice = await session.withTransaction(async (session) => {
+      // 1. Validare
+      const validatedData = CreateStornoSchema.parse(data)
+
+      // 2. Autentificare
+      const authSession = await auth()
+      const userId = authSession?.user?.id
+      const userName = authSession?.user?.name
+      if (!userId || !userName) throw new Error('Utilizator neautentificat.')
+
+      // 3. Preluare Setări Companie (Snapshot)
+      const companySettings = await getSetting()
+      if (!companySettings)
+        throw new Error('Setările companiei nu sunt configurate.')
+      const companySnapshot = buildCompanySnapshot(companySettings)
+
+      // 3. Generare Număr Factură Storno
+      const year = validatedData.invoiceDate.getFullYear()
+      const nextSeq = await generateNextDocumentNumber(
+        validatedData.seriesName,
+        {
+          session,
+        }
+      )
+      const invoiceNumber = String(nextSeq).padStart(5, '0')
+
+      // 4. PREGĂTIREA DATELOR PENTRU NOTA DE RETUR
+      const returnNoteItems: CreateReturnNoteInput['items'] = []
+
+      for (const item of validatedData.items) {
+        if (item.productId && item.stockableItemType) {
+          const itemQty = Math.abs(item.quantity)
+          const itemCost = Math.abs(item.lineCostFIFO || 0)
+          const unitCost = itemQty > 0 ? round2(itemCost / itemQty) : 0
+
+          returnNoteItems.push({
+            productId: item.productId,
+            stockableItemType: item.stockableItemType as
+              | 'ERPProduct'
+              | 'Packaging',
+            productName: item.productName,
+            productCode: item.productCode || 'N/A',
+            quantity: itemQty,
+            unitOfMeasure: item.unitOfMeasure,
+            baseUnit: item.baseUnit || item.unitOfMeasure,
+            quantityInBaseUnit: Math.abs(item.quantityInBaseUnit || itemQty),
+            costBreakdown: item.costBreakdown.map((cb) => ({
+              ...cb,
+              entryDate: new Date(cb.entryDate),
+              movementId: cb.movementId,
+            })),
+            unitCost: unitCost,
+            sourceInvoiceLineId: item.sourceInvoiceLineId,
+            sourceDeliveryNoteLineId: item.sourceDeliveryNoteLineId,
+          })
+        }
+      }
+
+      // 5. Creare Notă de Retur
+      let returnNoteId: Types.ObjectId | undefined = undefined
+      if (returnNoteItems.length > 0) {
+        const returnNoteData: CreateReturnNoteInput = {
+          seriesName: validatedData.returnNoteSeriesName,
+          returnNoteDate: validatedData.invoiceDate,
+          clientId: validatedData.clientId as string,
+          deliveryAddressId: validatedData.deliveryAddressId as string,
+          locationTo: 'DEPOZIT',
+          reason: 'STORNO_INVOICE',
+          items: returnNoteItems,
+        }
+
+        const returnNoteResult = await createReturnNote(
+          returnNoteData,
+          'COMPLETED',
+          session
+        )
+        if (!returnNoteResult.success) {
+          throw new Error(
+            `Eroare la crearea Notei de Retur: ${returnNoteResult.message}`
+          )
+        }
+        returnNoteId = new Types.ObjectId(returnNoteResult.data._id)
+      }
+
+      // 6. Creare Factură Storno
+      const [createdInvoice] = await InvoiceModel.create(
+        [
+          {
+            ...validatedData,
+            companySnapshot: companySnapshot,
+            sequenceNumber: nextSeq,
+            invoiceNumber: invoiceNumber,
+            year: year,
+            status: 'APPROVED',
+            eFacturaStatus: 'PENDING',
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+            salesAgentId: new Types.ObjectId(validatedData.salesAgentId),
+            salesAgentSnapshot: validatedData.salesAgentSnapshot,
+          },
+        ],
+        { session }
+      )
+
+      // 7. Actualizăm Nota de Retur cu ID-ul Stornării
+      if (returnNoteId) {
+        await ReturnNoteModel.findByIdAndUpdate(
+          returnNoteId,
+          { $set: { relatedInvoiceId: createdInvoice._id } },
+          { session }
+        )
+      }
+
+      // 8. Actualizăm `stornedQuantity` pe facturile originale
+      for (const item of validatedData.items) {
+        await InvoiceModel.updateOne(
+          { 'items._id': new Types.ObjectId(item.sourceInvoiceLineId) },
+          {
+            $inc: { 'items.$.stornedQuantity': Math.abs(item.quantity) },
+          },
+          { session }
+        )
+      }
+
+      return createdInvoice
+    }) // Sfârșitul Tranzacției
+
+    await session.endSession()
+
+    if (newStornoInvoice) {
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(newStornoInvoice)),
+      }
+    } else {
+      throw new Error('Tranzacția nu a returnat o factură storno.')
+    }
+  } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction()
+    }
+    await session.endSession()
+    console.error('❌ Eroare createStornoInvoice:', error)
     return { success: false, message: (error as Error).message }
   }
 }
