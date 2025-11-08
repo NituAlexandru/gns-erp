@@ -19,6 +19,7 @@ import {
   InvoiceActionSelectionRequired,
   UnsettledAdvanceDTO,
   StornoSourceInvoiceDTO,
+  StornableProductDTO,
 } from './invoice.types'
 import { ISettingInput } from '../../setting/types'
 import { IClientDoc } from '../../client/types'
@@ -33,7 +34,7 @@ import { round2 } from '@/lib/utils'
 import { IOrderLineItem } from '../../order/types'
 import { InvoiceLineInput } from './invoice.types'
 import Order, { IOrder } from '../../order/order.model'
-import { addDays } from 'date-fns'
+import { addDays, sub } from 'date-fns'
 import { ISeries } from '../../numbering/series.model'
 import { CreateStornoInput, CreateStornoSchema } from './storno.validator'
 import { CreateReturnNoteInput } from '../return-notes/return-note.validator'
@@ -692,6 +693,7 @@ export async function createInvoiceFromSingleNote(
   }
 }
 
+// storno
 export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
   | {
       success: true
@@ -754,7 +756,7 @@ export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
 
             // Legătura cu sursa
             sourceInvoiceLineId: item._id?.toString(),
-
+            sourceInvoiceId: invoice._id.toString(),
             // --- Cantitățile Negative (cu fallback) ---
             quantity: -remainingQty,
             quantityInBaseUnit: -(item.quantityInBaseUnit || remainingQty),
@@ -791,7 +793,6 @@ export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
     return { success: false, message: (error as Error).message }
   }
 }
-
 export async function createStornoInvoice(
   data: CreateStornoInput
 ): Promise<InvoiceActionResult> {
@@ -940,6 +941,264 @@ export async function createStornoInvoice(
     }
     await session.endSession()
     console.error('❌ Eroare createStornoInvoice:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+export async function getStornableProductsList(
+  clientId: string,
+  deliveryAddressId: string,
+  searchTerm: string 
+): Promise<
+  | { success: true; data: StornableProductDTO[] }
+  | { success: false; message: string }
+> {
+  try {
+    await connectToDatabase()
+
+    if (
+      !Types.ObjectId.isValid(clientId) ||
+      !Types.ObjectId.isValid(deliveryAddressId)
+    ) {
+      return { success: true, data: [] }
+    }
+
+    // NU căutăm pe server dacă termenul e prea scurt.
+    // Asta previne irosirea resurselor.
+    if (searchTerm.length < 3) {
+      return { success: true, data: [] }
+    }
+
+    const validClientId = new Types.ObjectId(clientId)
+    const validAddressId = new Types.ObjectId(deliveryAddressId)
+    const oneYearAgo = sub(new Date(), { years: 1 })
+
+    const stornableProducts: StornableProductDTO[] =
+      await InvoiceModel.aggregate([
+        // --- Faza 1: Găsește facturile relevante ---
+        {
+          $match: {
+            clientId: validClientId,
+            deliveryAddressId: validAddressId,
+            status: { $in: ['APPROVED', 'PAID'] }, // <-- Asta e cheia!
+          },
+        },
+        // --- Faza 2: "Sparge" facturile în linii individuale ---
+        {
+          $unwind: '$items',
+        },
+        // --- Faza 3: Filtrează Liniile care pot fi stornate ---
+        {
+          $match: {
+            // FILTRU DE CĂUTARE NOU
+            'items.productName': {
+              $regex: searchTerm,
+              $options: 'i', // 'i' = insensitive (nu ține cont de majuscule)
+            },
+            'items.productId': { $exists: true, $ne: null },
+            // Verifică dacă mai e ceva de stornat
+            $expr: {
+              $gt: [
+                '$items.quantity',
+                { $ifNull: ['$items.stornedQuantity', 0] },
+              ],
+            },
+            // Aplică regula de timp
+            $or: [
+              { 'items.stockableItemType': 'Packaging' },
+              {
+                'items.stockableItemType': 'ERPProduct',
+                invoiceDate: { $gte: oneYearAgo },
+              },
+            ],
+          },
+        },
+        // --- Faza 4: Grupează după Produs și Sumarizează ---
+        {
+          $group: {
+            _id: '$items.productId',
+            productName: { $first: '$items.productName' },
+            unitOfMeasure: { $first: '$items.unitOfMeasure' },
+            totalRemainingToStorno: {
+              $sum: {
+                $subtract: [
+                  '$items.quantity',
+                  { $ifNull: ['$items.stornedQuantity', 0] },
+                ],
+              },
+            },
+          },
+        },
+        // --- Faza 5: Formatează frumos output-ul ---
+        {
+          $project: {
+            _id: 0,
+            productId: '$_id',
+            productName: '$productName',
+            unitOfMeasure: '$unitOfMeasure',
+            totalRemainingToStorno: { $round: ['$totalRemainingToStorno', 2] },
+          },
+        },
+        // --- Faza 6: Sortează alfabetic ---
+        {
+          $sort: { productName: 1 },
+        },
+   
+      ])
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(stornableProducts)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getStornableProductsList:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+export async function generateStornoLinesForQuantity(
+  clientId: string,
+  deliveryAddressId: string,
+  productId: string,
+  quantityToStorno: number // Cantitatea e POZITIVĂ (ex: 100)
+): Promise<
+  | {
+      success: true
+      data: {
+        lines: InvoiceLineInput[]
+        sourceInvoiceRefs: string[]
+        sourceInvoiceIds: string[]
+      }
+    }
+  | { success: false; message: string }
+> {
+  if (quantityToStorno <= 0) {
+    return { success: false, message: 'Cantitatea trebuie să fie pozitivă.' }
+  }
+
+  try {
+    await connectToDatabase()
+
+    const validClientId = new Types.ObjectId(clientId)
+    const validAddressId = new Types.ObjectId(deliveryAddressId)
+    const validProductId = new Types.ObjectId(productId)
+    const oneYearAgo = sub(new Date(), { years: 1 })
+
+    // --- Faza 1: Găsește TOATE liniile eligibile, sortate FIFO ---
+    const eligibleLinesResult = await InvoiceModel.aggregate([
+      // Găsește facturile
+      {
+        $match: {
+          clientId: validClientId,
+          deliveryAddressId: validAddressId,
+          status: { $in: ['APPROVED', 'PAID'] },
+        },
+      },
+      // Sortează facturile (FIFO)
+      { $sort: { invoiceDate: 1 } },
+      // Sparge în linii
+      { $unwind: '$items' },
+      // Găsește liniile potrivite
+      {
+        $match: {
+          'items.productId': validProductId,
+          // Verifică dacă mai e ceva de stornat
+          $expr: {
+            $gt: [
+              '$items.quantity',
+              { $ifNull: ['$items.stornedQuantity', 0] },
+            ],
+          },
+          // Aplică regula de timp
+          $or: [
+            { 'items.stockableItemType': 'Packaging' },
+            {
+              'items.stockableItemType': 'ERPProduct',
+              invoiceDate: { $gte: oneYearAgo },
+            },
+          ],
+        },
+      },
+      // Proiectează doar ce e necesar
+      {
+        $project: {
+          invoiceId: '$_id',
+          invoiceRef: { $concat: ['$seriesName', '-', '$invoiceNumber'] },
+          line: '$items',
+        },
+      },
+    ])
+
+    // --- Faza 2: Procesează liniile și generează stornarea ---
+    let remainingQtyToStorno = quantityToStorno
+    const newStornoLines: InvoiceLineInput[] = []
+    const sourceInvoiceRefs = new Set<string>()
+    const sourceInvoiceIds = new Set<string>()
+
+    for (const doc of eligibleLinesResult) {
+      if (remainingQtyToStorno <= 0) break // Am terminat
+
+      const line = doc.line as InvoiceLineInput & { _id: Types.ObjectId }
+      const availableQty = round2(line.quantity - (line.stornedQuantity || 0))
+
+      // Cât luăm din această linie
+      const qtyToTake = Math.min(remainingQtyToStorno, availableQty)
+
+      if (qtyToTake > 0) {
+        // Adaugă la sumarul pentru toast
+        sourceInvoiceRefs.add(`${doc.invoiceRef} (${qtyToTake} buc)`)
+        sourceInvoiceIds.add(doc.invoiceId.toString())
+
+        // Calculează proporțional valorile
+        const ratio = qtyToTake / line.quantity
+        const lineValue = round2(line.lineValue * ratio)
+        const vatValue = round2(line.vatRateDetails.value * ratio)
+        const lineTotal = round2(line.lineTotal * ratio)
+        const lineCost = round2((line.lineCostFIFO || 0) * ratio)
+        const lineProfit = round2((line.lineProfit || 0) * ratio)
+
+        // Generează linia storno (negativă)
+        newStornoLines.push({
+          ...line,
+          sourceInvoiceLineId: line._id.toString(), 
+          sourceInvoiceId: doc.invoiceId.toString(),
+          quantity: -qtyToTake, // Negativ
+          quantityInBaseUnit: -(line.quantityInBaseUnit || qtyToTake), // Negativ
+          lineValue: -lineValue,
+          vatRateDetails: {
+            rate: line.vatRateDetails.rate,
+            value: -vatValue,
+          },
+          lineTotal: -lineTotal,
+          lineCostFIFO: -lineCost,
+          lineProfit: -lineProfit,
+          lineMargin: line.lineMargin, // Marja % rămâne aceeași
+          stornedQuantity: 0, // Resetăm
+          relatedAdvanceId: undefined, // Resetăm
+        })
+
+        // Scade din totalul necesar
+        remainingQtyToStorno = round2(remainingQtyToStorno - qtyToTake)
+      }
+    }
+
+    // Verificare de siguranță
+    if (remainingQtyToStorno > 0) {
+      const foundQty = quantityToStorno - remainingQtyToStorno
+      throw new Error(
+        `Cantitate insuficientă. Ați cerut ${quantityToStorno}, dar s-au găsit doar ${foundQty} disponibile pentru stornare.`
+      )
+    }
+
+    return {
+      success: true,
+      data: {
+        lines: JSON.parse(JSON.stringify(newStornoLines)),
+        sourceInvoiceRefs: Array.from(sourceInvoiceRefs),
+        sourceInvoiceIds: Array.from(sourceInvoiceIds),
+      },
+    }
+  } catch (error) {
+    console.error('❌ Eroare generateStornoLinesForQuantity:', error)
     return { success: false, message: (error as Error).message }
   }
 }

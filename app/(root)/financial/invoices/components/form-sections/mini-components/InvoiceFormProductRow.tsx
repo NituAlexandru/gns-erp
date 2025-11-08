@@ -11,15 +11,19 @@ import {
   InvoiceLineInput,
 } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { LineProfitDisplay } from './LineProfitDisplay'
+import { Button } from '@/components/ui/button'
+import { Trash2 } from 'lucide-react'
 
 interface InvoiceFormProductRowProps {
   index: number
   itemData: InvoiceLineInput
+  remove: (index: number) => void
 }
 
 export function InvoiceFormProductRow({
   index,
   itemData,
+  remove,
 }: InvoiceFormProductRowProps) {
   const { control, setValue, watch } = useFormContext<InvoiceInput>()
   const watchedInvoiceType = watch('invoiceType')
@@ -47,7 +51,7 @@ export function InvoiceFormProductRow({
     if (vatRateDetails) {
       const vatRate = vatRateDetails.rate || 0
 
-      const lineValue = round2(watchedUnitPrice * watchedQuantity) 
+      const lineValue = round2(watchedUnitPrice * watchedQuantity)
       // Recalculează costul proporțional
 
       const originalQty = itemData.quantity // ex: -5
@@ -85,10 +89,10 @@ export function InvoiceFormProductRow({
     }
   }, [
     watchedUnitPrice,
-    watchedQuantity, 
+    watchedQuantity,
     vatRateDetails,
-    itemData.quantity, 
-    itemData.lineCostFIFO, 
+    itemData.quantity,
+    itemData.lineCostFIFO,
     index,
     setValue,
   ])
@@ -226,6 +230,19 @@ export function InvoiceFormProductRow({
       {/* 9. Total Final (Cu TVA) */}
       <TableCell className='w-[150px] text-right font-semibold text-primary'>
         {formatCurrency(lineTotal)}
+      </TableCell>
+      <TableCell className='w-[40px] p-2'>
+        {isStornoRow && ( // <-- Condiția este VITALĂ
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            className='text-destructive hover:text-destructive'
+            onClick={() => remove(index)}
+          >
+            <Trash2 className='h-4 w-4' />
+          </Button>
+        )}
       </TableCell>
     </TableRow>
   )

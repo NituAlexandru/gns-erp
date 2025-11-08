@@ -31,6 +31,7 @@ import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import {
   createInvoice,
   createStornoInvoice,
+  generateStornoLinesForQuantity,
   getLinesFromInvoices,
   getStornoSourceInvoices,
 } from '@/lib/db/modules/financial/invoices/invoice.actions'
@@ -39,6 +40,7 @@ import { SearchedService } from '@/lib/db/modules/setting/services/types'
 import { SelectStornoInvoicesModal } from './form-sections/SelectStornoInvoicesModal'
 import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbering.actions'
 import { CreateStornoInput } from '@/lib/db/modules/financial/invoices/storno.validator'
+import { SelectStornoProductModal } from './form-sections/SelectStornoProductModal'
 
 interface InvoiceFormProps {
   initialData: Partial<InvoiceInput> | null
@@ -60,6 +62,7 @@ export function InvoiceForm({
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
   const [showNoteLoaderModal, setShowNoteLoaderModal] = useState(false)
   const [showStornoModal, setShowStornoModal] = useState(false)
+  const [showStornoProductModal, setShowStornoProductModal] = useState(false)
   const [loadedNotes, setLoadedNotes] = useState<{ id: string; ref: string }[]>(
     []
   )
@@ -412,8 +415,6 @@ export function InvoiceForm({
       const result = await getLinesFromInvoices(selectedInvoiceIds)
 
       if (result.success) {
-        remove()
-
         // 1. Convertim datele înapoi în obiecte Date
         const linesWithDates = result.data.lines.map(
           (line: InvoiceLineInput) => ({
@@ -473,6 +474,91 @@ export function InvoiceForm({
       setIsLoading(false)
     }
   }
+  const handleLoadStornoLines = async (
+    productId: string,
+    quantityToStorno: number
+  ) => {
+    if (!watchedClientId || !watchedDeliveryAddressId) {
+      toast.error('Clientul sau adresa de livrare nu sunt selectate.', {
+        description:
+          'Vă rugăm să selectați un client și o adresă înainte de a stornare.',
+      })
+      return 
+    }
+    setIsLoading(true) 
+    const toastId = toast.loading('Se generează liniile storno...', {
+      description: `Cantitate: ${quantityToStorno}, Produs ID: ${productId}`,
+    })
+
+    try {
+      const result = await generateStornoLinesForQuantity(
+        watchedClientId,
+        watchedDeliveryAddressId,
+        productId,
+        quantityToStorno
+      )
+
+      if (result.success) {
+        // 1. Convertim datele 
+        const linesWithDates = result.data.lines.map(
+          (line: InvoiceLineInput) => ({
+            ...line,
+            costBreakdown: (line.costBreakdown || []).map((cb) => ({
+              ...cb,
+              entryDate: new Date(cb.entryDate), // Conversia
+            })),
+          })
+        )
+
+        // 2. ADĂUGĂM liniile
+        append(linesWithDates)
+
+        // 3. Actualizăm ID-urile facturilor sursă (adăugăm, nu suprascriem)
+        const currentIds = new Set(getValues('relatedInvoiceIds') || [])
+        result.data.sourceInvoiceIds.forEach((id) => currentIds.add(id))
+        setValue('relatedInvoiceIds', Array.from(currentIds), {
+          shouldDirty: true,
+        })
+
+        // 4. Actualizăm badge-urile (opțional, dar util)
+        const sourceInvoices = await getStornoSourceInvoices(
+          watchedClientId,
+          watchedDeliveryAddressId
+        )
+        if (sourceInvoices.success) {
+          setLoadedStornoSources(
+            sourceInvoices.data
+              .filter((inv) => currentIds.has(inv._id))
+              .map((inv) => ({
+                id: inv._id,
+                ref: `${inv.seriesName}-${inv.invoiceNumber}`,
+              }))
+          )
+        }
+
+        // 5. Feedback de succes
+        toast.success('Linii storno adăugate cu succes.', {
+          id: toastId,
+          description: `Generat din: ${result.data.sourceInvoiceRefs.join(', ')}`,
+        })
+        setShowStornoProductModal(false) 
+      } else {
+        // Eroare de la server
+        toast.error('Eroare la generarea liniilor', {
+          id: toastId,
+          description: result.message,
+        })
+      }
+    } catch (error) {
+      // Eroare neașteptată
+      toast.error('Eroare neașteptată', {
+        id: toastId,
+        description: (error as Error).message,
+      })
+    } finally {
+      setIsLoading(false) // Deblochează butonul Salvare
+    }
+  }
   const handleRemoveNote = (noteIdToRemove: string) => {
     const currentItems = getValues('items')
     const indicesToRemove = currentItems
@@ -493,32 +579,34 @@ export function InvoiceForm({
   }
 
   const handleRemoveStornoSource = (invoiceIdToRemove: string) => {
-    // Găsește facturile originale rămase (cele pe care NU le ștergem)
+    // 1. Găsește indicii liniilor care trebuie șterse
+    const currentItems = getValues('items')
+    const indicesToRemove: number[] = []
+
+    currentItems.forEach((item: InvoiceLineInput, index: number) => {
+      // Verifică noul câmp pe care l-am adăugat
+      if (item.sourceInvoiceId === invoiceIdToRemove) {
+        indicesToRemove.push(index)
+      }
+    })
+
+    // 2. Șterge liniile (trebuie în ordine inversă pentru a nu strica indicii)
+    if (indicesToRemove.length > 0) {
+      remove(indicesToRemove.reverse())
+    }
+
+    // 3. Actualizează starea pentru relatedInvoiceIds (folosită la submit)
     const remainingSourceInvoices = getValues('relatedInvoiceIds').filter(
       (id: string) => id !== invoiceIdToRemove
     )
+    setValue('relatedInvoiceIds', remainingSourceInvoices)
 
-    // Dacă nu mai avem facturi sursă, ștergem tot
-    if (remainingSourceInvoices.length === 0) {
-      remove() // Șterge toate liniile
-      setLoadedStornoSources([])
-      setValue('relatedInvoiceIds', [])
-      toast.info('Toate liniile de stornare au fost eliminate.')
-      return
-    }
-
-    // Dacă mai avem facturi, re-calculăm liniile
-    // (Asta e mult mai sigur decât să încercăm să ștergem linii individuale
-    // și să riscăm să lăsăm date orfane)
-    toast.promise(
-      // Apelăm din nou funcția de încărcare, dar doar cu facturile rămase
-      handleLoadStornoInvoices(remainingSourceInvoices),
-      {
-        loading: 'Se recalculează liniile de stornare...',
-        success: 'Lista de stornare a fost actualizată.',
-        error: 'Eroare la recalcularea liniilor.',
-      }
+    // 4. Actualizează starea pentru badge-uri (vizual)
+    setLoadedStornoSources((prev) =>
+      prev.filter((inv) => inv.id !== invoiceIdToRemove)
     )
+
+    toast.info('Factura sursă și liniile asociate au fost eliminate.')
   }
 
   async function onSubmit(values: InvoiceInput) {
@@ -623,6 +711,7 @@ export function InvoiceForm({
             vatRates={vatRates}
             services={services}
             onShowStornoModal={() => setShowStornoModal(true)}
+            onShowStornoProductModal={() => setShowStornoProductModal(true)}
             loadedStornoSources={loadedStornoSources}
             onRemoveStornoSource={handleRemoveStornoSource}
           />
@@ -654,6 +743,16 @@ export function InvoiceForm({
           onConfirm={handleLoadStornoInvoices}
         />
       )}
+      {showStornoProductModal &&
+        watchedClientId &&
+        watchedDeliveryAddressId && (
+          <SelectStornoProductModal
+            clientId={watchedClientId}
+            addressId={watchedDeliveryAddressId}
+            onClose={() => setShowStornoProductModal(false)}
+            onConfirm={handleLoadStornoLines}
+          />
+        )}
     </FormProvider>
   )
 }

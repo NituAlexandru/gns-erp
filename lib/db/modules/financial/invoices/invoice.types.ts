@@ -98,3 +98,10 @@ export interface StornoSourceInvoiceDTO {
   grandTotal: number
   remainingToStorno: number // Cât a mai rămas de stornat din ea
 }
+
+export interface StornableProductDTO {
+  productId: string
+  productName: string
+  unitOfMeasure: string
+  totalRemainingToStorno: number // Suma totală rămasă de stornat
+}

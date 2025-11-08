@@ -41,6 +41,7 @@ interface InvoiceFormItemsProps {
   onShowStornoModal: () => void
   loadedStornoSources: { id: string; ref: string }[]
   onRemoveStornoSource: (invoiceId: string) => void
+  onShowStornoProductModal: () => void
 }
 
 export function InvoiceFormItems({
@@ -54,6 +55,7 @@ export function InvoiceFormItems({
   onShowStornoModal,
   loadedStornoSources,
   onRemoveStornoSource,
+  onShowStornoProductModal,
 }: InvoiceFormItemsProps) {
   const form = useFormContext<InvoiceInput>()
   const totals = form.watch('totals')
@@ -240,8 +242,8 @@ export function InvoiceFormItems({
                 <PlusCircle className='mr-2 h-4 w-4' />
                 Selectează Facturi de Stornat
               </Button>
-              <Button variant='outline' disabled>
-                Selectează Produse (în curând)
+              <Button variant='outline' onClick={onShowStornoProductModal}>
+                Selectează Produse
               </Button>
             </div>
           </>
@@ -308,7 +310,22 @@ export function InvoiceFormItems({
           </div>
         )}
       </div>
-
+      {watchedInvoiceType === 'STORNO' && (
+        <div className='flex gap-4 '>
+          <Button variant='outline' size='sm' onClick={onShowStornoModal}>
+            <PlusCircle className='mr-2 h-4 w-4' />
+            Adaugă Factură
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={onShowStornoProductModal}
+          >
+            <PlusCircle className='mr-2 h-4 w-4' />
+            Adaugă Produs
+          </Button>
+        </div>
+      )}
       <div className='border rounded-lg bg-card overflow-x-auto'>
         <Table>
           <TableHeader>
@@ -326,6 +343,7 @@ export function InvoiceFormItems({
               <TableHead className='text-center w-[100px]'>TVA %</TableHead>
               <TableHead className='text-right w-[100px]'>TVA Sumă</TableHead>
               <TableHead className='text-right w-[150px]'>TOTAL</TableHead>
+              <TableHead className='w-[40px] p-2'></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -348,6 +366,7 @@ export function InvoiceFormItems({
                     key={field.id}
                     index={index}
                     itemData={item}
+                    remove={remove}
                   />
                 )
               }

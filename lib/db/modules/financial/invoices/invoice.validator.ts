@@ -48,6 +48,7 @@ export const InvoiceLineSchema = z.object({
   sourceDeliveryNoteId: MongoId.optional(), // ID-ul avizului sursă
   sourceDeliveryNoteLineId: MongoId.optional(), // ID-ul liniei din aviz
   sourceInvoiceLineId: MongoId.optional(),
+  sourceInvoiceId: MongoId.optional(),
   productId: MongoId.optional(),
   serviceId: MongoId.optional(),
   stockableItemType: z.enum(['ERPProduct', 'Packaging', 'Service']).optional(),

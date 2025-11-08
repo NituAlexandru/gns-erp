@@ -23,13 +23,13 @@ import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
 interface InvoiceFormManualRowProps {
   index: number
   vatRates: VatRateDTO[]
-  remove: (index: number) => void 
+  remove: (index: number) => void
 }
 
 export function InvoiceFormManualRow({
   index,
   vatRates,
-  remove, 
+  remove,
 }: InvoiceFormManualRowProps) {
   const { control, setValue, watch } = useFormContext<InvoiceInput>()
 
@@ -75,15 +75,6 @@ export function InvoiceFormManualRow({
               />
             )}
           />
-          <Button
-            type='button'
-            variant='ghost'
-            size='icon'
-            onClick={() => remove(index)} 
-            className='text-destructive hover:text-red-600'
-          >
-            <Trash2 className='h-4 w-4' />
-          </Button>
         </div>
       </TableCell>
 
@@ -198,6 +189,17 @@ export function InvoiceFormManualRow({
       {/* 9. Total Final (Cu TVA) */}
       <TableCell className='w-[150px] text-right font-semibold text-primary'>
         {formatCurrency(lineTotal)}
+      </TableCell>
+      <TableCell className='w-[40px] p-2'>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='text-destructive hover:text-destructive'
+          onClick={() => remove(index)}
+        >
+          <Trash2 className='h-4 w-4' />
+        </Button>
       </TableCell>
     </TableRow>
   )
