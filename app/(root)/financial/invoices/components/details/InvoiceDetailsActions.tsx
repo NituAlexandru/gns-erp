@@ -1,0 +1,182 @@
+// app/(root)/financial/invoices/components/details/InvoiceDetailsActions.tsx
+'use client'
+
+import { useState, useTransition } from 'react'
+import { Button } from '@/components/ui/button'
+import { PopulatedInvoice } from '@/lib/db/modules/financial/invoices/invoice.types'
+import {
+  Check,
+  ChevronLeft,
+  Download,
+  FilePenLine,
+  Printer,
+  X,
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import {
+  approveInvoice,
+  rejectInvoice,
+} from '@/lib/db/modules/financial/invoices/invoice.actions'
+import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { INVOICE_STATUS_MAP } from '@/lib/db/modules/financial/invoices/invoice.constants'
+
+interface InvoiceDetailsActionsProps {
+  invoice: PopulatedInvoice
+  isAdmin: boolean
+}
+
+export function InvoiceDetailsActions({
+  invoice,
+  isAdmin,
+}: InvoiceDetailsActionsProps) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState('')
+
+  const statusInfo =
+    INVOICE_STATUS_MAP[invoice.status] || INVOICE_STATUS_MAP.CREATED
+
+  // Handlerele (le-am copiat din InvoicesList)
+  const handleApprove = () => {
+    startTransition(async () => {
+      const result = await approveInvoice(invoice._id.toString())
+      if (result.success) {
+        toast.success(result.message)
+        router.refresh() // Reîmprospătează pagina
+      } else {
+        toast.error('Eroare la aprobare', { description: result.message })
+      }
+    })
+  }
+
+  const handleReject = () => {
+    startTransition(async () => {
+      const result = await rejectInvoice(
+        invoice._id.toString(),
+        rejectionReason
+      )
+      if (result.success) {
+        toast.success(result.message)
+        setIsRejectModalOpen(false)
+        setRejectionReason('')
+        router.refresh() // Reîmprospătează pagina
+      } else {
+        toast.error('Eroare la respingere', { description: result.message })
+      }
+    })
+  }
+
+  const canApprove =
+    isAdmin && (invoice.status === 'CREATED' || invoice.status === 'REJECTED')
+  const canReject = isAdmin && invoice.status === 'CREATED'
+  const canEdit = invoice.status === 'CREATED' || invoice.status === 'REJECTED'
+
+  return (
+    <>
+      <div className='flex flex-wrap items-center justify-between gap-2'>
+        {/* Partea stângă: Navigare și Titlu */}
+        <div className='flex items-center gap-4'>
+          <Button
+            variant='outline'
+            size='icon'
+            onClick={() => router.push('/financial/invoices')}
+          >
+            <ChevronLeft className='h-4 w-4' />
+          </Button>
+          <div>
+            <h1 className='text-2xl font-bold tracking-tight'>
+              Factura {invoice.seriesName}-{invoice.invoiceNumber}
+            </h1>
+            <Badge variant={statusInfo.variant}>{statusInfo.name}</Badge>
+          </div>
+        </div>
+
+        {/* Partea dreaptă: Acțiuni */}
+        <div className='flex flex-wrap items-center gap-2'>
+          {/* Buton de Print */}
+          <Button variant='outline'>
+            <Printer className='h-4 w-4 mr-2' />
+            Printează
+          </Button>
+          {/* Buton de Export PDF (așa cum ai cerut) */}
+          <Button variant='outline'>
+            <Download className='h-4 w-4 mr-2' />
+            Export PDF
+          </Button>
+          {/* Buton de Modifică */}
+          <Button
+            variant='default'
+            disabled={!canEdit}
+            onClick={() =>
+              router.push(`/financial/invoices/${invoice._id.toString()}/edit`)
+            }
+          >
+            <FilePenLine className='h-4 w-4 mr-2' />
+            Modifică
+          </Button>
+
+          {/* Buton de Respinge (așa cum ai cerut) */}
+          {isAdmin && (
+            <AlertDialog
+              open={isRejectModalOpen}
+              onOpenChange={setIsRejectModalOpen}
+            >
+              <Button
+                variant='destructive'
+                disabled={!canReject || isPending}
+                onClick={() => setIsRejectModalOpen(true)}
+              >
+                <X className='h-4 w-4 mr-2' />
+                Respinge
+              </Button>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Respinge Factura</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Introdu motivul respingerii. Factura va fi mutată în
+                    statusul -Respinsă- și va putea fi modificată.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input
+                  placeholder='Motivul respingerii (obligatoriu)...'
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                />
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Renunță</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleReject}
+                    disabled={isPending || rejectionReason.length < 3}
+                  >
+                    {isPending ? 'Se respinge...' : 'Confirmă Respingerea'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
+          {/* Buton de Aprobă (așa cum ai cerut) */}
+          {isAdmin && (
+            <Button disabled={!canApprove || isPending} onClick={handleApprove}>
+              <Check className='h-4 w-4 mr-2' />
+              {isPending ? 'Se aprobă...' : 'Aprobă'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}

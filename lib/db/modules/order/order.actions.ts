@@ -54,30 +54,50 @@ export async function calculateShippingCost(
   }
 }
 // Funcție ajutătoare care centralizează TOATĂ logica de calcul
+
+function getInitialOrderTotals() {
+  return {
+    productsSubtotal: 0,
+    productsVat: 0,
+    packagingSubtotal: 0,
+    packagingVat: 0,
+    servicesSubtotal: 0,
+    servicesVat: 0,
+    manualSubtotal: 0,
+    manualVat: 0,
+    subtotal: 0,
+    vatTotal: 0,
+    grandTotal: 0,
+  }
+}
+
 function processOrderData(lineItems: CreateOrderInput['lineItems']) {
-  let productsSubtotal = 0
-  let productsVat = 0
-  let servicesSubtotal = 0
-  let servicesVat = 0
-  let manualSubtotal = 0
-  let manualVat = 0
+  // Inițializăm cu șablonul complet
+  const totals = getInitialOrderTotals()
 
   const processedLineItems = lineItems.map((item) => {
     const lineValue = round2(item.priceAtTimeOfOrder * Number(item.quantity))
     const lineVatValue = round2(item.vatRateDetails.value)
     const lineTotal = round2(lineValue + lineVatValue)
 
-    // Împărțim valorile pe categorii
-    if (item.productId && !item.isManualEntry) {
-      productsSubtotal += lineValue
-      productsVat += lineVatValue
-    } else if (item.isManualEntry) {
-      manualSubtotal += lineValue
-      manualVat += lineVatValue
-    } else {
-      servicesSubtotal += lineValue
-      servicesVat += lineVatValue
+    if (item.isManualEntry) {
+      // Caz 1: Este MANUALĂ (prioritatea 1)
+      totals.manualSubtotal += lineValue
+      totals.manualVat += lineVatValue
+    } else if (item.serviceId) {
+      // Caz 2: Este un Serviciu
+      totals.servicesSubtotal += lineValue
+      totals.servicesVat += lineVatValue
+    } else if (item.stockableItemType === 'Packaging') {
+      // Caz 3: Este un Ambalaj (verifică explicit tipul)
+      totals.packagingSubtotal += lineValue
+      totals.packagingVat += lineVatValue
+    } else if (item.productId || item.stockableItemType === 'ERPProduct') {
+      // Caz 4: Este un Produs (default)
+      totals.productsSubtotal += lineValue
+      totals.productsVat += lineVatValue
     }
+    // --- SFÂRȘIT LOGICĂ CORECTATĂ ---
 
     // Logica de conversie pentru articolele stocabile rămâne la fel
     let conversionFactor = 1
@@ -108,35 +128,40 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
       lineValue,
       lineVatValue,
       lineTotal,
-      conversionFactor: item.productId ? conversionFactor : undefined, // Doar pt stocabile
-      quantityInBaseUnit: item.productId ? quantityInBaseUnit : undefined, // Doar pt stocabile
-      priceInBaseUnit: item.productId ? priceInBaseUnit : undefined, // Doar pt stocabile
+      conversionFactor: item.productId ? conversionFactor : undefined,
+      quantityInBaseUnit: item.productId ? quantityInBaseUnit : undefined,
+      priceInBaseUnit: item.productId ? priceInBaseUnit : undefined,
     }
   })
 
   // Calculăm totalurile generale
-  const overallSubtotal = round2(
-    productsSubtotal + servicesSubtotal + manualSubtotal
+  totals.subtotal = round2(
+    totals.productsSubtotal +
+      totals.servicesSubtotal +
+      totals.manualSubtotal +
+      totals.packagingSubtotal // <-- ADAUGAT
   )
-  const overallVat = round2(productsVat + servicesVat + manualVat)
-  const grandTotal = round2(overallSubtotal + overallVat)
+  totals.vatTotal = round2(
+    totals.productsVat +
+      totals.servicesVat +
+      totals.manualVat +
+      totals.packagingVat // <-- ADAUGAT
+  )
+  totals.grandTotal = round2(totals.subtotal + totals.vatTotal)
 
-  const finalTotals = {
-    // Totaluri generale
-    subtotal: overallSubtotal,
-    vatTotal: overallVat,
-    grandTotal,
-    // SUBTOTALURI DETALIATE
-    productsSubtotal: round2(productsSubtotal),
-    productsVat: round2(productsVat),
-    servicesSubtotal: round2(servicesSubtotal),
-    servicesVat: round2(servicesVat),
-    manualSubtotal: round2(manualSubtotal),
-    manualVat: round2(manualVat),
-  }
+  // Rotunjim totul la final
+  Object.keys(totals).forEach((key) => {
+    totals[key as keyof typeof totals] = round2(
+      totals[key as keyof typeof totals]
+    )
+  })
 
-  return { processedLineItems, finalTotals }
+  // Returnăm totalurile complete
+  return { processedLineItems, finalTotals: totals }
 }
+
+
+
 export async function getOrderFormInitialData() {
   try {
     const [shippingRatesResult, vatRatesResult, services, permits] =

@@ -1,6 +1,6 @@
 'use server'
 
-import mongoose, { startSession, Types } from 'mongoose'
+import mongoose, { PipelineStage, startSession, Types } from 'mongoose'
 import { auth } from '@/auth'
 import { getSetting } from '../../setting/setting.actions'
 import {
@@ -20,6 +20,8 @@ import {
   UnsettledAdvanceDTO,
   StornoSourceInvoiceDTO,
   StornableProductDTO,
+  PopulatedInvoice,
+  InvoiceFilters,
 } from './invoice.types'
 import { ISettingInput } from '../../setting/types'
 import { IClientDoc } from '../../client/types'
@@ -40,6 +42,12 @@ import { CreateStornoInput, CreateStornoSchema } from './storno.validator'
 import { CreateReturnNoteInput } from '../return-notes/return-note.validator'
 import { createReturnNote } from '../return-notes/return-note.actions'
 import ReturnNoteModel from '../return-notes/return-note.model'
+import { PAGE_SIZE } from '@/lib/constants'
+import { FilterQuery } from 'mongoose'
+import { revalidatePath } from 'next/cache'
+import { IUser } from '../../user/user.model'
+import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
+import { InvoiceInputSchema } from './invoice.validator'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -389,7 +397,7 @@ export async function createInvoice(
       newInvoice = createdInvoice
 
       // 7. Actualizare Avize, Livrări și Comenzi
-      await updateRelatedDocuments(createdInvoice, { session })
+      await updateRelatedDocuments(createdInvoice, {}, { session })
     }) // <-- Sfârșitul Tranzacției
 
     await session.endSession()
@@ -948,7 +956,7 @@ export async function createStornoInvoice(
 export async function getStornableProductsList(
   clientId: string,
   deliveryAddressId: string,
-  searchTerm: string 
+  searchTerm: string
 ): Promise<
   | { success: true; data: StornableProductDTO[] }
   | { success: false; message: string }
@@ -1043,7 +1051,6 @@ export async function getStornableProductsList(
         {
           $sort: { productName: 1 },
         },
-   
       ])
 
     return {
@@ -1159,7 +1166,7 @@ export async function generateStornoLinesForQuantity(
         // Generează linia storno (negativă)
         newStornoLines.push({
           ...line,
-          sourceInvoiceLineId: line._id.toString(), 
+          sourceInvoiceLineId: line._id.toString(),
           sourceInvoiceId: doc.invoiceId.toString(),
           quantity: -qtyToTake, // Negativ
           quantityInBaseUnit: -(line.quantityInBaseUnit || qtyToTake), // Negativ
@@ -1199,6 +1206,371 @@ export async function generateStornoLinesForQuantity(
     }
   } catch (error) {
     console.error('❌ Eroare generateStornoLinesForQuantity:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+export async function getAllInvoices(
+  page: number = 1,
+  filters: InvoiceFilters = {}
+): Promise<{ data: PopulatedInvoice[]; totalPages: number }> {
+  try {
+    await connectToDatabase()
+
+    const { q, status, eFacturaStatus, minTotal, agentId, clientId } = filters
+
+    const skip = (page - 1) * PAGE_SIZE
+    const limit = PAGE_SIZE
+
+    const pipeline: PipelineStage[] = []
+
+    // --- Faza 1: Filtrare Inițială ($match) ---
+    const matchStage: FilterQuery<IInvoiceDoc> = {}
+    if (status) {
+      matchStage.status = status
+    }
+    if (eFacturaStatus) {
+      matchStage.eFacturaStatus = eFacturaStatus
+    }
+    if (minTotal) {
+      matchStage['totals.grandTotal'] = { $gte: Number(minTotal) }
+    }
+    if (agentId && Types.ObjectId.isValid(agentId)) {
+      matchStage.salesAgentId = new Types.ObjectId(agentId)
+    }
+    if (clientId && Types.ObjectId.isValid(clientId)) {
+      matchStage.clientId = new Types.ObjectId(clientId)
+    }
+
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage })
+    }
+
+    // --- Faza 2: Populare Client & Agent ($lookup) ---
+    pipeline.push({
+      $lookup: {
+        from: 'clients',
+        localField: 'clientId',
+        foreignField: '_id',
+        as: 'clientDoc',
+      },
+    })
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'salesAgentId',
+        foreignField: '_id',
+        as: 'agentDoc',
+      },
+    })
+
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'createdBy',
+        foreignField: '_id',
+        as: 'creatorDoc',
+      },
+    })
+
+    // De-normalizăm array-urile (le transformăm în obiecte)
+    pipeline.push({
+      $unwind: { path: '$clientDoc', preserveNullAndEmptyArrays: true },
+    })
+    pipeline.push({
+      $unwind: { path: '$agentDoc', preserveNullAndEmptyArrays: true },
+    })
+    pipeline.push({
+      $unwind: { path: '$creatorDoc', preserveNullAndEmptyArrays: true },
+    })
+
+    // --- Faza 3: Filtrare Text (după ce am populat) ---
+    if (q) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { invoiceNumber: { $regex: q, $options: 'i' } },
+            { seriesName: { $regex: q, $options: 'i' } },
+            { 'clientDoc.name': { $regex: q, $options: 'i' } },
+          ],
+        },
+      })
+    }
+
+    // --- Faza 4: Paginare și Numărare ($facet) ---
+    pipeline.push({
+      $facet: {
+        totalCount: [{ $count: 'count' }],
+        data: [
+          { $sort: { invoiceDate: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              ...Object.keys(InvoiceModel.schema.paths).reduce(
+                (acc: Record<string, number>, path) => {
+                  acc[path] = 1
+                  return acc
+                },
+                {}
+              ),
+              clientId: '$clientDoc',
+              salesAgentId: {
+                // Acesta e agentul de vânzări
+                _id: '$agentDoc._id',
+                name: '$agentDoc.name',
+              },
+              createdByName: '$creatorDoc.name',
+            },
+          },
+        ],
+      },
+    })
+
+    const result = await InvoiceModel.aggregate(pipeline)
+
+    const data = result[0].data as PopulatedInvoice[]
+    const totalItems = result[0].totalCount[0]?.count || 0
+    const totalPages = Math.ceil(totalItems / PAGE_SIZE)
+
+    return {
+      data: JSON.parse(JSON.stringify(data)),
+      totalPages: totalPages,
+    }
+  } catch (error) {
+    console.error('Eroare la preluarea facturilor:', error)
+    return { data: [], totalPages: 0 }
+  }
+}
+export async function approveInvoice(
+  invoiceId: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const session = await auth()
+
+    if (!session || !session.user || !session.user.id) {
+      throw new Error('Utilizator neautentificat.')
+    }
+
+    const userRole = session?.user?.role || 'user'
+    const isAdmin = SUPER_ADMIN_ROLES.includes(userRole.toLowerCase())
+
+    if (!isAdmin) {
+      throw new Error('Nu aveți permisiunea de a aproba facturi.')
+    }
+
+    await connectToDatabase()
+
+    const invoice = await InvoiceModel.findById(invoiceId)
+    if (!invoice) {
+      throw new Error('Factura nu a fost găsită.')
+    }
+
+    if (invoice.status !== 'CREATED' && invoice.status !== 'REJECTED') {
+      throw new Error(
+        `Factura cu statusul ${invoice.status} nu poate fi aprobată.`
+      )
+    }
+
+    invoice.status = 'APPROVED'
+    invoice.eFacturaStatus = 'PENDING'
+    invoice.approvedBy = new Types.ObjectId(session.user.id)
+    invoice.approvedByName = session.user.name || 'Admin'
+
+    await invoice.save()
+
+    revalidatePath('/financial/invoices')
+    return { success: true, message: 'Factura a fost aprobată.' }
+  } catch (error) {
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+export async function rejectInvoice(
+  invoiceId: string,
+  reason: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const session = await auth()
+
+    if (!session || !session.user || !session.user.id) {
+      throw new Error('Utilizator neautentificat.')
+    }
+
+    const userRole = session?.user?.role || 'user'
+    const isAdmin = SUPER_ADMIN_ROLES.includes(userRole.toLowerCase())
+
+    if (!isAdmin) {
+      throw new Error('Nu aveți permisiunea de a respinge facturi.')
+    }
+
+    if (!reason) {
+      throw new Error('Motivul respingerii este obligatoriu.')
+    }
+
+    await connectToDatabase()
+
+    const invoice = await InvoiceModel.findById(invoiceId)
+    if (!invoice) {
+      throw new Error('Factura nu a fost găsită.')
+    }
+
+    if (invoice.status !== 'CREATED') {
+      throw new Error(
+        `Factura cu statusul ${invoice.status} nu poate fi respinsă.`
+      )
+    }
+
+    invoice.status = 'REJECTED'
+    invoice.rejectionReason = reason
+    await invoice.save()
+
+    revalidatePath('/financial/invoices')
+    return { success: true, message: 'Factura a fost respinsă.' }
+  } catch (error) {
+    return { success: false, message: (error as Error).message }
+  }
+}
+export async function getInvoiceById(
+  invoiceId: string
+): Promise<{ success: boolean; data?: PopulatedInvoice; message?: string }> {
+  try {
+    if (!Types.ObjectId.isValid(invoiceId)) {
+      throw new Error('ID-ul facturii este invalid.')
+    }
+
+    await connectToDatabase()
+
+    // 1. Folosim .populate() normal, FĂRĂ .lean()
+    const invoice = await InvoiceModel.findById(invoiceId)
+      .populate<{ clientId: IClientDoc }>({
+        // Hint de tip pentru TS
+        path: 'clientId',
+        select: 'name cui nrRegComert address bankAccountLei',
+      })
+      .populate<{ salesAgentId: Pick<IUser, '_id' | 'name'> }>({
+        // Hint de tip
+        path: 'salesAgentId',
+        select: 'name',
+      })
+
+    if (!invoice) {
+      throw new Error('Factura nu a fost găsită.')
+    }
+
+    // 2. Convertim documentul Mongoose într-un obiect simplu
+    // Acum `invoice.clientId` ESTE un obiect IClientDoc, nu un ObjectId
+    const plainObject = invoice.toObject()
+
+    // 3. Construim DTO-ul final
+    const populatedData: PopulatedInvoice = {
+      ...plainObject,
+      clientId: plainObject.clientId,
+      salesAgentId: plainObject.salesAgentId,
+    }
+
+    // 4. JSON.parse/stringify convertește toate ObjectId-urile rămase (ca _id, deliveryAddressId)
+    // în string-uri, exact cum are nevoie formularul.
+    return { success: true, data: JSON.parse(JSON.stringify(populatedData)) }
+  } catch (error) {
+    console.error('Eroare la getInvoiceById:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+export async function updateInvoice(
+  invoiceId: string,
+  data: InvoiceInput
+): Promise<InvoiceActionResult> {
+  const session = await startSession()
+  try {
+    let updatedInvoice: IInvoiceDoc | null = null
+
+    // Stocăm ID-urile vechi înainte de tranzacție (sau în interior)
+    const originalInvoiceForCheck = await InvoiceModel.findById(invoiceId)
+      .select('sourceDeliveryNotes status')
+      .lean()
+
+    if (!originalInvoiceForCheck) {
+      throw new Error('Factura originală nu a fost găsită.')
+    }
+
+    // Salvăm ID-urile vechi
+    const originalSourceNoteIds =
+      originalInvoiceForCheck.sourceDeliveryNotes || []
+
+    await session.withTransaction(async (session) => {
+      // ... (validarea, autentificarea) ...
+      const validatedData = InvoiceInputSchema.parse(data) // Parsează datele noi
+
+      // 2. Găsește documentul original (de data asta full, pentru tranzacție)
+      const originalInvoice =
+        await InvoiceModel.findById(invoiceId).session(session)
+      if (!originalInvoice) {
+        throw new Error('Factura originală nu a fost găsită.')
+      }
+
+      // 3. Verifică statusul (folosind datele deja luate)
+      if (
+        originalInvoiceForCheck.status !== 'CREATED' &&
+        originalInvoiceForCheck.status !== 'REJECTED'
+      ) {
+        throw new Error(
+          `Factura cu statusul ${originalInvoice.status} nu mai poate fi modificată.`
+        )
+      }
+
+      // 4. Recalculează totalurile
+      const newTotals = calculateInvoiceTotals(validatedData.items)
+
+      // 5. Actualizează factura
+      originalInvoice.set({
+        invoiceDate: validatedData.invoiceDate,
+        dueDate: validatedData.dueDate,
+        clientId: validatedData.clientId,
+        clientSnapshot: validatedData.clientSnapshot,
+        deliveryAddressId: validatedData.deliveryAddressId,
+        deliveryAddress: validatedData.deliveryAddress,
+        items: validatedData.items,
+        totals: newTotals,
+        notes: validatedData.notes,
+        status: 'CREATED',
+        rejectionReason: undefined,
+        // --- AICI E IMPORTANT ---
+        // Setează noua listă de avize sursă
+        sourceDeliveryNotes: validatedData.sourceDeliveryNotes.map(
+          (id) => new Types.ObjectId(id)
+        ),
+      })
+
+      updatedInvoice = await originalInvoice.save({ session })
+
+      // 6. Actualizează documentele relaționate (ȘTERGEM TODO)
+      await updateRelatedDocuments(
+        updatedInvoice, // Trimitem factura *actualizată*
+        {
+          originalSourceNoteIds: originalSourceNoteIds, // Trimitem ID-urile *vechi*
+        },
+        { session }
+      )
+    }) // Sfârșit tranzacție
+
+    // ... (restul funcției, revalidate, etc.)
+
+    await session.endSession()
+
+    if (updatedInvoice) {
+      revalidatePath('/financial/invoices')
+      revalidatePath(`/financial/invoices/${invoiceId}/edit`)
+
+      return {
+        success: true,
+        data: JSON.parse(JSON.stringify(updatedInvoice)),
+      }
+    } else {
+      throw new Error('Tranzacția nu a returnat o factură actualizată.')
+    }
+  } catch (error) {
+    await session.endSession()
+    console.error('❌ Eroare updateInvoice:', error)
     return { success: false, message: (error as Error).message }
   }
 }

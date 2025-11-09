@@ -21,7 +21,7 @@ import {
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { Download, Pencil, Truck } from 'lucide-react'
-import { useMemo, useState } from 'react' 
+import { useState } from 'react' // Am scos 'useMemo'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -59,42 +59,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
     DELIVERY_METHODS.find((m) => m.key === order.deliveryType)?.label ||
     order.deliveryType
 
-  // --- Blocul useMemo pentru defalcarea totalurilor ---
-  const {
-    productsSubtotal,
-    servicesSubtotal,
-    manualSubtotal,
-    productsVat,
-    servicesVat,
-    manualVat,
-  } = useMemo(() => {
-    return order.lineItems.reduce(
-      (acc, item) => {
-        const itemSubtotal = item.lineValue
-        const itemVatValue = item.lineVatValue
-
-        if (item.productId && !item.isManualEntry) {
-          acc.productsSubtotal += itemSubtotal
-          acc.productsVat += itemVatValue
-        } else if (item.isManualEntry) {
-          acc.manualSubtotal += itemSubtotal
-          acc.manualVat += itemVatValue
-        } else {
-          acc.servicesSubtotal += itemSubtotal
-          acc.servicesVat += itemVatValue
-        }
-        return acc
-      },
-      {
-        productsSubtotal: 0,
-        servicesSubtotal: 0,
-        manualSubtotal: 0,
-        productsVat: 0,
-        servicesVat: 0,
-        manualVat: 0,
-      }
-    )
-  }, [order.lineItems])
+  // --- BLOCUL useMemo A FOST ȘTERS DE AICI ---
 
   const [isProformaModalOpen, setIsProformaModalOpen] = useState(false)
   const [proformaSeries, setProformaSeries] = useState<SeriesDTO[]>([])
@@ -118,7 +83,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
           id: toastId,
           description: `Nr. ${result.data.invoiceNumber}`,
         })
-        setIsProformaModalOpen(false) 
+        setIsProformaModalOpen(false)
       } else {
         toast.error('Eroare la generare:', {
           id: toastId,
@@ -166,7 +131,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
       toast.error('Eroare la încărcarea seriilor.', {
         description: (error as Error).message,
       })
-      setIsGenerating(false) 
+      setIsGenerating(false)
     }
   }
 
@@ -336,42 +301,56 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
             <CardTitle>Sumar Financiar</CardTitle>
           </CardHeader>
           <CardContent className='flex-grow flex flex-col text-sm'>
-            <div className='flex-grow'>
-              {/* Afișăm totalurile calculate din useMemo */}
+            {/* --- ACESTA ESTE BLOCUL MODIFICAT --- */}
+            <div className='flex-grow space-y-1'>
+              {/* Afișăm totalurile direct din order.totals */}
               <div className='flex justify-between font-medium'>
                 <span>Subtotal Articole</span>
-                <span>{formatCurrency(productsSubtotal)}</span>
+                <span>{formatCurrency(order.totals.productsSubtotal)}</span>
               </div>
               <div className='flex justify-between'>
                 <span className='pl-4 text-muted-foreground'>TVA Articole</span>
                 <span className='font-medium text-muted-foreground'>
-                  {formatCurrency(productsVat)}
+                  {formatCurrency(order.totals.productsVat)}
                 </span>
               </div>
+
+              {/* SECȚIUNEA NOUĂ PENTRU AMBALAJE */}
+              <div className='flex justify-between font-medium mt-2'>
+                <span>Subtotal Ambalaje</span>
+                <span>{formatCurrency(order.totals.packagingSubtotal)}</span>
+              </div>
+              <div className='flex justify-between'>
+                <span className='pl-4 text-muted-foreground'>TVA Ambalaje</span>
+                <span className='font-medium text-muted-foreground'>
+                  {formatCurrency(order.totals.packagingVat)}
+                </span>
+              </div>
+
               <div className='flex justify-between font-medium mt-2'>
                 <span>Subtotal Servicii</span>
-                <span>{formatCurrency(servicesSubtotal)}</span>
+                <span>{formatCurrency(order.totals.servicesSubtotal)}</span>
               </div>
               <div className='flex justify-between'>
                 <span className='pl-4 text-muted-foreground'>TVA Servicii</span>
                 <span className='font-medium text-muted-foreground'>
-                  {formatCurrency(servicesVat)}
+                  {formatCurrency(order.totals.servicesVat)}
                 </span>
               </div>
 
-              <>
-                <div className='flex justify-between font-medium mt-2'>
-                  <span>Subtotal Manual</span>
-                  <span>{formatCurrency(manualSubtotal)}</span>
-                </div>
-                <div className='flex justify-between'>
-                  <span className='pl-4 text-muted-foreground'>TVA Manual</span>
-                  <span className='font-medium text-muted-foreground'>
-                    {formatCurrency(manualVat)}
-                  </span>
-                </div>
-              </>
+              <div className='flex justify-between font-medium mt-2'>
+                <span>Subtotal Manual</span>
+                <span>{formatCurrency(order.totals.manualSubtotal)}</span>
+              </div>
+              <div className='flex justify-between'>
+                <span className='pl-4 text-muted-foreground'>TVA Manual</span>
+                <span className='font-medium text-muted-foreground'>
+                  {formatCurrency(order.totals.manualVat)}
+                </span>
+              </div>
             </div>
+            {/* --- SFÂRȘITUL BLOCULUI MODIFICAT --- */}
+
             <div className='mt-auto'>
               <Separator className='my-2' />
               {/* Afișăm totalurile finale din order.totals */}

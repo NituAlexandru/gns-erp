@@ -3,7 +3,7 @@ import {
   DELIVERY_NOTE_STATUSES,
   E_TRANSPORT_STATUSES,
 } from './delivery-note.constants'
-import { MongoId } from '@/lib/validator' 
+import { MongoId } from '@/lib/validator'
 
 // -------------------------------------------------------------
 // Subschemas
@@ -47,6 +47,8 @@ export const DeliveryNoteLineSchema = z.object({
 export const DeliveryNoteTotalsSchema = z.object({
   productsSubtotal: z.number().nonnegative(),
   productsVat: z.number().nonnegative(),
+  packagingSubtotal: z.number().nonnegative(),
+  packagingVat: z.number().nonnegative(),
   servicesSubtotal: z.number().nonnegative(),
   servicesVat: z.number().nonnegative(),
   manualSubtotal: z.number().nonnegative(),

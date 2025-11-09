@@ -41,6 +41,8 @@ export interface DeliveryNoteLineDTO {
 export interface DeliveryNoteTotalsDTO {
   productsSubtotal: number
   productsVat: number
+  packagingSubtotal: number
+  packagingVat: number
   servicesSubtotal: number
   servicesVat: number
   manualSubtotal: number

@@ -7,6 +7,9 @@ import {
   CompanySnapshotSchema,
 } from './invoice.validator'
 import { EFACTURA_STATUSES, INVOICE_STATUSES } from './invoice.constants'
+import { IClientDoc } from '../../client/types'
+import { IUser } from '../../user/user.model'
+import { IInvoiceDoc } from './invoice.model'
 
 // Tipuri exportate din Zod
 export type InvoiceInput = z.infer<typeof InvoiceInputSchema>
@@ -104,4 +107,21 @@ export interface StornableProductDTO {
   productName: string
   unitOfMeasure: string
   totalRemainingToStorno: number // Suma totală rămasă de stornat
+}
+
+// Tipurile pentru filtrele din lista de facturi
+export interface InvoiceFilters {
+  q?: string // Căutare (Nr. Factură, Nume Client)
+  status?: string
+  eFacturaStatus?: string
+  minTotal?: number
+  agentId?: string
+  clientId?: string
+}
+
+// Tipul pentru o factură "populată" (cu client și agent)
+export interface PopulatedInvoice
+  extends Omit<IInvoiceDoc, 'clientId' | 'salesAgentId'> {
+  clientId: IClientDoc // Obiectul client complet
+  salesAgentId: Pick<IUser, '_id' | 'name'> // Doar ID și nume agent
 }

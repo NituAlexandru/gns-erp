@@ -17,8 +17,8 @@ export const INVOICE_STATUS_MAP: Record<
   { name: string; variant: VariantProps<typeof badgeVariants>['variant'] }
 > = {
   CREATED: { name: 'Creată', variant: 'default' },
-  APPROVED: { name: 'Aprobată', variant: 'success' },
-  REJECTED: { name: 'Respinsă-Necesita-Modificari', variant: 'destructive' },
+  APPROVED: { name: 'Aprobată', variant: 'info' },
+  REJECTED: { name: 'Respinsă - Necesita Modificari', variant: 'destructive' },
   PAID: { name: 'Plătită', variant: 'success' },
   CANCELLED: { name: 'Anulată', variant: 'destructive' },
 }
@@ -39,7 +39,7 @@ export const EFACTURA_STATUS_MAP: Record<
   { name: string; variant: VariantProps<typeof badgeVariants>['variant'] }
 > = {
   NOT_REQUIRED: { name: 'Nu e necesară', variant: 'secondary' },
-  PENDING: { name: 'Așteaptă Trimitere', variant: 'default' },
+  PENDING: { name: 'De Trimis', variant: 'default' },
   SENT: { name: 'Trimisă (ANAF)', variant: 'info' },
   ACCEPTED: { name: 'Acceptată (ANAF)', variant: 'success' },
   REJECTED_ANAF: { name: 'Respinsă (ANAF)', variant: 'destructive' },

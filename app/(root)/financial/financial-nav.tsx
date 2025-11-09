@@ -1,23 +1,15 @@
-// app/(root)/financial/financial-nav.tsx
+
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import {
-  LayoutDashboard,
-  FileCheck,
-  FileText,
-  FileMinus,
-  ClipboardList,
-  Receipt,
-} from 'lucide-react'
+import { LayoutDashboard, FileCheck, FileText, Receipt } from 'lucide-react'
 
 const NAV_ITEMS = [
   { id: '', label: 'Sumar', icon: <LayoutDashboard size={16} /> },
   { id: 'delivery-notes', label: 'Avize', icon: <FileCheck size={16} /> },
-  { id: 'invoices', label: 'Facturi', icon: <FileText size={16} /> },
-  { id: 'proformas', label: 'Proforme', icon: <ClipboardList size={16} /> },
-  { id: 'storno', label: 'Storno', icon: <FileMinus size={16} /> },
+  { id: 'invoices', label: 'Facturi Emise', icon: <FileText size={16} /> },
+
   { id: 'receipts', label: 'Chitanțe', icon: <Receipt size={16} /> },
 ]
 

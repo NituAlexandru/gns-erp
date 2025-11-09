@@ -69,6 +69,8 @@ export interface IDeliveryNoteLine {
 export interface IDeliveryNoteTotals {
   productsSubtotal: number
   productsVat: number
+  packagingSubtotal: number
+  packagingVat: number
   servicesSubtotal: number
   servicesVat: number
   manualSubtotal: number
@@ -196,6 +198,8 @@ const DeliveryNoteTotalsSchema = new Schema<IDeliveryNoteTotals>(
   {
     productsSubtotal: { type: Number, required: true },
     productsVat: { type: Number, required: true },
+    packagingSubtotal: { type: Number, required: true, default: 0 }, 
+    packagingVat: { type: Number, required: true, default: 0 }, 
     servicesSubtotal: { type: Number, required: true },
     servicesVat: { type: Number, required: true },
     manualSubtotal: { type: Number, required: true },

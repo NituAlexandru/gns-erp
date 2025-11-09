@@ -315,11 +315,11 @@ export async function updateProductMarkup(
 
 export async function updateProductAveragePurchasePrice(productId: string) {
   // Calculăm cel mai mare cost din stocul curent
-  const highestCost = await getGlobalHighestCostInStock(productId) 
+  const highestCost = await getGlobalHighestCostInStock(productId)
 
   // Actualizăm câmpul pe documentul de produs
   await ERPProductModel.findByIdAndUpdate(productId, {
-    averagePurchasePrice: highestCost, 
+    averagePurchasePrice: highestCost,
   })
 
   console.log(
@@ -370,7 +370,7 @@ export async function searchStockableItems(
             name: 1,
             productCode: 1,
             image: { $first: '$images' },
-            itemType: 'Produs',
+            itemType: 'ERPProduct',
             unit: 1,
             packagingUnit: 1,
             packagingQuantity: 1,
@@ -463,7 +463,7 @@ export async function searchStockableItems(
             name: 1,
             productCode: 1,
             image: { $first: '$images' },
-            itemType: 'Ambalaj',
+            itemType: 'Packaging',
             unit: '$packagingUnit',
             totalStock: { $ifNull: ['$inventoryDoc.totalStock', 0] },
             totalReserved: { $ifNull: ['$inventoryDoc.totalReserved', 0] },
@@ -527,7 +527,7 @@ export async function calculateMinimumPrice(
     if (!itemWithMarkups) {
       itemWithMarkups = await PackagingModel.findById(itemId)
         .select('defaultMarkups')
-        .lean<ItemWithMarkups>() 
+        .lean<ItemWithMarkups>()
     }
 
     if (!itemWithMarkups) {

@@ -89,6 +89,8 @@ export interface IOrder extends Document {
   totals: {
     productsSubtotal: number
     productsVat: number
+    packagingSubtotal: number
+    packagingVat: number
     servicesSubtotal: number
     servicesVat: number
     manualSubtotal: number
@@ -170,6 +172,8 @@ const OrderSchema = new Schema<IOrder>(
     totals: {
       productsSubtotal: { type: Number, default: 0 },
       productsVat: { type: Number, default: 0 },
+      packagingSubtotal: { type: Number, default: 0 },
+      packagingVat: { type: Number, default: 0 },
       servicesSubtotal: { type: Number, default: 0 },
       servicesVat: { type: Number, default: 0 },
       manualSubtotal: { type: Number, default: 0 },

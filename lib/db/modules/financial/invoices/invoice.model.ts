@@ -151,9 +151,12 @@ const InvoiceLineSubSchema = new Schema<InvoiceLineInput>(
 
 const InvoiceTotalsSubSchema = new Schema<InvoiceTotals>(
   {
-    // Defalcare pe categorii
     productsSubtotal: { type: Number, default: 0 },
     productsVat: { type: Number, default: 0 },
+
+    packagingSubtotal: { type: Number, default: 0 },
+    packagingVat: { type: Number, default: 0 },
+
     servicesSubtotal: { type: Number, default: 0 },
     servicesVat: { type: Number, default: 0 },
     manualSubtotal: { type: Number, default: 0 },
@@ -168,12 +171,19 @@ const InvoiceTotalsSubSchema = new Schema<InvoiceTotals>(
     productsCost: { type: Number, default: 0 },
     productsProfit: { type: Number, default: 0 },
     productsMargin: { type: Number, default: 0 },
+
+    packagingCost: { type: Number, default: 0 },
+    packagingProfit: { type: Number, default: 0 },
+    packagingMargin: { type: Number, default: 0 },
+
     servicesCost: { type: Number, default: 0 },
     servicesProfit: { type: Number, default: 0 },
     servicesMargin: { type: Number, default: 0 },
+
     manualCost: { type: Number, default: 0 },
     manualProfit: { type: Number, default: 0 },
     manualMargin: { type: Number, default: 0 },
+
     totalCost: { type: Number, default: 0 },
     totalProfit: { type: Number, default: 0 },
     profitMargin: { type: Number, default: 0 },

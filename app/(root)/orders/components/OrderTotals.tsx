@@ -16,9 +16,11 @@ export function OrderTotals() {
 
   const {
     productsSubtotal,
+    packagingSubtotal,
     servicesSubtotal,
     manualSubtotal,
     productsVat,
+    packagingVat,
     servicesVat,
     manualVat,
   } = useMemo(() => {
@@ -28,24 +30,33 @@ export function OrderTotals() {
           (item.priceAtTimeOfOrder || 0) * (Number(item.quantity) || 0)
         const itemVatValue = item.vatRateDetails?.value || 0
 
-        if (item.productId && !item.isManualEntry) {
-          acc.productsSubtotal += itemSubtotal
-          acc.productsVat += itemVatValue
-        } else if (item.isManualEntry) {
+        if (item.isManualEntry) {
+          // Caz 1: Manual
           acc.manualSubtotal += itemSubtotal
           acc.manualVat += itemVatValue
-        } else {
+        } else if (item.serviceId) {
+          // Caz 2: Serviciu
           acc.servicesSubtotal += itemSubtotal
           acc.servicesVat += itemVatValue
+        } else if (item.stockableItemType === 'Packaging') {
+          // Caz 3: Ambalaj (NOU)
+          acc.packagingSubtotal += itemSubtotal
+          acc.packagingVat += itemVatValue
+        } else if (item.productId || item.stockableItemType === 'ERPProduct') {
+          // Caz 4: Produs (default)
+          acc.productsSubtotal += itemSubtotal
+          acc.productsVat += itemVatValue
         }
 
         return acc
       },
       {
         productsSubtotal: 0,
+        packagingSubtotal: 0,
         servicesSubtotal: 0,
         manualSubtotal: 0,
         productsVat: 0,
+        packagingVat: 0,
         servicesVat: 0,
         manualVat: 0,
       }
@@ -53,9 +64,11 @@ export function OrderTotals() {
 
     return {
       productsSubtotal: round2(totals.productsSubtotal),
+      packagingSubtotal: round2(totals.packagingSubtotal),
       servicesSubtotal: round2(totals.servicesSubtotal),
       manualSubtotal: round2(totals.manualSubtotal),
       productsVat: round2(totals.productsVat),
+      packagingVat: round2(totals.packagingVat),
       servicesVat: round2(totals.servicesVat),
       manualVat: round2(totals.manualVat),
     }
@@ -80,6 +93,17 @@ export function OrderTotals() {
           <span className='pl-4 text-muted-foreground'>TVA Articole</span>
           <span className='font-medium text-muted-foreground'>
             {formatCurrency(productsVat)}
+          </span>
+        </div>
+
+        <div className='flex justify-between text-sm font-medium'>
+          <span>Subtotal Ambalaje</span>
+          <span>{formatCurrency(packagingSubtotal)}</span>
+        </div>
+        <div className='flex justify-between text-sm'>
+          <span className='pl-4 text-muted-foreground'>TVA Ambalaje</span>
+          <span className='font-medium text-muted-foreground'>
+            {formatCurrency(packagingVat)}
           </span>
         </div>
 

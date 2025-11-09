@@ -1,13 +1,27 @@
+
 import { Button } from '@/components/ui/button'
 import { PlusCircle } from 'lucide-react'
 import Link from 'next/link'
-// Vom crea aceste componente mai târziu
-// import { getInvoices } from '@/lib/db/modules/financial/invoices/invoice.actions'
-// import { InvoicesDataTable } from './components/InvoicesDataTable'
+import { getAllInvoices } from '@/lib/db/modules/financial/invoices/invoice.actions'
+import { InvoicesList } from './components/InvoicesList'
+import { auth } from '@/auth'
+import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 
-export default async function InvoicesPage() {
-  // TODO: De-comentează când avem acțiunea și tabelul
-  // const invoicesResult = await getInvoices({ page: 1 })
+export default async function InvoicesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>
+}) {
+  const { page: pageParam } = await searchParams
+  const page = Number(pageParam) || 1
+
+  const session = await auth()
+
+  const userRole = session?.user?.role || 'user'
+  const isAdmin = SUPER_ADMIN_ROLES.includes(userRole.toLowerCase())
+
+  // Preluăm datele inițiale pe server
+  const initialData = await getAllInvoices(page)
 
   return (
     <div className='flex flex-col gap-2'>
@@ -22,16 +36,12 @@ export default async function InvoicesPage() {
         </Button>
       </div>
 
-      {/* Aici va veni componenta client InvoicesDataTable */}
-      <div className='border rounded-lg p-4 bg-card'>
-        <p className='text-muted-foreground'>
-          Aici va fi lista de facturi (InvoicesDataTable)...
-        </p>
-        {/* <InvoicesDataTable
-          data={invoicesResult.data}
-          pagination={invoicesResult.pagination}
-        /> */}
-      </div>
+      {/* Componenta Client care se ocupă de paginare și filtrare */}
+      <InvoicesList
+        initialData={initialData}
+        currentPage={page}
+        isAdmin={isAdmin}
+      />
     </div>
   )
 }

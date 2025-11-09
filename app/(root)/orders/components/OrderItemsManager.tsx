@@ -187,9 +187,9 @@ export function OrderItemsManager({
     try {
       let fullData: StockableItemForOrderLine | null = null
 
-      if (item.itemType === 'Produs') {
+      if (item.itemType === 'ERPProduct') {
         fullData = await getProductForOrderLine(item._id)
-      } else if (item.itemType === 'Ambalaj') {
+      } else if (item.itemType === 'Packaging') {
         fullData = await getPackagingForOrderLine(item._id)
       }
 

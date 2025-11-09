@@ -34,6 +34,7 @@ import {
   generateStornoLinesForQuantity,
   getLinesFromInvoices,
   getStornoSourceInvoices,
+  updateInvoice,
 } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { useRouter } from 'next/navigation'
 import { SearchedService } from '@/lib/db/modules/setting/services/types'
@@ -43,7 +44,7 @@ import { CreateStornoInput } from '@/lib/db/modules/financial/invoices/storno.va
 import { SelectStornoProductModal } from './form-sections/SelectStornoProductModal'
 
 interface InvoiceFormProps {
-  initialData: Partial<InvoiceInput> | null
+  initialData: (Partial<InvoiceInput> & { _id?: string }) | null
   companySettings: ISettingInput
   seriesList: SeriesDTO[]
   vatRates: VatRateDTO[]
@@ -338,10 +339,24 @@ export function InvoiceForm({
   }, [selectedAddress, form])
 
   const handleLoadNotes = (selectedNotes: IDeliveryNoteDoc[]) => {
-    remove()
-    const newInvoiceItems = selectedNotes.flatMap((note) =>
+    // 1. Obține starea curentă
+    const currentSourceNoteIds = new Set(getValues('sourceDeliveryNotes') || [])
+
+    // 2. Filtrează avizele care SUNT DEJA pe factură
+    const newNotesToAdd = selectedNotes.filter(
+      (note) => !currentSourceNoteIds.has(note._id.toString())
+    )
+
+    // 3. Verifică dacă am rămas cu ceva de adăugat
+    if (newNotesToAdd.length === 0) {
+      toast.info('Toate avizele selectate sunt deja încărcate.')
+      setShowNoteLoaderModal(false)
+      return
+    }
+
+    // 4. Procesează DOAR avizele noi
+    const newInvoiceItems = newNotesToAdd.flatMap((note) =>
       note.items.map((item: IDeliveryNoteLine) => {
-        // Calculăm profitul liniei AICI
         const lineValue = item?.lineValue || 0
         const lineCost =
           item.productCode === 'MANUAL' ? 0 : item?.lineCostFIFO || 0
@@ -349,7 +364,7 @@ export function InvoiceForm({
         const lineMargin =
           lineValue > 0 ? round2((lineProfit / lineValue) * 100) : 0
 
-        // Returnăm obiectul complet
+        // Returnăm obiectul complet (logica ta existentă e corectă)
         return {
           sourceDeliveryNoteId: note._id.toString(),
           sourceDeliveryNoteLineId: item._id?.toString() || undefined,
@@ -389,20 +404,27 @@ export function InvoiceForm({
       })
     )
 
+    // 5. Adaugă (append) liniile noi la cele existente (FĂRĂ remove())
     append(newInvoiceItems)
 
+    // 6. Combină ID-urile avizelor sursă (vechi + noi)
+    const newSourceIds = newNotesToAdd.map((n) => n._id.toString())
     setValue(
       'sourceDeliveryNotes',
-      selectedNotes.map((n) => n._id.toString())
+      [...Array.from(currentSourceNoteIds), ...newSourceIds], // Folosim Set-ul
+      { shouldDirty: true }
     )
-    setLoadedNotes(
-      selectedNotes.map((n) => ({
-        id: n._id.toString(),
-        ref: `${n.seriesName}-${n.noteNumber}`,
-      }))
-    )
+
+    // 7. Combină referințele pentru badge-uri (vechi + noi)
+    const newLoadedNotes = newNotesToAdd.map((n) => ({
+      id: n._id.toString(),
+      ref: `${n.seriesName}-${n.noteNumber}`,
+    }))
+    setLoadedNotes((prev) => [...prev, ...newLoadedNotes])
+
+    // 8. Feedback
     toast.success(
-      `${newInvoiceItems.length} linii au fost încărcate din ${selectedNotes.length} avize.`
+      `${newInvoiceItems.length} linii au fost adăugate din ${newNotesToAdd.length} avize noi.`
     )
     setShowNoteLoaderModal(false)
   }
@@ -483,9 +505,9 @@ export function InvoiceForm({
         description:
           'Vă rugăm să selectați un client și o adresă înainte de a stornare.',
       })
-      return 
+      return
     }
-    setIsLoading(true) 
+    setIsLoading(true)
     const toastId = toast.loading('Se generează liniile storno...', {
       description: `Cantitate: ${quantityToStorno}, Produs ID: ${productId}`,
     })
@@ -499,7 +521,7 @@ export function InvoiceForm({
       )
 
       if (result.success) {
-        // 1. Convertim datele 
+        // 1. Convertim datele
         const linesWithDates = result.data.lines.map(
           (line: InvoiceLineInput) => ({
             ...line,
@@ -541,7 +563,7 @@ export function InvoiceForm({
           id: toastId,
           description: `Generat din: ${result.data.sourceInvoiceRefs.join(', ')}`,
         })
-        setShowStornoProductModal(false) 
+        setShowStornoProductModal(false)
       } else {
         // Eroare de la server
         toast.error('Eroare la generarea liniilor', {
@@ -615,8 +637,15 @@ export function InvoiceForm({
 
     try {
       let result: InvoiceActionResult
-      if (values.invoiceType === 'STORNO') {
-        // --- CAZUL 1: E FACTURĂ STORNO ---
+
+      // 🔽 --- AICI ESTE LOGICA NOUĂ --- 🔽
+      if (initialData && initialData._id) {
+        // --- CAZUL 1: SUNTEM ÎN MODUL EDITARE ---
+        // (initialData a fost primit ca prop)
+
+        result = await updateInvoice(initialData._id.toString(), values)
+      } else if (values.invoiceType === 'STORNO') {
+        // --- CAZUL 2: SUNTEM ÎN MODUL CREARE (Flux B sau C) ---
 
         // 1. Găsim o serie validă pentru Nota de Retur (fără hardcodare)
         const returnNoteSeriesList = (await getActiveSeriesForDocumentType(
@@ -637,7 +666,7 @@ export function InvoiceForm({
 
         const returnNoteSeriesName = returnNoteSeriesList[0].name
 
-        // 2. Facem cast la tipul de Storno (care e mai strict)
+        // 2. Facem cast la tipul de Storno
         const stornoData = {
           ...values,
           invoiceType: 'STORNO',
@@ -649,23 +678,26 @@ export function InvoiceForm({
         // 3. Apelăm noua acțiune de stornare
         result = await createStornoInvoice(stornoData)
       } else {
-        // --- CAZUL 2: E FACTURĂ STANDARD sau AVANS ---
+        // --- CAZUL 3: SUNTEM ÎN MODUL CREARE (Standard sau Avans) ---
         result = await createInvoice(values, 'CREATED')
       }
+      // 🔼 --- SFÂRȘIT LOGICĂ NOUĂ --- 🔼
 
+      // --- Logica de Răspuns (e aceeași, dar am adaptat mesajul) ---
       if (result.success) {
         toast.dismiss(loadingToastId)
 
-        const successMessage =
-          values.invoiceType === 'STORNO'
+        // Mesaj de succes adaptat
+        const successMessage = initialData
+          ? `Factura ${result.data.invoiceNumber} a fost modificată.`
+          : values.invoiceType === 'STORNO'
             ? `Factura Storno ${result.data.invoiceNumber} a fost creată.`
             : `Factura ${result.data.invoiceNumber} a fost creată.`
 
         toast.success(successMessage)
-        // 🔼 --- SFÂRȘIT CORECȚIE --- 🔼
 
         setIsLoading(false)
-        router.push('/financial/invoices')
+        router.push('/financial/invoices') // Ne întoarcem la listă
       } else {
         toast.dismiss(loadingToastId)
         toast.error('Eroare la salvare:', { description: result.message })
@@ -732,6 +764,7 @@ export function InvoiceForm({
             addressId={selectedAddress._id.toString()}
             onClose={() => setShowNoteLoaderModal(false)}
             onConfirm={handleLoadNotes}
+            alreadyLoadedNoteIds={loadedNotes.map((n) => n.id)}
           />
         )}
 

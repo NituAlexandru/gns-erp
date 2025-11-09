@@ -4,7 +4,7 @@ import DeliveryNoteModel, {
   IDeliveryNoteLine,
 } from '../delivery-notes/delivery-note.model'
 import { InvoiceLineInput, InvoiceTotals } from './invoice.types'
-import { ClientSession } from 'mongoose'
+import { ClientSession, Types } from 'mongoose'
 import { IInvoiceDoc } from './invoice.model'
 import DeliveryModel from '../../deliveries/delivery.model'
 import Order, { IOrder } from '../../order/order.model'
@@ -307,65 +307,94 @@ export function calculateInvoiceTotals(
  * Această funcție rulează ÎN INTERIORUL tranzacției.
  */
 export async function updateRelatedDocuments(
-  invoice: IInvoiceDoc, // 'invoice' este documentul salvat, care conține noile câmpuri
+  invoice: IInvoiceDoc,
+  options: {
+    // ID-urile de avize de pe factură ÎNAINTE de salvare
+    originalSourceNoteIds?: Types.ObjectId[]
+  },
   { session }: { session: ClientSession }
 ) {
-  // 1. Actualizăm Avizele (DeliveryNote)
-  await DeliveryNoteModel.updateMany(
-    { _id: { $in: invoice.sourceDeliveryNotes } },
-    { $set: { status: 'INVOICED', isInvoiced: true } },
-    { session }
+  // 1. Calculăm diferențele (Diff)
+  const newNoteIds = new Set(
+    invoice.sourceDeliveryNotes.map((id) => id.toString())
+  )
+  const oldNoteIds = new Set(
+    (options.originalSourceNoteIds || []).map((id) => id.toString())
   )
 
-  // 2. Extragem ID-urile unice DIRECT DIN FACTURĂ
+  // A. Găsește avizele care TOCMAI AU FOST ADĂUGATE la factură
+  const notesToMarkAsInvoiced = invoice.sourceDeliveryNotes.filter(
+    (id) => !oldNoteIds.has(id.toString())
+  )
+
+  // B. Găsește avizele care TOCMAI AU FOST ȘTERSE de pe factură
+  const notesToRelease = (options.originalSourceNoteIds || []).filter(
+    (id) => !newNoteIds.has(id.toString())
+  )
+
+  // 2. Actualizăm Avizele (DeliveryNote)
+  if (notesToMarkAsInvoiced.length > 0) {
+    await DeliveryNoteModel.updateMany(
+      { _id: { $in: notesToMarkAsInvoiced } },
+      { $set: { status: 'INVOICED', isInvoiced: true } },
+      { session }
+    )
+  }
+  if (notesToRelease.length > 0) {
+    await DeliveryNoteModel.updateMany(
+      { _id: { $in: notesToRelease } },
+      { $set: { status: 'DELIVERED', isInvoiced: false } }, // Le eliberăm
+      { session }
+    )
+  }
+
+  // 3. Extragem ID-urile unice DIRECT DIN FACTURĂ
   const deliveryIds = invoice.relatedDeliveries
   const orderIds = invoice.relatedOrders
 
-  // 3. Actualizăm Livrările (Delivery)
-  await DeliveryModel.updateMany(
+  // 4. Actualizăm Livrările (Delivery)
+ await DeliveryModel.updateMany(
     { _id: { $in: deliveryIds } },
     { $set: { status: 'INVOICED', isInvoiced: true } },
     { session }
   )
 
-  // 4. Actualizăm Comenzile (Order) - cu logica PARTIALLY_INVOICED
+  // 5. Actualizăm Comenzile (Order) 
   for (const orderId of orderIds) {
-    // A. Găsim TOATE livrările (deliveries) pentru această comandă
     const allDeliveriesForOrder = await DeliveryModel.find({
       orderId: orderId,
-      status: { $ne: 'CANCELLED' }, // Ignorăm livrările anulate
+      status: { $ne: 'CANCELLED' },
     })
-      .select('status') // Avem nevoie doar de status
+      .select('status')
       .lean()
       .session(session)
 
     if (allDeliveriesForOrder.length === 0) {
-      continue // Nu există livrări, nu schimba statusul
+      continue
     }
 
-    // B. Verificăm dacă TOATE livrările sunt facturate
     const allInvoiced = allDeliveriesForOrder.every(
       (d) => d.status === 'INVOICED'
     )
-
-    // C. Verificăm dacă MĂCAR UNA este facturată (dar nu toate)
     const partiallyInvoiced = allDeliveriesForOrder.some(
       (d) => d.status === 'INVOICED'
     )
 
-    let newStatus: IOrder['status'] // Tipul corect
+    let newStatus: IOrder['status']
 
     if (allInvoiced) {
       newStatus = 'INVOICED'
     } else if (partiallyInvoiced) {
-      newStatus = 'PARTIALLY_INVOICED' // Noul tău status
+      newStatus = 'PARTIALLY_INVOICED'
     } else {
-      // Dacă nicio livrare nu e facturată încă, nu schimbăm statusul comenzii
-      // (rămâne ex: 'DELIVERED' sau 'PARTIALLY_DELIVERED')
-      continue
+      // Dacă niciuna nu e facturată (ex: am șters singurul aviz)
+      // Ar trebui să ne întoarcem la 'DELIVERED' sau 'PARTIALLY_DELIVERED'
+      const allDelivered = allDeliveriesForOrder.every(
+        (d) => d.status === 'DELIVERED'
+      )
+      newStatus = allDelivered ? 'DELIVERED' : 'PARTIALLY_DELIVERED'
     }
 
-    // D. Actualizăm statusul comenzii
     await Order.findByIdAndUpdate(
       orderId,
       { $set: { status: newStatus } },

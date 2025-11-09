@@ -23,6 +23,7 @@ interface SelectAvizeModalProps {
   addressId: string
   onClose: () => void
   onConfirm: (selectedNotes: IDeliveryNoteDoc[]) => void
+  alreadyLoadedNoteIds: string[]
 }
 
 export function SelectAvizeModal({
@@ -30,6 +31,7 @@ export function SelectAvizeModal({
   addressId,
   onClose,
   onConfirm,
+  alreadyLoadedNoteIds,
 }: SelectAvizeModalProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [avize, setAvize] = useState<IDeliveryNoteDoc[]>([])
@@ -41,7 +43,12 @@ export function SelectAvizeModal({
       setIsLoading(true)
       const result = await getUninvoicedDeliveryNotes(clientId, addressId)
       if (result.success && result.data) {
-        setAvize(result.data)
+        // --- 3. FILTREAZĂ REZULTATELE ---
+        const filteredAvize = result.data.filter(
+          (note) => !alreadyLoadedNoteIds.includes(note._id.toString())
+        )
+        setAvize(filteredAvize) // Setează lista deja filtrată
+        // --- SFÂRȘIT MODIFICARE ---
       } else {
         // TODO: Arată o eroare toast
         console.error(result.message)
@@ -49,7 +56,7 @@ export function SelectAvizeModal({
       setIsLoading(false)
     }
     fetchData()
-  }, [clientId, addressId])
+  }, [clientId, addressId, alreadyLoadedNoteIds])
 
   const handleToggleSelect = (noteId: string) => {
     setSelectedIds((prev) => {

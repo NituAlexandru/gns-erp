@@ -85,6 +85,8 @@ function calculateDeliveryTotals(
   const totals: IDelivery['totals'] = {
     productsSubtotal: 0,
     servicesSubtotal: 0,
+    packagingSubtotal: 0,
+    packagingVat: 0,
     manualSubtotal: 0,
     productsVat: 0,
     servicesVat: 0,
@@ -94,22 +96,45 @@ function calculateDeliveryTotals(
     grandTotal: 0,
   }
   for (const line of deliveryLines) {
-    totals.subtotal += line.lineValue
-    totals.vatTotal += line.lineVatValue
-    if (line.stockableItemType) {
-      totals.productsSubtotal += line.lineValue
-      totals.productsVat += line.lineVatValue
-    } else {
+    if (line.isManualEntry) {
+      // Caz 1: Manual
+      totals.manualSubtotal += line.lineValue
+      totals.manualVat += line.lineVatValue
+    } else if (line.serviceId) {
+      // Caz 2: Serviciu
       totals.servicesSubtotal += line.lineValue
       totals.servicesVat += line.lineVatValue
+    } else if (line.stockableItemType === 'Packaging') {
+      // Caz 3: Ambalaj
+      totals.packagingSubtotal += line.lineValue
+      totals.packagingVat += line.lineVatValue
+    } else if (line.productId || line.stockableItemType === 'ERPProduct') {
+      // Caz 4: Produs (default)
+      totals.productsSubtotal += line.lineValue
+      totals.productsVat += line.lineVatValue
     }
   }
+  totals.subtotal = round2(
+    totals.productsSubtotal +
+      totals.packagingSubtotal +
+      totals.servicesSubtotal +
+      totals.manualSubtotal
+  )
+  totals.vatTotal = round2(
+    totals.productsVat +
+      totals.packagingVat +
+      totals.servicesVat +
+      totals.manualVat
+  )
   totals.grandTotal = round2(totals.subtotal + totals.vatTotal)
+
+  // Rotunjim totul la final
   Object.keys(totals).forEach((key) => {
     totals[key as keyof IDelivery['totals']] = round2(
       totals[key as keyof IDelivery['totals']]
     )
   })
+
   return totals
 }
 function createSingleDeliveryDocument(
@@ -467,13 +492,13 @@ export async function getUnassignedDeliveriesForDate(
     const endDate = fromZonedTime(endOfDayLocal, TIMEZONE)
 
     const deliveries = await DeliveryModel.find({
-      status: 'CREATED', 
+      status: 'CREATED',
       requestedDeliveryDate: {
         $gte: startDate,
-        $lte: endDate, 
+        $lte: endDate,
       },
     })
-      .sort({ requestedDeliverySlots: 1, createdAt: 1 }) 
+      .sort({ requestedDeliverySlots: 1, createdAt: 1 })
       .lean<IDelivery[]>()
 
     return JSON.parse(JSON.stringify(deliveries))
@@ -516,7 +541,7 @@ export async function getAssignedDeliveriesForDate(
 
 export async function scheduleDelivery(
   deliveryId: string,
-  data: ScheduleDeliveryInput 
+  data: ScheduleDeliveryInput
 ) {
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
@@ -561,7 +586,7 @@ export async function scheduleDelivery(
       _id: { $ne: deliveryId }, // Exclude livrarea curentă
       assemblyId: new Types.ObjectId(data.assemblyId), // Același ansamblu
       deliveryDate: startOfDay(data.deliveryDate), // Aceeași zi
-      status: { $ne: 'CANCELLED' }, 
+      status: { $ne: 'CANCELLED' },
     }
 
     if (isBookingAllDay) {
@@ -604,7 +629,7 @@ export async function scheduleDelivery(
         : 'N/A'
     const finalDriverId =
       assignment.driverId && typeof assignment.driverId === 'object'
-        ? assignment.driverId._id 
+        ? assignment.driverId._id
         : null
 
     const vehicleNumber =
@@ -613,11 +638,11 @@ export async function scheduleDelivery(
         : 'N/A'
     const finalVehicleId =
       assignment.vehicleId && typeof assignment.vehicleId === 'object'
-        ? assignment.vehicleId._id 
+        ? assignment.vehicleId._id
         : null
 
     let finalTrailerId: Types.ObjectId | null = null
-    let finalTrailerNumber: string | undefined = undefined 
+    let finalTrailerNumber: string | undefined = undefined
 
     if (data.trailerId && data.trailerId !== 'none') {
       // Cazul 1: O remorcă specifică a fost selectată în formular
@@ -635,7 +660,7 @@ export async function scheduleDelivery(
     } else if (data.trailerId === 'none') {
       // Cazul 2: S-a selectat explicit "Fără Remorcă"
       finalTrailerId = null
-      finalTrailerNumber = undefined 
+      finalTrailerNumber = undefined
     }
 
     // Actualizăm documentul de livrare
