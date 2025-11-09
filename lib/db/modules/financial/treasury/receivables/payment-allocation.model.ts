@@ -1,0 +1,40 @@
+import mongoose, { Schema, models, Model } from 'mongoose'
+import { IPaymentAllocationDoc } from './payment-allocation.types' // <-- Importă din types
+
+// --- Schema Mongoose ---
+const PaymentAllocationSchema = new Schema<IPaymentAllocationDoc>(
+  {
+    paymentId: {
+      type: Schema.Types.ObjectId,
+      ref: 'ClientPayment',
+      required: true,
+      index: true,
+    },
+    invoiceId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Invoice',
+      required: true,
+      index: true,
+    },
+    amountAllocated: {
+      type: Number,
+      required: true,
+      min: 0.01,
+    },
+    allocationDate: { type: Date, required: true },
+    createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    createdByName: { type: String, required: true },
+  },
+  { timestamps: true }
+)
+
+PaymentAllocationSchema.index({ paymentId: 1, invoiceId: 1 }, { unique: true })
+
+const PaymentAllocationModel =
+  (models.PaymentAllocation as Model<IPaymentAllocationDoc>) ||
+  mongoose.model<IPaymentAllocationDoc>(
+    'PaymentAllocation',
+    PaymentAllocationSchema
+  )
+
+export default PaymentAllocationModel
