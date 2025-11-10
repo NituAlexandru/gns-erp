@@ -22,8 +22,11 @@ import {
   getActiveSeriesForDocumentType,
 } from '../../numbering/numbering.actions'
 import { ISeries } from '../../numbering/series.model'
-import { ABLY_CHANNELS, ABLY_EVENTS } from '../../ably/constants'
-import { getAblyRest } from '../../ably/ably-rest'
+import {
+  ABLY_API_ENDPOINTS,
+  ABLY_CHANNELS,
+  ABLY_EVENTS,
+} from '../../ably/constants'
 import { getSetting } from '../../setting/setting.actions'
 import Order from '../../order/order.model'
 import { IOrderLineItem } from '../../order/types'
@@ -210,15 +213,24 @@ export async function createDeliveryNote({
     if (createdNote) {
       // --- PUBLICĂ EVENIMENTUL PE ABLY ---
       try {
-        const ablyRest = getAblyRest() // Creează o instanță locală
-        const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-        await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-          deliveryId: createdNote.deliveryId,
-          newStatus: createdNote.status,
-          message: `Aviz ${createdNote.seriesName}-${createdNote.noteNumber} generat.`,
-        })
+        fetch(
+          `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              channel: ABLY_CHANNELS.PLANNER,
+              event: ABLY_EVENTS.DATA_CHANGED,
+              data: {
+                deliveryId: createdNote.deliveryId,
+                newStatus: createdNote.status,
+                message: `Aviz ${createdNote.seriesName}-${createdNote.noteNumber} generat.`,
+              },
+            }),
+          }
+        )
       } catch (ablyError) {
-        console.error('❌ Eroare la publicarea pe Ably:', ablyError)
+        console.error('❌ Ably fetch trigger error (createNote):', ablyError)
       }
 
       revalidatePath('/deliveries') // Păstrează asta
@@ -388,17 +400,26 @@ export async function confirmDeliveryNote({
 
       // 5. Publică pe Ably (în afara tranzacției)
       try {
-        const ablyRest = getAblyRest() // Creează o instanță locală
-        const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-        await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-          deliveryId: confirmedNote.deliveryId,
-          newStatus: confirmedNote.status,
-          orderId: orderForAbly.id,
-          newOrderStatus: orderForAbly.status,
-          message: `Livrare ${deliveryForAbly.number} confirmată.`,
-        })
+        fetch(
+          `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              channel: ABLY_CHANNELS.PLANNER,
+              event: ABLY_EVENTS.DATA_CHANGED,
+              data: {
+                deliveryId: confirmedNote.deliveryId,
+                newStatus: confirmedNote.status,
+                orderId: orderForAbly.id,
+                newOrderStatus: orderForAbly.status,
+                message: `Livrare ${deliveryForAbly.number} confirmată.`,
+              },
+            }),
+          }
+        )
       } catch (ablyError) {
-        console.error('❌ Eroare la publicarea pe Ably:', ablyError)
+        console.error('❌ Ably fetch trigger error (confirmNote):', ablyError)
       }
 
       // 6. Invalidează Cache-ul
@@ -592,17 +613,26 @@ export async function cancelDeliveryNote({
 
       // 5. Publică pe Ably
       try {
-        const ablyRest = getAblyRest() // Creează o instanță locală
-        const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-        await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-          deliveryId: cancelledNote.deliveryId,
-          newStatus: deliveryForAbly.status, // SCHEDULED
-          orderId: orderForAbly.id,
-          newOrderStatus: orderForAbly.status,
-          message: `Aviz pentru livrarea ${deliveryForAbly.number} a fost anulat.`,
-        })
+        fetch(
+          `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              channel: ABLY_CHANNELS.PLANNER,
+              event: ABLY_EVENTS.DATA_CHANGED,
+              data: {
+                deliveryId: cancelledNote.deliveryId,
+                newStatus: deliveryForAbly.status, // Noul status al livrării (SCHEDULED)
+                orderId: orderForAbly.id,
+                newOrderStatus: orderForAbly.status,
+                message: `Aviz pentru livrarea ${deliveryForAbly.number} a fost anulat.`,
+              },
+            }),
+          }
+        )
       } catch (ablyError) {
-        console.error('❌ Eroare la publicarea pe Ably:', ablyError)
+        console.error('❌ Ably fetch trigger error (cancelNote):', ablyError)
       }
 
       // 6. Invalidează Cache-ul

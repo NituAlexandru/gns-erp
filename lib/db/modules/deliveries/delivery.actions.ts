@@ -24,8 +24,11 @@ import AssignmentModel from '../fleet/assignments/assignments.model'
 import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
 import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import TrailerModel from '../fleet/trailers/trailers.model'
-import { getAblyRest } from '../ably/ably-rest'
-import { ABLY_CHANNELS, ABLY_EVENTS } from '../ably/constants'
+import {
+  ABLY_API_ENDPOINTS,
+  ABLY_CHANNELS,
+  ABLY_EVENTS,
+} from '../ably/constants'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -248,17 +251,22 @@ export async function createSingleDelivery(
     await mongoSession.commitTransaction()
 
     try {
-      const ablyRest = getAblyRest() // Creează o instanță locală
-      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-        message: `Livrare nouă ${savedDelivery.deliveryNumber} creată.`,
-        deliveryId: savedDelivery._id.toString(),
-        newStatus: savedDelivery.status,
-        user: user.name,
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: ABLY_CHANNELS.PLANNER,
+          event: ABLY_EVENTS.DATA_CHANGED,
+          data: {
+            message: `Livrare nouă ${savedDelivery.deliveryNumber} creată.`,
+            deliveryId: savedDelivery._id.toString(),
+            newStatus: savedDelivery.status,
+            user: user.name,
+          },
+        }),
       })
     } catch (ablyError) {
-      console.error('Ably publish error (createDelivery):', ablyError)
-      // Nu bloca execuția
+      console.error('Ably fetch trigger error (createDelivery):', ablyError)
     }
 
     revalidatePath(`/orders/${orderId}`)
@@ -342,16 +350,22 @@ export async function deleteDeliveryPlan(deliveryId: string) {
     await mongoSession.commitTransaction()
 
     try {
-      const ablyRest = getAblyRest() // Creează o instanță locală
-      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-        message: `Livrare ${delivery.deliveryNumber} a fost anulată.`,
-        deliveryId: delivery._id.toString(),
-        newStatus: delivery.status, // 'CANCELLED'
-        user: authSession.user.name,
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: ABLY_CHANNELS.PLANNER,
+          event: ABLY_EVENTS.DATA_CHANGED,
+          data: {
+            message: `Livrare ${delivery.deliveryNumber} a fost anulată.`,
+            deliveryId: delivery._id.toString(),
+            newStatus: delivery.status, // 'CANCELLED'
+            user: authSession.user.name,
+          },
+        }),
       })
     } catch (ablyError) {
-      console.error('Ably publish error (deleteDelivery):', ablyError)
+      console.error('Ably fetch trigger error (deleteDelivery):', ablyError)
     }
 
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
@@ -687,14 +701,20 @@ export async function scheduleDelivery(
     await mongoSession.commitTransaction()
 
     try {
-      const ablyRest = getAblyRest() // Creează o instanță locală
-      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-        message: `Delivery ${savedDelivery.deliveryNumber} scheduled.`,
-        user: user.name,
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: ABLY_CHANNELS.PLANNER,
+          event: ABLY_EVENTS.DATA_CHANGED,
+          data: {
+            message: `Delivery ${savedDelivery.deliveryNumber} scheduled.`,
+            user: user.name,
+          },
+        }),
       })
     } catch (ablyError) {
-      console.error('Ably publish error:', ablyError)
+      console.error('Ably fetch trigger error (scheduleDelivery):', ablyError)
     }
 
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
@@ -742,15 +762,20 @@ export async function unassignDelivery(deliveryId: string) {
       throw new Error('Livrarea nu a fost găsită.')
     }
     try {
-      const ablyRest = getAblyRest() // Creează o instanță locală
-      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-        deliveryId: delivery._id.toString(),
-        newStatus: 'CREATED', // <-- Trimitem noul status, nu cel vechi
-        message: `Livrare ${delivery.deliveryNumber} a fost dezalocată.`,
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: ABLY_CHANNELS.PLANNER,
+          event: ABLY_EVENTS.DATA_CHANGED,
+          data: {
+            message: `Delivery ${delivery.deliveryNumber} unassigned.`,
+            user: user.name,
+          },
+        }),
       })
     } catch (ablyError) {
-      console.error('❌ Eroare la publicarea pe Ably (unassign):', ablyError)
+      console.error('Ably fetch trigger error (unassign-2):', ablyError)
     }
 
     // Verificăm statusul (nu poți dezaloca ceva în tranzit, livrat etc.)
@@ -779,14 +804,21 @@ export async function unassignDelivery(deliveryId: string) {
     await mongoSession.commitTransaction()
 
     try {
-      const ablyRest = getAblyRest() // Creează o instanță locală
-      const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-      await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-        message: `Delivery ${delivery.deliveryNumber} unassigned.`,
-        user: user.name,
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: ABLY_CHANNELS.PLANNER,
+          event: ABLY_EVENTS.DATA_CHANGED,
+          data: {
+            deliveryId: delivery._id.toString(),
+            newStatus: 'CREATED', // Trimitem noul status
+            message: `Livrare ${delivery.deliveryNumber} a fost dezalocată.`,
+          },
+        }),
       })
     } catch (ablyError) {
-      console.error('Ably publish error:', ablyError)
+      console.error('❌ Ably fetch trigger error (unassign-1):', ablyError)
     }
 
     revalidatePath(`/orders/${delivery.orderId.toString()}`)

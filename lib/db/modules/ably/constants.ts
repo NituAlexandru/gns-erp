@@ -1,5 +1,6 @@
 export const ABLY_API_ENDPOINTS = {
   AUTH: '/api/ably/ably-auth',
+  PUBLISH: '/api/ably/publish',
 } as const
 
 /**
