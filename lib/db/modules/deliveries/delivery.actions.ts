@@ -182,10 +182,11 @@ export async function createSingleDelivery(
   orderId: string,
   plan: PlannedDelivery
 ) {
+  await connectToDatabase()
+
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
   try {
-    await connectToDatabase()
     const authSession = await auth()
     if (!authSession?.user?.id || !authSession?.user?.name)
       throw new Error('Utilizator neautentificat.')
@@ -265,11 +266,11 @@ export async function createSingleDelivery(
   }
 }
 export async function deleteDeliveryPlan(deliveryId: string) {
+  await connectToDatabase()
+
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
   try {
-    await connectToDatabase()
-
     const authSession = await auth()
     if (!authSession?.user?.id || !authSession?.user?.name)
       throw new Error('Utilizator neautentificat.')
@@ -344,11 +345,11 @@ export async function updateSingleDelivery(
   deliveryId: string,
   plan: PlannedDelivery
 ) {
+  await connectToDatabase()
+
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
   try {
-    await connectToDatabase()
-
     const authSession = await auth()
     if (!authSession?.user?.id || !authSession?.user?.name)
       throw new Error('Utilizator neautentificat.')
@@ -516,11 +517,11 @@ export async function scheduleDelivery(
   deliveryId: string,
   data: ScheduleDeliveryInput
 ) {
+  await connectToDatabase()
+
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
   try {
-    await connectToDatabase()
-
     const authSession = await auth()
     if (!authSession?.user?.id || !authSession?.user?.name)
       throw new Error('Utilizator neautentificat.')
@@ -684,11 +685,11 @@ export async function scheduleDelivery(
  * Resetează câmpurile de programare.
  */
 export async function unassignDelivery(deliveryId: string) {
+  await connectToDatabase()
+
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
   try {
-    await connectToDatabase()
-
     const authSession = await auth()
     if (!authSession?.user?.id || !authSession?.user?.name)
       throw new Error('Utilizator neautentificat.')
