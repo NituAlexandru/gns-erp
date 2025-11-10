@@ -1,12 +1,10 @@
-import Ably from 'ably'
 import { NextResponse } from 'next/server'
-
-// Acest fișier ESTE pe server, deci POATE accesa cheia secretă
-const ablyRest = new Ably.Rest(process.env.ABLY_API_KEY!)
+import { getAblyRest } from '@/lib/db/modules/ably/ably-rest' // <-- MODIFICAT
 
 export async function GET() {
   try {
-    // Generăm un token temporar pentru client (cu un ID de client generic)
+    const ablyRest = getAblyRest() // <-- MODIFICAT: Obține o instanță proaspătă
+
     const tokenRequest = await ablyRest.auth.createTokenRequest({
       clientId: 'gns-erp-client',
     })

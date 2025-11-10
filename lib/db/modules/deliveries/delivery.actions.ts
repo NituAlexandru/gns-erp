@@ -24,7 +24,7 @@ import AssignmentModel from '../fleet/assignments/assignments.model'
 import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
 import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import TrailerModel from '../fleet/trailers/trailers.model'
-import ablyRest from '../ably/ably-rest'
+import { getAblyRest } from '../ably/ably-rest'
 import { ABLY_CHANNELS, ABLY_EVENTS } from '../ably/constants'
 
 function buildDeliveryLine(
@@ -248,6 +248,7 @@ export async function createSingleDelivery(
     await mongoSession.commitTransaction()
 
     try {
+      const ablyRest = getAblyRest() // Creează o instanță locală
       const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
       await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
         message: `Livrare nouă ${savedDelivery.deliveryNumber} creată.`,
@@ -341,6 +342,7 @@ export async function deleteDeliveryPlan(deliveryId: string) {
     await mongoSession.commitTransaction()
 
     try {
+      const ablyRest = getAblyRest() // Creează o instanță locală
       const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
       await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
         message: `Livrare ${delivery.deliveryNumber} a fost anulată.`,
@@ -685,6 +687,7 @@ export async function scheduleDelivery(
     await mongoSession.commitTransaction()
 
     try {
+      const ablyRest = getAblyRest() // Creează o instanță locală
       const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
       await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
         message: `Delivery ${savedDelivery.deliveryNumber} scheduled.`,
@@ -739,10 +742,11 @@ export async function unassignDelivery(deliveryId: string) {
       throw new Error('Livrarea nu a fost găsită.')
     }
     try {
+      const ablyRest = getAblyRest() // Creează o instanță locală
       const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
       await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
         deliveryId: delivery._id.toString(),
-        newStatus: delivery.status, // CREATED
+        newStatus: 'CREATED', // <-- Trimitem noul status, nu cel vechi
         message: `Livrare ${delivery.deliveryNumber} a fost dezalocată.`,
       })
     } catch (ablyError) {
@@ -775,6 +779,7 @@ export async function unassignDelivery(deliveryId: string) {
     await mongoSession.commitTransaction()
 
     try {
+      const ablyRest = getAblyRest() // Creează o instanță locală
       const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
       await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
         message: `Delivery ${delivery.deliveryNumber} unassigned.`,

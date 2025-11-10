@@ -23,7 +23,7 @@ import {
 } from '../../numbering/numbering.actions'
 import { ISeries } from '../../numbering/series.model'
 import { ABLY_CHANNELS, ABLY_EVENTS } from '../../ably/constants'
-import ablyRest from '../../ably/ably-rest'
+import { getAblyRest } from '../../ably/ably-rest'
 import { getSetting } from '../../setting/setting.actions'
 import Order from '../../order/order.model'
 import { IOrderLineItem } from '../../order/types'
@@ -210,8 +210,8 @@ export async function createDeliveryNote({
     if (createdNote) {
       // --- PUBLICĂ EVENIMENTUL PE ABLY ---
       try {
+        const ablyRest = getAblyRest() // Creează o instanță locală
         const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-        // Acum TypeScript știe că 'createdNote' nu e 'never'
         await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
           deliveryId: createdNote.deliveryId,
           newStatus: createdNote.status,
@@ -388,10 +388,10 @@ export async function confirmDeliveryNote({
 
       // 5. Publică pe Ably (în afara tranzacției)
       try {
+        const ablyRest = getAblyRest() // Creează o instanță locală
         const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
-        // 🔽 --- CORECȚIE (pt. eroarea 'never') --- 🔽
         await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
-          deliveryId: confirmedNote.deliveryId, // Acum 'confirmedNote' e tipat corect
+          deliveryId: confirmedNote.deliveryId,
           newStatus: confirmedNote.status,
           orderId: orderForAbly.id,
           newOrderStatus: orderForAbly.status,
@@ -592,6 +592,7 @@ export async function cancelDeliveryNote({
 
       // 5. Publică pe Ably
       try {
+        const ablyRest = getAblyRest() // Creează o instanță locală
         const channel = ablyRest.channels.get(ABLY_CHANNELS.PLANNER)
         await channel.publish(ABLY_EVENTS.DATA_CHANGED, {
           deliveryId: cancelledNote.deliveryId,
