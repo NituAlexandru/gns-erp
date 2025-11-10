@@ -213,7 +213,7 @@ export async function createDeliveryNote({
     if (createdNote) {
       // --- PUBLICĂ EVENIMENTUL PE ABLY ---
       try {
-        fetch(
+        await fetch(
           `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
           {
             method: 'POST',
@@ -400,7 +400,7 @@ export async function confirmDeliveryNote({
 
       // 5. Publică pe Ably (în afara tranzacției)
       try {
-        fetch(
+        await fetch(
           `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
           {
             method: 'POST',
@@ -613,7 +613,7 @@ export async function cancelDeliveryNote({
 
       // 5. Publică pe Ably
       try {
-        fetch(
+        await fetch(
           `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
           {
             method: 'POST',
