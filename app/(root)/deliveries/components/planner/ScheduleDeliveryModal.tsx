@@ -53,6 +53,11 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
 import { ITrailerDoc } from '@/lib/db/modules/fleet/trailers/types'
+import {
+  ABLY_API_ENDPOINTS,
+  ABLY_CHANNELS,
+  ABLY_EVENTS,
+} from '@/lib/db/modules/ably/constants'
 
 interface ScheduleDeliveryModalProps {
   isOpen: boolean
@@ -363,6 +368,25 @@ export function ScheduleDeliveryModal({
           toast.success('Livrare programată cu succes!')
           router.refresh()
           onClose()
+
+          try {
+            await fetch(
+              `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channel: ABLY_CHANNELS.PLANNER,
+                  event: ABLY_EVENTS.DATA_CHANGED,
+                  data: {
+                    message: `Livrare ${delivery.deliveryNumber} programată.`, // Poți adăuga 'user' dacă îl preiei din 'useSession' aici
+                  },
+                }),
+              }
+            )
+          } catch (ablyError) {
+            console.error('Ably fetch trigger error (schedule):', ablyError)
+          }
         } else {
           toast.error('Eroare la programare:', { description: result.message })
         }
@@ -387,6 +411,27 @@ export function ScheduleDeliveryModal({
           )
           router.refresh()
           onClose()
+
+          try {
+            await fetch(
+              `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channel: ABLY_CHANNELS.PLANNER,
+                  event: ABLY_EVENTS.DATA_CHANGED,
+                  data: {
+                    message: `Livrare ${delivery.deliveryNumber} dezalocată.`,
+                    deliveryId: delivery._id.toString(),
+                    newStatus: 'CREATED',
+                  },
+                }),
+              }
+            )
+          } catch (ablyError) {
+            console.error('Ably fetch trigger error (unassign):', ablyError)
+          }
         } else {
           toast.error('Eroare la dezalocare:', { description: result.message })
         }

@@ -44,6 +44,11 @@ import { createInvoiceFromSingleNote } from '@/lib/db/modules/financial/invoices
 import { InvoiceActionResult } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { DocumentType } from '@/lib/db/modules/numbering/documentCounter.model'
 import Link from 'next/link'
+import {
+  ABLY_API_ENDPOINTS,
+  ABLY_CHANNELS,
+  ABLY_EVENTS,
+} from '@/lib/db/modules/ably/constants'
 
 type DeliveryCardInfo = {
   delivery: IDelivery
@@ -88,6 +93,27 @@ export function AssignedDeliveryCard({
       if (result.success) {
         toast.success('Avizul a fost generat cu succes!', { id: toastId })
         router.refresh()
+
+        try {
+          await fetch(
+            `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                channel: ABLY_CHANNELS.PLANNER,
+                event: ABLY_EVENTS.DATA_CHANGED,
+                data: {
+                  message: `Aviz ${result.data.seriesName}-${result.data.noteNumber} generat.`,
+                  deliveryId: result.data.deliveryId,
+                  newStatus: result.data.status, // IN_TRANSIT
+                },
+              }),
+            }
+          )
+        } catch (ablyError) {
+          console.error('Ably fetch trigger error (createNote):', ablyError)
+        }
       } else if ('requireSelection' in result && result.requireSelection) {
         toast.dismiss(toastId)
         setShowSeriesModal(true)
@@ -121,6 +147,29 @@ export function AssignedDeliveryCard({
       if (result.success) {
         toast.success('Livrarea a fost confirmată cu succes!', { id: toastId })
         router.refresh() // Actualizează UI-ul
+
+        try {
+          await fetch(
+            `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                channel: ABLY_CHANNELS.PLANNER,
+                event: ABLY_EVENTS.DATA_CHANGED,
+                data: {
+                  message: `Livrare ${delivery.deliveryNumber} confirmată.`,
+                  deliveryId: delivery._id.toString(),
+                  newStatus: 'DELIVERED',
+                  orderId: delivery.orderId.toString(), // Nu avem noul status al comenzii aici, dar e ok,
+                  // 'router.refresh()' va prinde oricum schimbarea
+                },
+              }),
+            }
+          )
+        } catch (ablyError) {
+          console.error('Ably fetch trigger error (confirm):', ablyError)
+        }
       } else {
         toast.error(result.message || 'Eroare la confirmarea livrării', {
           id: toastId,
@@ -383,7 +432,7 @@ export function AssignedDeliveryCard({
                 variant='outline'
                 onClick={(e) => {
                   e.stopPropagation()
-                  setShowConfirmModal(true) 
+                  setShowConfirmModal(true)
                 }}
                 disabled={isLoading}
               >
@@ -440,6 +489,31 @@ export function AssignedDeliveryCard({
                 toast.success('Avizul a fost anulat!', { id: toastId })
                 setShowCancelModal(false)
                 router.refresh()
+
+                try {
+                  await fetch(
+                    `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+                    {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        channel: ABLY_CHANNELS.PLANNER,
+                        event: ABLY_EVENTS.DATA_CHANGED,
+                        data: {
+                          message: `Aviz anulat pentru ${delivery.deliveryNumber}.`,
+                          deliveryId: delivery._id.toString(),
+                          newStatus: 'SCHEDULED', // Avizul anulat readuce livrarea la 'SCHEDULED'
+                          orderId: delivery.orderId.toString(),
+                        },
+                      }),
+                    }
+                  )
+                } catch (ablyError) {
+                  console.error(
+                    'Ably fetch trigger error (cancelNote):',
+                    ablyError
+                  )
+                }
               } else {
                 toast.error(result.message || 'Eroare la anularea avizului', {
                   id: toastId,

@@ -22,11 +22,6 @@ import {
   getActiveSeriesForDocumentType,
 } from '../../numbering/numbering.actions'
 import { ISeries } from '../../numbering/series.model'
-import {
-  ABLY_API_ENDPOINTS,
-  ABLY_CHANNELS,
-  ABLY_EVENTS,
-} from '../../ably/constants'
 import { getSetting } from '../../setting/setting.actions'
 import Order from '../../order/order.model'
 import { IOrderLineItem } from '../../order/types'
@@ -211,28 +206,6 @@ export async function createDeliveryNote({
     // 🔽 MODIFICARE: 'createdNote' este acum corect tipat 🔽
     // (Și am șters blocul 'return' duplicat de la final)
     if (createdNote) {
-      // --- PUBLICĂ EVENIMENTUL PE ABLY ---
-      try {
-        await fetch(
-          `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              channel: ABLY_CHANNELS.PLANNER,
-              event: ABLY_EVENTS.DATA_CHANGED,
-              data: {
-                deliveryId: createdNote.deliveryId,
-                newStatus: createdNote.status,
-                message: `Aviz ${createdNote.seriesName}-${createdNote.noteNumber} generat.`,
-              },
-            }),
-          }
-        )
-      } catch (ablyError) {
-        console.error('❌ Ably fetch trigger error (createNote):', ablyError)
-      }
-
       revalidatePath('/deliveries') // Păstrează asta
       return { success: true, data: createdNote }
     } else {
@@ -258,11 +231,6 @@ export async function confirmDeliveryNote({
   userName: string
 }): Promise<{ success: boolean; message: string; data?: DeliveryNoteDTO }> {
   const session = await startSession()
-
-  // Declarăm variabilele în scopul exterior
-  let confirmedNote: DeliveryNoteDTO | null = null
-  let deliveryForAbly: { number: string; status: string } | null = null
-  let orderForAbly: { id: string; status: string } | null = null
 
   try {
     const transactionResult = await session.withTransaction(async (session) => {
@@ -377,61 +345,23 @@ export async function confirmDeliveryNote({
       }
       await order.save({ session })
 
-      // 🔽 --- CORECȚIE: Returnăm datele din tranzacție --- 🔽
       return {
         confirmedNote: JSON.parse(JSON.stringify(note)) as DeliveryNoteDTO,
-        deliveryForAbly: {
-          number: delivery.deliveryNumber,
-          status: delivery.status,
-        },
-        orderForAbly: { id: order._id.toString(), status: order.status },
       }
     })
 
     // --- Sfârșitul Tranzacției ---
     await session.endSession()
 
-    // 🔽 --- CORECȚIE: Verificăm rezultatul tranzacției --- 🔽
     if (transactionResult) {
-      // Atribuim valorile returnate variabilelor din scopul exterior
-      confirmedNote = transactionResult.confirmedNote
-      deliveryForAbly = transactionResult.deliveryForAbly
-      orderForAbly = transactionResult.orderForAbly
-
-      // 5. Publică pe Ably (în afara tranzacției)
-      try {
-        await fetch(
-          `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              channel: ABLY_CHANNELS.PLANNER,
-              event: ABLY_EVENTS.DATA_CHANGED,
-              data: {
-                deliveryId: confirmedNote.deliveryId,
-                newStatus: confirmedNote.status,
-                orderId: orderForAbly.id,
-                newOrderStatus: orderForAbly.status,
-                message: `Livrare ${deliveryForAbly.number} confirmată.`,
-              },
-            }),
-          }
-        )
-      } catch (ablyError) {
-        console.error('❌ Ably fetch trigger error (confirmNote):', ablyError)
-      }
-
       // 6. Invalidează Cache-ul
       revalidatePath('/deliveries')
-      // 🔽 --- CORECȚIE (pt. eroarea 'order not found') --- 🔽
-      revalidatePath(`/orders/${orderForAbly.id}`) // <-- Folosim variabila din scopul corect
       revalidatePath('/financial/delivery-notes')
 
       return {
         success: true,
         message: 'Aviz confirmat cu succes.',
-        data: confirmedNote,
+        data: transactionResult.confirmedNote,
       }
     } else {
       throw new Error('Tranzacția nu a returnat un aviz confirmat.')
@@ -535,8 +465,6 @@ export async function cancelDeliveryNote({
 
   const dbSession = await startSession()
   let cancelledNote: DeliveryNoteDTO | null = null
-  let deliveryForAbly: { number: string; status: string } | null = null
-  let orderForAbly: { id: string; status: string } | null = null
 
   try {
     const transactionResult = await dbSession.withTransaction(
@@ -569,10 +497,6 @@ export async function cancelDeliveryNote({
           { session, new: true }
         )
         if (!delivery) throw new Error('Livrarea asociată nu a fost găsită.')
-        deliveryForAbly = {
-          number: delivery.deliveryNumber,
-          status: delivery.status,
-        }
 
         // 4. Actualizează Comanda (Logica complexă)
         const order = await Order.findById(note.orderId).session(session)
@@ -593,12 +517,9 @@ export async function cancelDeliveryNote({
           order.status = 'CONFIRMED'
         }
         await order.save({ session })
-        orderForAbly = { id: order._id.toString(), status: order.status }
 
         return {
           cancelledNote: JSON.parse(JSON.stringify(note)) as DeliveryNoteDTO,
-          deliveryForAbly,
-          orderForAbly,
         }
       }
     )
@@ -608,36 +529,10 @@ export async function cancelDeliveryNote({
 
     if (transactionResult) {
       cancelledNote = transactionResult.cancelledNote
-      deliveryForAbly = transactionResult.deliveryForAbly
-      orderForAbly = transactionResult.orderForAbly
-
-      // 5. Publică pe Ably
-      try {
-        await fetch(
-          `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              channel: ABLY_CHANNELS.PLANNER,
-              event: ABLY_EVENTS.DATA_CHANGED,
-              data: {
-                deliveryId: cancelledNote.deliveryId,
-                newStatus: deliveryForAbly.status, // Noul status al livrării (SCHEDULED)
-                orderId: orderForAbly.id,
-                newOrderStatus: orderForAbly.status,
-                message: `Aviz pentru livrarea ${deliveryForAbly.number} a fost anulat.`,
-              },
-            }),
-          }
-        )
-      } catch (ablyError) {
-        console.error('❌ Ably fetch trigger error (cancelNote):', ablyError)
-      }
 
       // 6. Invalidează Cache-ul
       revalidatePath('/deliveries')
-      revalidatePath(`/orders/${orderForAbly.id}`)
+
       revalidatePath('/financial/delivery-notes')
 
       return {

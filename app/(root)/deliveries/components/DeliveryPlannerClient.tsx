@@ -39,6 +39,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  ABLY_API_ENDPOINTS,
+  ABLY_CHANNELS,
+  ABLY_EVENTS,
+} from '@/lib/db/modules/ably/constants'
 
 // --- Funcții Helper  ---
 function mapOrderItemsToPlannerItems(
@@ -253,6 +258,25 @@ export function DeliveryPlannerClient({
             uitCode: '',
           })
           router.refresh()
+
+          try {
+            await fetch(
+              `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channel: ABLY_CHANNELS.PLANNER,
+                  event: ABLY_EVENTS.DATA_CHANGED,
+                  data: {
+                    message: `Livrare nouă creată pentru comanda ${order.orderNumber}.`, // Poți trimite și result.data (noua livrare) dacă e nevoie
+                  },
+                }),
+              }
+            )
+          } catch (ablyError) {
+            console.error('Ably fetch trigger error (create):', ablyError)
+          }
         } else {
           toast.error('Eroare la creare:', { description: result.message }) // Folosit
         }
@@ -336,6 +360,25 @@ export function DeliveryPlannerClient({
             uitCode: '',
           })
           router.refresh()
+
+          try {
+            await fetch(
+              `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channel: ABLY_CHANNELS.PLANNER,
+                  event: ABLY_EVENTS.DATA_CHANGED,
+                  data: {
+                    message: `Livrare "Livrează Tot" creată pentru ${order.orderNumber}.`,
+                  },
+                }),
+              }
+            )
+          } catch (ablyError) {
+            console.error('Ably fetch trigger error (deliverAll):', ablyError)
+          }
         } else {
           toast.error('Eroare la creare:', { description: result.message }) // Folosit
         }
@@ -368,6 +411,27 @@ export function DeliveryPlannerClient({
         if (result.success) {
           toast.success(result.message)
           router.refresh()
+
+          try {
+            await fetch(
+              `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  channel: ABLY_CHANNELS.PLANNER,
+                  event: ABLY_EVENTS.DATA_CHANGED,
+                  data: {
+                    message: `Livrare ${deliveryToDelete?.deliveryNumber} a fost anulată.`,
+                    deliveryId: deliveryToDeleteId,
+                    newStatus: 'CANCELLED',
+                  },
+                }),
+              }
+            )
+          } catch (ablyError) {
+            console.error('Ably fetch trigger error (delete):', ablyError)
+          }
         } else {
           toast.error('Eroare la ștergere:', { description: result.message })
         }

@@ -24,11 +24,6 @@ import AssignmentModel from '../fleet/assignments/assignments.model'
 import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
 import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import TrailerModel from '../fleet/trailers/trailers.model'
-import {
-  ABLY_API_ENDPOINTS,
-  ABLY_CHANNELS,
-  ABLY_EVENTS,
-} from '../ably/constants'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -250,28 +245,6 @@ export async function createSingleDelivery(
 
     await mongoSession.commitTransaction()
 
-    try {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channel: ABLY_CHANNELS.PLANNER,
-            event: ABLY_EVENTS.DATA_CHANGED,
-            data: {
-              message: `Livrare nouă ${savedDelivery.deliveryNumber} creată.`,
-              deliveryId: savedDelivery._id.toString(),
-              newStatus: savedDelivery.status,
-              user: user.name,
-            },
-          }),
-        }
-      )
-    } catch (ablyError) {
-      console.error('Ably fetch trigger error (createDelivery):', ablyError)
-    }
-
     revalidatePath(`/orders/${orderId}`)
     revalidatePath('/deliveries')
 
@@ -351,28 +324,6 @@ export async function deleteDeliveryPlan(deliveryId: string) {
     }
 
     await mongoSession.commitTransaction()
-
-    try {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channel: ABLY_CHANNELS.PLANNER,
-            event: ABLY_EVENTS.DATA_CHANGED,
-            data: {
-              message: `Livrare ${delivery.deliveryNumber} a fost anulată.`,
-              deliveryId: delivery._id.toString(),
-              newStatus: delivery.status, // 'CANCELLED'
-              user: authSession.user.name,
-            },
-          }),
-        }
-      )
-    } catch (ablyError) {
-      console.error('Ably fetch trigger error (deleteDelivery):', ablyError)
-    }
 
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
     revalidatePath('/deliveries')
@@ -706,26 +657,6 @@ export async function scheduleDelivery(
 
     await mongoSession.commitTransaction()
 
-    try {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channel: ABLY_CHANNELS.PLANNER,
-            event: ABLY_EVENTS.DATA_CHANGED,
-            data: {
-              message: `Delivery ${savedDelivery.deliveryNumber} scheduled.`,
-              user: user.name,
-            },
-          }),
-        }
-      )
-    } catch (ablyError) {
-      console.error('Ably fetch trigger error (scheduleDelivery):', ablyError)
-    }
-
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
     revalidatePath('/deliveries')
 
@@ -770,25 +701,6 @@ export async function unassignDelivery(deliveryId: string) {
     if (!delivery) {
       throw new Error('Livrarea nu a fost găsită.')
     }
-    try {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channel: ABLY_CHANNELS.PLANNER,
-            event: ABLY_EVENTS.DATA_CHANGED,
-            data: {
-              message: `Delivery ${delivery.deliveryNumber} unassigned.`,
-              user: user.name,
-            },
-          }),
-        }
-      )
-    } catch (ablyError) {
-      console.error('Ably fetch trigger error (unassign-2):', ablyError)
-    }
 
     // Verificăm statusul (nu poți dezaloca ceva în tranzit, livrat etc.)
     const unassignableStatuses: DeliveryStatusKey[] = ['SCHEDULED']
@@ -814,27 +726,6 @@ export async function unassignDelivery(deliveryId: string) {
     await delivery.save({ session: mongoSession })
 
     await mongoSession.commitTransaction()
-
-    try {
-      await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}${ABLY_API_ENDPOINTS.PUBLISH}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            channel: ABLY_CHANNELS.PLANNER,
-            event: ABLY_EVENTS.DATA_CHANGED,
-            data: {
-              deliveryId: delivery._id.toString(),
-              newStatus: 'CREATED', // Trimitem noul status
-              message: `Livrare ${delivery.deliveryNumber} a fost dezalocată.`,
-            },
-          }),
-        }
-      )
-    } catch (ablyError) {
-      console.error('❌ Ably fetch trigger error (unassign-1):', ablyError)
-    }
 
     revalidatePath(`/orders/${delivery.orderId.toString()}`)
     revalidatePath('/deliveries')
