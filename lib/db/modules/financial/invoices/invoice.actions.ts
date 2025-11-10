@@ -252,6 +252,8 @@ export async function createInvoice(
   data: InvoiceInput,
   status: 'CREATED'
 ): Promise<InvoiceActionResult> {
+  await connectToDatabase()
+
   const session = await startSession()
   try {
     let newInvoice: IInvoiceDoc | null = null
@@ -421,6 +423,7 @@ export async function generateProformaFromOrder(
   orderId: string,
   seriesName: string
 ): Promise<InvoiceActionResult> {
+  await connectToDatabase()
   const session = await startSession()
   try {
     let newProforma: IInvoiceDoc | null = null
@@ -594,7 +597,10 @@ export async function createInvoiceFromSingleNote(
   deliveryId: string, // Primește ID-ul Livrării
   seriesName?: string
 ): Promise<InvoiceActionResult> {
+  await connectToDatabase()
+
   const session = await startSession()
+
   try {
     const result = await session.withTransaction(async (session) => {
       // 1. Validare și Autentificare
@@ -804,6 +810,8 @@ export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
 export async function createStornoInvoice(
   data: CreateStornoInput
 ): Promise<InvoiceActionResult> {
+  await connectToDatabase()
+
   const session = await startSession()
   try {
     const newStornoInvoice = await session.withTransaction(async (session) => {
@@ -1480,6 +1488,8 @@ export async function updateInvoice(
   invoiceId: string,
   data: InvoiceInput
 ): Promise<InvoiceActionResult> {
+  await connectToDatabase()
+
   const session = await startSession()
   try {
     let updatedInvoice: IInvoiceDoc | null = null
