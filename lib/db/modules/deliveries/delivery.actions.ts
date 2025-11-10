@@ -558,7 +558,10 @@ export async function scheduleDelivery(
     const overlapQuery: FilterQuery<IDelivery> = {
       _id: { $ne: deliveryId }, // Exclude livrarea curentă
       assemblyId: new Types.ObjectId(data.assemblyId), // Același ansamblu
-      deliveryDate: startOfDay(data.deliveryDate), // Aceeași zi
+      deliveryDate: {
+        $gte: startOfDay(data.deliveryDate),
+        $lte: endOfDay(data.deliveryDate),
+      },
       status: { $ne: 'CANCELLED' },
     }
 
