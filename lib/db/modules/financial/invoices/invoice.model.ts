@@ -14,6 +14,7 @@ import {
   INVOICE_STATUSES,
 } from './invoice.constants'
 import { CostBreakdownBatchSchema } from '../../inventory/movement.model'
+import { round2 } from '@/lib/utils'
 
 // --- Interfața Documentului Mongoose ---
 export interface IInvoiceDoc extends Document {
@@ -269,11 +270,44 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
   { timestamps: true }
 )
 
+// Hook-ul 'pre save' CORECTAT
 InvoiceSchema.pre('save', function (next) {
+  // Setări inițiale doar la creare (rămân la fel)
   if (this.isNew) {
     this.paidAmount = 0
     this.remainingAmount = this.totals.grandTotal
+    // Nu setăm statusul, îl lăsăm pe cel default/creat
   }
+  // Rulăm această logică doar dacă suma plătită sau restul se modifică
+  if (
+    this.isModified('paidAmount') ||
+    this.isModified('remainingAmount') ||
+    this.isNew
+  ) {
+    const paid = round2(this.paidAmount)
+    const remaining = round2(this.remainingAmount)
+    const total = round2(this.totals.grandTotal)
+
+    if (this.status === 'CANCELLED') {
+      // Nu modificăm statusul dacă este Anulată
+      return next()
+    }
+
+    if (remaining <= 0.001 && paid >= total) {
+      // Dacă restul e zero și suma plătită acoperă totalul
+      this.status = 'PAID'
+      this.remainingAmount = 0 // Asigurăm că e zero
+    } else if (paid > 0) {
+      // Dacă s-a plătit ceva, dar nu tot
+      this.status = 'PARTIAL_PAID'
+    } else if (paid === 0 && remaining > 0) {
+      // Dacă nu s-a plătit nimic, revenim la statusul inițial aprobat
+      if (this.status === 'PAID' || this.status === 'PARTIAL_PAID') {
+        this.status = 'APPROVED'
+      }
+    }
+  }
+
   next()
 })
 

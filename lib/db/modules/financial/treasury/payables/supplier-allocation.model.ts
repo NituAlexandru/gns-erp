@@ -1,18 +1,17 @@
 import mongoose, { Schema, models, Model } from 'mongoose'
 import { ISupplierAllocationDoc } from './supplier-allocation.types'
 
-// --- Schema Mongoose ---
 const SupplierAllocationSchema = new Schema<ISupplierAllocationDoc>(
   {
     paymentId: {
       type: Schema.Types.ObjectId,
-      ref: 'SupplierPayment', // Referință la plata noastră
+      ref: 'SupplierPayment',
       required: true,
       index: true,
     },
     invoiceId: {
       type: Schema.Types.ObjectId,
-      ref: 'SupplierInvoice', // Referință la factura furnizor
+      ref: 'SupplierInvoice', 
       required: true,
       index: true,
     },

@@ -1,5 +1,5 @@
 import { VariantProps } from 'class-variance-authority'
-import { badgeVariants } from '@/components/ui/badge' // Presupunem calea corectă
+import { badgeVariants } from '@/components/ui/badge'
 
 // --- Statusurile Principale ale Facturii ---
 export const INVOICE_STATUSES = [
@@ -7,6 +7,7 @@ export const INVOICE_STATUSES = [
   'APPROVED', // Verificată de admin, blocată, gata de trimitere e-Factura
   'REJECTED', // Respinsă de admin, deblocată pt editare
   'PAID', // Plătită
+  'PARTIAL_PAID', // Plătită Parțial
   'CANCELLED', // Anulată (ex: înainte de a fi trimisă)
 ] as const
 
@@ -20,6 +21,7 @@ export const INVOICE_STATUS_MAP: Record<
   APPROVED: { name: 'Aprobată', variant: 'info' },
   REJECTED: { name: 'Respinsă - Necesita Modificari', variant: 'destructive' },
   PAID: { name: 'Plătită', variant: 'success' },
+  PARTIAL_PAID: { name: 'Plătită Parțial', variant: 'info' },
   CANCELLED: { name: 'Anulată', variant: 'destructive' },
 }
 

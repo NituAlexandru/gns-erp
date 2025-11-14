@@ -13,22 +13,24 @@ import {
 } from './supplier-allocation.types'
 import { CreateSupplierAllocationSchema } from './supplier-allocation.validator'
 import { revalidatePath } from 'next/cache'
+import { connectToDatabase } from '@/lib/db'
 
 type AllocationActionResult = {
   success: boolean
   message: string
   data?: SupplierAllocationDTO
 }
+export type PopulatedInvoiceAllocationHistory = Awaited<
+  ReturnType<typeof getInvoiceAllocationHistory>
+>['data'][number]
 
-/**
- * Creează o alocare manuală a unei plăți către o factură furnizor.
- */
+
 export async function createManualSupplierAllocation(
   data: CreateSupplierAllocationInput
 ): Promise<AllocationActionResult> {
   const session = await startSession()
   let newAllocation: ISupplierAllocationDoc | null = null
-  let supplierIdToRevalidate: string | null = null // <-- Variabilă pentru a stoca ID-ul
+  let supplierIdToRevalidate: string | null = null
 
   try {
     newAllocation = await session.withTransaction(async (session) => {
@@ -54,8 +56,12 @@ export async function createManualSupplierAllocation(
 
       supplierIdToRevalidate = payment.supplierId.toString()
 
-      if (invoice.status === 'PLATITA_COMPLET')
+      // --- MODIFICARE: Folosim statusul corect ---
+      if (invoice.status === 'PLATITA')
         throw new Error('Factura furnizor este deja marcată ca "Plătită".')
+
+      if (invoice.status === 'ANULATA')
+        throw new Error('Factura furnizor este marcată ca "Anulată".')
 
       const roundedAmount = round2(amountAllocated)
       if (roundedAmount > round2(payment.unallocatedAmount)) {
@@ -94,11 +100,12 @@ export async function createManualSupplierAllocation(
       invoice.paidAmount = round2(invoice.paidAmount + roundedAmount)
       invoice.remainingAmount = round2(invoice.remainingAmount - roundedAmount)
 
+      // --- MODIFICARE: Folosim statusurile corecte ---
       if (invoice.remainingAmount <= 0.001) {
-        invoice.status = 'PLATITA_COMPLET'
+        invoice.status = 'PLATITA' 
         invoice.remainingAmount = 0
       } else {
-        invoice.status = 'PLATITA_PARTIAL'
+        invoice.status = 'PARTIAL_PLATITA'
       }
       await invoice.save({ session })
 
@@ -115,7 +122,6 @@ export async function createManualSupplierAllocation(
     if (supplierIdToRevalidate) {
       revalidatePath(`/suppliers/${supplierIdToRevalidate}`)
     }
-  
 
     return {
       success: true,
@@ -134,14 +140,12 @@ export async function createManualSupplierAllocation(
 
 /**
  * Șterge o alocare a unei plăți către furnizor.
- * Returnează banii în Plată (unallocatedAmount)
- * și recreează datoria pe Factură Furnizor (remainingAmount).
  */
 export async function deleteSupplierAllocation(
   allocationId: string
 ): Promise<Omit<AllocationActionResult, 'data'>> {
   const session = await startSession()
-  let supplierIdToRevalidate: string | null = null // <-- Variabilă pentru a stoca ID-ul
+  let supplierIdToRevalidate: string | null = null
 
   try {
     await session.withTransaction(async (session) => {
@@ -191,18 +195,22 @@ export async function deleteSupplierAllocation(
         invoice.remainingAmount + amountToReverse
       )
 
-      if (invoice.status === 'PLATITA_COMPLET') {
+      // --- MODIFICARE: Folosim statusurile corecte la reversare ---
+      if (invoice.status === 'PLATITA') {
         invoice.status =
-          invoice.paidAmount > 0 ? 'PLATITA_PARTIAL' : 'NEPLATITA'
+          invoice.paidAmount > 0 ? 'PARTIAL_PLATITA' : 'NEPLATITA'
+      } else if (invoice.status === 'PARTIAL_PLATITA') {
+        if (invoice.paidAmount <= 0) {
+          invoice.status = 'NEPLATITA'
+        }
       }
+
       await invoice.save({ session })
 
       // 6. Șterge Alocarea (Model 5)
       await SupplierAllocationModel.findByIdAndDelete(allocationId).session(
         session
       )
-
-      // Nu mai returnăm nimic, tranzacția gestionează succesul
     })
 
     await session.endSession()
@@ -211,7 +219,7 @@ export async function deleteSupplierAllocation(
     if (supplierIdToRevalidate) {
       revalidatePath(`/suppliers/${supplierIdToRevalidate}`)
     } else {
-      revalidatePath('/suppliers') 
+      revalidatePath('/suppliers')
     }
 
     return {
@@ -225,5 +233,95 @@ export async function deleteSupplierAllocation(
     await session.endSession()
     console.error('❌ Eroare deleteSupplierAllocation:', error)
     return { success: false, message: (error as Error).message }
+  }
+}
+
+// --- FUNCȚIA 1: PENTRU A VEDEA CE E DEJA ALOCAT (PLĂȚII) ---
+export async function getAllocationsForSupplierPayment(paymentId: string) {
+  try {
+    await connectToDatabase()
+    if (!Types.ObjectId.isValid(paymentId)) {
+      throw new Error('ID Plată furnizor invalid.')
+    }
+
+    const allocations = await SupplierAllocationModel.find({
+      paymentId: new Types.ObjectId(paymentId),
+    })
+      .populate({
+        path: 'invoiceId',
+        model: SupplierInvoiceModel,
+        select: 'invoiceNumber invoiceSeries', 
+      })
+      .sort({ createdAt: -1 })
+      .lean()
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(allocations)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getAllocationsForSupplierPayment:', error)
+    return { success: false, data: [] }
+  }
+}
+
+// --- FUNCȚIA 2: PENTRU A VEDEA CE FACTURI FURNIZOR SE POT PLĂTI ---
+export async function getUnpaidSupplierInvoices(supplierId: string) {
+  try {
+    await connectToDatabase()
+    if (!Types.ObjectId.isValid(supplierId)) {
+      throw new Error('ID Furnizor invalid.')
+    }
+
+    const invoices = await SupplierInvoiceModel.find({
+      supplierId: new Types.ObjectId(supplierId),
+      status: { $in: ['NEPLATITA', 'PARTIAL_PLATITA'] },
+      remainingAmount: { $gt: 0 },
+    })
+      .sort({ dueDate: 1 }) // Ordonăm FIFO
+      .select(
+        'invoiceNumber invoiceSeries dueDate remainingAmount totals.grandTotal'
+      )
+      .lean()
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(invoices)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getUnpaidSupplierInvoices:', error)
+    return { success: false, data: [] }
+  }
+}
+
+/**
+ * Prelucrează și returnează istoricul alocărilor (plăților) pentru o anumită factură.
+ */
+export async function getInvoiceAllocationHistory(invoiceId: string) {
+  try {
+    await connectToDatabase()
+
+    if (!Types.ObjectId.isValid(invoiceId)) {
+      throw new Error('ID Factură invalid.')
+    }
+
+    const allocations = await SupplierAllocationModel.find({
+      invoiceId: new Types.ObjectId(invoiceId),
+    })
+      .populate({
+        path: 'paymentId',
+        model: SupplierPaymentModel,
+        select: 'paymentNumber seriesName paymentDate', 
+      })
+      .sort({ allocationDate: 1 }) 
+      .lean()
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(allocations)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getInvoiceAllocationHistory:', error)
+    return { success: false, data: [], message: (error as Error).message }
   }
 }

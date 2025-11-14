@@ -5,8 +5,8 @@ import { CreateSupplierAllocationSchema } from './supplier-allocation.validator'
 // 1. Tipul de bază Mongoose (pentru document)
 export interface ISupplierAllocationDoc extends Document {
   _id: Types.ObjectId
-  paymentId: Types.ObjectId // Ref la SupplierPayment
-  invoiceId: Types.ObjectId // Ref la SupplierInvoice
+  paymentId: Types.ObjectId 
+  invoiceId: Types.ObjectId 
   amountAllocated: number
   allocationDate: Date
   createdBy: Types.ObjectId

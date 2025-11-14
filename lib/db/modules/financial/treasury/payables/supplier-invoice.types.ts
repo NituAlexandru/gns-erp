@@ -1,15 +1,11 @@
-import { Types } from 'mongoose'
+import { Types, Document } from 'mongoose'
 import { z } from 'zod'
-
-// Am importat tipul CompanySnapshot din types, nu settings
 import { CompanySnapshot } from '../../../financial/invoices/invoice.types'
 import { FiscalAddressSchema } from '../../invoices/invoice.validator'
 import { ISupplierDoc } from '../../../suppliers/types'
 import { CreateSupplierInvoiceSchema } from './supplier-invoice.validator'
-// Am corectat calea către supplier/types
+import { SupplierInvoiceStatus } from './supplier-invoice.constants'
 
-// --- FIX ---
-// Am redenumit tipul Zod pentru a se potrivi cu cel folosit în ISupplierDoc
 export type IFiscalAddress = z.infer<typeof FiscalAddressSchema>
 
 // Snapshot-ul furnizorului (pe cine plătim)
@@ -17,28 +13,28 @@ export type SupplierSnapshot = {
   name: string
   cui: string
   regCom: string
-  address: IFiscalAddress // <-- Folosim tipul corectat
+  address: IFiscalAddress
   bank?: string
   iban?: string
 }
 
-// Snapshot-ul companiei noastre (cum apărem noi pe factura lor)
-export type OurCompanySnapshot = CompanySnapshot // <-- Folosim tipul importat
+// Snapshot-ul companiei noastre
+export type OurCompanySnapshot = CompanySnapshot
 
 // O linie de pe factura primită
 export interface SupplierInvoiceLine {
-  productId?: string // Legătura opțională cu produsul nostru
-  productName: string // Numele de pe factura lor
-  productCode?: string // Codul de pe factura lor
+  productId?: string
+  productName: string
+  productCode?: string
   quantity: number
   unitOfMeasure: string
-  unitPrice: number // Prețul unitar (fără TVA)
-  lineValue: number // Valoarea liniei (fără TVA)
+  unitPrice: number
+  lineValue: number
   vatRateDetails: {
     rate: number
     value: number
   }
-  lineTotal: number // Valoarea totală (cu TVA)
+  lineTotal: number
 }
 
 // Totalurile de pe factura primită
@@ -56,13 +52,13 @@ export interface SupplierInvoiceTotals {
   grandTotal: number
 }
 
-// --- Interfața Documentului Mongoose ---
 export interface ISupplierInvoiceDoc extends Document {
   _id: Types.ObjectId
-  supplierId: Types.ObjectId | ISupplierDoc // <-- Am corectat calea
+  supplierId: Types.ObjectId | ISupplierDoc
   supplierSnapshot: SupplierSnapshot
   ourCompanySnapshot: OurCompanySnapshot
 
+  invoiceSeries: string 
   invoiceNumber: string
   invoiceDate: Date
   dueDate: Date
@@ -70,12 +66,9 @@ export interface ISupplierInvoiceDoc extends Document {
   items: (SupplierInvoiceLine & { _id: Types.ObjectId })[]
   totals: SupplierInvoiceTotals
 
-  status: 'NEPLATITA' | 'PLATITA_PARTIAL' | 'PLATITA_COMPLET' | 'ANULATA'
+  status: SupplierInvoiceStatus
   paidAmount: number
   remainingAmount: number
-
-  // TODO: De adăugat când modulul 'Receptii' e gata
-  // sourceReceiptIds: Types.ObjectId[]
 
   eFacturaXMLId?: string
   eFacturaIndex?: string

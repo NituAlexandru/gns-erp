@@ -1,13 +1,13 @@
-import { Types } from 'mongoose'
+import { Types, Document } from 'mongoose' 
 import { z } from 'zod'
 import { CreateClientPaymentSchema } from './client-payment.validator'
+import { ClientPaymentStatus } from './client-payment.constants' 
 
-// 1. Tipul de bază Mongoose (pentru document)
 export interface IClientPaymentDoc extends Document {
   _id: Types.ObjectId
   paymentNumber: string
-  seriesName: string
-  sequenceNumber: number
+  seriesName?: string 
+  sequenceNumber?: number | null 
   clientId: Types.ObjectId
   paymentDate: Date
   paymentMethod: string
@@ -15,7 +15,7 @@ export interface IClientPaymentDoc extends Document {
   unallocatedAmount: number
   referenceDocument?: string
   notes?: string
-  status: 'NEALOCAT' | 'PARTIAL_ALOCAT' | 'ALOCAT_COMPLET'
+  status: ClientPaymentStatus 
   createdBy: Types.ObjectId
   createdByName: string
   createdAt: Date
@@ -26,8 +26,8 @@ export interface IClientPaymentDoc extends Document {
 export interface ClientPaymentDTO {
   _id: string
   paymentNumber: string
-  seriesName: string
-  sequenceNumber: number
+  seriesName?: string
+  sequenceNumber?: number | null
   clientId: string
   paymentDate: string // ISO Date
   paymentMethod: string
@@ -35,10 +35,17 @@ export interface ClientPaymentDTO {
   unallocatedAmount: number
   referenceDocument?: string
   notes?: string
-  status: 'NEALOCAT' | 'PARTIAL_ALOCAT' | 'ALOCAT_COMPLET'
+  status: ClientPaymentStatus
   createdByName: string
   createdAt: string
 }
 
 // 3. Tipul de Input (din Zod, pentru formulare)
 export type CreateClientPaymentInput = z.infer<typeof CreateClientPaymentSchema>
+
+export type PopulatedClientPayment = ClientPaymentDTO & {
+  clientId: {
+    _id: string
+    name: string
+  }
+}

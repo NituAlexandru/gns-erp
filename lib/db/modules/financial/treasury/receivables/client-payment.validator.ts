@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { PAYMENT_METHODS } from '../payment.constants'
-import { MongoId } from '@/lib/validator' 
+import { MongoId } from '@/lib/validator'
 
 export const CreateClientPaymentSchema = z.object({
   clientId: MongoId,
@@ -11,7 +11,8 @@ export const CreateClientPaymentSchema = z.object({
   totalAmount: z
     .number({ required_error: 'Suma este obligatorie.' })
     .positive('Suma trebuie să fie mai mare ca 0.'),
-  seriesName: z.string().min(1, 'Seria este obligatorie.'),
+  seriesName: z.string().optional(),
+  paymentNumber: z.string().min(1, 'Numărul documentului este obligatoriu.'),
   referenceDocument: z.string().optional(),
   notes: z.string().optional(),
 })

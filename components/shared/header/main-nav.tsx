@@ -12,6 +12,7 @@ export const links = [
   { title: 'Comenzi', href: '/orders' },
   { title: 'Livrări', href: '/deliveries' },
   { title: 'Documente', href: '/financial' },
+  { title: 'Incasari', href: '/incasari-si-plati' },
 ]
 
 export function MainNav({

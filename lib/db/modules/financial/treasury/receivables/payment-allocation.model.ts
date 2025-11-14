@@ -1,7 +1,6 @@
 import mongoose, { Schema, models, Model } from 'mongoose'
-import { IPaymentAllocationDoc } from './payment-allocation.types' // <-- Importă din types
+import { IPaymentAllocationDoc } from './payment-allocation.types'
 
-// --- Schema Mongoose ---
 const PaymentAllocationSchema = new Schema<IPaymentAllocationDoc>(
   {
     paymentId: {
@@ -27,8 +26,6 @@ const PaymentAllocationSchema = new Schema<IPaymentAllocationDoc>(
   },
   { timestamps: true }
 )
-
-PaymentAllocationSchema.index({ paymentId: 1, invoiceId: 1 }, { unique: true })
 
 const PaymentAllocationModel =
   (models.PaymentAllocation as Model<IPaymentAllocationDoc>) ||

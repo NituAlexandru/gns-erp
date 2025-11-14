@@ -8,10 +8,9 @@ export interface IBudgetCategoryDoc extends Document {
   name: string
   description?: string
 
-  // Relația Părinte-Copil
-  parentId: Types.ObjectId | null // null = Categorie Principală
+  parentId: Types.ObjectId | null 
+  isActive: boolean
 
-  // Audit
   createdBy: Types.ObjectId
   createdByName: string
 
@@ -25,6 +24,7 @@ export interface BudgetCategoryDTO {
   name: string
   description?: string
   parentId: string | null
+  isActive: boolean
 }
 
 // 3. Tipul de Input (din Zod, pentru formulare)

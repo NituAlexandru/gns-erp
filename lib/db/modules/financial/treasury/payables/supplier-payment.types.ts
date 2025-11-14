@@ -1,26 +1,38 @@
-import { Types } from 'mongoose'
+import { Types, Document } from 'mongoose' 
 import { z } from 'zod'
 import { ISupplierDoc } from '../../../suppliers/types'
-import { CreateSupplierPaymentSchema } from './supplier-payment.validator'
+import { SupplierPaymentPayloadSchema } from './supplier-payment.validator'
+import { SupplierPaymentStatus } from './supplier-payment.constants'
+import { BudgetCategoryDTO } from '../budgeting/budget-category.types'
+
+// --- Definim tipul pentru Snapshot ---
+export type BudgetCategorySnapshot = {
+  mainCategoryId: Types.ObjectId
+  mainCategoryName: string
+  subCategoryId?: Types.ObjectId
+  subCategoryName?: string
+}
 
 // 1. Tipul de bază Mongoose (pentru document)
 export interface ISupplierPaymentDoc extends Document {
   _id: Types.ObjectId
-  paymentNumber: string // Ex: PLATA-2025-00001
-  seriesName: string
-  sequenceNumber: number
+  paymentNumber: string | null // Opțional
+  seriesName: string | null // Opțional
+  sequenceNumber: number | null // Opțional
 
-  supplierId: Types.ObjectId | ISupplierDoc // Către cine am plătit
-  paymentDate: Date // Data la care am făcut plata
-  paymentMethod: string // Metoda (OP, Card, etc.)
+  supplierId: Types.ObjectId | ISupplierDoc
+  paymentDate: Date
+  paymentMethod: string
 
-  totalAmount: number // Suma totală plătită (ex: 5000)
-  unallocatedAmount: number // Suma nealocată (inițial = totalAmount)
+  totalAmount: number
+  unallocatedAmount: number
 
-  referenceDocument?: string // Ex: "OP 456"
+  referenceDocument?: string
   notes?: string
+  status: SupplierPaymentStatus
 
-  status: 'NEALOCAT' | 'PARTIAL_ALOCAT' | 'ALOCAT_COMPLET'
+  // --- Adăugăm snapshot-ul opțional ---
+  budgetCategorySnapshot?: BudgetCategorySnapshot
 
   createdBy: Types.ObjectId
   createdByName: string
@@ -32,22 +44,27 @@ export interface ISupplierPaymentDoc extends Document {
 // 2. Tipul DTO (ce trimitem la client/UI)
 export interface SupplierPaymentDTO {
   _id: string
-  paymentNumber: string
-  seriesName: string
-  sequenceNumber: number
+  paymentNumber: string | null
+  seriesName: string | null
+  sequenceNumber: number | null
   supplierId: string
-  paymentDate: string // ISO Date
+  supplierName?: string
+  paymentDate: string 
   paymentMethod: string
   totalAmount: number
   unallocatedAmount: number
   referenceDocument?: string
   notes?: string
-  status: 'NEALAT' | 'PARTIAL_ALOCAT' | 'ALOCAT_COMPLET'
+  status: SupplierPaymentStatus
   createdByName: string
   createdAt: string
+  budgetCategorySnapshot?: BudgetCategorySnapshot
 }
 
-// 3. Tipul de Input (din Zod, pentru formulare)
+// 3. Tipul de Input (din Zod, pentru formularul de payload)
 export type CreateSupplierPaymentInput = z.infer<
-  typeof CreateSupplierPaymentSchema
+  typeof SupplierPaymentPayloadSchema
 >
+export interface IBudgetCategoryTree extends BudgetCategoryDTO {
+  children: IBudgetCategoryTree[]
+}

@@ -14,16 +14,20 @@ const links = [
     href: '/admin/products',
   },
   {
-    title: 'Furnizori',
-    href: '/admin/management/suppliers',
-  },
-  {
     title: 'Categorii Produse',
     href: '/admin/categories',
   },
   {
+    title: 'Stocuri',
+    href: '/admin/management/inventory/stock',
+  },
+  {
     title: 'Receptie',
     href: '/admin/management/reception',
+  },
+  {
+    title: 'Furnizori',
+    href: '/admin/management/suppliers',
   },
   {
     title: 'Parc Auto',
@@ -34,8 +38,8 @@ const links = [
     href: '/admin/users',
   },
   {
-    title: 'Stocuri',
-    href: '/admin/management/inventory/stock',
+    title: 'Utilizatori',
+    href: '/admin/management/incasari-si-plati',
   },
   {
     title: 'Setări',

@@ -5,8 +5,8 @@ import { CreatePaymentAllocationSchema } from './payment-allocation.validator'
 // 1. Tipul de bază Mongoose (pentru document)
 export interface IPaymentAllocationDoc extends Document {
   _id: Types.ObjectId
-  paymentId: Types.ObjectId // Ref la ClientPayment
-  invoiceId: Types.ObjectId // Ref la Invoice
+  paymentId: Types.ObjectId 
+  invoiceId: Types.ObjectId 
   amountAllocated: number
   allocationDate: Date
   createdBy: Types.ObjectId
@@ -29,3 +29,22 @@ export interface PaymentAllocationDTO {
 export type CreatePaymentAllocationInput = z.infer<
   typeof CreatePaymentAllocationSchema
 >
+
+export type PopulatedAllocation = Omit<PaymentAllocationDTO, 'invoiceId'> & {
+  invoiceId: {
+    _id: string
+    seriesName: string
+    invoiceNumber: string
+  }
+}
+
+export type UnpaidInvoice = {
+  _id: string
+  invoiceNumber: string
+  seriesName: string
+  dueDate: string
+  remainingAmount: number
+  totals: {
+    grandTotal: number
+  }
+}

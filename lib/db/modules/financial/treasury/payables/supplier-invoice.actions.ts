@@ -6,14 +6,26 @@ import SupplierInvoiceModel from './supplier-invoice.model'
 import {
   CreateSupplierInvoiceInput,
   ISupplierInvoiceDoc,
-  OurCompanySnapshot, 
+  OurCompanySnapshot,
 } from './supplier-invoice.types'
 import { CreateSupplierInvoiceSchema } from './supplier-invoice.validator'
 import { revalidatePath } from 'next/cache'
 import { getSetting } from '../../../setting/setting.actions'
 import { ISettingInput } from '../../../setting/types'
+import { connectToDatabase } from '@/lib/db'
+import Supplier from '../../../suppliers/supplier.model'
 
-// FIX: Tipul de retur este acum 'OurCompanySnapshot'
+type SupplierInvoiceActionResult = {
+  success: boolean
+  message: string
+  data?: string
+}
+type SingleInvoiceResult = {
+  success: boolean
+  data?: ISupplierInvoiceDoc | null
+  message?: string
+}
+
 function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
   const defaultPhone = settings.phones.find((p) => p.isDefault)
@@ -35,12 +47,6 @@ function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
     iban: defaultBank.iban,
     currency: defaultBank.currency,
   }
-}
-
-type SupplierInvoiceActionResult = {
-  success: boolean
-  message: string
-  data?: string // Returnează ID-ul noii facturi
 }
 
 /**
@@ -109,6 +115,56 @@ export async function createSupplierInvoice(
   }
 }
 
-// TODO: Adaugă aici 'getSupplierInvoices' (pentru listare)
-// TODO: Adaugă aici 'getSupplierInvoiceById' (pentru detalii)
-// TODO: Adaugă aici 'updateSupplierInvoice' (dacă permiți editarea)
+export async function getSupplierInvoices() {
+  try {
+    await connectToDatabase()
+
+    const invoices = await SupplierInvoiceModel.find()
+      .populate({
+        path: 'supplierId',
+        model: Supplier,
+        select: 'name',
+      })
+      .sort({ invoiceDate: -1 })
+      .lean()
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(invoices)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getSupplierInvoices:', error)
+    return { success: false, data: [] }
+  }
+}
+
+export async function getSupplierInvoiceById(
+  invoiceId: string
+): Promise<SingleInvoiceResult> {
+  try {
+    await connectToDatabase()
+    if (!Types.ObjectId.isValid(invoiceId)) {
+      return { success: false, message: 'ID Factură invalid.' }
+    }
+
+    const invoice = await SupplierInvoiceModel.findById(invoiceId)
+      .populate({
+        path: 'supplierId',
+        model: Supplier,
+        select: 'name fiscalCode',
+      })
+      .lean()
+
+    if (!invoice) {
+      return { success: false, message: 'Factura nu a fost găsită.' }
+    }
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(invoice)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getSupplierInvoiceById:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}

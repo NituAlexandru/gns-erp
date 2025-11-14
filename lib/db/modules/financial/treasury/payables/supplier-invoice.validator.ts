@@ -7,7 +7,7 @@ export const SupplierSnapshotSchema = z.object({
   name: z.string(),
   cui: z.string(),
   regCom: z.string(),
-  address: FiscalAddressSchema, 
+  address: FiscalAddressSchema,
   bank: z.string().optional(),
   iban: z.string().optional(),
 })
@@ -47,7 +47,7 @@ export const SupplierInvoiceTotalsSchema = z.object({
 export const CreateSupplierInvoiceSchema = z.object({
   supplierId: MongoId,
   supplierSnapshot: SupplierSnapshotSchema,
-
+  invoiceSeries: z.string().min(1, 'Seria facturii furnizor este obligatorie.'),
   invoiceNumber: z
     .string()
     .min(1, 'Numărul facturii furnizor este obligatoriu.'),
@@ -58,7 +58,6 @@ export const CreateSupplierInvoiceSchema = z.object({
     .array(SupplierInvoiceLineSchema)
     .min(1, 'Factura trebuie să aibă cel puțin o linie.'),
   totals: SupplierInvoiceTotalsSchema,
-
   notes: z.string().optional(),
 
   // TODO: De adăugat 'sourceReceiptIds' când e gata

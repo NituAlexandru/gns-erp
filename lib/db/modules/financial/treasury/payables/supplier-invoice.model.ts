@@ -1,16 +1,14 @@
-// --- FIX --- Am scos 'Types' din import
+
 import mongoose, { Schema, models, Model } from 'mongoose'
 import {
   ISupplierInvoiceDoc,
   SupplierInvoiceLine,
   SupplierInvoiceTotals,
   SupplierSnapshot,
-  OurCompanySnapshot, // <-- Am importat tipul
+  OurCompanySnapshot, 
 } from './supplier-invoice.types'
+import { SUPPLIER_INVOICE_STATUSES } from './supplier-invoice.constants'
 
-// --- FIX ---
-// Am copiat definițiile sub-schemelor aici, în loc să încercăm
-// să le importăm dintr-un alt model, ceea ce a cauzat erorile.
 const FiscalAddressSubSchema = new Schema(
   {
     judet: { type: String, required: true },
@@ -38,15 +36,13 @@ const CompanySnapshotSubSchema = new Schema<OurCompanySnapshot>(
   },
   { _id: false }
 )
-// --- SFÂRȘIT FIX ---
 
-// --- Sub-schemele ---
 const SupplierSnapshotSubSchema = new Schema<SupplierSnapshot>(
   {
     name: { type: String, required: true },
     cui: { type: String, required: true },
     regCom: { type: String, required: true },
-    address: { type: FiscalAddressSubSchema, required: true }, // <-- Acum folosește schema locală
+    address: { type: FiscalAddressSubSchema, required: true }, 
     bank: { type: String },
     iban: { type: String },
   },
@@ -88,7 +84,6 @@ const SupplierInvoiceTotalsSubSchema = new Schema<SupplierInvoiceTotals>(
   { _id: false }
 )
 
-// --- Schema Principală ---
 const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
   {
     supplierId: {
@@ -98,7 +93,7 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
     },
     supplierSnapshot: { type: SupplierSnapshotSubSchema, required: true },
     ourCompanySnapshot: { type: CompanySnapshotSubSchema, required: true }, // <-- Acum folosește schema locală
-
+    invoiceSeries: { type: String, required: true },
     invoiceNumber: { type: String, required: true, index: true },
     invoiceDate: { type: Date, required: true, index: true },
     dueDate: { type: Date, required: true },
@@ -108,16 +103,13 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
 
     status: {
       type: String,
-      enum: ['NEPLATITA', 'PLATITA_PARTIAL', 'PLATITA_COMPLET', 'ANULATA'],
+      enum: SUPPLIER_INVOICE_STATUSES,
       default: 'NEPLATITA',
       required: true,
       index: true,
     },
     paidAmount: { type: Number, default: 0 },
     remainingAmount: { type: Number, default: 0 },
-
-    // TODO: De adăugat când modulul 'Receptii' e gata
-    // sourceReceiptIds: [{ type: Schema.Types.ObjectId, ref: 'ReceiptNote' }],
 
     eFacturaXMLId: { type: String, index: true, sparse: true },
     eFacturaIndex: { type: String, index: true, sparse: true },
@@ -130,7 +122,7 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
 )
 
 // Hook pentru a seta 'remainingAmount' la creare
-SupplierInvoiceSchema.pre('save', function (next) {
+SupplierInvoiceSchema.pre('save', function (this: ISupplierInvoiceDoc, next) {
   if (this.isNew) {
     this.paidAmount = 0
     this.remainingAmount = this.totals.grandTotal

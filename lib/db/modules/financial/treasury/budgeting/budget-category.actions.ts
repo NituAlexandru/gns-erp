@@ -15,7 +15,8 @@ import {
   CreateBudgetCategorySchema,
   UpdateBudgetCategorySchema,
 } from './budget-category.validator'
-import { z } from 'zod' 
+import { z } from 'zod'
+import SupplierInvoiceModel from '../payables/supplier-invoice.model'
 
 // --- Tipul de Răspuns ---
 type CategoryActionResult = {
@@ -43,7 +44,6 @@ export async function createBudgetCategory(
   data: CreateBudgetCategoryInput
 ): Promise<CategoryActionResult> {
   try {
-    // Aici 'userId' și 'userName' SUNT folosite
     const { userId, userName } = await verifyAdmin()
     await connectToDatabase()
 
@@ -65,8 +65,8 @@ export async function createBudgetCategory(
       parentId: validatedData.parentId
         ? new Types.ObjectId(validatedData.parentId)
         : null,
-      createdBy: new Types.ObjectId(userId), 
-      createdByName: userName, 
+      createdBy: new Types.ObjectId(userId),
+      createdByName: userName,
     })
 
     await newCategory.save()
@@ -105,7 +105,7 @@ export async function updateBudgetCategory(
   data: z.infer<typeof UpdateBudgetCategorySchema>
 ): Promise<CategoryActionResult> {
   try {
-   await verifyAdmin()
+    await verifyAdmin()
     await connectToDatabase()
 
     const validatedData = UpdateBudgetCategorySchema.parse(data)
@@ -139,7 +139,6 @@ export async function updateBudgetCategory(
       parentId: updateData.parentId
         ? new Types.ObjectId(updateData.parentId)
         : null,
-      // Notă: Nu adăugăm 'updatedBy' deoarece nu l-am definit în model/tipuri
     })
 
     await category.save()
@@ -179,8 +178,6 @@ export async function deleteBudgetCategory(
         )
       }
 
-      // TODO: Verifică dacă a fost folosită pe vreo factură furnizor
-
       const result =
         await BudgetCategoryModel.findByIdAndDelete(categoryIdObj).session(
           session
@@ -206,5 +203,69 @@ export async function deleteBudgetCategory(
     await session.endSession()
     console.error('❌ Eroare deleteBudgetCategory:', error)
     return { success: false, message: formatError(error) }
+  }
+}
+export async function toggleBudgetCategoryStatus(
+  categoryId: string,
+  newStatus: boolean
+): Promise<Omit<CategoryActionResult, 'data'>> {
+  const session = await startSession()
+  try {
+    await verifyAdmin()
+    let resultMessage = ''
+
+    await session.withTransaction(async (session) => {
+      const categoryIdObj = new Types.ObjectId(categoryId)
+
+      // 1. Verificăm dacă încercăm să DEZACTIVĂM
+      if (newStatus === false) {
+        // 2. Verificăm dacă are copii ACTIVI
+        const activeChildCount = await BudgetCategoryModel.countDocuments({
+          parentId: categoryIdObj,
+          isActive: true,
+        }).session(session)
+
+        if (activeChildCount > 0) {
+          throw new Error(
+            `Nu se poate dezactiva. Mutați sau dezactivați mai întâi cele ${activeChildCount} subcategorii active.`
+          )
+        }
+
+        // 3. Verificăm dacă e folosită PE UNDEVA (aici e cheia)
+        // (Momentan o verificăm doar pe facturi furnizor, dar va trebui să adaugi și alte locuri)
+        const usageCount = await SupplierInvoiceModel.countDocuments({
+          'items.budgetCategoryId': categoryIdObj,
+        }).session(session)
+      
+        if (usageCount > 0) {
+          throw new Error(
+            `Nu se poate dezactiva. Categoria este deja folosită pe ${usageCount} documente.`
+          )
+        }
+      }
+
+      // 4. Dacă trecem de validări, actualizăm statusul
+      const updatedCategory = await BudgetCategoryModel.findByIdAndUpdate(
+        categoryIdObj,
+        { $set: { isActive: newStatus } },
+        { new: true, session }
+      )
+
+      if (!updatedCategory) {
+        throw new Error('Categoria nu a fost găsită.')
+      }
+
+      resultMessage = `Categoria "${updatedCategory.name}" a fost ${newStatus ? 'reactivată' : 'dezactivată'}.`
+    })
+
+    await session.endSession()
+    revalidatePath('/incasari-si-plati/budgeting')
+
+    return { success: true, message: resultMessage }
+  } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction()
+    await session.endSession()
+    console.error('❌ Eroare toggleBudgetCategoryStatus:', error)
+    return { success: false, message: (error as Error).message }
   }
 }
