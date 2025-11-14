@@ -24,7 +24,6 @@ export type PopulatedInvoiceAllocationHistory = Awaited<
   ReturnType<typeof getInvoiceAllocationHistory>
 >['data'][number]
 
-
 export async function createManualSupplierAllocation(
   data: CreateSupplierAllocationInput
 ): Promise<AllocationActionResult> {
@@ -102,7 +101,7 @@ export async function createManualSupplierAllocation(
 
       // --- MODIFICARE: Folosim statusurile corecte ---
       if (invoice.remainingAmount <= 0.001) {
-        invoice.status = 'PLATITA' 
+        invoice.status = 'PLATITA'
         invoice.remainingAmount = 0
       } else {
         invoice.status = 'PARTIAL_PLATITA'
@@ -118,7 +117,7 @@ export async function createManualSupplierAllocation(
       throw new Error('Tranzacția nu a returnat o alocare.')
     }
     revalidatePath(`/financial/invoices/${newAllocation.invoiceId.toString()}`)
-    revalidatePath('/incasari-si-plati/payables')
+    revalidatePath('/admin/management/incasari-si-plati/payables')
     if (supplierIdToRevalidate) {
       revalidatePath(`/suppliers/${supplierIdToRevalidate}`)
     }
@@ -215,7 +214,7 @@ export async function deleteSupplierAllocation(
 
     await session.endSession()
 
-    revalidatePath('/incasari-si-plati/payables')
+    revalidatePath('/admin/management/incasari-si-plati/payables')
     if (supplierIdToRevalidate) {
       revalidatePath(`/suppliers/${supplierIdToRevalidate}`)
     } else {
@@ -250,7 +249,7 @@ export async function getAllocationsForSupplierPayment(paymentId: string) {
       .populate({
         path: 'invoiceId',
         model: SupplierInvoiceModel,
-        select: 'invoiceNumber invoiceSeries', 
+        select: 'invoiceNumber invoiceSeries',
       })
       .sort({ createdAt: -1 })
       .lean()
@@ -311,9 +310,9 @@ export async function getInvoiceAllocationHistory(invoiceId: string) {
       .populate({
         path: 'paymentId',
         model: SupplierPaymentModel,
-        select: 'paymentNumber seriesName paymentDate', 
+        select: 'paymentNumber seriesName paymentDate',
       })
-      .sort({ allocationDate: 1 }) 
+      .sort({ allocationDate: 1 })
       .lean()
 
     return {

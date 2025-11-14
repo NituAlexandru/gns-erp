@@ -12,7 +12,7 @@ export default async function PayablesLayout({
   const isAdmin = SUPER_ADMIN_ROLES.includes(userRole.toLowerCase())
 
   if (!isAdmin) {
-    redirect('/incasari-si-plati')
+    redirect('/')
   }
 
   return <>{children}</>

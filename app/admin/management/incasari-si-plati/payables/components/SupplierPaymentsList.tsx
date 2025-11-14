@@ -18,7 +18,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
@@ -152,7 +151,6 @@ export function SupplierPaymentsList({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align='end'>
-                          <DropdownMenuLabel>Acțiuni Plată</DropdownMenuLabel>
                           <DropdownMenuItem
                             onClick={() => handleViewAllocations(payment)}
                             disabled={!isAllocationsViewable}

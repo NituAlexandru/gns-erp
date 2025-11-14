@@ -70,7 +70,7 @@ export async function createBudgetCategory(
     })
 
     await newCategory.save()
-    revalidatePath('/incasari-si-plati/budgeting')
+    revalidatePath('/admin/management/incasari-si-plati/budgeting')
 
     return {
       success: true,
@@ -142,7 +142,7 @@ export async function updateBudgetCategory(
     })
 
     await category.save()
-    revalidatePath('/incasari-si-plati/budgeting')
+    revalidatePath('/admin/management/incasari-si-plati/budgeting')
 
     return {
       success: true,
@@ -193,7 +193,7 @@ export async function deleteBudgetCategory(
     })
 
     await session.endSession()
-    revalidatePath('/incasari-si-plati/budgeting')
+    revalidatePath('/admin/management/incasari-si-plati/budgeting')
 
     return { success: true, message: resultMessage }
   } catch (error) {
@@ -236,7 +236,7 @@ export async function toggleBudgetCategoryStatus(
         const usageCount = await SupplierInvoiceModel.countDocuments({
           'items.budgetCategoryId': categoryIdObj,
         }).session(session)
-      
+
         if (usageCount > 0) {
           throw new Error(
             `Nu se poate dezactiva. Categoria este deja folosită pe ${usageCount} documente.`
@@ -259,7 +259,7 @@ export async function toggleBudgetCategoryStatus(
     })
 
     await session.endSession()
-    revalidatePath('/incasari-si-plati/budgeting')
+    revalidatePath('/admin/management/incasari-si-plati/budgeting')
 
     return { success: true, message: resultMessage }
   } catch (error) {

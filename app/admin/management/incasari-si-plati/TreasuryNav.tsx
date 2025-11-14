@@ -4,9 +4,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   LayoutDashboard,
-  TrendingUp, 
+  TrendingUp,
   TrendingDown,
-  Library, 
+  Library,
 } from 'lucide-react'
 
 // Definim TOATE link-urile posibile
@@ -43,8 +43,8 @@ export default function TreasuryNav({ isAdmin }: { isAdmin: boolean }) {
 
   const getActive = (id: string) =>
     id === ''
-      ? pathname === '/incasari-si-plati'
-      : pathname.includes(`/incasari-si-plati/${id}`)
+      ? pathname === '/admin/management/incasari-si-plati'
+      : pathname.includes(`/admin/management/incasari-si-plati/${id}`)
 
   // FILTRĂM link-urile pe care le vom afișa
   const visibleNavItems = ALL_NAV_ITEMS.filter((item) => {
@@ -63,7 +63,9 @@ export default function TreasuryNav({ isAdmin }: { isAdmin: boolean }) {
           className='justify-start gap-2'
           onClick={() =>
             router.push(
-              item.id ? `/incasari-si-plati/${item.id}` : '/incasari-si-plati'
+              item.id
+                ? `/admin/management/incasari-si-plati/${item.id}`
+                : '/admin/management/incasari-si-plati'
             )
           }
         >

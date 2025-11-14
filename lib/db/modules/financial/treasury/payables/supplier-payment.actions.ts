@@ -20,7 +20,7 @@ import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
 import Supplier from '../../../suppliers/supplier.model'
 import BudgetCategoryModel from '../budgeting/budget-category.model'
-import { PopulatedSupplierPayment } from '@/app/(root)/incasari-si-plati/payables/components/SupplierAllocationModal'
+import { PopulatedSupplierPayment } from '@/app/admin/management/incasari-si-plati/payables/components/SupplierAllocationModal'
 
 type AllocationDetail = { invoiceNumber: string; allocatedAmount: number }
 
@@ -184,7 +184,7 @@ export async function createSupplierPayment(
     if (!newPaymentDoc) {
       throw new Error('Tranzacția nu a returnat un document de plată.')
     }
-    revalidatePath('/incasari-si-plati/payables')
+    revalidatePath('/admin/management/incasari-si-plati/payables')
     revalidatePath(`/suppliers/${newPaymentDoc.supplierId.toString()}`)
 
     return {
@@ -300,7 +300,7 @@ export async function cancelSupplierPayment(
 
     await session.endSession()
 
-    revalidatePath('/incasari-si-plati/payables')
+    revalidatePath('/admin/management/incasari-si-plati/payables')
     revalidatePath(`/suppliers/${paymentId}`)
 
     return { success: true, message: 'Plata a fost anulată cu succes.' }

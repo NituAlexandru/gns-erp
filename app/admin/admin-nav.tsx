@@ -26,6 +26,10 @@ const links = [
     href: '/admin/management/reception',
   },
   {
+    title: 'Incasăari si Plăti',
+    href: '/admin/management/incasari-si-plati',
+  },
+  {
     title: 'Furnizori',
     href: '/admin/management/suppliers',
   },
@@ -37,10 +41,7 @@ const links = [
     title: 'Utilizatori',
     href: '/admin/users',
   },
-  {
-    title: 'Utilizatori',
-    href: '/admin/management/incasari-si-plati',
-  },
+
   {
     title: 'Setări',
     href: '/admin/settings',

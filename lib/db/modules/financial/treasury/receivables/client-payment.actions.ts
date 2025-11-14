@@ -148,7 +148,7 @@ export async function createClientPayment(
     }
 
     revalidatePath('/financial/invoices')
-    revalidatePath('/incasari-si-plati/receivables')
+    revalidatePath('/admin/management/incasari-si-plati/receivables')
     revalidatePath(`/clients/${newPaymentDoc.clientId.toString()}`)
 
     return {
@@ -240,7 +240,7 @@ export async function cancelClientPayment(
 
     await session.endSession()
 
-    revalidatePath('/incasari-si-plati/receivables')
+    revalidatePath('/admin/management/incasari-si-plati/receivables')
 
     return { success: true, message: 'Încasarea a fost anulată cu succes.' }
   } catch (error) {

@@ -97,7 +97,7 @@ export async function createSupplierInvoice(
       throw new Error('Tranzacția nu a returnat o factură.')
     }
 
-    revalidatePath('/incasari-si-plati/payables')
+    revalidatePath('/admin/management/incasari-si-plati/payables')
     revalidatePath(`/suppliers/${newInvoice.supplierId.toString()}`)
 
     return {

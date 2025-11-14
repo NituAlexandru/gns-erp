@@ -106,7 +106,7 @@ export async function createManualAllocation(
     }
 
     revalidatePath(`/financial/invoices/${newAllocation.invoiceId.toString()}`)
-    revalidatePath('/incasari-si-plati/receivables')
+    revalidatePath('/admin/management/incasari-si-plati/receivables')
     revalidatePath('/clients')
 
     const populatedAllocation = await PaymentAllocationModel.findById(
@@ -197,7 +197,7 @@ export async function deleteAllocation(
     await session.endSession()
 
     revalidatePath('/financial/invoices')
-    revalidatePath('/incasari-si-plati/receivables')
+    revalidatePath('/admin/management/incasari-si-plati/receivables')
     revalidatePath('/clients')
 
     return {

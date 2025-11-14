@@ -28,7 +28,7 @@ export function BudgetTreeItem({
   onAddChild,
   onEdit,
 }: BudgetTreeItemProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const isParent = category.parentId === null
 
   const handleToggleActive = async () => {
