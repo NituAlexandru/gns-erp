@@ -179,7 +179,9 @@ export function TreasuryDashboardContent({
         {/* Coloana 1: Încasări pe Client (Dinamic) */}
         <Card>
           <CardHeader>
-            <CardTitle>Total Încasat pe Client {formattedDateRange}</CardTitle>
+            <CardTitle>
+              Total Încasat (pe Client) - {formattedDateRange}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ClientSummaryList
@@ -193,7 +195,7 @@ export function TreasuryDashboardContent({
         {isAdmin && (
           <Card>
             <CardHeader>
-              <CardTitle>Total Plăți pe Buget {formattedDateRange}</CardTitle>
+              <CardTitle>Total Plăți Efectuate {formattedDateRange}</CardTitle>
             </CardHeader>
             <CardContent>
               <BudgetSummaryAccordion

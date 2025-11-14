@@ -26,7 +26,7 @@ const links = [
     href: '/admin/management/reception',
   },
   {
-    title: 'Incasăari si Plăti',
+    title: 'Incasări si Plăti',
     href: '/admin/management/incasari-si-plati',
   },
   {
