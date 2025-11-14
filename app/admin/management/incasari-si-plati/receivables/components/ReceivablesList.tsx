@@ -91,10 +91,12 @@ export function ReceivablesList({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nr. Doc.</TableHead>
+                <TableHead>Serie - Nr. Doc.</TableHead>
                 <TableHead>Client</TableHead>
-                <TableHead>Dată</TableHead>
-                <TableHead className='text-right'>Sumă Totală</TableHead>
+                <TableHead>Dată Plată</TableHead>
+                <TableHead className='text-right'>
+                  Sumă Totală Încasată
+                </TableHead>
                 <TableHead className='text-right'>Sumă Nealocată</TableHead>
                 <TableHead>Status</TableHead>
                 {isAdmin && (
@@ -123,7 +125,7 @@ export function ReceivablesList({
                 return (
                   <TableRow key={payment._id}>
                     <TableCell className='font-medium'>
-                      {payment.paymentNumber}
+                      {payment.seriesName || ''} - {payment.paymentNumber}
                     </TableCell>
                     <TableCell>{payment.clientId?.name || 'N/A'}</TableCell>
                     <TableCell>
