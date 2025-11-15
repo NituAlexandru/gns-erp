@@ -7,16 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { formatCurrency, formatDateTime, round2 } from '@/lib/utils'
-import { UnpaidInvoice } from './AllocationModal'
+import { UnpaidInvoice, PopulatedClientPayment } from './AllocationModal'
 import { createManualAllocation } from '@/lib/db/modules/financial/treasury/receivables/payment-allocation.actions'
-import { ClientPaymentDTO } from '@/lib/db/modules/financial/treasury/receivables/client-payment.types'
-
-type PopulatedClientPayment = ClientPaymentDTO & {
-  clientId: {
-    _id: string
-    name: string
-  }
-}
 
 interface UnpaidInvoiceListProps {
   invoices: UnpaidInvoice[]
@@ -47,7 +39,6 @@ export function UnpaidInvoiceList({
   const handleAllocate = async (invoice: UnpaidInvoice) => {
     const amountToAllocate = round2(amountsToAllocate[invoice._id] || 0)
 
-    // Validări
     if (amountToAllocate <= 0) {
       toast.error('Suma de alocat trebuie să fie mai mare ca zero.')
       return
@@ -80,8 +71,8 @@ export function UnpaidInvoiceList({
         allocationDate: new Date(),
       })
 
-        if (result.success && result.data) {
-             const invoiceDetails = result.data.invoiceId
+      if (result.success && result.data) {
+        const invoiceDetails = result.data.invoiceId
 
         toast.success(result.message, {
           duration: 7000,
@@ -94,7 +85,7 @@ export function UnpaidInvoiceList({
                 </span>{' '}
                 a fost alocată facturii{' '}
                 <span className='font-medium'>
-                 {invoiceDetails.seriesName}-{invoiceDetails.invoiceNumber}
+                  {invoiceDetails.seriesName}-{invoiceDetails.invoiceNumber}
                 </span>
                 .
               </p>
@@ -176,7 +167,7 @@ export function UnpaidInvoiceList({
                 onClick={() => handleAllocateMax(invoice)}
                 disabled={!!allocatingId}
               >
-                Toata suma
+                MAX
               </Button>
               <Button
                 type='button'

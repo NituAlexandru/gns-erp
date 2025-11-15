@@ -34,9 +34,14 @@ export type UnpaidInvoice = UnpaidInvoiceType
 interface AllocationModalProps {
   payment: PopulatedClientPayment | null
   onClose: () => void
+  isAdmin: boolean
 }
 
-export function AllocationModal({ payment, onClose }: AllocationModalProps) {
+export function AllocationModal({
+  payment,
+  onClose,
+  isAdmin,
+}: AllocationModalProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [allocations, setAllocations] = useState<PopulatedAllocation[]>([])
@@ -136,23 +141,30 @@ export function AllocationModal({ payment, onClose }: AllocationModalProps) {
             <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
           </div>
         ) : (
-          <div className='grid grid-cols-1 gap-6 py-6 p-5'>
+          <div
+            className={`grid ${isAdmin ? 'grid-cols-1' : 'grid-cols-1'} gap-6 p-5 py-6`}
+          >
+            {/* Coloana Stângă: Alocări Existente */}
             <div className='space-y-4'>
               <h3 className='font-semibold'>Alocări Existente</h3>
               <AllocationList
                 allocations={allocations}
                 onAllocationDeleted={refreshData}
+                isAdmin={isAdmin}
               />
             </div>
 
-            <div className='space-y-4'>
-              <h3 className='font-semibold'>Facturi Disponibile</h3>
-              <UnpaidInvoiceList
-                invoices={invoices}
-                payment={latestPayment}
-                onAllocationCreated={refreshData}
-              />
-            </div>
+            {/* Coloana Dreaptă: Facturi Disponibile (doar pt admin) */}
+            {isAdmin && (
+              <div className='space-y-4'>
+                <h3 className='font-semibold'>Facturi Disponibile</h3>
+                <UnpaidInvoiceList
+                  invoices={invoices}
+                  payment={latestPayment}
+                  onAllocationCreated={refreshData}
+                />
+              </div>
+            )}
           </div>
         )}
 

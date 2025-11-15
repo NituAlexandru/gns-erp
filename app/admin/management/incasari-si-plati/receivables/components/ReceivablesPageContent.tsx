@@ -83,10 +83,10 @@ export function ReceivablesPageContent({
         </Sheet>
       )}
 
-      {/* Sheet-ul de Alocare (deschis de ReceivablesList) */}
       <AllocationModal
         payment={allocationModalPayment}
         onClose={() => setAllocationModalPayment(null)}
+        isAdmin={isAdmin}
       />
     </div>
   )

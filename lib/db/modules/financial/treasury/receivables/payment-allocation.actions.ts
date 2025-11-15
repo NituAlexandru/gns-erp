@@ -135,7 +135,6 @@ export async function createManualAllocation(
     return { success: false, message: (error as Error).message }
   }
 }
-
 /**
  * Șterge o alocare specifică.
  */
@@ -214,7 +213,7 @@ export async function deleteAllocation(
   }
 }
 
-// --- FUNCȚIA 1: PENTRU A VEDEA CE E DEJA ALOCAT ---
+// ---  PENTRU A VEDEA CE E DEJA ALOCAT ---
 export async function getAllocationsForPayment(paymentId: string) {
   try {
     await connectToDatabase()
@@ -243,7 +242,7 @@ export async function getAllocationsForPayment(paymentId: string) {
   }
 }
 
-// --- FUNCȚIA 2: PENTRU A VEDEA CE SE POATE ALOCA ---
+// ---  PENTRU A VEDEA CE SE POATE ALOCA ---
 export async function getUnpaidInvoicesByClient(clientId: string) {
   try {
     await connectToDatabase()
@@ -268,6 +267,33 @@ export async function getUnpaidInvoicesByClient(clientId: string) {
     }
   } catch (error) {
     console.error('❌ Eroare getUnpaidInvoicesByClient:', error)
+    return { success: false, data: [], message: (error as Error).message }
+  }
+}
+export async function getAllocationsForInvoice(invoiceId: string) {
+  try {
+    await connectToDatabase()
+    if (!Types.ObjectId.isValid(invoiceId)) {
+      throw new Error('ID Factură invalid.')
+    }
+
+    const allocations = await PaymentAllocationModel.find({
+      invoiceId: new Types.ObjectId(invoiceId),
+    })
+      .populate({
+        path: 'paymentId',
+        model: ClientPaymentModel,
+        select: 'paymentNumber seriesName paymentDate',
+      })
+      .sort({ allocationDate: 1 })
+      .lean()
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(allocations)),
+    }
+  } catch (error) {
+    console.error('❌ Eroare getAllocationsForInvoice:', error)
     return { success: false, data: [], message: (error as Error).message }
   }
 }

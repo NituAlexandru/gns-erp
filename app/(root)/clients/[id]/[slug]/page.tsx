@@ -1,6 +1,9 @@
 import { notFound, redirect } from 'next/navigation'
 import { getClientById } from '@/lib/db/modules/client/client.actions'
-import { getClientSummary } from '@/lib/db/modules/client/summary/client-summary.actions'
+import {
+  getClientSummary,
+  recalculateClientSummary,
+} from '@/lib/db/modules/client/summary/client-summary.actions'
 import { toSlug } from '@/lib/utils'
 import { auth } from '@/auth'
 import ClientFileView from './client-file-view'
@@ -23,16 +26,17 @@ export default async function ClientViewPage({
     return notFound()
   }
 
+  const canonical = toSlug(client.name)
+
+  if (slug !== canonical) {
+    return redirect(`/clients/${id}/${canonical}`)
+  }
+
+  await recalculateClientSummary(id, slug, true)
+
   const summary = await getClientSummary(id)
   if (!summary) {
     throw new Error('Nu s-a putut încărca sumarul pentru acest client.')
-  }
-
-  const canonical = toSlug(client.name)
- 
-  if (slug !== canonical) {
-
-    return redirect(`/clients/${id}/${canonical}`)
   }
 
   return (
@@ -45,7 +49,12 @@ export default async function ClientViewPage({
         </Button>
         <h1 className='text-2xl font-bold'>Fișă Client: {client.name}</h1>
       </div>
-      <ClientFileView client={client} summary={summary} isAdmin={isAdmin} />
+      <ClientFileView
+        client={client}
+        summary={summary}
+        isAdmin={isAdmin}
+        clientSlug={slug}
+      />
     </div>
   )
 }

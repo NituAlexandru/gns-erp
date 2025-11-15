@@ -1,4 +1,3 @@
-
 'use client'
 
 import { toast } from 'sonner'
@@ -23,14 +22,16 @@ import {
 
 interface AllocationListProps {
   allocations: PopulatedAllocation[]
-  onAllocationDeleted: () => void 
+  onAllocationDeleted: () => void
+  isAdmin: boolean
 }
 
 export function AllocationList({
   allocations,
   onAllocationDeleted,
+  isAdmin,
 }: AllocationListProps) {
-  const [deletingId, setDeletingId] = useState<string | null>(null) 
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const handleDelete = async (allocationId: string) => {
     setDeletingId(allocationId)
@@ -38,7 +39,7 @@ export function AllocationList({
       const result = await deleteAllocation(allocationId)
       if (result.success) {
         toast.success(result.message)
-        onAllocationDeleted() 
+        onAllocationDeleted()
       } else {
         toast.error('Eroare la ștergere:', { description: result.message })
       }
@@ -76,46 +77,47 @@ export function AllocationList({
               <span className='font-semibold text-lg'>
                 {formatCurrency(alloc.amountAllocated)}
               </span>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant='ghost'
-                    size='icon'
-                    className='text-red-600 hover:text-red-700'
-                    disabled={!!deletingId}
-                  >
-                    {deletingId === alloc._id ? (
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                    ) : (
-                      <Trash2 className='h-4 w-4' />
-                    )}
-                  </Button>
-                </AlertDialogTrigger>
-
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Confirmă Ștergerea</AlertDialogTitle>
-
-                    <AlertDialogDescription>
-                      Ești sigur că vrei să anulezi această alocare de{' '}
-                      {formatCurrency(alloc.amountAllocated)}? Suma va fi
-                      returnată încasării.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Anulează</AlertDialogCancel>
-
-                    <AlertDialogAction
-                      onClick={() => handleDelete(alloc._id)}
-                      className='bg-red-600 hover:bg-red-700'
+              {isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='text-red-600 hover:text-red-700'
+                      disabled={!!deletingId}
                     >
-                      Șterge Alocarea
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      {deletingId === alloc._id ? (
+                        <Loader2 className='h-4 w-4 animate-spin' />
+                      ) : (
+                        <Trash2 className='h-4 w-4' />
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmă Ștergerea</AlertDialogTitle>
+
+                      <AlertDialogDescription>
+                        Ești sigur că vrei să anulezi această alocare de{' '}
+                        {formatCurrency(alloc.amountAllocated)}? Suma va fi
+                        returnată încasării.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Anulează</AlertDialogCancel>
+
+                      <AlertDialogAction
+                        onClick={() => handleDelete(alloc._id)}
+                        className='bg-red-600 hover:bg-red-700'
+                      >
+                        Șterge Alocarea
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </div>
         ))}

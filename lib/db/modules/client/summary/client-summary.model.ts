@@ -5,6 +5,7 @@ export interface IClientSummary extends Document {
   clientId: mongoose.Schema.Types.ObjectId
   outstandingBalance: number
   overdueBalance: number
+  overdueInvoicesCount: number
   creditLimit: number
   availableCredit: number
   isBlocked: boolean
@@ -27,6 +28,7 @@ const ClientSummarySchema = new Schema<IClientSummary>(
     outstandingBalance: { type: Number, default: 0 },
     // Din soldul total, cât are scadența depășită
     overdueBalance: { type: Number, default: 0 },
+    overdueInvoicesCount: { type: Number, default: 0 },
     // Plafonul de credit negociat
     creditLimit: { type: Number, default: 0 },
     // Câmp calculat: Plafon - Sold
