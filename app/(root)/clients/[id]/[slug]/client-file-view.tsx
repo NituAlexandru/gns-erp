@@ -11,6 +11,11 @@ import { ClientLedgerEntry } from '@/lib/db/modules/client/summary/client-summar
 import { InvoiceAllocationHistorySheet } from './InvoiceAllocationHistorySheet'
 import { PopulatedClientPayment } from '@/lib/db/modules/financial/treasury/receivables/client-payment.types'
 import { AllocationModal } from '@/app/admin/management/incasari-si-plati/receivables/components/AllocationModal'
+import { ClientInvoicesList } from './ClientInvoicesList'
+import { ClientOrdersList } from './ClientOrdersList'
+import { ClientDeliveriesList } from './ClientDeliveriesList'
+import { ClientDeliveryNotesList } from './ClientDeliveryNotesList'
+import { ClientProductsList } from './ClientProductsList'
 
 interface ClientFileViewProps {
   client: IClientDoc
@@ -80,24 +85,16 @@ export default function ClientFileView({
               <ClientDetails client={client} isAdmin={isAdmin} />
             )}
             {activeTab === 'orders' && (
-              <div className='p-4 border rounded-md'>
-                Aici va fi tabelul cu comenzi.
-              </div>
+              <ClientOrdersList clientId={client._id} />
             )}
             {activeTab === 'deliveries' && (
-              <div className='p-4 border rounded-md'>
-                Aici va fi tabelul cu livrări.
-              </div>
+              <ClientDeliveriesList clientId={client._id} />
             )}
             {activeTab === 'notices' && (
-              <div className='p-4 border rounded-md'>
-                Aici va fi tabelul cu avize.
-              </div>
+              <ClientDeliveryNotesList clientId={client._id} />
             )}
             {activeTab === 'invoices' && (
-              <div className='p-4 border rounded-md'>
-                Aici va fi tabelul cu facturi.
-              </div>
+              <ClientInvoicesList clientId={client._id} />
             )}
 
             {activeTab === 'payments' && (
@@ -110,15 +107,11 @@ export default function ClientFileView({
             )}
 
             {activeTab === 'products' && (
-              <div className='p-4 border rounded-md'>
-                Aici va fi tabelul cu produse.
-              </div>
+              <ClientProductsList clientId={client._id} />
             )}
           </div>
         </main>
       </div>
-
-      {/* Modalele pentru Drill-Down */}
 
       <InvoiceAllocationHistorySheet
         ledgerEntry={selectedLedgerEntry}
