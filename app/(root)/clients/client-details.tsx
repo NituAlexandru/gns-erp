@@ -110,8 +110,12 @@ export function ClientDetails({ client, isAdmin }: ClientDetailsProps) {
             {/* 🔽 MODIFICAT: Afișare adresă fiscală structurată */}
             <div>
               <strong>Adresă fiscală:</strong>
-              <div className='italic pl-2'>
-                <p>{`${client.address.strada}, Nr. ${client.address.numar}`}</p>
+              <div className='italic pl-2 text-sm'>
+                <p>
+                  {' '}
+                  Str.{' '}
+                  {`${client.address.strada}, Nr. ${client.address.numar},`}
+                </p>
                 <p>{`${client.address.localitate}, ${client.address.judet}, ${client.address.codPostal}`}</p>
                 {client.address.alteDetalii && (
                   <p className='text-xs'>{client.address.alteDetalii}</p>
@@ -145,13 +149,16 @@ export function ClientDetails({ client, isAdmin }: ClientDetailsProps) {
                   <strong>Adrese de livrare marfă:</strong>
                   <ul className='space-y-3 mt-1'>
                     {client.deliveryAddresses.map((addr, i) => (
-                      <li key={i} className='italic border-l-2 pl-2'>
-                        <p>{`${addr.strada}, Nr. ${addr.numar}`}</p>
+                      <li key={i} className='italic border-l-2 pl-2 text-sm'>
+                        <p>Str. {`${addr.strada}, Nr. ${addr.numar},`}</p>
                         <p>{`${addr.localitate}, ${addr.judet}, ${addr.codPostal}`}</p>
                         {addr.alteDetalii && (
                           <p className='text-xs'>{addr.alteDetalii}</p>
                         )}
-                        <p className='text-xs not-italic text-muted-foreground mt-1'>
+                        <p className='text-xs not-italic text-muted-foreground'>
+                          {`Pers. Contact: ${addr.persoanaContact}, tel: ${addr.telefonContact}`}
+                        </p>
+                        <p className='text-xs not-italic text-muted-foreground'>
                           {`Distanță: ~${addr.distanceInKm} km | Timp: ~${formatMinutes(addr.travelTimeInMinutes)}`}
                         </p>
                       </li>

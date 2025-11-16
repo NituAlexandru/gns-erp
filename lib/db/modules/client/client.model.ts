@@ -11,6 +11,8 @@ const addressSchema = new Schema(
     codPostal: { type: String, required: true },
     tara: { type: String, required: true, default: 'RO' },
     alteDetalii: { type: String },
+    persoanaContact: { type: String, required: true },
+    telefonContact: { type: String, required: true },
     distanceInKm: { type: Number },
     travelTimeInMinutes: { type: Number },
     isActive: { type: Boolean, default: true, required: true },

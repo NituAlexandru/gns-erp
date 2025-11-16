@@ -30,14 +30,13 @@ import {
 import { Loader2 } from 'lucide-react'
 import { ROMANIAN_BANKS } from '@/lib/constants'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
-
-
+import { CountryCombobox } from './CountryCombobox'
 
 export default function ClientForm() {
   const router = useRouter()
   const [currentDeliveryAddress, setCurrentDeliveryAddress] = useState<
     Partial<IAddress>
-  >({})
+  >({ tara: 'RO', persoanaContact: '', telefonContact: '' })
   const [isCalculating, setIsCalculating] = useState(false)
 
   const form = useForm<IClientCreate>({
@@ -60,6 +59,9 @@ export default function ClientForm() {
         numar: '',
         codPostal: '',
         alteDetalii: '',
+        tara: 'RO',
+        persoanaContact: '',
+        telefonContact: '',
       },
       deliveryAddresses: [],
       bankAccountLei: { iban: '', bankName: '' },
@@ -97,7 +99,10 @@ export default function ClientForm() {
       !addr.localitate ||
       !addr.strada ||
       !addr.numar ||
-      !addr.codPostal
+      !addr.codPostal ||
+      !addr.tara ||
+      !addr.persoanaContact ||
+      !addr.telefonContact
     ) {
       toast.error(
         'Toate câmpurile adresei de livrare (fără "alte detalii") sunt obligatorii.'
@@ -558,6 +563,50 @@ export default function ClientForm() {
                 </FormItem>
               )}
             />
+            <FormField
+              control={control}
+              name='address.tara'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Țara</FormLabel>
+                  <FormControl>
+                    <CountryCombobox
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* --- MODIFICARE: Am adăugat Persoana Contact --- */}
+            <FormField
+              control={control}
+              name='address.persoanaContact'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Persoană Contact</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Ex: Vasile Popescu' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* --- MODIFICARE: Am adăugat Telefon Contact --- */}
+            <FormField
+              control={control}
+              name='address.telefonContact'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Telefon Persoană Contact</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Ex: 07xx xxx xxx' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         </div>
         {/* Adrese de Livrare Structurate */}
@@ -666,6 +715,50 @@ export default function ClientForm() {
                       />
                     </FormControl>
                   </FormItem>
+                  <FormItem>
+                    <FormLabel>Țara</FormLabel>
+                    <FormControl>
+                      <CountryCombobox
+                        value={currentDeliveryAddress.tara || 'RO'}
+                        onChange={(value) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            tara: value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  {/* --- MODIFICARE: Am adăugat Persoana Contact --- */}
+                  <FormItem>
+                    <FormLabel>Persoană Contact</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.persoanaContact || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            persoanaContact: e.target.value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  {/* --- MODIFICARE: Am adăugat Telefon Contact --- */}
+                  <FormItem>
+                    <FormLabel>Telefon Contact</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.telefonContact || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress((p) => ({
+                            ...p,
+                            telefonContact: e.target.value,
+                          }))
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
                 </div>
                 <Button
                   type='button'
@@ -687,7 +780,10 @@ export default function ClientForm() {
                     className='flex justify-between items-center p-2 bg-secondary rounded-md'
                   >
                     <div>
-                      <p className='font-medium'>{`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}`}</p>
+                      <p className='font-medium'>{`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}, ${addr.tara}`}</p>
+                      <p className='text-sm text-muted-foreground'>
+                        {`Contact: ${addr.persoanaContact} (${addr.telefonContact})`}
+                      </p>
                       <p className='text-sm text-muted-foreground'>
                         {`Distanță dus-întors: ~${addr.distanceInKm} km | Timp dus-întors: ~${formatMinutes(addr.travelTimeInMinutes || 0)}`}
                       </p>

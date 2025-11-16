@@ -1,4 +1,3 @@
-// app/clients/[id]/edit-view.tsx
 'use client'
 import React from 'react'
 import Link from 'next/link'
@@ -8,7 +7,6 @@ import ClientEditForm from '../client-edit-form'
 import { IClientDoc } from '@/lib/db/modules/client/types'
 
 interface Props {
-  // Așteptăm exact această proprietate:
   initialClient: IClientDoc
 }
 
@@ -23,7 +21,6 @@ export default function EditClientView({ initialClient }: Props) {
         </Button>
         <h1 className='text-2xl font-bold'>Editează client</h1>
       </div>
-      {/* Transmitem datele mai departe sub prop-ul `initialValues` */}
       <ClientEditForm initialValues={initialClient} />
     </div>
   )

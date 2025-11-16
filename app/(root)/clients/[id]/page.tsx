@@ -1,4 +1,3 @@
-// app/(root)/clients/[id]/page.tsx
 import React from 'react'
 import { getClientById } from '@/lib/db/modules/client/client.actions'
 import ClientEditForm from '../client-edit-form'
