@@ -1,6 +1,6 @@
 'use server'
 
-import { startSession, Types } from 'mongoose'
+import mongoose, { startSession, Types } from 'mongoose'
 import { auth } from '@/auth'
 import SupplierInvoiceModel from './supplier-invoice.model'
 import SupplierPaymentModel from './supplier-payment.model'
@@ -13,7 +13,7 @@ import {
 import {
   SupplierPaymentPayloadSchema,
   CreateSupplierPaymentFormSchema,
-  BudgetCategorySnapshotSchema, // Importăm schema Zod
+  BudgetCategorySnapshotSchema,
 } from './supplier-payment.validator'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
@@ -21,6 +21,8 @@ import { connectToDatabase } from '@/lib/db'
 import Supplier from '../../../suppliers/supplier.model'
 import BudgetCategoryModel from '../budgeting/budget-category.model'
 import { PopulatedSupplierPayment } from '@/app/admin/management/incasari-si-plati/payables/components/SupplierAllocationModal'
+import { SupplierPaymentStatus } from './supplier-payment.constants'
+import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
 
 type AllocationDetail = { invoiceNumber: string; allocatedAmount: number }
 
@@ -40,6 +42,21 @@ type CheckResult = {
   hasUnallocatedPayment: boolean
   payment?: PopulatedSupplierPayment | null
   message?: string
+}
+export interface SupplierPaymentListItem {
+  _id: string
+  paymentDate: Date
+  paymentMethod: string
+  paymentNumber?: string
+  seriesName?: string
+  totalAmount: number
+  status: SupplierPaymentStatus
+}
+
+export type SupplierPaymentsPage = {
+  data: SupplierPaymentListItem[]
+  totalPages: number
+  total: number
 }
 export async function createSupplierPayment(
   data: z.infer<typeof CreateSupplierPaymentFormSchema>
@@ -345,5 +362,54 @@ export async function checkSupplierHasUnallocatedPayments(
   } catch (error) {
     console.error('❌ Eroare checkSupplierHasUnallocatedPayments:', error)
     return { success: false, hasUnallocatedPayment: false, payment: null }
+  }
+}
+export async function getPaymentsForSupplier(
+  supplierId: string,
+  page: number = 1
+): Promise<SupplierPaymentsPage> {
+  try {
+    await connectToDatabase()
+
+    if (!mongoose.Types.ObjectId.isValid(supplierId)) {
+      throw new Error('ID Furnizor invalid')
+    }
+
+    const objectId = new Types.ObjectId(supplierId)
+    const limit = CLIENT_DETAIL_PAGE_SIZE
+    const skip = (page - 1) * limit
+
+    const queryConditions = {
+      supplierId: objectId,
+    }
+
+    const total = await SupplierPaymentModel.countDocuments(queryConditions)
+
+    if (total === 0) {
+      return { data: [], totalPages: 0, total: 0 }
+    }
+
+    const payments = await SupplierPaymentModel.find(queryConditions)
+      .select(
+        'paymentDate paymentMethod paymentNumber seriesName totalAmount status'
+      )
+      .sort({ paymentDate: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+
+    const normalizedPayments = payments.map((p) => ({
+      ...p,
+      _id: p._id.toString(),
+    })) as unknown as SupplierPaymentListItem[]
+
+    return {
+      data: normalizedPayments,
+      totalPages: Math.ceil(total / limit),
+      total: total,
+    }
+  } catch (error) {
+    console.error('Eroare la getPaymentsForSupplier:', error)
+    return { data: [], totalPages: 0, total: 0 }
   }
 }

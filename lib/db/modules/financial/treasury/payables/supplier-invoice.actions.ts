@@ -1,6 +1,6 @@
 'use server'
 
-import { startSession, Types } from 'mongoose'
+import mongoose, { startSession, Types } from 'mongoose'
 import { auth } from '@/auth'
 import SupplierInvoiceModel from './supplier-invoice.model'
 import {
@@ -14,6 +14,8 @@ import { getSetting } from '../../../setting/setting.actions'
 import { ISettingInput } from '../../../setting/types'
 import { connectToDatabase } from '@/lib/db'
 import Supplier from '../../../suppliers/supplier.model'
+import { SupplierInvoiceStatus } from './supplier-invoice.constants'
+import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
 
 type SupplierInvoiceActionResult = {
   success: boolean
@@ -25,7 +27,23 @@ type SingleInvoiceResult = {
   data?: ISupplierInvoiceDoc | null
   message?: string
 }
+export interface SupplierInvoiceListItem {
+  _id: string
+  invoiceSeries: string
+  invoiceNumber: string
+  invoiceDate: Date
+  dueDate: Date
+  status: SupplierInvoiceStatus
+  totals: {
+    grandTotal: number
+  }
+}
 
+export type SupplierInvoicesPage = {
+  data: SupplierInvoiceListItem[]
+  totalPages: number
+  total: number
+}
 function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
   const defaultPhone = settings.phones.find((p) => p.isDefault)
@@ -166,5 +184,55 @@ export async function getSupplierInvoiceById(
   } catch (error) {
     console.error('❌ Eroare getSupplierInvoiceById:', error)
     return { success: false, message: (error as Error).message }
+  }
+}
+export async function getInvoicesForSupplier(
+  supplierId: string,
+  page: number = 1
+): Promise<SupplierInvoicesPage> {
+  try {
+    await connectToDatabase()
+
+    if (!mongoose.Types.ObjectId.isValid(supplierId)) {
+      throw new Error('ID Furnizor invalid')
+    }
+
+    const objectId = new Types.ObjectId(supplierId)
+    const limit = CLIENT_DETAIL_PAGE_SIZE
+    const skip = (page - 1) * limit
+
+    const queryConditions = {
+      supplierId: objectId,
+    }
+
+    const total = await SupplierInvoiceModel.countDocuments(queryConditions)
+
+    if (total === 0) {
+      return { data: [], totalPages: 0, total: 0 }
+    }
+
+    const invoices = await SupplierInvoiceModel.find(queryConditions)
+      .select(
+        'invoiceSeries invoiceNumber invoiceDate dueDate status totals.grandTotal'
+      )
+      .sort({ invoiceDate: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean()
+
+    // Normalizăm datele
+    const normalizedInvoices = invoices.map((inv) => ({
+      ...inv,
+      _id: inv._id.toString(),
+    })) as unknown as SupplierInvoiceListItem[]
+
+    return {
+      data: normalizedInvoices,
+      totalPages: Math.ceil(total / limit),
+      total: total,
+    }
+  } catch (error) {
+    console.error('Eroare la getInvoicesForSupplier:', error)
+    return { data: [], totalPages: 0, total: 0 }
   }
 }

@@ -1,12 +1,12 @@
-************\*\*\*\************* Bugs ****************\*****************
+\***\*\*\*\*\*\*\***\*\*\*\*\***\*\*\*\*\*\*\*** Bugs **\*\***\*\*\*\***\*\***\***\*\***\*\*\*\***\*\***
 
 - dupa crearea unui nou cont, apare notificare de eroare - de verificat
 
-************\*\*\*\************* FIX ****************\*\*****************
+\***\*\*\*\*\*\*\***\*\*\*\*\***\*\*\*\*\*\*\*** FIX **\*\***\*\*\*\***\*\***\*\***\*\***\*\*\*\***\*\***
 
 - Searchul de la clienti merge daor dupa nume - de adaugat cui, cnp
 
-************\*\*\*\************* TO DO **************\*\*\*\***************
+\***\*\*\*\*\*\*\***\*\*\*\*\***\*\*\*\*\*\*\*** TO DO **\*\***\*\***\*\***\*\*\*\***\*\***\*\***\*\***
 
 - de modificat lista admin ca cealalta la actiuni Sus langa butonul de creaza adauga si btn de edit si de scanat produs
 - in lista normala de adaugat nr produse la pachet.
@@ -23,7 +23,45 @@
 
 - comenzile care se tin mai mult de 30 zile in curte se percepe taxa de custodie. % din pretul total/luna
 
-
 -servicii
+
 - taxa administrare paleti
 - manipulare marfa - liza, macara etaj superior, multiple calari
+
+Custodie la furnizor
+
+- sa se poata inregistra fara aviz
+
+Detalii facturare
+
+- se adauga selector cost intre furnizor si transport
+
+- ex cemacon. factura de transport se refactureaza catre cemacon, deci nu modifica pretul individual al produsului
+- selecltor factura, populare automata rand cu date dn factura
+
+\*\* Factura
+
+- selector de facturi - din cele descarcate din efactura,
+- la facturi storno trebuie adaugat si serviciu
+- bug la factura storno, cand dau sa adaug produs individual
+- de creat factura discount
+- utilizatorii normali vad butonul de incarca in efactura - nu ar trebui
+- factura discount
+* Alte documente
+
+\*\* Adrese client/ furnizor
+
+- de pus steluta la campurile obligatorii
+- de scos obligatoriu de la strada
+- de adaugat functia celui care receptioneaza marafa - la adrese
+- conturile sa ie obtionale
+- de facut obtionale campurile de persoana de contact si nr de telefon
+  Nr incarcare spv la facturi
+
+-de testat factura de avans in fisa client
+
+- Livrari\*
+
+Bug - editare comanda, nu vede ce mai e de adaugat
+
+suma trezorerie - total faccturat = incasat + de incasat

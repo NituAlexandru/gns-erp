@@ -30,6 +30,7 @@ import {
 import { ROMANIAN_BANKS } from '@/lib/constants'
 import { Loader2 } from 'lucide-react'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
+import { CountryCombobox } from '@/app/(root)/clients/CountryCombobox'
 
 export default function SupplierForm() {
   const router = useRouter()
@@ -53,6 +54,9 @@ export default function SupplierForm() {
         strada: '',
         numar: '',
         codPostal: '',
+        tara: 'RO',
+        persoanaContact: '',
+        telefonContact: '',
       },
       fiscalCode: '',
       regComNumber: '',
@@ -89,7 +93,7 @@ export default function SupplierForm() {
   }
 
   const handleAddLoadingAddress = async (
-    field: ControllerRenderProps<ISupplierInput, 'loadingAddresses'> 
+    field: ControllerRenderProps<ISupplierInput, 'loadingAddresses'>
   ) => {
     const addr = currentLoadingAddress
     if (
@@ -97,7 +101,10 @@ export default function SupplierForm() {
       !addr.localitate ||
       !addr.strada ||
       !addr.numar ||
-      !addr.codPostal
+      !addr.codPostal ||
+      !addr.tara ||
+      !addr.persoanaContact ||
+      !addr.telefonContact
     ) {
       toast.error('Toate câmpurile adresei de încărcare sunt obligatorii.')
       return
@@ -392,6 +399,48 @@ export default function SupplierForm() {
                 </FormItem>
               )}
             />
+            <FormField
+              control={control}
+              name='address.tara'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Țara</FormLabel>
+                  <FormControl>
+                    <CountryCombobox
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.persoanaContact'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Persoană Contact</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Nume...' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={control}
+              name='address.telefonContact'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Telefon Contact</FormLabel>
+                  <FormControl>
+                    <Input placeholder='07xx...' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
         </div>
 
@@ -579,6 +628,48 @@ export default function SupplierForm() {
                       />
                     </FormControl>
                   </FormItem>
+                  <FormItem>
+                    <FormLabel>Țara</FormLabel>
+                    <FormControl>
+                      <CountryCombobox
+                        value={currentLoadingAddress.tara || 'RO'}
+                        onChange={(value) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            tara: value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Persoană Contact</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentLoadingAddress.persoanaContact || ''}
+                        onChange={(e) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            persoanaContact: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
+                    <FormLabel>Telefon Contact</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentLoadingAddress.telefonContact || ''}
+                        onChange={(e) =>
+                          setCurrentLoadingAddress({
+                            ...currentLoadingAddress,
+                            telefonContact: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
                 </div>
                 <Button
                   type='button'
@@ -599,7 +690,15 @@ export default function SupplierForm() {
                     className='flex justify-between items-center p-2 bg-secondary rounded-md'
                   >
                     <div>
-                      <p className='font-medium text-sm'>{`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}`}</p>
+                      <p className='font-medium text-sm'>
+                        Str. {''}
+                        {`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}, ${
+                          addr.tara
+                        }`}
+                      </p>
+                      <p className='text-xs text-muted-foreground'>
+                        {`Persoana Contact: ${addr.persoanaContact}, tel: ${addr.telefonContact}`}
+                      </p>
                       <p className='text-xs text-muted-foreground'>
                         {`Dus-întors: ~${addr.distanceInKm} km | Timp: ~${formatMinutes(addr.travelTimeInMinutes)}`}
                       </p>

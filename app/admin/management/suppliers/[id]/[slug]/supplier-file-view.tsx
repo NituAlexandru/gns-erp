@@ -7,6 +7,10 @@ import { SupplierNav } from '../../supplier-nav'
 import SupplierSummaryCard from '../../supplier-summary-card'
 import { SupplierDetails } from '../../supplier-details'
 
+import { SupplierProductsList } from './SupplierProductsList'
+import { SupplierInvoicesList } from './SupplierInvoicesList'
+import { SupplierLedgerTable } from '../../components/SupplierLedgerTable'
+
 interface SupplierFileViewProps {
   supplier: ISupplierDoc
   summary: ISupplierSummary
@@ -27,10 +31,33 @@ export default function SupplierFileView({
       </aside>
 
       <main className='md:col-span-4 space-y-6'>
+        {/* Cardul de Sumar Financiar */}
         <SupplierSummaryCard summary={summary} />
+
         <div>
+          {/* TAB: DETALII */}
           {activeTab === 'details' && <SupplierDetails supplier={supplier} />}
-          {/* Alte tab-uri vor veni aici */}
+
+          {/* TAB: RECEPȚII (NIR) */}
+          {activeTab === 'receptions' && (
+            <div></div>
+            // <SupplierReceptionsList supplierId={supplier._id} />
+          )}
+
+          {/* TAB: FACTURI */}
+          {activeTab === 'invoices' && (
+            <SupplierInvoicesList supplierId={supplier._id} />
+          )}
+
+          {/* TAB: PLĂȚI */}
+          {activeTab === 'payments' && (
+            <SupplierLedgerTable supplierId={supplier._id} />
+          )}
+
+          {/* TAB: PRODUSE */}
+          {activeTab === 'products' && (
+            <SupplierProductsList supplierId={supplier._id} />
+          )}
         </div>
       </main>
     </div>

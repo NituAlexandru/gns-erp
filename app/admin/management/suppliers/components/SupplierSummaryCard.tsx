@@ -1,8 +1,8 @@
 'use client'
 
-import { ISupplierSummary } from '@/lib/db/modules/suppliers/summary/supplier-summary.model'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
+import { ISupplierSummary } from '@/lib/db/modules/suppliers/summary/supplier-summary.model'
 
 interface SupplierSummaryCardProps {
   summary: ISupplierSummary
@@ -11,25 +11,21 @@ interface SupplierSummaryCardProps {
 export default function SupplierSummaryCard({
   summary,
 }: SupplierSummaryCardProps) {
-  // LOGICA INVERSĂ FAȚĂ DE CLIENT
-  // paymentBalance > 0 înseamnă că DATORĂM bani furnizorului (e o datorie = Roșu)
-  // paymentBalance < 0 înseamnă că am plătit în avans (e un activ = Verde)
+  // Logica: paymentBalance > 0 înseamnă că datorăm bani (Rău/Roșu de obicei, sau neutru)
+  // paymentBalance < 0 înseamnă că am plătit în avans (Verde)
 
-  const balance = summary.paymentBalance
-  const isDebt = balance > 0
+  const debt = summary.paymentBalance
+  const isDebt = debt > 0
 
   const soldTitle = isDebt ? 'Sold Datorat' : 'Sold Creditor (Avans)'
   const soldColor = isDebt ? 'text-red-600' : 'text-green-600'
-  const soldSubtitle = isDebt
-    ? 'Total de plată către furnizor'
-    : 'Am plătit în plus'
 
   const overdue = summary.overduePaymentBalance
   const hasOverdue = overdue > 0
 
   return (
     <div className='p-4 rounded-lg border border-gray-200'>
-      <h2 className='text-lg font-semibold mb-4'>Sumar Financiar</h2>
+      <h2 className='text-lg font-semibold mb-4'>Sumar Financiar Furnizor</h2>
 
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 w-full'>
         {/* 1. Sold Curent */}
@@ -39,9 +35,11 @@ export default function SupplierSummaryCard({
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${soldColor}`}>
-              {formatCurrency(balance)}
+              {formatCurrency(debt)}
             </div>
-            <p className='text-xs text-muted-foreground mt-1'>{soldSubtitle}</p>
+            <p className='text-xs text-muted-foreground mt-1'>
+              {isDebt ? 'Total de plată către furnizor' : 'Am plătit în plus'}
+            </p>
           </CardContent>
         </Card>
 
@@ -52,14 +50,12 @@ export default function SupplierSummaryCard({
           </CardHeader>
           <CardContent>
             <div
-              className={`text-2xl font-bold ${
-                hasOverdue ? 'text-red-600' : 'text-gray-900'
-              }`}
+              className={`text-2xl font-bold ${hasOverdue ? 'text-red-600' : 'text-gray-900'}`}
             >
               {formatCurrency(overdue)}
             </div>
             <p className='text-xs text-muted-foreground mt-1'>
-              Facturi neplătite cu termen depășit
+              Facturi cu termen depășit
             </p>
           </CardContent>
         </Card>
@@ -72,8 +68,8 @@ export default function SupplierSummaryCard({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className='text-2xl font-bold'>
-              {formatCurrency(summary.totalPurchaseValue || 0)}
+            <div className='text-2xl font-bold text-blue-600'>
+              {formatCurrency(summary.totalPurchaseValue)}
             </div>
             <p className='text-xs text-muted-foreground mt-1'>
               Valoarea istorică a comenzilor
