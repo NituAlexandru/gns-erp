@@ -15,6 +15,8 @@ export interface ClientInvoiceListItem {
   invoiceDate: Date
   dueDate: Date
   status: InvoiceStatusKey
+  paidAmount: number
+  remainingAmount: number
   totals: Pick<InvoiceTotals, 'grandTotal'>
   clientId: {
     _id: Types.ObjectId
@@ -29,9 +31,16 @@ export type ClientInvoicesPage = {
   total: number
 }
 
+interface InvoiceQuery {
+  clientId: Types.ObjectId
+  invoiceType: { $ne: string }
+  status?: string | { $in: string[] }
+}
+
 export async function getInvoicesForClient(
   clientId: string,
-  page: number = 1
+  page: number = 1,
+  statusFilter: string = 'ALL'
 ): Promise<ClientInvoicesPage> {
   try {
     await connectToDatabase()
@@ -44,9 +53,19 @@ export async function getInvoicesForClient(
     const limit = CLIENT_DETAIL_PAGE_SIZE
     const skip = (page - 1) * limit
 
-    const queryConditions = {
+    const queryConditions: InvoiceQuery = {
       clientId: objectId,
       invoiceType: { $ne: 'PROFORMA' },
+    }
+
+    if (statusFilter !== 'ALL') {
+      if (statusFilter === 'UNPAID') {
+        // Filtru special: Neachitate (Aprobate sau Parțial Plătite)
+        queryConditions.status = { $in: ['APPROVED', 'PARTIAL_PAID'] }
+      } else {
+        // Filtru specific (ex: 'PAID', 'CANCELLED')
+        queryConditions.status = statusFilter
+      }
     }
 
     const total = await InvoiceModel.countDocuments(queryConditions)
@@ -57,7 +76,7 @@ export async function getInvoicesForClient(
 
     const invoices = await InvoiceModel.find(queryConditions)
       .select(
-        'seriesName invoiceNumber invoiceType invoiceDate dueDate status totals.grandTotal clientId'
+        'seriesName invoiceNumber invoiceType invoiceDate dueDate status paidAmount remainingAmount totals.grandTotal clientId'
       )
       .populate<{
         clientId: { _id: Types.ObjectId; name: string }

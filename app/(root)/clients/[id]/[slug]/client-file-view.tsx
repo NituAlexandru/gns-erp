@@ -72,7 +72,7 @@ export default function ClientFileView({
           </div>
         </aside>
         {/* Coloana Dreapta: Conținutul */}
-        <main className='md:col-span-4 space-y-6'>
+        <main className='md:col-span-4 space-y-2'>
           <ClientSummaryCard
             summary={summary}
             clientId={client._id}
