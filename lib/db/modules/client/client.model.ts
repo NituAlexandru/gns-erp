@@ -17,14 +17,14 @@ const addressSchema = new Schema(
     travelTimeInMinutes: { type: Number },
     isActive: { type: Boolean, default: true, required: true },
   },
-  {}
+  { _id: true }
 )
 
 //  Schemă reutilizabilă pentru contul bancar
 const bankAccountSchema = new Schema(
   {
-    iban: { type: String, required: true },
-    bankName: { type: String, required: true },
+    iban: { type: String },
+    bankName: { type: String },
   },
   { _id: false }
 )

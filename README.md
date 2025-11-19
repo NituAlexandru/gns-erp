@@ -49,13 +49,7 @@ Detalii facturare
 - factura discount
 * Alte documente
 
-\*\* Adrese client/ furnizor
 
-- de pus steluta la campurile obligatorii
-- de scos obligatoriu de la strada
-- de adaugat functia celui care receptioneaza marafa - la adrese
-- conturile sa ie obtionale
-- de facut obtionale campurile de persoana de contact si nr de telefon
   Nr incarcare spv la facturi
 
 -de testat factura de avans in fisa client

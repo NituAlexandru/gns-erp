@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pencil } from 'lucide-react'
 import { ROMANIAN_BANKS } from '@/lib/constants'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { CountryCombobox } from './CountryCombobox'
@@ -36,7 +36,10 @@ export default function ClientForm() {
   const router = useRouter()
   const [currentDeliveryAddress, setCurrentDeliveryAddress] = useState<
     Partial<IAddress>
-  >({ tara: 'RO', persoanaContact: '', telefonContact: '' })
+  >({ tara: 'RO', persoanaContact: '', telefonContact: '', isActive: true })
+  const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(
+    null
+  )
   const [isCalculating, setIsCalculating] = useState(false)
 
   const form = useForm<IClientCreate>({
@@ -90,7 +93,7 @@ export default function ClientForm() {
   }
 
   // Logica pentru adăugarea unei adrese de livrare
-  const handleAddDeliveryAddress = async (
+  const handleSaveDeliveryAddress = async (
     field: ControllerRenderProps<IClientCreate, 'deliveryAddresses'>
   ) => {
     const addr = currentDeliveryAddress
@@ -129,16 +132,41 @@ export default function ClientForm() {
         ...addr,
         distanceInKm,
         travelTimeInMinutes,
+        isActive: addr.isActive ?? true,
       } as IAddress
 
-      field.onChange([...field.value, newAddress])
-      setCurrentDeliveryAddress({}) // Resetează "ciorna"
-      toast.success('Adresa de livrare a fost adăugată.')
+      const currentList = [...(field.value || [])]
+
+      if (editingAddressIndex !== null) {
+        currentList[editingAddressIndex] = newAddress
+        field.onChange(currentList)
+        toast.success('Adresa a fost actualizată.')
+      } else {
+        field.onChange([...currentList, newAddress])
+        toast.success('Adresa de livrare a fost adăugată.')
+      }
+
+      handleCancelEditAddress()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
     } finally {
       setIsCalculating(false)
     }
+  }
+
+  const handleEditAddress = (index: number, address: IAddress) => {
+    setCurrentDeliveryAddress(address)
+    setEditingAddressIndex(index)
+  }
+
+  const handleCancelEditAddress = () => {
+    setCurrentDeliveryAddress({
+      tara: 'RO',
+      persoanaContact: '',
+      telefonContact: '',
+      isActive: true,
+    })
+    setEditingAddressIndex(null)
   }
 
   const onSubmit: SubmitHandler<IClientCreate> = async (values) => {
@@ -760,47 +788,71 @@ export default function ClientForm() {
                     </FormControl>
                   </FormItem>
                 </div>
-                <Button
-                  type='button'
-                  className='mt-4'
-                  onClick={() => handleAddDeliveryAddress(field)}
-                  disabled={isCalculating}
-                >
-                  {isCalculating && (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <div className='flex gap-2 mt-4'>
+                  <Button
+                    type='button'
+                    onClick={() => handleSaveDeliveryAddress(field)}
+                    disabled={isCalculating}
+                  >
+                    {isCalculating && (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    )}
+                    {editingAddressIndex !== null
+                      ? 'Salvează Modificările'
+                      : 'Adaugă Adresa'}
+                  </Button>
+
+                  {editingAddressIndex !== null && (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={handleCancelEditAddress}
+                    >
+                      Anulează
+                    </Button>
                   )}
-                  Adaugă Adresa
-                </Button>
+                </div>
               </div>
 
               <div className='space-y-2'>
                 {field.value.map((addr, index) => (
                   <div
                     key={index}
-                    className='flex justify-between items-center p-2 bg-secondary rounded-md'
+                    className='flex text-sm justify-between items-center p-2 bg-secondary rounded-md'
                   >
                     <div>
-                      <p className='font-medium'>{`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}, ${addr.tara}`}</p>
+                      <p className='font-medium'>{`Str. ${addr.strada}, Nr. ${addr.numar}, ${addr.alteDetalii}, ${addr.localitate}, ${addr.judet}, ${addr.tara}`}</p>
                       <p className='text-sm text-muted-foreground'>
-                        {`Contact: ${addr.persoanaContact} (${addr.telefonContact})`}
+                        {`Persoana Contact: ${addr.persoanaContact} - ${addr.telefonContact}`}
                       </p>
                       <p className='text-sm text-muted-foreground'>
-                        {`Distanță dus-întors: ~${addr.distanceInKm} km | Timp dus-întors: ~${formatMinutes(addr.travelTimeInMinutes || 0)}`}
+                        {`Distanță dus-întors: ~ ${addr.distanceInKm} km | Timp dus-întors: ~ ${formatMinutes(addr.travelTimeInMinutes || 0)}`}
                       </p>
                     </div>
-                    <Button
-                      type='button'
-                      variant='destructive'
-                      size='sm'
-                      onClick={() => {
-                        const newAddresses = field.value.filter(
-                          (_, i) => i !== index
-                        )
-                        field.onChange(newAddresses)
-                      }}
-                    >
-                      X
-                    </Button>
+                    <div className='flex items-center gap-3'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => handleEditAddress(index, addr)}
+                      >
+                        <Pencil className='mr-2 h-4 w-4' />
+                      </Button>
+
+                      <Button
+                        type='button'
+                        variant='destructive'
+                        size='sm'
+                        onClick={() => {
+                          const newAddresses = field.value.filter(
+                            (_, i) => i !== index
+                          )
+                          field.onChange(newAddresses)
+                        }}
+                      >
+                        X
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>

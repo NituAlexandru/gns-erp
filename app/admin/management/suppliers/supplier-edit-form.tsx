@@ -32,9 +32,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ROMANIAN_BANKS } from '@/lib/constants'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pencil, X } from 'lucide-react'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { CountryCombobox } from '@/app/(root)/clients/CountryCombobox'
+import { Switch } from '@/components/ui/switch'
 
 interface Props {
   initialValues: ISupplierDoc
@@ -45,7 +46,10 @@ export default function SupplierEditForm({ initialValues }: Props) {
 
   const [currentLoadingAddress, setCurrentLoadingAddress] = useState<
     Partial<IAddress>
-  >({})
+  >({ tara: 'RO', persoanaContact: '', telefonContact: '', isActive: true })
+  const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(
+    null
+  )
   const [currentBrand, setCurrentBrand] = useState('')
   const [isCalculating, setIsCalculating] = useState(false)
 
@@ -57,7 +61,15 @@ export default function SupplierEditForm({ initialValues }: Props) {
       contactName: initialValues.contactName ?? '',
       email: initialValues.email,
       phone: initialValues.phone,
-      address: initialValues.address,
+      address: {
+        ...initialValues.address,
+
+        alteDetalii: initialValues.address.alteDetalii || '',
+        tara: initialValues.address.tara || 'RO',
+        persoanaContact: initialValues.address.persoanaContact || '',
+        telefonContact: initialValues.address.telefonContact || '',
+        isActive: initialValues.address.isActive ?? true,
+      },
       fiscalCode: initialValues.fiscalCode,
       regComNumber: initialValues.regComNumber,
       bankAccountLei: initialValues.bankAccountLei ?? {
@@ -98,7 +110,7 @@ export default function SupplierEditForm({ initialValues }: Props) {
     }
   }
 
-  const handleAddLoadingAddress = async (
+  const handleSaveLoadingAddress = async (
     field: ControllerRenderProps<ISupplierUpdate, 'loadingAddresses'>
   ) => {
     const addr = currentLoadingAddress
@@ -131,20 +143,53 @@ export default function SupplierEditForm({ initialValues }: Props) {
 
       const { distanceInKm, travelTimeInMinutes } = await res.json()
 
-      const newAddress: IAddress = {
+      const addressToSave: IAddress = {
         ...addr,
         distanceInKm,
         travelTimeInMinutes,
+        isActive: addr.isActive ?? true,
       } as IAddress
 
-      field.onChange([...(field.value || []), newAddress])
-      setCurrentLoadingAddress({})
-      toast.success('Adresa de încărcare a fost adăugată.')
+      const currentList = [...(field.value || [])]
+
+      if (editingAddressIndex !== null) {
+        // Editare
+        currentList[editingAddressIndex] = addressToSave
+        field.onChange(currentList)
+        toast.success('Adresa a fost actualizată.')
+      } else {
+        // Adăugare
+        field.onChange([...currentList, addressToSave])
+        toast.success('Adresa de încărcare a fost adăugată.')
+      }
+
+      handleCancelEditAddress()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
     } finally {
       setIsCalculating(false)
     }
+  }
+
+  const handleEditAddress = (index: number, address: IAddress) => {
+    setCurrentLoadingAddress({
+      ...address,
+      tara: address.tara || 'RO',
+      persoanaContact: address.persoanaContact || '',
+      telefonContact: address.telefonContact || '',
+      isActive: address.isActive ?? true,
+    })
+    setEditingAddressIndex(index)
+  }
+
+  const handleCancelEditAddress = () => {
+    setCurrentLoadingAddress({
+      tara: 'RO',
+      persoanaContact: '',
+      telefonContact: '',
+      isActive: true,
+    })
+    setEditingAddressIndex(null)
   }
 
   const handleCopyBillingAddress = () => {
@@ -674,50 +719,84 @@ export default function SupplierEditForm({ initialValues }: Props) {
                     </FormControl>
                   </FormItem>
                 </div>
-                <Button
-                  type='button'
-                  className='mt-4'
-                  onClick={() => handleAddLoadingAddress(field)}
-                  disabled={isCalculating}
-                >
-                  {isCalculating && (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <div className='flex gap-2 mt-4'>
+                  <Button
+                    type='button'
+                    onClick={() => handleSaveLoadingAddress(field)}
+                    disabled={isCalculating}
+                  >
+                    {isCalculating && (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    )}
+                    {editingAddressIndex !== null
+                      ? 'Salvează Modificările'
+                      : 'Adaugă Adresa'}
+                  </Button>
+                  {editingAddressIndex !== null && (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={handleCancelEditAddress}
+                    >
+                      <X className='mr-2 h-4 w-4' /> Anulează
+                    </Button>
                   )}
-                  Adaugă Adresă
-                </Button>
+                </div>
               </div>
               <div className='space-y-2'>
                 {(field.value || []).map((addr, index) => (
                   <div
                     key={index}
-                    className='flex justify-between items-center p-2 bg-secondary rounded-md'
+                    className={`flex justify-between items-center p-3 rounded-md border transition-colors ${editingAddressIndex === index ? 'border-primary bg-primary/5' : addr.isActive ? 'bg-secondary border-transparent' : 'bg-muted/40 border-transparent text-muted-foreground'}`}
                   >
-                    <div>
-                      <p className='font-medium text-sm'>{`Str. ${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}, ${
-                        addr.tara
-                      }`}</p>
-                      <p className='text-xs text-muted-foreground'>
-                        {`Persoana Contact: ${addr.persoanaContact}, ${addr.telefonContact}`}
-                      </p>
-                      <p className='text-xs text-muted-foreground'>
-                        {`Dus-întors: ~${addr.distanceInKm} km | Timp: ~${formatMinutes(addr.travelTimeInMinutes)}`}
-                      </p>
-                    </div>{' '}
-                    <Button
-                      type='button'
-                      variant='destructive'
-                      size='sm'
-                      onClick={() => {
-                        const newAddresses = (field.value || []).filter(
-                          (_, i) => i !== index
-                        )
-                        field.onChange(newAddresses)
-                      }}
-                    >
-                      X
-                    </Button>
+                    <div className='flex-1'>
+                      <p
+                        className={`font-medium text-sm ${!addr.isActive && 'line-through'}`}
+                      >{`Str. ${addr.strada}, Nr. ${addr.numar}, ${addr.alteDetalii}, ${addr.localitate}, ${addr.judet}, ${addr.tara}`}</p>
+                      <div className='flex gap-4 text-xs text-muted-foreground mt-1'>
+                        <span>
+                          Persoana Contact: {addr.persoanaContact} (
+                          {addr.telefonContact})
+                        </span>
+                        <span>•</span>
+                        <span>Dus-întors: ~{addr.distanceInKm} km</span>
+                        <span>•</span>
+                        <span>
+                          Timp: ~{formatMinutes(addr.travelTimeInMinutes)}
+                        </span>
+                      </div>
+                    </div>
+                    <div className='flex items-center gap-3'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => handleEditAddress(index, addr)}
+                      >
+                        <Pencil className='h-4 w-4 ' />
+                      </Button>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-xs w-10 text-right'>
+                          {addr.isActive ? 'Activ' : 'Inactiv'}
+                        </span>
+                        <Switch
+                          checked={!!addr.isActive}
+                          onCheckedChange={(checked) => {
+                            const newList = [...(field.value || [])]
+                            if (newList[index])
+                              newList[index].isActive = checked
+                            field.onChange(newList)
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
+                {(field.value || []).length === 0 && (
+                  <p className='text-sm text-muted-foreground text-center py-2'>
+                    Nu au fost adăugate adrese.
+                  </p>
+                )}
               </div>
               <FormMessage />
             </div>
@@ -725,7 +804,7 @@ export default function SupplierEditForm({ initialValues }: Props) {
         />
 
         {/* Alte Setări */}
-        <div className='grid grid-cols-1 md:grid-cols-4 gap-6'>
+        <div className='grid grid-cols-1 md:grid-cols-5 gap-6'>
           <FormField
             control={control}
             name='paymentTerm'
@@ -774,17 +853,13 @@ export default function SupplierEditForm({ initialValues }: Props) {
                 <FormLabel>Transport asigurat de furnizor</FormLabel>
               </FormItem>
             )}
-          />
-        </div>
-
-        {/* Costuri Transport */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+          />{' '}
           <FormField
             control={control}
             name='externalTransportCosts'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Cost transport furnizor (LEI)</FormLabel>
+                <FormLabel>Cost transport furnizor </FormLabel>
                 <FormControl>
                   <Input type='number' {...field} />
                 </FormControl>
@@ -797,7 +872,7 @@ export default function SupplierEditForm({ initialValues }: Props) {
             name='internalTransportCosts'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Cost transport intern (LEI)</FormLabel>
+                <FormLabel>Cost transport intern </FormLabel>
                 <FormControl>
                   <Input type='number' {...field} />
                 </FormControl>

@@ -31,15 +31,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pencil, X } from 'lucide-react'
 import { ROMANIAN_BANKS } from '@/lib/constants'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { Switch } from '@/components/ui/switch'
-import { useSession } from 'next-auth/react'
-import {
-  deactivateDeliveryAddress,
-  reactivateDeliveryAddress,
-} from '@/lib/db/modules/client/client.actions'
 import { CountryCombobox } from './CountryCombobox'
 
 interface Props {
@@ -48,10 +43,22 @@ interface Props {
 
 export default function ClientEditForm({ initialValues }: Props) {
   const router = useRouter()
-  const { data: session } = useSession()
+
+  // Stare pentru ciornă
   const [currentDeliveryAddress, setCurrentDeliveryAddress] = useState<
     Partial<IAddress>
-  >({ tara: 'RO', persoanaContact: '', telefonContact: '' })
+  >({
+    tara: 'RO',
+    persoanaContact: '',
+    telefonContact: '',
+    isActive: true,
+    alteDetalii: '',
+  })
+
+  // Stare pentru editare (indexul din array-ul local)
+  const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(
+    null
+  )
   const [isCalculating, setIsCalculating] = useState(false)
 
   const form = useForm<IClientUpdate>({
@@ -68,7 +75,14 @@ export default function ClientEditForm({ initialValues }: Props) {
       isVatPayer: initialValues.isVatPayer,
       email: initialValues.email,
       phone: initialValues.phone,
-      address: initialValues.address,
+      address: {
+        ...initialValues.address,
+        tara: initialValues.address.tara || 'RO',
+        persoanaContact: initialValues.address.persoanaContact || '',
+        telefonContact: initialValues.address.telefonContact || '',
+        alteDetalii: initialValues.address.alteDetalii || '',
+        isActive: initialValues.address.isActive ?? true,
+      },
       deliveryAddresses: initialValues.deliveryAddresses,
       bankAccountLei: initialValues.bankAccountLei ?? undefined,
       bankAccountEuro: initialValues.bankAccountEuro ?? undefined,
@@ -88,14 +102,15 @@ export default function ClientEditForm({ initialValues }: Props) {
     control,
     handleSubmit,
     formState: { isSubmitting },
-    setValue,
-    getValues,
+    getValues, // Folosit la CopyBillingAddress
   } = form
 
-  const handleAddDeliveryAddress = async (
+  // 1. Funcția de Salvare Adresă (Adăugare sau Update)
+  const handleSaveDeliveryAddress = async (
     field: ControllerRenderProps<IClientUpdate, 'deliveryAddresses'>
   ) => {
     const addr = currentDeliveryAddress
+
     if (
       !addr.judet ||
       !addr.localitate ||
@@ -131,12 +146,23 @@ export default function ClientEditForm({ initialValues }: Props) {
         ...addr,
         distanceInKm,
         travelTimeInMinutes,
-        isActive: true,
+        isActive: addr.isActive ?? true,
       } as IAddress
 
-      field.onChange([...(field.value || []), newAddress])
-      setCurrentDeliveryAddress({})
-      toast.success('Adresa de livrare a fost adăugată.')
+      const currentList = [...(field.value || [])]
+
+      if (editingAddressIndex !== null) {
+        // MOD EDITARE: Actualizăm elementul de la index
+        currentList[editingAddressIndex] = newAddress
+        field.onChange(currentList)
+        toast.success('Adresa a fost actualizată.')
+      } else {
+        // MOD ADĂUGARE
+        field.onChange([...currentList, newAddress])
+        toast.success('Adresa de livrare a fost adăugată.')
+      }
+
+      handleCancelEditAddress()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
     } finally {
@@ -144,44 +170,64 @@ export default function ClientEditForm({ initialValues }: Props) {
     }
   }
 
-  const handleToggleAddressStatus = async (
-    addressId: string,
-    currentStatus: boolean
+  // 2. Funcția de Încărcare pentru Editare
+  const handleEditAddress = (index: number, address: IAddress) => {
+    setCurrentDeliveryAddress({
+      ...address,
+      tara: address.tara || 'RO',
+      persoanaContact: address.persoanaContact || '',
+      telefonContact: address.telefonContact || '',
+      alteDetalii: address.alteDetalii || '',
+      isActive: address.isActive ?? true,
+    })
+    setEditingAddressIndex(index)
+  }
+
+  // 3. Funcția de Anulare Editare
+  const handleCancelEditAddress = () => {
+    setCurrentDeliveryAddress({
+      tara: 'RO',
+      persoanaContact: '',
+      telefonContact: '',
+      isActive: true,
+      alteDetalii: '',
+    })
+    setEditingAddressIndex(null)
+  }
+
+  // 4. Funcția de Toggle (Activ/Inactiv)
+  const handleToggleAddressStatus = (
+    index: number,
+    currentStatus: boolean,
+    field: ControllerRenderProps<IClientUpdate, 'deliveryAddresses'>
   ) => {
-    const userId = session?.user?.id
-    if (!userId) {
-      toast.error('Sesiunea a expirat. Te rugăm să te re-autentifici.')
+    const currentList = [...(field.value || [])]
+    if (currentList[index]) {
+      // Inversăm statusul
+      currentList[index].isActive = !currentStatus
+      field.onChange(currentList)
+      toast.success(
+        `Adresa a fost ${!currentStatus ? 'activată' : 'dezactivată'} (Salvează formularul pentru a aplica).`
+      )
+    }
+  }
+
+  const handleCopyBillingAddress = () => {
+    const billingAddress = getValues('address')
+    if (!billingAddress.judet) {
+      toast.error('Completează mai întâi adresa fiscală.')
       return
     }
-
-    const action = currentStatus
-      ? deactivateDeliveryAddress
-      : reactivateDeliveryAddress
-    const clientId = initialValues._id
-
-    toast.loading(currentStatus ? 'Se dezactivează...' : 'Se reactivează...')
-
-    try {
-      const result = await action(clientId, addressId, userId)
-      toast.dismiss()
-
-      if (result.success) {
-        toast.success(result.message)
-
-        const currentAddresses = getValues('deliveryAddresses')
-
-        const newAddresses = currentAddresses.map((addr) =>
-          addr._id === addressId ? { ...addr, isActive: !currentStatus } : addr
-        )
-
-        setValue('deliveryAddresses', newAddresses, { shouldDirty: true })
-      } else {
-        throw new Error(result.message)
-      }
-    } catch (err) {
-      toast.dismiss()
-      toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
-    }
+    setCurrentDeliveryAddress({
+      ...billingAddress,
+      isActive: true,
+      // Ne asigurăm că avem valorile default pentru câmpurile noi
+      tara: billingAddress.tara || 'RO',
+      persoanaContact: billingAddress.persoanaContact || '',
+      telefonContact: billingAddress.telefonContact || '',
+      alteDetalii: billingAddress.alteDetalii || '',
+    })
+    toast.success('Adresa fiscală a fost copiată.')
   }
 
   const onSubmit: SubmitHandler<IClientUpdate> = async (values) => {
@@ -215,13 +261,8 @@ export default function ClientEditForm({ initialValues }: Props) {
 
   return (
     <Form {...form}>
-      <form
-        onSubmit={handleSubmit(onSubmit, (errors) =>
-          console.log('🛑 Validation errors:', errors)
-        )}
-        className='space-y-3'
-      >
-        {/* Tip client & Nume */}
+      <form onSubmit={handleSubmit(onSubmit)} className='space-y-3'>
+        {/* ... Secțiunile Standard (Nume, CUI, Contract) ... */}
         <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
           <FormField
             control={control}
@@ -237,16 +278,10 @@ export default function ClientEditForm({ initialValues }: Props) {
                       <SelectValue placeholder='Alege tip client' />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem
-                        value='Persoana fizica'
-                        className='cursor-pointer'
-                      >
+                      <SelectItem value='Persoana fizica'>
                         Persoana fizica
                       </SelectItem>
-                      <SelectItem
-                        value='Persoana juridica'
-                        className='cursor-pointer'
-                      >
+                      <SelectItem value='Persoana juridica'>
                         Persoana juridica
                       </SelectItem>
                     </SelectContent>
@@ -265,16 +300,12 @@ export default function ClientEditForm({ initialValues }: Props) {
                   Nume complet<span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
-                  <Input
-                    placeholder='Ex: SC Client SRL, Vasile Ion'
-                    {...field}
-                  />
+                  <Input {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          {/* Plătitor TVA */}
           <FormField
             control={control}
             name='isVatPayer'
@@ -284,7 +315,6 @@ export default function ClientEditForm({ initialValues }: Props) {
                   <Checkbox
                     checked={field.value}
                     onCheckedChange={field.onChange}
-                    className='cursor-pointer'
                   />
                 </FormControl>
                 <FormLabel>Este Plătitor de TVA?</FormLabel>
@@ -292,7 +322,7 @@ export default function ClientEditForm({ initialValues }: Props) {
             )}
           />
         </div>
-        {/* CNP / VAT-RegCom */}
+
         {clientType === 'Persoana fizica' && (
           <FormField
             control={control}
@@ -303,7 +333,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                   CNP<span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
-                  <Input placeholder='1891003352712' {...field} />
+                  <Input {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -321,7 +351,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                     Cod Fiscal (CUI)<span className='text-red-500'>*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input placeholder='RO42562324' {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -333,10 +363,10 @@ export default function ClientEditForm({ initialValues }: Props) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Număr Registru Comerț<span className='text-red-500'>*</span>
+                    Nr. Reg. Comerț<span className='text-red-500'>*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input placeholder='J23/2873/2022' {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -344,7 +374,7 @@ export default function ClientEditForm({ initialValues }: Props) {
             />
           </div>
         )}
-        {/* Contract */}
+
         <div className='grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg'>
           <FormField
             control={control}
@@ -353,7 +383,7 @@ export default function ClientEditForm({ initialValues }: Props) {
               <FormItem>
                 <FormLabel>Număr Contract</FormLabel>
                 <FormControl>
-                  <Input placeholder='Ex: 123/2025' {...field} />
+                  <Input {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -366,7 +396,6 @@ export default function ClientEditForm({ initialValues }: Props) {
               <FormItem>
                 <FormLabel>Data Contract</FormLabel>
                 <FormControl>
-                  {/* Afișăm valoarea în format YYYY-MM-DD pentru input */}
                   <Input
                     type='date'
                     {...field}
@@ -382,7 +411,7 @@ export default function ClientEditForm({ initialValues }: Props) {
             )}
           />
         </div>
-        {/* Contact */}
+
         <div className='grid grid-cols-1 md:grid-cols-3 gap-2'>
           <FormField
             control={control}
@@ -393,11 +422,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                   Email client<span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
-                  <Input
-                    placeholder='contact@client.ro'
-                    type='email'
-                    {...field}
-                  />
+                  <Input type='email' {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -412,7 +437,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                   Număr de telefon<span className='text-red-500'>*</span>
                 </FormLabel>
                 <FormControl>
-                  <Input placeholder='07xx xxx xxx' {...field} />
+                  <Input {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -427,7 +452,6 @@ export default function ClientEditForm({ initialValues }: Props) {
                 <FormControl>
                   <Input
                     type='number'
-                    placeholder='Ex: 15'
                     {...field}
                     onChange={(e) =>
                       field.onChange(parseInt(e.target.value, 10) || 0)
@@ -439,7 +463,7 @@ export default function ClientEditForm({ initialValues }: Props) {
             )}
           />
         </div>
-        {/* IBAN */}
+
         <div className='grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg'>
           <div className='space-y-2'>
             <FormLabel>Cont Bancar LEI</FormLabel>
@@ -449,7 +473,7 @@ export default function ClientEditForm({ initialValues }: Props) {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input placeholder='IBAN (24 caractere)' {...field} />
+                    <Input placeholder='IBAN' {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -460,10 +484,7 @@ export default function ClientEditForm({ initialValues }: Props) {
               name='bankAccountLei.bankName'
               render={({ field }) => (
                 <FormItem>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder='Selectează banca' />
@@ -490,7 +511,7 @@ export default function ClientEditForm({ initialValues }: Props) {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <Input placeholder='IBAN (24 caractere)' {...field} />
+                    <Input placeholder='IBAN' {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -501,10 +522,7 @@ export default function ClientEditForm({ initialValues }: Props) {
               name='bankAccountEuro.bankName'
               render={({ field }) => (
                 <FormItem>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder='Selectează banca' />
@@ -524,8 +542,8 @@ export default function ClientEditForm({ initialValues }: Props) {
             />
           </div>
         </div>
+
         {/* Adresă fiscală */}
-        {/* Adresă Fiscală Structurată */}
         <div className='space-y-4 p-4 border rounded-lg'>
           <FormLabel className='text-base font-semibold'>
             Adresă fiscală (facturare) <span className='text-red-500'>*</span>
@@ -538,7 +556,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                 <FormItem>
                   <FormLabel>Județ</FormLabel>
                   <FormControl>
-                    <Input placeholder='Ex: București' {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -551,7 +569,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                 <FormItem>
                   <FormLabel>Localitate</FormLabel>
                   <FormControl>
-                    <Input placeholder='Ex: Sector 1' {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -564,7 +582,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                 <FormItem>
                   <FormLabel>Stradă</FormLabel>
                   <FormControl>
-                    <Input placeholder='Ex: Calea Victoriei' {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -577,7 +595,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                 <FormItem>
                   <FormLabel>Număr</FormLabel>
                   <FormControl>
-                    <Input placeholder='Ex: 100' {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -590,25 +608,13 @@ export default function ClientEditForm({ initialValues }: Props) {
                 <FormItem>
                   <FormLabel>Cod Poștal</FormLabel>
                   <FormControl>
-                    <Input placeholder='Ex: 010071' {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField
-              control={control}
-              name='address.alteDetalii'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Alte detalii</FormLabel>
-                  <FormControl>
-                    <Input placeholder='Bloc, Scara, Apartament' {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
             <FormField
               control={control}
               name='address.tara'
@@ -625,7 +631,6 @@ export default function ClientEditForm({ initialValues }: Props) {
                 </FormItem>
               )}
             />
-            {/* --- MODIFICARE: Am adăugat Persoana Contact --- */}
             <FormField
               control={control}
               name='address.persoanaContact'
@@ -633,21 +638,34 @@ export default function ClientEditForm({ initialValues }: Props) {
                 <FormItem>
                   <FormLabel>Persoană Contact</FormLabel>
                   <FormControl>
-                    <Input placeholder='Ex: Vasile Popescu' {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            {/* --- MODIFICARE: Am adăugat Telefon Contact --- */}
             <FormField
               control={control}
               name='address.telefonContact'
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Telefon Persoană Contact</FormLabel>
+                  <FormLabel>Telefon Contact</FormLabel>
                   <FormControl>
-                    <Input placeholder='Ex: 07xx xxx xxx' {...field} />
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={control}
+              name='address.alteDetalii'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Alte detalii</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -655,17 +673,34 @@ export default function ClientEditForm({ initialValues }: Props) {
             />
           </div>
         </div>
-        {/* Adrese de Livrare Structurate */}
+
+        {/* Adrese de Livrare (MODIFICAT: EDIT + SWITCH) */}
         <FormField
           control={control}
           name='deliveryAddresses'
           render={({ field }) => (
             <div className='space-y-4 p-4 border rounded-lg'>
-              <FormLabel className='text-base font-semibold'>
-                Adrese de livrare <span className='text-red-500'>*</span>
-              </FormLabel>
+              <div className='flex justify-between items-center'>
+                <FormLabel className='text-base font-semibold'>
+                  Adrese de livrare <span className='text-red-500'>*</span>
+                </FormLabel>
+                <Button
+                  type='button'
+                  variant='link'
+                  className='p-0 h-auto text-sm'
+                  onClick={handleCopyBillingAddress}
+                >
+                  Copiază adresa de facturare
+                </Button>
+              </div>
 
-              <div className='p-4 bg-muted/50 rounded-lg'>
+              {/* Formular Adăugare/Editare */}
+              <div className='p-4 bg-muted/50 rounded-lg '>
+                <div className='mb-2 font-medium text-sm text-primary'>
+                  {editingAddressIndex !== null
+                    ? 'Modifică adresa selectată'
+                    : 'Adaugă adresă nouă'}
+                </div>
                 <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
                   <FormItem>
                     <FormLabel>Județ</FormLabel>
@@ -673,10 +708,10 @@ export default function ClientEditForm({ initialValues }: Props) {
                       <Input
                         value={currentDeliveryAddress.judet || ''}
                         onChange={(e) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
                             judet: e.target.value,
-                          }))
+                          })
                         }
                       />
                     </FormControl>
@@ -687,10 +722,10 @@ export default function ClientEditForm({ initialValues }: Props) {
                       <Input
                         value={currentDeliveryAddress.localitate || ''}
                         onChange={(e) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
                             localitate: e.target.value,
-                          }))
+                          })
                         }
                       />
                     </FormControl>
@@ -701,10 +736,10 @@ export default function ClientEditForm({ initialValues }: Props) {
                       <Input
                         value={currentDeliveryAddress.strada || ''}
                         onChange={(e) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
                             strada: e.target.value,
-                          }))
+                          })
                         }
                       />
                     </FormControl>
@@ -715,10 +750,10 @@ export default function ClientEditForm({ initialValues }: Props) {
                       <Input
                         value={currentDeliveryAddress.numar || ''}
                         onChange={(e) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
                             numar: e.target.value,
-                          }))
+                          })
                         }
                       />
                     </FormControl>
@@ -729,128 +764,170 @@ export default function ClientEditForm({ initialValues }: Props) {
                       <Input
                         value={currentDeliveryAddress.codPostal || ''}
                         onChange={(e) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
                             codPostal: e.target.value,
-                          }))
+                          })
                         }
                       />
                     </FormControl>
                   </FormItem>
-                  <FormItem>
-                    <FormLabel>Alte detalii</FormLabel>
-                    <FormControl>
-                      <Input
-                        value={currentDeliveryAddress.alteDetalii || ''}
-                        onChange={(e) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
-                            alteDetalii: e.target.value,
-                          }))
-                        }
-                      />
-                    </FormControl>
-                  </FormItem>
+
                   <FormItem>
                     <FormLabel>Țara</FormLabel>
                     <FormControl>
                       <CountryCombobox
                         value={currentDeliveryAddress.tara || 'RO'}
                         onChange={(value) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
                             tara: value,
-                          }))
+                          })
                         }
                       />
                     </FormControl>
                   </FormItem>
-                  {/* --- MODIFICARE: Am adăugat Persoana Contact --- */}
                   <FormItem>
                     <FormLabel>Persoană Contact</FormLabel>
                     <FormControl>
                       <Input
                         value={currentDeliveryAddress.persoanaContact || ''}
                         onChange={(e) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
                             persoanaContact: e.target.value,
-                          }))
+                          })
                         }
                       />
                     </FormControl>
                   </FormItem>
-                  {/* --- MODIFICARE: Am adăugat Telefon Contact --- */}
                   <FormItem>
                     <FormLabel>Telefon Contact</FormLabel>
                     <FormControl>
                       <Input
                         value={currentDeliveryAddress.telefonContact || ''}
                         onChange={(e) =>
-                          setCurrentDeliveryAddress((p) => ({
-                            ...p,
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
                             telefonContact: e.target.value,
-                          }))
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+
+                  <FormItem>
+                    <FormLabel>Alte detalii</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.alteDetalii || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
+                            alteDetalii: e.target.value,
+                          })
                         }
                       />
                     </FormControl>
                   </FormItem>
                 </div>
-                <Button
-                  type='button'
-                  className='mt-4'
-                  onClick={() => handleAddDeliveryAddress(field)}
-                  disabled={isCalculating}
-                >
-                  {isCalculating && (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+
+                <div className='flex gap-2 mt-4'>
+                  <Button
+                    type='button'
+                    onClick={() => handleSaveDeliveryAddress(field)}
+                    disabled={isCalculating}
+                  >
+                    {isCalculating && (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    )}
+                    {editingAddressIndex !== null
+                      ? 'Salvează Modificările'
+                      : 'Adaugă Adresa'}
+                  </Button>
+
+                  {editingAddressIndex !== null && (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={handleCancelEditAddress}
+                    >
+                      <X className='mr-2 h-4 w-4' /> Anulează
+                    </Button>
                   )}
-                  Adaugă Adresa
-                </Button>
+                </div>
               </div>
 
+              {/* Lista Adrese */}
               <div className='space-y-2'>
-                {field.value.map((addr) => (
+                {(field.value || []).map((addr, index) => (
                   <div
-                    key={addr._id} // Folosim ID-ul real
-                    className={`flex justify-between items-center p-2 rounded-md transition-colors ${
-                      addr.isActive
-                        ? 'bg-secondary'
-                        : 'bg-muted/40 text-muted-foreground'
+                    key={index}
+                    className={`flex justify-between items-center p-3 rounded-md border transition-colors ${
+                      editingAddressIndex === index
+                        ? 'border-primary bg-primary/5'
+                        : addr.isActive
+                          ? 'bg-secondary border-transparent'
+                          : 'bg-muted/40 border-transparent text-muted-foreground'
                     }`}
                   >
-                    <div>
+                    <div className='flex-1'>
                       <p
-                        className={`font-medium ${!addr.isActive && 'line-through'}`}
+                        className={`font-medium text-sm ${!addr.isActive && 'line-through'}`}
                       >
-                        {`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}, ${addr.tara}`}
+                        {`Str. ${addr.strada}, Nr. ${addr.numar}, ${addr.alteDetalii}, ${addr.localitate}, ${addr.judet}, ${addr.tara}`}
                       </p>
-                      <p className='text-sm'>
-                        {`Contact: ${addr.persoanaContact} (${addr.telefonContact})`}
-                      </p>
-                      <p className='text-sm'>
-                        {`Distanță: ~${addr.distanceInKm} km | Timp: ~${formatMinutes(addr.travelTimeInMinutes || 0)}`}
-                      </p>
+                      <div className='flex gap-4 text-xs text-muted-foreground mt-1'>
+                        <span>
+                          Pers. Contact: {addr.persoanaContact} - {''}
+                          {addr.telefonContact}
+                        </span>
+                        <span>•</span>
+                        <span>Dus-întors: ~{addr.distanceInKm} km</span>
+                        <span>•</span>
+                        <span>
+                          Timp: ~{formatMinutes(addr.travelTimeInMinutes || 0)}
+                        </span>
+                      </div>
                     </div>
-                    <div className='flex items-center gap-2'>
-                      <span className='text-sm'>
-                        {addr.isActive ? 'Activ' : 'Inactiv'}
-                      </span>
-                      <Switch
-                        checked={!!addr.isActive}
-                        onCheckedChange={() =>
-                          handleToggleAddressStatus(addr._id!, addr.isActive!)
-                        }
-                        aria-label='Activează sau dezactivează adresa'
-                      />
+                    <div className='flex items-center gap-3'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => handleEditAddress(index, addr)}
+                      >
+                        <Pencil className='h-4 w-4 ' />
+                      </Button>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-xs w-10 text-right'>
+                          {addr.isActive ? 'Activ' : 'Inactiv'}
+                        </span>
+                        <Switch
+                          checked={!!addr.isActive}
+                          onCheckedChange={() =>
+                            handleToggleAddressStatus(
+                              index,
+                              !!addr.isActive,
+                              field
+                            )
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
+                {(field.value || []).length === 0 && (
+                  <p className='text-sm text-muted-foreground text-center py-2'>
+                    Nu au fost adăugate adrese.
+                  </p>
+                )}
               </div>
               <FormMessage />
             </div>
           )}
         />
+
         <div className='space-y-2 p-4 pb-2 border rounded-lg md:col-span-2'>
           <FormField
             control={control}
@@ -868,13 +945,9 @@ export default function ClientEditForm({ initialValues }: Props) {
               </FormItem>
             )}
           />
-        </div>{' '}
-        <p className='text-sm text-muted-foreground mb-2'>
-          Câmpurile marcate cu <span className='text-red-500'>*</span> sunt
-          obligatorii.
-        </p>
+        </div>
+
         <Button type='submit' className='w-full' disabled={isSubmitting}>
-          {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
           Salvează Modificările
         </Button>
       </form>

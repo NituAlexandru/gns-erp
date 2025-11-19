@@ -28,9 +28,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ROMANIAN_BANKS } from '@/lib/constants'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Pencil, X } from 'lucide-react'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { CountryCombobox } from '@/app/(root)/clients/CountryCombobox'
+import { Switch } from '@/components/ui/switch'
 
 export default function SupplierForm() {
   const router = useRouter()
@@ -38,6 +39,9 @@ export default function SupplierForm() {
   const [currentLoadingAddress, setCurrentLoadingAddress] = useState<
     Partial<IAddress>
   >({})
+  const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(
+    null
+  )
   const [currentBrand, setCurrentBrand] = useState('')
   const [isCalculating, setIsCalculating] = useState(false)
 
@@ -53,10 +57,12 @@ export default function SupplierForm() {
         localitate: '',
         strada: '',
         numar: '',
+        alteDetalii: '',
         codPostal: '',
         tara: 'RO',
         persoanaContact: '',
         telefonContact: '',
+        isActive: true,
       },
       fiscalCode: '',
       regComNumber: '',
@@ -92,7 +98,7 @@ export default function SupplierForm() {
     }
   }
 
-  const handleAddLoadingAddress = async (
+  const handleSaveLoadingAddress = async (
     field: ControllerRenderProps<ISupplierInput, 'loadingAddresses'>
   ) => {
     const addr = currentLoadingAddress
@@ -129,16 +135,46 @@ export default function SupplierForm() {
         ...addr,
         distanceInKm,
         travelTimeInMinutes,
+        isActive: addr.isActive ?? true,
       } as IAddress
 
-      field.onChange([...(field.value || []), newAddress])
-      setCurrentLoadingAddress({})
-      toast.success('Adresa de încărcare a fost adăugată.')
+      const currentList = [...(field.value || [])]
+
+      if (editingAddressIndex !== null) {
+        // Suntem în mod EDITARE -> Actualizăm poziția existentă
+        currentList[editingAddressIndex] = newAddress
+        field.onChange(currentList)
+        toast.success('Adresa a fost actualizată.')
+      } else {
+        // Suntem în mod ADĂUGARE -> Punem la final
+        field.onChange([...currentList, newAddress])
+        toast.success('Adresa de încărcare a fost adăugată.')
+      }
+
+      // Resetăm formularul
+      handleCancelEditAddress()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'A apărut o eroare.')
     } finally {
       setIsCalculating(false)
     }
+  }
+
+  // Funcție pentru a încărca o adresă în formular (Edit)
+  const handleEditAddress = (index: number, address: IAddress) => {
+    setCurrentLoadingAddress(address)
+    setEditingAddressIndex(index)
+  }
+
+  // Funcție pentru a anula editarea
+  const handleCancelEditAddress = () => {
+    setCurrentLoadingAddress({
+      tara: 'RO',
+      persoanaContact: '',
+      telefonContact: '',
+      isActive: true,
+    })
+    setEditingAddressIndex(null)
   }
 
   const handleCopyBillingAddress = () => {
@@ -671,53 +707,86 @@ export default function SupplierForm() {
                     </FormControl>
                   </FormItem>
                 </div>
-                <Button
-                  type='button'
-                  className='mt-4'
-                  onClick={() => handleAddLoadingAddress(field)}
-                  disabled={isCalculating}
-                >
-                  {isCalculating && (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                <div className='flex gap-2 mt-4'>
+                  <Button
+                    type='button'
+                    onClick={() => handleSaveLoadingAddress(field)}
+                    disabled={isCalculating}
+                  >
+                    {isCalculating && (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    )}
+                    {editingAddressIndex !== null
+                      ? 'Salvează Modificările'
+                      : 'Adaugă Adresa'}
+                  </Button>
+                  {editingAddressIndex !== null && (
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={handleCancelEditAddress}
+                    >
+                      <X className='mr-2 h-4 w-4' /> Anulează
+                    </Button>
                   )}
-                  Adaugă Adresă
-                </Button>
+                </div>
               </div>
               <div className='space-y-2'>
                 {(field.value || []).map((addr, index) => (
                   <div
                     key={index}
-                    className='flex justify-between items-center p-2 bg-secondary rounded-md'
+                    className={`flex justify-between items-center p-3 rounded-md border transition-colors ${editingAddressIndex === index ? 'border-primary bg-primary/5' : addr.isActive ? 'bg-secondary border-transparent' : 'bg-muted/40 border-transparent text-muted-foreground'}`}
                   >
-                    <div>
-                      <p className='font-medium text-sm'>
-                        Str. {''}
-                        {`${addr.strada}, Nr. ${addr.numar}, ${addr.localitate}, ${addr.judet}, ${
-                          addr.tara
-                        }`}
-                      </p>
-                      <p className='text-xs text-muted-foreground'>
-                        {`Persoana Contact: ${addr.persoanaContact}, tel: ${addr.telefonContact}`}
-                      </p>
-                      <p className='text-xs text-muted-foreground'>
-                        {`Dus-întors: ~${addr.distanceInKm} km | Timp: ~${formatMinutes(addr.travelTimeInMinutes)}`}
-                      </p>
+                    <div className='flex-1'>
+                      <p
+                        className={`font-medium text-sm ${!addr.isActive && 'line-through'}`}
+                      >{`Str. ${addr.strada}, Nr. ${addr.numar}, ${addr.alteDetalii}, ${addr.localitate}, ${addr.judet}, ${addr.tara}`}</p>
+                      <div className='flex gap-4 text-xs text-muted-foreground mt-1'>
+                        <span>
+                          Persoana Contact: {addr.persoanaContact} -{' '}
+                          {addr.telefonContact}
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Distanta Dus-întors: ~{addr.distanceInKm} km
+                        </span>
+                        <span>•</span>
+                        <span>
+                          Timp: ~ {formatMinutes(addr.travelTimeInMinutes)}
+                        </span>
+                      </div>
                     </div>
-                    <Button
-                      type='button'
-                      variant='destructive'
-                      size='sm'
-                      onClick={() => {
-                        const newAddresses = (field.value || []).filter(
-                          (_, i) => i !== index
-                        )
-                        field.onChange(newAddresses)
-                      }}
-                    >
-                      X
-                    </Button>
+                    <div className='flex items-center gap-3'>
+                      <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => handleEditAddress(index, addr)}
+                      >
+                        <Pencil className='h-4 w-4 ' />
+                      </Button>
+                      <div className='flex items-center gap-2'>
+                        <span className='text-xs w-10 text-right'>
+                          {addr.isActive ? 'Activ' : 'Inactiv'}
+                        </span>
+                        <Switch
+                          checked={!!addr.isActive}
+                          onCheckedChange={(checked) => {
+                            const newList = [...(field.value || [])]
+                            if (newList[index])
+                              newList[index].isActive = checked
+                            field.onChange(newList)
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 ))}
+                {(field.value || []).length === 0 && (
+                  <p className='text-sm text-muted-foreground text-center py-2'>
+                    Nu au fost adăugate adrese.
+                  </p>
+                )}
               </div>
               <FormMessage />
             </div>

@@ -2,27 +2,25 @@ import { Model, model, models, Schema } from 'mongoose'
 import { ISupplierDoc } from './types'
 
 //  Definirea sub-schemelor pentru datele structurate
-const addressSchema = new Schema(
-  {
-    judet: { type: String, required: true },
-    localitate: { type: String, required: true },
-    strada: { type: String, required: true },
-    numar: { type: String, required: true },
-    codPostal: { type: String, required: true },
-    alteDetalii: { type: String },
-    tara: { type: String, required: true, default: 'RO' },
-    persoanaContact: { type: String, required: true },
-    telefonContact: { type: String, required: true },
-    distanceInKm: { type: Number },
-    travelTimeInMinutes: { type: Number },
-  },
-  { _id: false }
-)
+const addressSchema = new Schema({
+  judet: { type: String, required: true },
+  localitate: { type: String, required: true },
+  strada: { type: String, required: true },
+  numar: { type: String, required: true },
+  codPostal: { type: String, required: true },
+  alteDetalii: { type: String },
+  tara: { type: String, required: true, default: 'RO' },
+  persoanaContact: { type: String, required: true },
+  telefonContact: { type: String, required: true },
+  distanceInKm: { type: Number },
+  travelTimeInMinutes: { type: Number },
+  isActive: { type: Boolean, default: true, required: true },
+})
 
 const bankAccountSchema = new Schema(
   {
-    iban: { type: String, required: true },
-    bankName: { type: String, required: true },
+    iban: { type: String },
+    bankName: { type: String },
   },
   { _id: false }
 )
