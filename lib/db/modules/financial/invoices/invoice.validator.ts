@@ -73,7 +73,7 @@ export const InvoiceLineSchema = z.object({
     )
     .optional()
     .default([]),
-  unitPrice: z.number().nonnegative(), // Prețul unitar (fără TVA)
+  unitPrice: z.number(), // Prețul unitar (fără TVA)
   lineValue: z.number(), // Valoarea liniei (fără TVA)
   vatRateDetails: z.object({
     rate: z.number().nonnegative(),

@@ -217,16 +217,47 @@ export function InvoicesList({
                     <InvoiceStatusBadge status={invoice.status} />
                   </TableCell>
                   <TableCell>
-                    <div className='flex items-center gap-1'>
+                    <div className='flex items-center gap-2'>
+                      {/* 1. Toată lumea vede Statusul */}
                       <EFacturaStatusBadge status={invoice.eFacturaStatus} />
-                      <Button
-                        variant='outline'
-                        size='icon'
-                        className='h-7 w-7'
-                        disabled={invoice.eFacturaStatus !== 'PENDING'}
-                      >
-                        <Upload className='h-4 w-4' />
-                      </Button>
+
+                      {/* 2. Doar Adminul vede acțiunile sau codul */}
+                      {isAdmin && (
+                        <>
+                          {/* CAZ A: Trebuie trimisă (PENDING sau REJECTED_ANAF) */}
+                          {(invoice.eFacturaStatus === 'PENDING' ||
+                            invoice.eFacturaStatus === 'REJECTED_ANAF') && (
+                            <Button
+                              variant='outline'
+                              size='icon'
+                              className='h-7 w-7'
+                              title='Încarcă în SPV'
+                              // Buton activ doar dacă factura este finalizată (Aprobată/Plătită)
+                              disabled={
+                                !(
+                                  invoice.status === 'APPROVED' ||
+                                  invoice.status === 'PAID' ||
+                                  invoice.status === 'PARTIAL_PAID'
+                                )
+                              }
+                              onClick={() =>
+                                toast.info('Modulul e-Factura este în lucru.')
+                              }
+                            >
+                              <Upload className='h-4 w-4' />
+                            </Button>
+                          )}
+
+                          {/* CAZ B: A fost deja trimisă (SENT sau ACCEPTED) - Afișăm ID Placeholder */}
+                          {(invoice.eFacturaStatus === 'SENT' ||
+                            invoice.eFacturaStatus === 'ACCEPTED') && (
+                            <span className='text-[10px] font-mono text-muted-foreground border px-1 py-0.5 rounded bg-muted'>
+                              {/* Aici va veni invoice.eFacturaUploadId real */}
+                              ID: 3040...
+                            </span>
+                          )}
+                        </>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className='text-right font-semibold'>

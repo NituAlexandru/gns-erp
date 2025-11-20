@@ -270,7 +270,6 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
   { timestamps: true }
 )
 
-
 InvoiceSchema.pre('save', function (next) {
   // Setări inițiale doar la creare (rămân la fel)
   if (this.isNew) {
@@ -284,12 +283,15 @@ InvoiceSchema.pre('save', function (next) {
     this.isModified('remainingAmount') ||
     this.isNew
   ) {
-    // Dacă e Storno, NU rulăm logica de marcare automată ca PAID.
-    // Storno rămâne APPROVED și scade soldul matematic.
+    // 1. Dacă e Storno, ieșim (deja existent)
     if (this.invoiceType === 'STORNO') {
       return next()
     }
-
+    // 👇 2. FIX NOU: Dacă Totalul e Negativ (Discount), ieșim.
+    // Nu vrem să o marcheze automat ca PAID. Trebuie aprobată manual.
+    if (this.totals.grandTotal < 0) {
+      return next()
+    }
     const paid = round2(this.paidAmount)
     const remaining = round2(this.remainingAmount)
     const total = round2(this.totals.grandTotal)
@@ -298,7 +300,8 @@ InvoiceSchema.pre('save', function (next) {
       // Nu modificăm statusul dacă este Anulată
       return next()
     }
-
+    
+    // Logica de marcare automată
     if (remaining <= 0.001 && paid >= total) {
       // Dacă restul e zero și suma plătită acoperă totalul
       this.status = 'PAID'
