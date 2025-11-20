@@ -29,6 +29,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { SearchedService } from '@/lib/db/modules/setting/services/types'
+import { useState } from 'react'
+import { toast } from 'sonner'
+import { AddDiscountDialog } from './AddDiscountDialog'
 
 interface InvoiceFormItemsProps {
   fields: FieldArrayWithId<InvoiceInput, 'items', 'id'>[]
@@ -60,6 +63,7 @@ export function InvoiceFormItems({
   const form = useFormContext<InvoiceInput>()
   const totals = form.watch('totals')
   const watchedInvoiceType = form.watch('invoiceType')
+  const [showDiscountModal, setShowDiscountModal] = useState(false)
 
   const handleManualAdd = () => {
     const defaultUnit: string = UNITS[0] || 'bucata'
@@ -156,6 +160,47 @@ export function InvoiceFormItems({
     })
   }
 
+  const handleConfirmDiscount = (data: {
+    description: string
+    amount: number
+    vatRate: number
+  }) => {
+    const discountValue = -Math.abs(data.amount)
+    const discountVatValue = round2(discountValue * (data.vatRate / 100))
+    const discountTotal = round2(discountValue + discountVatValue)
+
+    append({
+      isManualEntry: true,
+      productName: data.description,
+      productCode: 'DISCOUNT',
+      quantity: 1,
+      unitOfMeasure: 'bucata',
+      unitOfMeasureCode: 'H87',
+      unitPrice: discountValue,
+      lineValue: discountValue,
+      vatRateDetails: {
+        rate: data.vatRate,
+        value: discountVatValue,
+      },
+      lineTotal: discountTotal,
+      stockableItemType: 'Service',
+      baseUnit: 'bucata',
+      conversionFactor: 1,
+      quantityInBaseUnit: 1,
+      priceInBaseUnit: discountValue,
+      lineCostFIFO: 0,
+      lineProfit: discountValue,
+      lineMargin: 0,
+      costBreakdown: [],
+      minimumSalePrice: 0,
+      packagingOptions: [],
+      stornedQuantity: 0,
+      relatedAdvanceId: undefined,
+    })
+
+    toast.success('Discount adăugat cu succes!')
+  }
+
   if (fields.length === 0) {
     return (
       <div className='border rounded-lg p-8 bg-card text-center space-y-4'>
@@ -194,6 +239,13 @@ export function InvoiceFormItems({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={() => setShowDiscountModal(true)}
+              >
+                <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Discount
+              </Button>
             </div>
           </>
         ) : watchedInvoiceType === 'AVANS' ? (
@@ -281,6 +333,13 @@ export function InvoiceFormItems({
             </div>
           </>
         )}
+        <AddDiscountDialog
+          isOpen={showDiscountModal}
+          onClose={() => setShowDiscountModal(false)}
+          onConfirm={handleConfirmDiscount}
+          currentSubtotal={totals?.subtotal || 0}
+          vatRates={vatRates}
+        />
       </div>
     )
   }
@@ -407,7 +466,8 @@ export function InvoiceFormItems({
           <TableBody>
             {fields.map((field, index) => {
               const item = field as unknown as InvoiceLineInput
-              const isManualRow = item.productCode === 'MANUAL'
+              const isManualRow =
+                item.productCode === 'MANUAL' || item.productCode === 'DISCOUNT'
 
               if (isManualRow) {
                 return (
@@ -476,8 +536,23 @@ export function InvoiceFormItems({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={() => setShowDiscountModal(true)}
+          >
+            <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Discount
+          </Button>
         </div>
       )}
+      <AddDiscountDialog
+        isOpen={showDiscountModal}
+        onClose={() => setShowDiscountModal(false)}
+        onConfirm={handleConfirmDiscount}
+        currentSubtotal={totals?.subtotal || 0}
+        vatRates={vatRates}
+      />
     </div>
   )
 }

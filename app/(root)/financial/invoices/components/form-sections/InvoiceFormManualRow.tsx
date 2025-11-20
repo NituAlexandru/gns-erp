@@ -35,7 +35,13 @@ export function InvoiceFormManualRow({
   const invoiceType = watch('invoiceType')
   const isStornoRow = invoiceType === 'STORNO'
   const itemData = watch(`items.${index}`)
-  const { unitPrice = 0, quantity = 0, vatRateDetails } = itemData || {}
+  const {
+    unitPrice = 0,
+    quantity = 0,
+    vatRateDetails,
+    productCode,
+  } = itemData || {}
+  const isDiscountRow = productCode === 'DISCOUNT'
 
   useEffect(() => {
     const vatRate = vatRateDetails?.rate || 0
@@ -161,15 +167,44 @@ export function InvoiceFormManualRow({
           name={`items.${index}.unitPrice`}
           control={control}
           defaultValue={0}
-          render={({ field }) => (
-            <Input
-              {...field}
-              type='number'
-              step='0.01'
-              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-              className='w-full text-right'
-            />
-          )}
+          render={({ field }) =>
+            isDiscountRow ? (
+              // --- INPUT PENTRU DISCOUNT (MINUS AUTOMAT) ---
+              <div className='flex items-center relative'>
+                <span className='absolute left-2 text-muted-foreground font-bold'>
+                  -
+                </span>
+                <Input
+                  {...field}
+                  type='number'
+                  step='0.01'
+                  // Afișăm valoarea absolută (pozitivă)
+                  value={field.value ? Math.abs(field.value) : ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value)
+                    // Salvăm valoarea negativă
+                    if (!isNaN(val)) {
+                      field.onChange(-Math.abs(val))
+                    } else {
+                      field.onChange(0)
+                    }
+                  }}
+                  className='w-full text-right pl-6'
+                />
+              </div>
+            ) : (
+              // --- INPUT NORMAL ---
+              <Input
+                {...field}
+                type='number'
+                step='0.01'
+                onChange={(e) =>
+                  field.onChange(parseFloat(e.target.value) || 0)
+                }
+                className='w-full text-right'
+              />
+            )
+          }
         />
       </TableCell>
 
