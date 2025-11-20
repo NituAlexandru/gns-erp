@@ -8,9 +8,7 @@ import { MongoId } from '@/lib/validator'
 
 const StornoLineSchema = InvoiceLineSchema.extend({
   sourceInvoiceLineId: z.string().min(1, 'Linia sursă a facturii lipsește.'),
-  costBreakdown: z
-    .array(CostBreakdownBatchSchema)
-    .min(1, 'Detalierea costului original lipsește.'),
+  costBreakdown: z.array(CostBreakdownBatchSchema).optional().default([]),
   lineCostFIFO: z.number(),
   quantity: z.number().negative('Cantitatea stornată trebuie să fie negativă.'),
 })

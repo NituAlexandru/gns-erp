@@ -19,7 +19,6 @@
 - Modul autorizatii necesare livrare (sa includa zonele cu restrictii -numele de strazi, comune, orase, drumuri etc, taxele necesare de plata, alte mentiuni)
 - Modul Proiecte (aici pot fi grupati 2-3-4 sau orice alt nr de clienti pe un proiect (adica o singura adresa unde se livreaza marfa), in cote egale sau diferite. structura trebuie asemnatoare ca la client, deoarece in comenzi/livrari se vor putea selecta clienti individuali, sau proiecte, care vor contine in ele 1-2-3 etc clienti individuali). facturile trb sa se poata genera pe comanda, fiecarui client, in functie de procentul pe care il are in acel proiect. precum si restul documentelor trebuiesc emise la fel.
 - De facut CRUD + forms pentru packagings - momentan se gestioneaza manual din DB
-- de modificat btn de stergere la produse ca sa distinga intre paleti si produse
 
 - comenzile care se tin mai mult de 30 zile in curte se percepe taxa de custodie. % din pretul total/luna
 
@@ -44,18 +43,23 @@ Detalii facturare
 - selector de facturi - din cele descarcate din efactura,
 - la facturi storno trebuie adaugat si serviciu
 - bug la factura storno, cand dau sa adaug produs individual
-- de creat factura discount
+- bug factura storno - nu se creaza
+- de creat factura discount (creez factura separata? sau o functie de discount care adauga linie cu - in factura standard?)
 - utilizatorii normali vad butonul de incarca in efactura - nu ar trebui
-- factura discount
+
 * Alte documente
 
-
-  Nr incarcare spv la facturi
-
--de testat factura de avans in fisa client
+Adauga Nr incarcare spv la facturi
 
 - Livrari\*
 
 Bug - editare comanda, nu vede ce mai e de adaugat
 
-suma trezorerie - total faccturat = incasat + de incasat
+Comenzi - acum ca am finalizat fisa de client / client summary, trebuie sa adaug informatiile "live" in comanda in selectorul de client.
+
+Livrari - in momentul de fata toate livrarile urmeaza acelasi flux, comenzile sunt finalizate, dupa se redirectioneaza la livrari, se selecteaza ce si cand se livreaza si se creaza livrarea. Trebuie separat fluxul pentru edge caseuri, respectiv, pentru comenzile pe care le ridica clientul, acesta trebuie programat, dar nu are nevoie sa se selecteze tipul de masina si nici sa se puna transport (tipul de maisna se alege la toate acum, la asta ar trebui sa apara ridicare client), iar pentru livrarile directe, care se fac masini straine, la fel, nu se mai selecteaza masina asa ca trebuie sa adaug un checkmark cu "livrare transportator tert" care daca e selectat nu se mai alege tipul masinii.
+
+Acum, pe langa asta, dupa crearea livrarilor, toate livrarile sunt in lista de alocare, ceea ce e bine, dar, toate se aloca pe masinile noastre, livrarile unde se ridica produsul, si care se livreaza cu masini terte, trebuie alocate separat, nu in tabelul cu masinile proprii, trebuie adaugate coloane de "ridicare client" si "livrare terta", sau o singura coloana care sa fie pentru ambele.
+
+- Nota de Retur (de la facturile storno create de GNS)
+- Nota de Retur (o redenumesc - pentru produsele stornate la furnizori)

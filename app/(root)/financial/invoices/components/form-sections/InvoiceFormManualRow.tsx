@@ -32,7 +32,8 @@ export function InvoiceFormManualRow({
   remove,
 }: InvoiceFormManualRowProps) {
   const { control, setValue, watch } = useFormContext<InvoiceInput>()
-
+  const invoiceType = watch('invoiceType')
+  const isStornoRow = invoiceType === 'STORNO'
   const itemData = watch(`items.${index}`)
   const { unitPrice = 0, quantity = 0, vatRateDetails } = itemData || {}
 
@@ -84,15 +85,39 @@ export function InvoiceFormManualRow({
           name={`items.${index}.quantity`}
           control={control}
           defaultValue={1}
-          render={({ field }) => (
-            <Input
-              {...field}
-              type='number'
-              step='any'
-              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-              className='w-full text-right'
-            />
-          )}
+          render={({ field }) =>
+            isStornoRow ? (
+              <div className='flex items-center relative'>
+                <span className='absolute left-2 text-muted-foreground font-bold'>
+                  -
+                </span>
+                <Input
+                  {...field}
+                  type='number'
+                  step='any'
+                  // Afișăm pozitiv
+                  value={field.value ? Math.abs(field.value) : ''}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0
+                    // Salvăm negativ
+                    field.onChange(-Math.abs(val))
+                  }}
+                  className='w-full text-right pl-6'
+                />
+              </div>
+            ) : (
+              // Input normal pentru facturi Standard/Avans
+              <Input
+                {...field}
+                type='number'
+                step='any'
+                onChange={(e) =>
+                  field.onChange(parseFloat(e.target.value) || 0)
+                }
+                className='w-full text-right'
+              />
+            )
+          }
         />
       </TableCell>
 

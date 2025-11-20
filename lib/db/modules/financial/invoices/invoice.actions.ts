@@ -830,7 +830,31 @@ export async function createStornoInvoice(
         throw new Error('Setările companiei nu sunt configurate.')
       const companySnapshot = buildCompanySnapshot(companySettings)
 
-      // 3. Generare Număr Factură Storno
+      // --- FIX: Preluare și Construire Client Snapshot (Lipseau) ---
+      const client = (await ClientModel.findById(validatedData.clientId)
+        .lean()
+        .session(session)) as IClientDoc | null
+      if (!client) throw new Error('Clientul nu a fost găsit.')
+
+      const clientSnapshot: ClientSnapshot = {
+        name: client.name,
+        cui: client.vatId || client.cnp || '',
+        regCom: client.nrRegComert || '',
+        address: {
+          judet: client.address.judet,
+          localitate: client.address.localitate,
+          strada: client.address.strada,
+          numar: client.address.numar || '',
+          codPostal: client.address.codPostal,
+          tara: client.address.tara || 'RO',
+          alteDetalii: client.address.alteDetalii || '',
+        },
+        bank: client.bankAccountLei?.bankName || '',
+        iban: client.bankAccountLei?.iban || '',
+      }
+      // -------------------------------------------------------------
+
+      // 4. Generare Număr Factură Storno
       const year = validatedData.invoiceDate.getFullYear()
       const nextSeq = await generateNextDocumentNumber(
         validatedData.seriesName,
@@ -840,7 +864,7 @@ export async function createStornoInvoice(
       )
       const invoiceNumber = String(nextSeq).padStart(5, '0')
 
-      // 4. PREGĂTIREA DATELOR PENTRU NOTA DE RETUR
+      // 5. PREGĂTIREA DATELOR PENTRU NOTA DE RETUR
       const returnNoteItems: CreateReturnNoteInput['items'] = []
 
       for (const item of validatedData.items) {
@@ -872,7 +896,7 @@ export async function createStornoInvoice(
         }
       }
 
-      // 5. Creare Notă de Retur
+      // 6. Creare Notă de Retur
       let returnNoteId: Types.ObjectId | undefined = undefined
       if (returnNoteItems.length > 0) {
         const returnNoteData: CreateReturnNoteInput = {
@@ -898,16 +922,17 @@ export async function createStornoInvoice(
         returnNoteId = new Types.ObjectId(returnNoteResult.data._id)
       }
 
-      // 6. Creare Factură Storno
+      // 7. Creare Factură Storno (Includem clientSnapshot)
       const [createdInvoice] = await InvoiceModel.create(
         [
           {
             ...validatedData,
             companySnapshot: companySnapshot,
+            clientSnapshot: clientSnapshot, // <--- ADĂUGAT AICI
             sequenceNumber: nextSeq,
             invoiceNumber: invoiceNumber,
             year: year,
-            status: 'APPROVED',
+            status: 'CREATED',
             eFacturaStatus: 'PENDING',
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
@@ -918,7 +943,7 @@ export async function createStornoInvoice(
         { session }
       )
 
-      // 7. Actualizăm Nota de Retur cu ID-ul Stornării
+      // 8. Actualizăm Nota de Retur cu ID-ul Stornării
       if (returnNoteId) {
         await ReturnNoteModel.findByIdAndUpdate(
           returnNoteId,
@@ -927,7 +952,7 @@ export async function createStornoInvoice(
         )
       }
 
-      // 8. Actualizăm `stornedQuantity` pe facturile originale
+      // 9. Actualizăm `stornedQuantity` pe facturile originale
       for (const item of validatedData.items) {
         await InvoiceModel.updateOne(
           { 'items._id': new Types.ObjectId(item.sourceInvoiceLineId) },

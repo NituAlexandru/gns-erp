@@ -13,9 +13,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { StornableProductDTO } from '@/lib/db/modules/financial/invoices/invoice.types'
+import {
+  InvoiceLineInput,
+  StornableProductDTO,
+} from '@/lib/db/modules/financial/invoices/invoice.types'
 import { getStornableProductsList } from '@/lib/db/modules/financial/invoices/invoice.actions'
-import { cn } from '@/lib/utils'
+import { cn, round2 } from '@/lib/utils'
 
 // --- Hook-ul pentru Debounce ---
 // (Am adăugat acest hook mic direct aici pentru simplitate)
@@ -39,6 +42,7 @@ interface SelectStornoProductModalProps {
   addressId: string
   onClose: () => void
   onConfirm: (productId: string, quantityToStorno: number) => void
+  existingItems: InvoiceLineInput[]
 }
 
 export function SelectStornoProductModal({
@@ -46,6 +50,7 @@ export function SelectStornoProductModal({
   addressId,
   onClose,
   onConfirm,
+  existingItems,
 }: SelectStornoProductModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [products, setProducts] = useState<StornableProductDTO[]>([])
@@ -56,6 +61,14 @@ export function SelectStornoProductModal({
 
   // Folosim hook-ul de debounce. Căutarea va porni la 500ms DUPĂ ce user-ul s-a oprit din tastat
   const debouncedSearchTerm = useDebounce(searchTerm, 500)
+
+  const getRealAvailableQuantity = (prod: StornableProductDTO) => {
+    const alreadyAddedQty = existingItems
+      .filter((item) => item.productId === prod.productId)
+      .reduce((acc, item) => acc + Math.abs(item.quantity), 0)
+
+    return Math.max(0, round2(prod.totalRemainingToStorno - alreadyAddedQty))
+  }
 
   // 1. Logica de căutare (se activează când 'debouncedSearchTerm' se schimbă)
   useEffect(() => {
@@ -102,27 +115,32 @@ export function SelectStornoProductModal({
   // 3. Handler pentru confirmare
   const handleConfirmClick = () => {
     if (!selectedProduct || quantity <= 0) return
-    if (quantity > selectedProduct.totalRemainingToStorno) {
+    // Validare pe cantitatea reală
+    if (quantity > currentAvailableQty) {
       toast.error('Cantitate invalidă', {
-        description: `Nu puteți stornare mai mult decât cantitatea disponibilă (${selectedProduct.totalRemainingToStorno}).`,
+        description: `Nu puteți stornare mai mult decât cantitatea disponibilă (${currentAvailableQty}).`,
       })
       return
     }
     onConfirm(selectedProduct.productId, quantity)
   }
 
+  const currentAvailableQty = selectedProduct
+    ? getRealAvailableQuantity(selectedProduct)
+    : 0
+
   // 4. Validare pentru butonul de confirmare
   const isConfirmDisabled =
     isLoading ||
     !selectedProduct ||
     quantity <= 0 ||
-    quantity > selectedProduct.totalRemainingToStorno
+    quantity > currentAvailableQty
 
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className='sm:max-w-3xl min-h-[400px]'>
         <DialogHeader>
-          <DialogTitle>Selectează Produs pentru Stornare (Flux C)</DialogTitle>
+          <DialogTitle>Selectează Produs pentru Stornare </DialogTitle>
           <DialogDescription>
             Tastați numele produsului (min. 3 caractere) și așteptați
             rezultatele.
@@ -132,13 +150,12 @@ export function SelectStornoProductModal({
         <div className='flex gap-4'>
           {/* Coloana 1: Lista de Produse */}
           <div className='flex-1 space-y-2'>
-
             <div className='relative'>
               <Input
                 placeholder='🔍 Tastați numele produsului...'
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className='pr-10' 
+                className='pr-10'
               />
               {isLoading && (
                 <div className='absolute inset-y-0 right-0 flex items-center pr-3'>
@@ -161,21 +178,33 @@ export function SelectStornoProductModal({
                 products.map((prod) => {
                   const isSelected =
                     selectedProduct?.productId === prod.productId
+
+                  const realQty = getRealAvailableQuantity(prod)
+                  const isFullyUsed = realQty <= 0
                   return (
                     <div
                       key={prod.productId}
                       className={cn(
                         'flex cursor-pointer items-center justify-between rounded-md border p-3 text-sm',
-                        isSelected && 'border-primary ring-1 ring-primary'
+                        isSelected && 'border-primary ring-1 ring-primary',
+                        isFullyUsed && 'opacity-50 cursor-not-allowed bg-muted'
                       )}
-                      onClick={() => handleProductSelect(prod)}
+                      onClick={() => !isFullyUsed && handleProductSelect(prod)}
                     >
                       <div className='font-medium'>{prod.productName}</div>
                       <div className='text-right text-muted-foreground'>
-                        <span className='font-semibold text-primary'>
-                          {prod.totalRemainingToStorno}
-                        </span>{' '}
-                        {prod.unitOfMeasure}
+                        {isFullyUsed ? (
+                          <span className='text-xs font-bold text-destructive'>
+                            SELECTAT TOTAL
+                          </span>
+                        ) : (
+                          <>
+                            <span className='font-semibold text-primary'>
+                              {realQty} {/* <-- Afișează cantitatea reală */}
+                            </span>{' '}
+                            {prod.unitOfMeasure}
+                          </>
+                        )}
                       </div>
                     </div>
                   )
@@ -192,10 +221,9 @@ export function SelectStornoProductModal({
                   {selectedProduct.productName}
                 </p>
                 <p className='text-sm text-muted-foreground'>
-                  Disponibil pentru stornare:{' '}
+                  Disponibil:{' '}
                   <strong className='text-foreground'>
-                    {selectedProduct.totalRemainingToStorno}{' '}
-                    {selectedProduct.unitOfMeasure}
+                    {currentAvailableQty} {selectedProduct.unitOfMeasure}{' '}
                   </strong>
                 </p>
 
@@ -204,14 +232,14 @@ export function SelectStornoProductModal({
                   placeholder='Introdu cantitatea...'
                   value={quantity || ''}
                   onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-                  max={selectedProduct.totalRemainingToStorno}
+                  max={currentAvailableQty}
                   min={0}
                   className='text-lg'
                 />
 
-                {quantity > selectedProduct.totalRemainingToStorno && (
+                {quantity > currentAvailableQty && (
                   <p className='text-xs text-destructive'>
-                    Cantitatea introdusă este mai mare decât cea disponibilă!
+                    Cantitate prea mare! Maxim: {currentAvailableQty}
                   </p>
                 )}
               </>

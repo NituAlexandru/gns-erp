@@ -1,4 +1,3 @@
-
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
@@ -9,7 +8,6 @@ const NAV_ITEMS = [
   { id: '', label: 'Sumar', icon: <LayoutDashboard size={16} /> },
   { id: 'delivery-notes', label: 'Avize', icon: <FileCheck size={16} /> },
   { id: 'invoices', label: 'Facturi Emise', icon: <FileText size={16} /> },
-
   { id: 'receipts', label: 'Chitanțe', icon: <Receipt size={16} /> },
 ]
 

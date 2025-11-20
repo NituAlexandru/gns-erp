@@ -27,6 +27,7 @@ export function InvoiceFormProductRow({
 }: InvoiceFormProductRowProps) {
   const { control, setValue, watch } = useFormContext<InvoiceInput>()
   const watchedInvoiceType = watch('invoiceType')
+  const isStornoRow = watchedInvoiceType === 'STORNO'
   const watchedUnitPrice = watch(`items.${index}.unitPrice`, itemData.unitPrice)
   const watchedQuantity = watch(`items.${index}.quantity`, itemData.quantity)
   const lineProfit = watch(`items.${index}.lineProfit`)
@@ -98,7 +99,6 @@ export function InvoiceFormProductRow({
   ])
 
   const lineValue = watch(`items.${index}.lineValue`) || 0
-  const isStornoRow = watchedInvoiceType === 'STORNO'
   const lineVatValue = watch(`items.${index}.vatRateDetails.value`) || 0
   const lineTotal = watch(`items.${index}.lineTotal`) || 0
 
@@ -127,39 +127,59 @@ export function InvoiceFormProductRow({
             name={`items.${index}.quantity`}
             control={control}
             defaultValue={itemData.quantity}
-            render={({ field }) => (
-              <Input
-                {...field}
-                type='number'
-                step='any' // 'disabled' nu mai e necesar, e controlat de 'isStornoRow'
-                onChange={(e) =>
-                  field.onChange(parseFloat(e.target.value) || 0)
-                }
-                onBlur={(e) => {
-                  const numValue = parseFloat(e.target.value)
-                  const originalQty = itemData.quantity // ex: -10
+            render={({ field }) =>
+              isStornoRow ? (
+                <div className='flex items-center relative'>
+                  {/* Prefix vizual "-" */}
+                  <span className='absolute left-2 text-muted-foreground font-bold'>
+                    -
+                  </span>
 
-                  if (isNaN(numValue)) {
-                    field.onChange(originalQty) // Resetează
-                    return
-                  }
+                  <Input
+                    {...field}
+                    type='number'
+                    step='any'
+                    // 1. Afișăm valoarea ABSOLUTĂ (pozitivă) ca userul să nu vadă "--5"
+                    value={field.value ? Math.abs(field.value) : ''}
+                    onChange={(e) => {
+                      const positiveVal = parseFloat(e.target.value)
+                      // 2. Salvăm întotdeauna valoarea NEGATIVĂ
+                      if (!isNaN(positiveVal)) {
+                        field.onChange(-Math.abs(positiveVal))
+                      } else {
+                        field.onChange(0)
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const positiveVal = parseFloat(e.target.value)
+                      const originalQtyAbs = Math.abs(itemData.quantity) // ex: |-10| = 10
 
-                  if (numValue > 0) {
-                    toast.error('Cantitatea stornată trebuie să fie negativă.')
-                    field.onChange(originalQty)
-                  } else if (numValue < originalQty) {
-                    toast.error(
-                      `Nu poți stornare mai mult (${numValue}) decât factura originală (${originalQty}).`
-                    )
-                    field.onChange(originalQty)
-                  } else {
-                    // Salvează valoarea parțială (ex: -2)
-                    field.onChange(numValue)
-                  }
-                }}
-                className='w-full text-right'
-              />
-            )}
+                      if (isNaN(positiveVal)) {
+                        field.onChange(itemData.quantity) // Reset la valoarea inițială
+                        return
+                      }
+
+                      // Validare: nu poți returna mai mult decât a fost facturat
+                      if (positiveVal > originalQtyAbs) {
+                        toast.error(
+                          `Nu poți stornare mai mult (${positiveVal}) decât factura originală (${originalQtyAbs}).`
+                        )
+                        field.onChange(itemData.quantity) // Reset la maximul permis
+                      } else {
+                        // Confirmăm salvarea cu minus
+                        field.onChange(-Math.abs(positiveVal))
+                      }
+                    }}
+                    className='w-full text-right pl-6' // Padding stânga ca să facem loc simbolului minus
+                  />
+                </div>
+              ) : (
+                // Dacă NU e storno (e standard sau avans), afișăm doar text, nu input (logică veche)
+                <div className='text-right px-3 py-2'>
+                  <span>{quantity}</span>
+                </div>
+              )
+            }
           />
         ) : (
           // --- CAZ STANDARD/AVANS (BLOCAT) ---

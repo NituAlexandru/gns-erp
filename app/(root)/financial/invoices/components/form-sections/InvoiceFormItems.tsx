@@ -100,14 +100,21 @@ export function InvoiceFormItems({
     const defaultVat = vatRates[0]
     const vatRate = vat ? vat.rate : defaultVat ? defaultVat.rate : 19
 
+    const initialQuantity = watchedInvoiceType === 'STORNO' ? -1 : 1
+
     // --- Logica de Cost/Profit CORECTATĂ (pe baza Pas 1 și 2) ---
     const lineValue = service.price // Prețul de vânzare
     const lineCost = service.cost // Costul real preluat din BD
-    const lineProfit = round2(lineValue - lineCost)
+
+    const totalValue = round2(lineValue * initialQuantity)
+    const totalCost = round2(lineCost * initialQuantity)
+    const lineProfit = round2(totalValue - totalCost)
+
     const lineMargin =
-      lineValue > 0 ? round2((lineProfit / lineValue) * 100) : 0
-    const lineVatValue = round2(lineValue * (vatRate / 100))
-    const lineTotal = round2(lineValue + lineVatValue)
+      totalValue !== 0 ? round2((lineProfit / totalValue) * 100) : 0
+
+    const lineVatValue = round2(totalValue * (vatRate / 100))
+    const lineTotal = round2(totalValue + lineVatValue)
 
     append({
       // Câmpuri specifice Serviciului
@@ -121,15 +128,14 @@ export function InvoiceFormItems({
       minimumSalePrice: service.price,
       stockableItemType: 'Service',
 
-      // Câmpuri de Cantitate (Default 1)
-      quantity: 1,
+      quantity: initialQuantity,
+      quantityInBaseUnit: initialQuantity,
       baseUnit: service.unitOfMeasure,
       conversionFactor: 1,
-      quantityInBaseUnit: 1,
       priceInBaseUnit: service.price,
 
       // Câmpuri de Totaluri
-      lineValue: lineValue,
+      lineValue: totalValue,
       vatRateDetails: { rate: vatRate, value: lineVatValue },
       lineTotal: lineTotal,
 
@@ -165,13 +171,13 @@ export function InvoiceFormItems({
             </p>
             {/* Afișăm ambele butoane și pentru Standard */}
             <div className='flex justify-center gap-4'>
-              <Button onClick={handleManualAdd} variant='outline'>
+              <Button type='button' onClick={handleManualAdd} variant='outline'>
                 <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
               </Button>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant='outline'>
+                  <Button type='button' variant='outline'>
                     <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
                   </Button>
                 </DropdownMenuTrigger>
@@ -200,12 +206,12 @@ export function InvoiceFormItems({
             </p>
             {/* Butoanele pentru Avans */}
             <div className='flex justify-center gap-4'>
-              <Button onClick={handleManualAdd} variant='outline'>
+              <Button type='button' onClick={handleManualAdd} variant='outline'>
                 <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant='outline'>
+                  <Button type='button' variant='outline'>
                     <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
                   </Button>
                 </DropdownMenuTrigger>
@@ -238,13 +244,40 @@ export function InvoiceFormItems({
               </span>
             </p>
             <div className='flex justify-center gap-4'>
-              <Button variant='outline' onClick={onShowStornoModal}>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={onShowStornoModal}
+              >
                 <PlusCircle className='mr-2 h-4 w-4' />
                 Selectează Facturi de Stornat
               </Button>
-              <Button variant='outline' onClick={onShowStornoProductModal}>
+              <Button
+                type='button'
+                variant='outline'
+                onClick={onShowStornoProductModal}
+              >
                 Selectează Produse
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type='button' variant='outline'>
+                    <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className='w-[450px]'>
+                  {services.map((service: SearchedService) => (
+                    <DropdownMenuItem
+                      key={service._id}
+                      onSelect={() => handleSelectService(service)}
+                    >
+                      <span>
+                        {service.name} ({formatCurrency(service.price)})
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </>
         )}
@@ -312,11 +345,17 @@ export function InvoiceFormItems({
       </div>
       {watchedInvoiceType === 'STORNO' && (
         <div className='flex gap-4 '>
-          <Button variant='outline' size='sm' onClick={onShowStornoModal}>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={onShowStornoModal}
+          >
             <PlusCircle className='mr-2 h-4 w-4' />
             Adaugă Factură
           </Button>
           <Button
+            type='button'
             variant='outline'
             size='sm'
             onClick={onShowStornoProductModal}
@@ -324,6 +363,25 @@ export function InvoiceFormItems({
             <PlusCircle className='mr-2 h-4 w-4' />
             Adaugă Produs
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type='button' variant='outline' size='sm'>
+                <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className='w-[450px]'>
+              {services.map((service: SearchedService) => (
+                <DropdownMenuItem
+                  key={service._id}
+                  onSelect={() => handleSelectService(service)}
+                >
+                  <span>
+                    {service.name} ({formatCurrency(service.price)})
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
       <div className='border rounded-lg bg-card overflow-x-auto'>
@@ -391,12 +449,17 @@ export function InvoiceFormItems({
       {/* 🔽 --- AICI SUNT BUTOANELE CONDIȚIONATE --- 🔽 */}
       {watchedInvoiceType !== 'STORNO' && (
         <div className='flex gap-2'>
-          <Button onClick={handleManualAdd} variant='secondary' size='sm'>
+          <Button
+            type='button'
+            onClick={handleManualAdd}
+            variant='secondary'
+            size='sm'
+          >
             <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Rând Manual
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant='outline' size='sm'>
+              <Button type='button' variant='outline' size='sm'>
                 <PlusCircle className='mr-2 h-4 w-4' /> Adaugă Serviciu
               </Button>
             </DropdownMenuTrigger>

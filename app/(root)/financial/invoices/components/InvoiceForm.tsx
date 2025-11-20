@@ -448,6 +448,40 @@ export function InvoiceForm({
           })
         )
 
+        const currentItems = getValues('items')
+        const newLinesToAdd: InvoiceLineInput[] = []
+        let duplicateCount = 0
+
+        for (const newLine of linesWithDates) {
+          // Verificăm dacă există deja o linie cu același ID de linie sursă
+          const isDuplicate = currentItems.some(
+            (existingItem) =>
+              existingItem.sourceInvoiceLineId === newLine.sourceInvoiceLineId
+          )
+
+          if (isDuplicate) {
+            duplicateCount++
+          } else {
+            newLinesToAdd.push(newLine)
+          }
+        }
+
+        if (duplicateCount > 0) {
+          toast.warning(
+            `${duplicateCount} linii au fost ignorate deoarece sunt deja incluse în factură.`,
+            {
+              description:
+                'Dacă doriți să modificați cantitatea, editați linia existentă.',
+            }
+          )
+        }
+
+        if (newLinesToAdd.length === 0) {
+          setIsLoading(false)
+          setShowStornoProductModal(false)
+          return // Nu mai facem nimic dacă totul e duplicat
+        }
+
         // 2. Adaugă liniile corectate
         append(linesWithDates)
 
@@ -784,6 +818,7 @@ export function InvoiceForm({
             addressId={watchedDeliveryAddressId}
             onClose={() => setShowStornoProductModal(false)}
             onConfirm={handleLoadStornoLines}
+            existingItems={watchedItems || []}
           />
         )}
     </FormProvider>
