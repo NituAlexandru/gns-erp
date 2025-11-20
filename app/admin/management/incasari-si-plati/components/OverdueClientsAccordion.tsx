@@ -68,9 +68,7 @@ export function OverdueClientsAccordion({
                     <TableRow className='text-xs'>
                       <TableHead>Factura</TableHead>
                       <TableHead>Scadentă</TableHead>
-                      <TableHead className='text-center'>
-                        Zile Întârziere
-                      </TableHead>
+                      <TableHead className='text-center'>Întârziere</TableHead>
                       <TableHead className='text-right'>Restant</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -78,16 +76,18 @@ export function OverdueClientsAccordion({
                     {client.overdueInvoices.map((invoice) => (
                       <TableRow
                         key={invoice._id.toString()}
-                        className='text-sm'
+                        className='text-sm p-1'
                       >
-                        <TableCell className='font-medium'>
+                        <TableCell className='font-medium text-xs p-1'>
                           {invoice.seriesName}-{invoice.invoiceNumber}
                         </TableCell>
-                        <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                        <TableCell className='text-center font-bold text-red-600'>
-                          {invoice.daysOverdue}
+                        <TableCell className='p-1'>
+                          {formatDate(invoice.dueDate)}
                         </TableCell>
-                        <TableCell className='text-right font-medium'>
+                        <TableCell className='text-center font-bold text-red-600 p-0'>
+                          {invoice.daysOverdue} zile
+                        </TableCell>
+                        <TableCell className='text-right font-medium p-1'>
                           {formatCurrency(invoice.remainingAmount)}
                         </TableCell>
                       </TableRow>

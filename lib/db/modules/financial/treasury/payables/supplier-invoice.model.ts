@@ -92,7 +92,14 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
       required: true,
     },
     supplierSnapshot: { type: SupplierSnapshotSubSchema, required: true },
-    ourCompanySnapshot: { type: CompanySnapshotSubSchema, required: true }, // <-- Acum folosește schema locală
+    ourCompanySnapshot: { type: CompanySnapshotSubSchema, required: true },
+    invoiceType: {
+      type: String,
+      enum: ['STANDARD', 'STORNO', 'AVANS'], // Corespunde cu E-Factura 380, 381, 386
+      default: 'STANDARD',
+      required: true,
+      index: true,
+    },
     invoiceSeries: { type: String, required: true },
     invoiceNumber: { type: String, required: true, index: true },
     invoiceDate: { type: Date, required: true, index: true },

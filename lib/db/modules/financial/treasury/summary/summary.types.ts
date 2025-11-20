@@ -1,20 +1,33 @@
 import { Types } from 'mongoose'
 
-// Tipul pentru datele STATICE 
+// Tipul pentru datele STATICE
 export type TreasuryStaticStats = {
   totalDeIncasat: number
   totalDePlatit: number
 }
 
-// Tipul pentru Încasările agregate 
+// Tipul pentru Încasările agregate
 export type ClientPaymentSummaryItem = {
   _id: Types.ObjectId
   clientName: string
   totalIncasat: number
 }
+export type UnallocatedPaymentItem = {
+  _id: string
+  paymentNumber: string
+  seriesName: string
+  paymentDate: Date
+  clientName: string
+  unallocatedAmount: number
+  totalAmount: number
+}
+
 export type ClientPaymentSummary = {
   totalIncasatPerioada: number
+  totalFacturatPerioada: number
+  totalNealocat: number
   summaryList: ClientPaymentSummaryItem[]
+  unallocatedList: UnallocatedPaymentItem[]
 }
 
 // Tipul pentru Plățile agregate
@@ -38,7 +51,7 @@ export type OverdueInvoiceDetail = {
   invoiceNumber: string
   dueDate: Date
   remainingAmount: number
-  daysOverdue: number 
+  daysOverdue: number
 }
 
 // Structura pentru un client (capul de acordeon)

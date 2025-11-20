@@ -1561,9 +1561,7 @@ export async function updateInvoice(
         },
         { session }
       )
-    }) // Sfârșit tranzacție
-
-    // ... (restul funcției, revalidate, etc.)
+    })
 
     await session.endSession()
 

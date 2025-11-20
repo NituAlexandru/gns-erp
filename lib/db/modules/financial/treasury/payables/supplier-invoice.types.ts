@@ -57,8 +57,8 @@ export interface ISupplierInvoiceDoc extends Document {
   supplierId: Types.ObjectId | ISupplierDoc
   supplierSnapshot: SupplierSnapshot
   ourCompanySnapshot: OurCompanySnapshot
-
-  invoiceSeries: string 
+  invoiceType: 'STANDARD' | 'STORNO' | 'AVANS'
+  invoiceSeries: string
   invoiceNumber: string
   invoiceDate: Date
   dueDate: Date

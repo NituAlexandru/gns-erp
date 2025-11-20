@@ -270,7 +270,7 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
   { timestamps: true }
 )
 
-// Hook-ul 'pre save' CORECTAT
+
 InvoiceSchema.pre('save', function (next) {
   // Setări inițiale doar la creare (rămân la fel)
   if (this.isNew) {
@@ -284,6 +284,12 @@ InvoiceSchema.pre('save', function (next) {
     this.isModified('remainingAmount') ||
     this.isNew
   ) {
+    // Dacă e Storno, NU rulăm logica de marcare automată ca PAID.
+    // Storno rămâne APPROVED și scade soldul matematic.
+    if (this.invoiceType === 'STORNO') {
+      return next()
+    }
+
     const paid = round2(this.paidAmount)
     const remaining = round2(this.remainingAmount)
     const total = round2(this.totals.grandTotal)

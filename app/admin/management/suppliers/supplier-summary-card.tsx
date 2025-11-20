@@ -3,6 +3,7 @@
 import { ISupplierSummary } from '@/lib/db/modules/suppliers/summary/supplier-summary.model'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
+import { Wallet, AlertCircle, FileText, TrendingUp } from 'lucide-react'
 
 interface SupplierSummaryCardProps {
   summary: ISupplierSummary
@@ -11,31 +12,36 @@ interface SupplierSummaryCardProps {
 export default function SupplierSummaryCard({
   summary,
 }: SupplierSummaryCardProps) {
-  // LOGICA INVERSĂ FAȚĂ DE CLIENT
-  // paymentBalance > 0 înseamnă că DATORĂM bani furnizorului (e o datorie = Roșu)
-  // paymentBalance < 0 înseamnă că am plătit în avans (e un activ = Verde)
-
-  const balance = summary.paymentBalance
+  // --- 1. LOGICA SOLD ---
+  // paymentBalance s-a redenumit în outstandingBalance
+  const balance = summary.outstandingBalance
   const isDebt = balance > 0
 
+  // Dacă e > 0 (Datorie) = Roșu. Dacă e < 0 (Avans dat) = Verde.
   const soldTitle = isDebt ? 'Sold Datorat' : 'Sold Creditor (Avans)'
   const soldColor = isDebt ? 'text-red-600' : 'text-green-600'
   const soldSubtitle = isDebt
     ? 'Total de plată către furnizor'
-    : 'Am plătit în plus'
+    : 'Bani disponibili la furnizor'
 
-  const overdue = summary.overduePaymentBalance
-  const hasOverdue = overdue > 0
+  // --- 2. LOGICA OVERDUE ---
+  // overduePaymentBalance s-a redenumit în overdueBalance
+  const overdueVal = summary.overdueBalance
+  const overdueCount = summary.overdueInvoicesCount || 0
+  const hasOverdue = overdueVal > 0
 
   return (
-    <div className='p-4 rounded-lg border border-gray-200'>
-      <h2 className='text-lg font-semibold mb-4'>Sumar Financiar</h2>
+    <div className='p-2 rounded-lg border'>
+      <h2 className='text-lg font-semibold mb-2 flex items-center gap-2'>
+        Sumar Financiar
+      </h2>
 
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-4 w-full'>
-        {/* 1. Sold Curent */}
+      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 w-full'>
+        {/* CARD 1: SOLD CURENT */}
         <Card>
-          <CardHeader>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>{soldTitle}</CardTitle>
+            <Wallet className='h-4 w-4 text-muted-foreground' />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${soldColor}`}>
@@ -45,10 +51,11 @@ export default function SupplierSummaryCard({
           </CardContent>
         </Card>
 
-        {/* 2. Scadent Depășit */}
+        {/* CARD 2: SOLD SCADENT (VALOARE) */}
         <Card>
-          <CardHeader>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>Sold Scadent</CardTitle>
+            <AlertCircle className='h-4 w-4 text-muted-foreground' />
           </CardHeader>
           <CardContent>
             <div
@@ -56,27 +63,44 @@ export default function SupplierSummaryCard({
                 hasOverdue ? 'text-red-600' : 'text-gray-900'
               }`}
             >
-              {formatCurrency(overdue)}
+              {formatCurrency(overdueVal)}
             </div>
             <p className='text-xs text-muted-foreground mt-1'>
-              Facturi neplătite cu termen depășit
+              Depășit la plată
             </p>
           </CardContent>
         </Card>
 
-        {/* 3. Total Achiziții (Informativ) */}
+        {/* CARD 3: FACTURI RESTANTE (NUMĂR) - NOU */}
         <Card>
-          <CardHeader>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+            <CardTitle className='text-sm font-medium'>
+              Facturi Restante
+            </CardTitle>
+            <FileText className='h-4 w-4 text-muted-foreground' />
+          </CardHeader>
+          <CardContent>
+            <div className='text-2xl font-bold '>{overdueCount}</div>
+            <p className='text-xs text-muted-foreground mt-1'>
+              Doc. neplătite la termen
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* CARD 4: TOTAL ACHIZIȚII */}
+        <Card>
+          <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
             <CardTitle className='text-sm font-medium'>
               Total Achiziții
             </CardTitle>
+            <TrendingUp className='h-4 w-4 text-muted-foreground' />
           </CardHeader>
           <CardContent>
             <div className='text-2xl font-bold'>
               {formatCurrency(summary.totalPurchaseValue || 0)}
             </div>
             <p className='text-xs text-muted-foreground mt-1'>
-              Valoarea istorică a comenzilor
+              Achizitii Totale
             </p>
           </CardContent>
         </Card>

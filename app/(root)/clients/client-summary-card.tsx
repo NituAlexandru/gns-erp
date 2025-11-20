@@ -37,16 +37,17 @@ export default function ClientSummaryCard({
 
   return (
     <>
-      <div className='p-4 rounded-lg border border-gray-200'>
-        <h2 className='text-lg font-semibold mb-4'>Sumar Financiar</h2>
+      <div className='p-2 rounded-lg border'>
+        <h2 className='text-lg font-semibold mb-2'>Sumar Financiar</h2>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full'>
+        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 w-full'>
           {/* 1. Sold Curent / Restant (Modificat) */}
           <Card>
             <CardHeader>
               <CardTitle className='text-sm font-medium'>{soldTitle}</CardTitle>
             </CardHeader>
             <CardContent>
+              {/* Soldul Operațional (Mare) */}
               <div className={`text-2xl font-bold ${soldColor}`}>
                 {formatCurrency(summary.outstandingBalance)}
               </div>

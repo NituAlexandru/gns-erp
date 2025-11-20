@@ -11,20 +11,17 @@ interface SupplierSummaryCardProps {
 export default function SupplierSummaryCard({
   summary,
 }: SupplierSummaryCardProps) {
-  // Logica: paymentBalance > 0 înseamnă că datorăm bani (Rău/Roșu de obicei, sau neutru)
-  // paymentBalance < 0 înseamnă că am plătit în avans (Verde)
-
-  const debt = summary.paymentBalance
+  const debt = summary.outstandingBalance
   const isDebt = debt > 0
 
   const soldTitle = isDebt ? 'Sold Datorat' : 'Sold Creditor (Avans)'
   const soldColor = isDebt ? 'text-red-600' : 'text-green-600'
 
-  const overdue = summary.overduePaymentBalance
+  const overdue = summary.overdueBalance
   const hasOverdue = overdue > 0
 
   return (
-    <div className='p-4 rounded-lg border border-gray-200'>
+    <div className='p-4 rounded-lg border'>
       <h2 className='text-lg font-semibold mb-4'>Sumar Financiar Furnizor</h2>
 
       <div className='grid grid-cols-1 md:grid-cols-3 gap-4 w-full'>

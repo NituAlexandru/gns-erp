@@ -69,7 +69,7 @@ export function SupplierInvoiceAllocationHistorySheet({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className='sm:max-w-lg'>
+      <SheetContent className='sm:max-w-[700px] w-full'>
         <SheetHeader>
           <SheetTitle>Istoric Plăți Factură</SheetTitle>
           <SheetDescription>

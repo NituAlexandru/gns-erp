@@ -83,8 +83,10 @@ export async function getStaticTreasuryStats(): Promise<TreasuryStaticStats> {
 }
 
 /**
- * 2. Prelucrează datele DINAMICE pentru Încasări (Card 1 și Lista 5)
- * pe baza unui interval de date.
+ * 2. Prelucrează datele DINAMICE pentru:
+ * - Total Încasat (Cashflow)
+ * - Total Facturat (Vânzări)
+ * - Sume Nealocate (Bani "în aer")
  */
 export async function getDynamicClientSummary(
   startDate: Date,
@@ -92,75 +94,155 @@ export async function getDynamicClientSummary(
 ): Promise<ClientPaymentSummary> {
   try {
     await connectToDatabase()
+    const endOfDayTo = new Date(endDate)
+    endOfDayTo.setHours(23, 59, 59, 999)
 
-    const results = await ClientPaymentModel.aggregate([
-      // 1. Filtrează documentele
-      {
-        $match: {
-          paymentDate: { $gte: startDate, $lte: endDate },
-          status: { $ne: 'ANULATA' },
+    const [paymentResults, invoiceResults] = await Promise.all([
+      // A. Agregare PLĂȚI (Încasări + Nealocate)
+      ClientPaymentModel.aggregate([
+        {
+          $match: {
+            paymentDate: { $gte: startDate, $lte: endDate },
+            status: { $ne: 'ANULATA' },
+          },
         },
-      },
-      // 2. $facet pentru a rula 2 agregări în paralel
-      {
-        $facet: {
-          // --- Card 1: Total Încasat (Perioadă) ---
-          totalIncasatPerioada: [
-            {
-              $group: {
-                _id: null,
-                total: { $sum: '$totalAmount' },
+        {
+          $facet: {
+            // 1. Total Încasat (Toți banii)
+            totalIncasat: [
+              { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+            ],
+
+            // 2. Total Nealocat (Suma banilor care nu au factură legată)
+            totalNealocat: [
+              { $group: { _id: null, total: { $sum: '$unallocatedAmount' } } },
+            ],
+
+            // 3. Lista pe Clienți (Top încasări)
+            byClient: [
+              {
+                $group: {
+                  _id: '$clientId',
+                  totalIncasat: { $sum: '$totalAmount' },
+                },
               },
-            },
-          ],
-          // --- Lista 5: Sumar pe Client ---
-          summaryList: [
-            {
-              $group: {
-                _id: '$clientId',
-                totalIncasat: { $sum: '$totalAmount' },
+              {
+                $lookup: {
+                  from: 'clients',
+                  localField: '_id',
+                  foreignField: '_id',
+                  as: 'clientDetails',
+                },
               },
-            },
-            {
-              $lookup: {
-                from: 'clients',
-                localField: '_id',
-                foreignField: '_id',
-                as: 'clientDetails',
+              {
+                $project: {
+                  _id: 1,
+                  totalIncasat: 1,
+                  clientName: {
+                    $ifNull: [
+                      { $arrayElemAt: ['$clientDetails.name', 0] },
+                      'Client Șters',
+                    ],
+                  },
+                },
               },
-            },
-            {
-              $project: {
-                _id: 1,
-                totalIncasat: 1,
-                clientName: {
-                  $ifNull: [
-                    { $arrayElemAt: ['$clientDetails.name', 0] },
-                    'Client Șters',
-                  ],
+              { $sort: { totalIncasat: -1 } },
+            ],
+
+            // 4. Lista Plăților Nealocate (Detaliată pentru acțiune)
+            unallocatedPayments: [
+              {
+                $match: {
+                  unallocatedAmount: { $gt: 0.01 }, // Doar cele care mai au bani de alocat
+                },
+              },
+              {
+                $lookup: {
+                  from: 'clients',
+                  localField: 'clientId',
+                  foreignField: '_id',
+                  as: 'clientDetails',
+                },
+              },
+              {
+                $project: {
+                  _id: 1,
+                  paymentNumber: 1,
+                  seriesName: 1,
+                  paymentDate: 1,
+                  totalAmount: 1,
+                  unallocatedAmount: 1,
+                  clientName: {
+                    $ifNull: [
+                      { $arrayElemAt: ['$clientDetails.name', 0] },
+                      'Client Necunoscut',
+                    ],
+                  },
+                },
+              },
+              { $sort: { paymentDate: -1 } }, // Cele mai recente primele
+            ],
+          },
+        },
+      ]),
+
+      // B. Agregare FACTURI (Rămâne la fel)
+      InvoiceModel.aggregate([
+        {
+          $match: {
+            invoiceDate: { $gte: startDate, $lte: endOfDayTo },
+            status: { $ne: 'CANCELLED' },
+            invoiceType: { $ne: 'PROFORMA' },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalInvoiced: {
+              $sum: {
+                $cond: {
+                  if: { $eq: ['$invoiceType', 'STORNO'] },
+                  then: { $multiply: ['$totals.grandTotal', -1] },
+                  else: '$totals.grandTotal',
                 },
               },
             },
-            { $sort: { totalIncasat: -1 } },
-          ],
+          },
         },
-      },
+      ]),
     ])
 
-    const data: ClientPaymentSummary = {
-      totalIncasatPerioada: results[0]?.totalIncasatPerioada[0]?.total || 0,
-      summaryList: results[0]?.summaryList || [],
-    }
-    return JSON.parse(JSON.stringify(data))
+    // Extragem datele
+    const totalIncasat = paymentResults[0]?.totalIncasat[0]?.total || 0
+    const totalNealocat = paymentResults[0]?.totalNealocat[0]?.total || 0
+    const summaryList = paymentResults[0]?.byClient || []
+    const unallocatedList = paymentResults[0]?.unallocatedPayments || []
+    const totalFacturat = invoiceResults[0]?.totalInvoiced || 0
+
+    return JSON.parse(
+      JSON.stringify({
+        totalIncasatPerioada: totalIncasat,
+        totalFacturatPerioada: totalFacturat,
+        totalNealocat: totalNealocat,
+        summaryList: summaryList,
+        unallocatedList: unallocatedList,
+      })
+    )
   } catch (error) {
     console.error('❌ Eroare getDynamicClientSummary:', error)
-    return { totalIncasatPerioada: 0, summaryList: [] }
+    return {
+      totalIncasatPerioada: 0,
+      totalFacturatPerioada: 0,
+      totalNealocat: 0,
+      summaryList: [],
+      unallocatedList: [],
+    }
   }
 }
 
 /**
  * 3. Prelucrează datele DINAMICE pentru Plăți (Card 4 și Lista 6)
- * pe baza unui interval de date.
+ * Include plățile fără categorie în "Nealocat" și sortează subcategoriile descrescător.
  */
 export async function getDynamicBudgetSummary(
   startDate: Date,
@@ -170,14 +252,13 @@ export async function getDynamicBudgetSummary(
     await connectToDatabase()
 
     const results = await SupplierPaymentModel.aggregate([
-      // 1. Filtrează plățile
+      // 1. Filtrează plățile pe perioadă
       {
         $match: {
           paymentDate: { $gte: startDate, $lte: endDate },
           status: { $ne: 'ANULATA' },
         },
       },
-      // 2. $facet pentru a rula 2 agregări în paralel
       {
         $facet: {
           // --- Card 4: Total Plăți (Perioadă) ---
@@ -189,27 +270,34 @@ export async function getDynamicBudgetSummary(
               },
             },
           ],
-          // --- Lista 6: Sumar pe Buget (doar cele care au buget) ---
+          // --- Lista 6: Sumar pe Buget (Inclusiv Nealocat) ---
           summaryList: [
-            {
-              $match: {
-                budgetCategorySnapshot: { $exists: true },
-              },
-            },
+            // A. Grupare inițială pe Categorie Principală și Subcategorie
             {
               $group: {
                 _id: {
-                  main: '$budgetCategorySnapshot.mainCategoryName',
+                  main: {
+                    $ifNull: [
+                      '$budgetCategorySnapshot.mainCategoryName',
+                      'Nealocat',
+                    ],
+                  },
                   sub: {
                     $ifNull: [
                       '$budgetCategorySnapshot.subCategoryName',
-                      'Fără Subcategorie',
+                      'General',
                     ],
                   },
                 },
                 total: { $sum: '$totalAmount' },
               },
             },
+            // B. SORTARE INTERMEDIARĂ (Critic pentru ordinea subcategoriilor)
+            // Sortăm totul descrescător după sumă înainte de a le grupa în array
+            {
+              $sort: { total: -1 },
+            },
+            // C. Regrupare pe Categoria Principală
             {
               $group: {
                 _id: '$_id.main',
@@ -222,6 +310,7 @@ export async function getDynamicBudgetSummary(
                 },
               },
             },
+            // D. Sortare finală a Categoriilor Principale
             { $sort: { mainTotal: -1 } },
           ],
         },
@@ -238,6 +327,10 @@ export async function getDynamicBudgetSummary(
     return { totalPlatiPerioada: 0, summaryList: [] }
   }
 }
+/**
+ * 4. Calculează Clienții Restanți (All-Time)
+ * Include toate facturile emise care nu sunt plătite și au termen depășit.
+ */
 export async function getOverdueClientsSummary(): Promise<
   OverdueClientSummary[]
 > {
@@ -249,19 +342,21 @@ export async function getOverdueClientsSummary(): Promise<
       // 1. Filtrează facturile relevante
       {
         $match: {
-          status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
-          remainingAmount: { $gt: 0 },
+          status: { $in: ['APPROVED', 'PARTIAL_PAID', 'SENT', 'CREATED'] },
+
+          remainingAmount: { $gt: 0.01 }, // Fix pentru resturi infime (ex: 0.00001)
           dueDate: { $lt: today }, // Scadența este în trecut
+          invoiceType: { $ne: 'PROFORMA' }, // Excludem proformele
         },
       },
-      // 2. Calculează zilele de întârziere PENTRU FIECARE factură
+      // 2. Calculează zilele de întârziere
       {
         $addFields: {
           daysOverdue: {
             $floor: {
               $divide: [
                 { $subtract: [today, '$dueDate'] },
-                1000 * 60 * 60 * 24, // Milisecunde într-o zi
+                1000 * 60 * 60 * 24,
               ],
             },
           },
@@ -270,9 +365,8 @@ export async function getOverdueClientsSummary(): Promise<
       // 3. Grupează după Client
       {
         $group: {
-          _id: '$clientId', // Grupează după ID-ul clientului
+          _id: '$clientId',
           totalOverdue: { $sum: '$remainingAmount' },
-          // Adaugă detaliile facturii într-un array
           overdueInvoices: {
             $push: {
               _id: '$_id',
@@ -280,12 +374,12 @@ export async function getOverdueClientsSummary(): Promise<
               invoiceNumber: '$invoiceNumber',
               dueDate: '$dueDate',
               remainingAmount: '$remainingAmount',
-              daysOverdue: '$daysOverdue', 
+              daysOverdue: '$daysOverdue',
             },
           },
         },
       },
-      // 4. Adaugă detaliile clientului (Numele)
+      // 4. Populate Nume Client
       {
         $lookup: {
           from: 'clients',
@@ -294,23 +388,22 @@ export async function getOverdueClientsSummary(): Promise<
           as: 'clientDetails',
         },
       },
-      // 5. Curăță documentele (dacă nu există client, e o problemă, dar îl lăsăm)
       {
         $unwind: {
           path: '$clientDetails',
-          preserveNullAndEmptyArrays: true, 
+          preserveNullAndEmptyArrays: true,
         },
       },
-      // 6. Proiectează formatul final
+      // 5. Format final
       {
         $project: {
           _id: 1,
-          clientName: { $ifNull: ['$clientDetails.name', 'Client Șters'] },
+          clientName: { $ifNull: ['$clientDetails.name', 'Client Necunoscut'] },
           totalOverdue: 1,
           overdueInvoices: 1,
         },
       },
-      // 7. Sortează după cea mai mare datorie
+      // 6. Sortează descrescător după suma datorată
       {
         $sort: { totalOverdue: -1 },
       },
@@ -320,5 +413,51 @@ export async function getOverdueClientsSummary(): Promise<
   } catch (error) {
     console.error('❌ Eroare getOverdueClientsSummary:', error)
     return []
+  }
+}
+
+/**
+ * 5. Calculează Totalul Facturat (Volum Vânzări) într-o perioadă.
+ * Aceasta este funcție separată pentru Cardul "Total Facturat".
+ */
+export async function getDynamicInvoicedTotal(
+  startDate: Date,
+  endDate: Date
+): Promise<number> {
+  try {
+    await connectToDatabase()
+
+    // Ajustăm data de final să includă toată ziua (23:59:59)
+    const endOfDayTo = new Date(endDate)
+    endOfDayTo.setHours(23, 59, 59, 999)
+
+    const result = await InvoiceModel.aggregate([
+      {
+        $match: {
+          invoiceDate: { $gte: startDate, $lte: endOfDayTo },
+          status: { $ne: 'CANCELLED' }, // Ignorăm anulatele
+          invoiceType: { $ne: 'PROFORMA' }, // Ignorăm proformele
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalInvoiced: {
+            $sum: {
+              $cond: {
+                if: { $eq: ['$invoiceType', 'STORNO'] },
+                then: { $multiply: ['$totals.grandTotal', -1] }, // Storno scade
+                else: '$totals.grandTotal', // Standard și Avans adună
+              },
+            },
+          },
+        },
+      },
+    ])
+
+    return result[0]?.totalInvoiced || 0
+  } catch (error) {
+    console.error('❌ Eroare getDynamicInvoicedTotal:', error)
+    return 0
   }
 }

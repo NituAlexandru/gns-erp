@@ -1,4 +1,3 @@
-
 'use client'
 
 import * as z from 'zod'
@@ -31,9 +30,21 @@ import { SimpleSupplierSearch } from './SimpleSupplierSearch'
 import { ro } from 'date-fns/locale'
 import { UNITS } from '@/lib/constants'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  SUPPLIER_INVOICE_TYPE_LABELS,
+  SUPPLIER_INVOICE_TYPES,
+} from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.constants'
 
 const FormInputSchema = CreateSupplierInvoiceSchema.pick({
   supplierId: true,
+  invoiceType: true,
   invoiceSeries: true,
   invoiceNumber: true,
   invoiceDate: true,
@@ -58,9 +69,10 @@ export function CreateSupplierInvoiceForm({
   defaultVatRate,
 }: CreateSupplierInvoiceFormProps) {
   const form = useForm<InvoiceFormValues>({
-    resolver: zodResolver(FormInputSchema), 
+    resolver: zodResolver(FormInputSchema),
     defaultValues: {
       supplierId: '',
+      invoiceType: 'STANDARD',
       invoiceSeries: '',
       invoiceNumber: '',
       invoiceDate: new Date(),
@@ -115,7 +127,6 @@ export function CreateSupplierInvoiceForm({
 
   // Funcția onSubmit (primește DOAR datele din FormInputSchema)
   async function onSubmit(data: InvoiceFormValues) {
-   
     try {
       const selectedSupplier = suppliers.find((s) => s._id === data.supplierId)
 
@@ -124,7 +135,6 @@ export function CreateSupplierInvoiceForm({
         return
       }
 
-    
       const supplierAddress = selectedSupplier.address || {}
 
       // 1. Creăm Snapshot-ul
@@ -221,7 +231,7 @@ export function CreateSupplierInvoiceForm({
         className='space-y-6'
       >
         {/* Grupa 1 & 2: Furnizor, Serie și Număr (50/25/25) */}
-        <div className='grid grid-cols-1 gap-x-4 gap-y-6 md:grid-cols-4'>
+        <div className='grid grid-cols-1 gap-x-4 gap-y-6 md:grid-cols-5'>
           <FormField
             control={control}
             name='supplierId'
@@ -233,6 +243,33 @@ export function CreateSupplierInvoiceForm({
                   value={field.value}
                   onChange={field.onChange}
                 />
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
+            name='invoiceType'
+            render={({ field }) => (
+              <FormItem className='md:col-span-1'>
+                <FormLabel>Tip Factură</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder='Selectează tip' />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {SUPPLIER_INVOICE_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {SUPPLIER_INVOICE_TYPE_LABELS[type]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

@@ -47,6 +47,7 @@ export const SupplierInvoiceTotalsSchema = z.object({
 export const CreateSupplierInvoiceSchema = z.object({
   supplierId: MongoId,
   supplierSnapshot: SupplierSnapshotSchema,
+  invoiceType: z.enum(['STANDARD', 'STORNO', 'AVANS']).default('STANDARD'),
   invoiceSeries: z.string().min(1, 'Seria facturii furnizor este obligatorie.'),
   invoiceNumber: z
     .string()

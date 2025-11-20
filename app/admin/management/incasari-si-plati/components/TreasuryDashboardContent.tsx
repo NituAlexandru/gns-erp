@@ -1,10 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Banknote, Library, TrendingDown, TrendingUp } from 'lucide-react'
+import {
+  Banknote,
+  Library,
+  TrendingDown,
+  TrendingUp,
+  FileText,
+  AlertTriangle,
+  Calendar as CalendarIcon,
+} from 'lucide-react'
 import { StatCard } from '@/app/(root)/financial/components/StatCard'
 import { Button } from '@/components/ui/button'
-import { Calendar as CalendarIcon } from 'lucide-react'
 import {
   Popover,
   PopoverContent,
@@ -27,8 +34,15 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
 import { ClientSummaryList } from './ClientSummaryList'
-import { BudgetSummaryAccordion } from './BudgetSummaryAccordion'
 import { OverdueClientsAccordion } from './OverdueClientsAccordion'
+import { getClientPaymentById } from '@/lib/db/modules/financial/treasury/receivables/client-payment.actions'
+import { toast } from 'sonner'
+import {
+  AllocationModal,
+  PopulatedClientPayment,
+} from '../receivables/components/AllocationModal'
+import { UnallocatedPaymentsList } from './UnallocatedPaymentsList'
+import { BudgetSummaryAccordion } from './BudgetSummaryAccordion'
 
 interface TreasuryDashboardContentProps {
   isAdmin: boolean
@@ -51,11 +65,12 @@ export function TreasuryDashboardContent({
   const [budgetSummary, setBudgetSummary] =
     useState<BudgetPaymentSummary | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedPaymentForAllocation, setSelectedPaymentForAllocation] =
+    useState<PopulatedClientPayment | null>(null)
 
   useEffect(() => {
     const fetchDynamicData = async () => {
       if (!date || !date.from || !date.to) return
-
       setIsLoading(true)
 
       const [clientData, budgetData] = await Promise.all([
@@ -71,30 +86,41 @@ export function TreasuryDashboardContent({
     fetchDynamicData()
   }, [date])
 
+  // Handler pentru deschiderea modalului când dai click pe o plată nealocată
+  const handleOpenAllocation = async (paymentId: string) => {
+    try {
+      const res = await getClientPaymentById(paymentId)
+      if (res.success && res.data) {
+        setSelectedPaymentForAllocation(res.data as PopulatedClientPayment)
+      } else {
+        toast.error('Nu s-au putut încărca detaliile plății.')
+      }
+    } catch {
+      toast.error('Eroare la deschiderea plății.')
+    }
+  }
+
   const staticStats = initialStaticStats
   const dynamicStats = {
     totalIncasat: clientSummary?.totalIncasatPerioada || 0,
+    totalFacturat: clientSummary?.totalFacturatPerioada || 0,
+    totalNealocat: clientSummary?.totalNealocat || 0,
     totalPlati: budgetSummary?.totalPlatiPerioada || 0,
   }
 
   const formatShortDate = (dateToFormat: Date) =>
     format(dateToFormat, 'dd.MM.yy', { locale: ro })
-
   const dateRangeDisplay = (dateRange: DateRange | undefined): string => {
-    if (!dateRange || !dateRange.from) {
-      return '(Perioadă nevalidă)'
-    }
-    if (dateRange.to) {
+    if (!dateRange || !dateRange.from) return '(Perioadă nevalidă)'
+    if (dateRange.to)
       return `(${formatShortDate(dateRange.from)} - ${formatShortDate(dateRange.to)})`
-    }
     return `(${formatShortDate(dateRange.from)})`
   }
-
   const formattedDateRange = dateRangeDisplay(date)
 
   return (
     <div className='space-y-2'>
-      {/* --- Header (Titlu și Calendar) --- */}
+      {/* Header */}
       <div className='flex items-center justify-between'>
         <div>
           <h2 className='text-2xl font-bold'>Sumar Trezorerie</h2>
@@ -102,7 +128,6 @@ export function TreasuryDashboardContent({
             O privire de ansamblu asupra fluxului de numerar.
           </p>
         </div>
-
         <Popover>
           <PopoverTrigger asChild>
             <Button
@@ -139,65 +164,65 @@ export function TreasuryDashboardContent({
         </Popover>
       </div>
 
-      {/* --- Grid de carduri statistice --- */}
-      <div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-4'>
-        {/* Card 1 (Dinamic) */}
+      {/* --- Grid Carduri Statistice --- */}
+      <div className='grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5'>
         <StatCard
-          title={`Total Încasat ${formattedDateRange}`}
+          title={`Facturat ${formattedDateRange}`}
+          value={formatCurrency(dynamicStats.totalFacturat)}
+          icon={<FileText className='text-blue-600' size={24} />}
+        />
+
+        <StatCard
+          title={`Încasat ${formattedDateRange}`}
           value={formatCurrency(dynamicStats.totalIncasat)}
           icon={<Banknote className='text-green-500' size={24} />}
         />
 
-        {/* Card 2 (Static) */}
+        {isAdmin && (
+          <StatCard
+            title={`Plăți ${formattedDateRange}`}
+            value={formatCurrency(dynamicStats.totalPlati)}
+            icon={<Library className='text-purple-500' size={24} />}
+          />
+        )}
+
         <StatCard
-          title='Total de Încasat (Sold Clienți)'
+          title='Sold Clienți (Total)'
           value={formatCurrency(staticStats.totalDeIncasat)}
-          icon={<TrendingUp className='text-blue-500' size={24} />}
+          icon={<TrendingUp className='text-emerald-600' size={24} />}
         />
 
         {isAdmin && (
-          <>
-            {/* Card 3 (Static) */}
-            <StatCard
-              title='Total de Plătit (Sold Furnizori)'
-              value={formatCurrency(staticStats.totalDePlatit)}
-              icon={<TrendingDown className='text-orange-500' size={24} />}
-            />
-            {/* Card 4 (Dinamic) */}
-            <StatCard
-              title={`Total Plăți ${formattedDateRange}`}
-              value={formatCurrency(dynamicStats.totalPlati)}
-              // FIX: Am eliminat prop-ul 'isLoading'
-              icon={<Library className='text-purple-500' size={24} />}
-            />
-          </>
+          <StatCard
+            title='Sold Furnizori (Total)'
+            value={formatCurrency(staticStats.totalDePlatit)}
+            icon={<TrendingDown className='text-orange-500' size={24} />}
+          />
         )}
       </div>
 
-      {/* --- Secțiuni detaliate (Grid cu 3 coloane) --- */}
-      <div className='grid grid-cols-1 md:grid-cols-3 gap-2'>
-        {/* Coloana 1: Încasări pe Client (Dinamic) */}
-        <Card>
+      {/* --- Secțiuni Detaliate (Grid ajustat pentru 4 elemente) --- */}
+      {/* Grid: Pe mobil 1 col, Tabletă 2 col, Desktop mare 4 col */}
+      <div className='grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-4 gap-2'>
+        {/* 1. Încasări pe Client */}
+        <Card className='flex flex-col'>
           <CardHeader>
-            <CardTitle>
-              Total Încasat (pe Client) - {formattedDateRange}
-            </CardTitle>
+            <CardTitle>Top Încasări - {formattedDateRange}</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className='flex-1 p-2'>
             <ClientSummaryList
               data={clientSummary?.summaryList || []}
               isLoading={isLoading}
             />
           </CardContent>
         </Card>
-
-        {/* Coloana 2: Plăți pe Buget (Dinamic) */}
+        {/* 2. Cheltuieli pe Bugete (Doar Admin) */}
         {isAdmin && (
-          <Card>
+          <Card className='flex flex-col'>
             <CardHeader>
-              <CardTitle>Total Plăți Efectuate {formattedDateRange}</CardTitle>
+              <CardTitle>Cheltuieli - {formattedDateRange}</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className='flex-1 p-2'>
               <BudgetSummaryAccordion
                 data={budgetSummary?.summaryList || []}
                 isLoading={isLoading}
@@ -205,19 +230,41 @@ export function TreasuryDashboardContent({
             </CardContent>
           </Card>
         )}
+        {/* 2. Plăți Nealocate */}
+        <Card className='flex flex-col'>
+          <CardHeader>
+            <CardTitle className='text-red-600 flex items-center gap-2'>
+              <AlertTriangle className='h-5 w-5' />
+              Plăți Nealocate
+            </CardTitle>
+          </CardHeader>
+          <CardContent className='flex-1 p-2'>
+            <UnallocatedPaymentsList
+              data={clientSummary?.unallocatedList || []}
+              isLoading={isLoading}
+              onAllocateClick={handleOpenAllocation}
+            />
+          </CardContent>
+        </Card>
 
-        {/* NOU - Coloana 3: Clienți Restanți (Static) */}
-        <Card className='md:col-span-1'>
+        {/* 4. Clienți Restanți */}
+        <Card className='flex flex-col'>
           <CardHeader>
             <CardTitle className='text-red-600'>
               Clienți Restanți (All-Time)
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className='flex-1 p-2'>
             <OverdueClientsAccordion data={initialOverdueClients} />
           </CardContent>
         </Card>
       </div>
+
+      <AllocationModal
+        payment={selectedPaymentForAllocation}
+        onClose={() => setSelectedPaymentForAllocation(null)}
+        isAdmin={isAdmin}
+      />
     </div>
   )
 }

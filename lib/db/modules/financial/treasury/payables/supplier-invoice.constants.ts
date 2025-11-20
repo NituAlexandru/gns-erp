@@ -1,3 +1,12 @@
+export const SUPPLIER_INVOICE_TYPES = ['STANDARD', 'AVANS', 'STORNO'] as const
+
+// Mapare pentru etichetele afișate în UI (ca să arate frumos)
+export const SUPPLIER_INVOICE_TYPE_LABELS: Record<string, string> = {
+  STANDARD: 'Standard',
+  AVANS: 'Factură Avans',
+  STORNO: 'Storno (Retur)',
+}
+
 export const SUPPLIER_INVOICE_STATUSES = [
   'NEPLATITA',
   'PARTIAL_PLATITA',

@@ -3,7 +3,12 @@ import mongoose, { Document, Schema } from 'mongoose'
 // Interfața TypeScript pentru a beneficia de type-checking
 export interface IClientSummary extends Document {
   clientId: mongoose.Schema.Types.ObjectId
+  // Soldul Operațional (Wallet-ul): Folosit pentru decizii de livrare
+  // (Avansul neplătit nu apare aici, Plata avansului scade soldul)
   outstandingBalance: number
+  // Soldul Contabil (Fiscal): Adevărul pentru contabilitate
+  // (Include toate facturile emise minus plăți)
+  accountingBalance: number
   overdueBalance: number
   overdueInvoicesCount: number
   creditLimit: number
@@ -26,6 +31,7 @@ const ClientSummarySchema = new Schema<IClientSummary>(
     },
     // Soldul total restant (facturi neîncasate)
     outstandingBalance: { type: Number, default: 0 },
+    accountingBalance: { type: Number, default: 0 },
     // Din soldul total, cât are scadența depășită
     overdueBalance: { type: Number, default: 0 },
     overdueInvoicesCount: { type: Number, default: 0 },

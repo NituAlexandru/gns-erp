@@ -17,7 +17,7 @@ import {
   getSupplierLedger,
   SupplierLedgerEntry,
 } from '@/lib/db/modules/suppliers/summary/supplier-summary.actions'
-// Importăm componentele pentru Sheet/Modal
+// Componente pentru Drill-Down
 import {
   SupplierAllocationModal,
   PopulatedSupplierPayment,
@@ -66,18 +66,20 @@ export function SupplierLedgerTable({ supplierId }: SupplierLedgerTableProps) {
     fetchLedger()
   }, [supplierId])
 
-  const formatDate = (date: Date | string) =>
-    formatDateTime(new Date(date)).dateOnly
+  const formatDate = (date: Date | string | undefined) => {
+    if (!date) return '—'
+    return formatDateTime(new Date(date)).dateOnly
+  }
 
-  // --- LOGICA DE CLICK CORECTATĂ ---
+  // Funcția de click (Drill-down)
   const handleRowClick = async (entry: SupplierLedgerEntry) => {
-    if (entry.documentType === 'Plată') {
-      // Dacă e plată, trebuie să încărcăm obiectul complet al plății pentru Modal
-      // Facem un fetch rapid după ID-ul documentului
+    if (
+      entry.documentType === 'Plată' ||
+      entry.documentType.includes('Plată')
+    ) {
       try {
         const res = await getSupplierPaymentById(entry._id)
         if (res.success && res.data) {
-          // Castăm la tipul necesar pentru modal
           setSelectedPayment(res.data as PopulatedSupplierPayment)
         } else {
           toast.error('Nu s-au putut încărca detaliile plății.')
@@ -86,11 +88,10 @@ export function SupplierLedgerTable({ supplierId }: SupplierLedgerTableProps) {
         toast.error('Eroare la deschiderea plății.')
       }
     } else {
-      // Dacă e factură, deschidem istoricul alocărilor
+      // E factură (Standard, Avans sau Storno)
       setSelectedInvoiceEntry(entry)
     }
   }
-  // --------------------------------
 
   if (isLoading) {
     return (
@@ -116,10 +117,17 @@ export function SupplierLedgerTable({ supplierId }: SupplierLedgerTableProps) {
         <table className={cn('w-full caption-bottom text-sm')}>
           <TableHeader>
             <TableRow>
-              <TableHead className='sticky top-0 bg-muted w-[120px]'>
-                Data
-              </TableHead>
               <TableHead className='sticky top-0 bg-muted'>Document</TableHead>
+              <TableHead className='sticky top-0 bg-muted'>Tip Doc.</TableHead>
+
+              <TableHead className='sticky top-0 bg-muted w-[100px]'>
+                Data Doc.
+              </TableHead>
+
+              <TableHead className='sticky top-0 bg-muted w-[100px]'>
+                Scadență
+              </TableHead>
+
               <TableHead className='sticky top-0 bg-muted'>Detalii</TableHead>
               <TableHead className='sticky top-0 bg-muted text-right'>
                 Debit (Plătit)
@@ -128,14 +136,16 @@ export function SupplierLedgerTable({ supplierId }: SupplierLedgerTableProps) {
                 Credit (Facturat)
               </TableHead>
               <TableHead className='sticky top-0 bg-muted text-right'>
-                Sold Datorat
+                Sold Curent
               </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {entries.map((entry, index) => (
               <TableRow key={index}>
-                <TableCell>{formatDate(entry.date)}</TableCell>
+                <TableCell className='text-muted-foreground '>
+                  {entry.documentType}
+                </TableCell>
                 <TableCell>
                   <button
                     onClick={() => handleRowClick(entry)}
@@ -145,26 +155,35 @@ export function SupplierLedgerTable({ supplierId }: SupplierLedgerTableProps) {
                     {entry.documentNumber}
                   </button>
                 </TableCell>
-                <TableCell className='text-muted-foreground'>
+                <TableCell>{formatDate(entry.date)}</TableCell>
+
+                <TableCell>{formatDate(entry.dueDate)}</TableCell>
+                {/* Detalii */}
+                <TableCell
+                  className='text-muted-foreground max-w-[200px] truncate'
+                  title={entry.details}
+                >
                   {entry.details}
                 </TableCell>
+                {/* Debit (Verde) */}
                 <TableCell className='text-right font-medium text-green-600'>
                   {entry.debit !== 0 ? formatCurrency(entry.debit) : '—'}
                 </TableCell>
+                {/* Credit (Roșu) - Fără Math.abs pentru Storno */}
                 <TableCell className='text-right font-medium text-red-600'>
-                  {entry.credit !== 0
-                    ? formatCurrency(Math.abs(entry.credit))
-                    : '—'}
+                  {entry.credit !== 0 ? formatCurrency(entry.credit) : '—'}
                 </TableCell>
+                {/* Sold */}
                 <TableCell className='text-right font-bold'>
                   {formatCurrency(entry.runningBalance)}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
-          <TableFooter className='bg-background sticky bottom-0 z-10 border-t'>
+
+          <TableFooter className='bg-background'>
             <TableRow>
-              <TableCell colSpan={5} className='text-right'>
+              <TableCell colSpan={7} className='text-right'>
                 <span className='font-bold text-lg'>SOLD FINAL FURNIZOR:</span>
               </TableCell>
               <TableCell className='text-right'>
@@ -177,15 +196,11 @@ export function SupplierLedgerTable({ supplierId }: SupplierLedgerTableProps) {
         </table>
       </div>
 
-      {/* --- MODALELE PENTRU DRILL-DOWN --- */}
-
-      {/* 1. Pentru Facturi: Istoric Alocări */}
+      {/* MODALE */}
       <SupplierInvoiceAllocationHistorySheet
         ledgerEntry={selectedInvoiceEntry}
         onClose={() => setSelectedInvoiceEntry(null)}
       />
-
-      {/* 2. Pentru Plăți: Modalul de Alocare */}
       <SupplierAllocationModal
         payment={selectedPayment}
         onClose={() => setSelectedPayment(null)}

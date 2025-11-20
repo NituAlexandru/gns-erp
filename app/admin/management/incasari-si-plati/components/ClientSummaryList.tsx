@@ -47,8 +47,10 @@ export function ClientSummaryList({ data, isLoading }: ClientSummaryListProps) {
         <TableBody>
           {data.map((item) => (
             <TableRow key={item._id.toString()}>
-              <TableCell className='font-medium'>{item.clientName}</TableCell>
-              <TableCell className='text-right font-medium'>
+              <TableCell className='font-medium text-sm py-1'>
+                {item.clientName}
+              </TableCell>
+              <TableCell className='text-right font-medium text-xs py-1'>
                 {formatCurrency(item.totalIncasat)}
               </TableCell>
             </TableRow>

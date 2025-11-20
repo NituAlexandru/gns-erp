@@ -42,10 +42,10 @@ export function BudgetSummaryAccordion({
         {data.map((mainCategory) => (
           <AccordionItem value={mainCategory._id} key={mainCategory._id}>
             {/* Categoria Principală */}
-            <AccordionTrigger className='hover:no-underline'>
+            <AccordionTrigger className='hover:no-underline py-2'>
               <div className='flex justify-between w-full '>
-                <span className='font-bold text-base'>{mainCategory._id}</span>
-                <span className='font-bold text-base'>
+                <span className='font-bold text-sm'>{mainCategory._id}</span>
+                <span className='font-bold text-sm'>
                   {formatCurrency(mainCategory.mainTotal)}
                 </span>
               </div>
@@ -53,7 +53,7 @@ export function BudgetSummaryAccordion({
 
             {/* Subcategoriile */}
             <AccordionContent>
-              <div className='pl-4 pr-2 space-y-2'>
+              <div className='pl-4 pr-2 space-y-1'>
                 {mainCategory.subcategories.map((subCategory, index) => (
                   <div key={index} className='flex justify-between text-sm'>
                     <span className='text-muted-foreground'>

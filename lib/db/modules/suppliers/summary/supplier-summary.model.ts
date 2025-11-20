@@ -3,8 +3,9 @@ import mongoose, { Document, Schema } from 'mongoose'
 // Interfața TypeScript
 export interface ISupplierSummary extends Document {
   supplierId: mongoose.Schema.Types.ObjectId
-  paymentBalance: number
-  overduePaymentBalance: number
+  outstandingBalance: number
+  overdueBalance: number
+  overdueInvoicesCount: number
   totalPurchaseValue: number
   returnablePackaging: Map<string, number>
   lastPurchaseOrderDate?: Date
@@ -21,9 +22,10 @@ const SupplierSummarySchema = new Schema<ISupplierSummary>(
       index: true,
     },
     // Soldul pe care îl datorăm furnizorului (facturi neplătite)
-    paymentBalance: { type: Number, default: 0 },
-    // Cât din soldul datorat are scadența depășită
-    overduePaymentBalance: { type: Number, default: 0 },
+    outstandingBalance: { type: Number, default: 0 },
+
+    overdueBalance: { type: Number, default: 0 },
+    overdueInvoicesCount: { type: Number, default: 0 },
     // Valoarea totală a achizițiilor de la acest furnizor
     totalPurchaseValue: { type: Number, default: 0 },
     // Ambalaje de returnat către furnizor
