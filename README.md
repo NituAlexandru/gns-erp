@@ -40,16 +40,11 @@ Detalii facturare
 
 \*\* Factura
 
-- selector de facturi - din cele descarcate din efactura,
-- la facturi storno trebuie adaugat si serviciu
-- bug la factura storno, cand dau sa adaug produs individual
-- bug factura storno - nu se creaza
-- de creat factura discount (creez factura separata? sau o functie de discount care adauga linie cu - in factura standard?)
-- utilizatorii normali vad butonul de incarca in efactura - nu ar trebui
+- selector de facturi - din cele descarcate din efactura (receptii)
 
 * Alte documente
 
-Adauga Nr incarcare spv la facturi
+Adauga Nr incarcare spv la facturi (dupa finalizarea modul efactura)
 
 - Livrari\*
 

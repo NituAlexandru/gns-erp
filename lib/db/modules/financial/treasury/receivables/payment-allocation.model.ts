@@ -18,7 +18,6 @@ const PaymentAllocationSchema = new Schema<IPaymentAllocationDoc>(
     amountAllocated: {
       type: Number,
       required: true,
-      min: 0.01,
     },
     allocationDate: { type: Date, required: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

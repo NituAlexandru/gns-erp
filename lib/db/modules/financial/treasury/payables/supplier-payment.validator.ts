@@ -21,6 +21,7 @@ export const SupplierPaymentPayloadSchema = z.object({
     .number({ required_error: 'Suma este obligatorie.' })
     .positive('Suma trebuie să fie mai mare ca 0.'),
   unallocatedAmount: z.coerce.number().min(0),
+  paymentNumber: z.string().min(1, 'Numărul documentului este obligatoriu.'),
   seriesName: z.string().optional(),
   referenceDocument: z.string().optional(),
   notes: z.string().optional(),
@@ -30,9 +31,9 @@ export const SupplierPaymentPayloadSchema = z.object({
 
 export const CreateSupplierPaymentFormSchema =
   SupplierPaymentPayloadSchema.omit({
-    unallocatedAmount: true, 
-    budgetCategorySnapshot: true, 
+    unallocatedAmount: true,
+    budgetCategorySnapshot: true,
   }).extend({
-    mainCategoryId: MongoId.optional(), 
-    subCategoryId: MongoId.optional(), 
+    mainCategoryId: MongoId.optional(),
+    subCategoryId: MongoId.optional(),
   })

@@ -17,8 +17,7 @@ const BudgetCategorySnapshotSchema = new Schema(
 
 const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
   {
-    // --- Scoatem required: true și adăugăm default: null ---
-    paymentNumber: { type: String, default: null },
+    paymentNumber: { type: String, required: true, index: true },
     seriesName: { type: String, default: null },
     sequenceNumber: { type: Number, default: null },
 
@@ -32,7 +31,12 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
     totalAmount: { type: Number, required: true },
     unallocatedAmount: { type: Number, required: true },
 
-    referenceDocument: { type: String },
+    referenceDocument: {
+      type: String,
+      index: true,
+      unique: true,
+      sparse: true,
+    },
     notes: { type: String },
 
     status: {
@@ -45,7 +49,7 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
     // ---Adăugăm câmpul în schema principală ---
     budgetCategorySnapshot: {
       type: BudgetCategorySnapshotSchema,
-      required: false, 
+      required: false,
     },
 
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -73,7 +77,7 @@ SupplierPaymentSchema.pre('save', function (this: ISupplierPaymentDoc, next) {
     this.status = 'ALOCATA'
     this.unallocatedAmount = 0
   } else if (unallocated >= total) {
-    this.status = 'NEALOCATA' 
+    this.status = 'NEALOCATA'
   } else {
     this.status = 'PARTIAL_ALOCATA'
   }

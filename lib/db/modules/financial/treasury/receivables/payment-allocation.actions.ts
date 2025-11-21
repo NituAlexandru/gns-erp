@@ -13,12 +13,14 @@ import {
 import { CreatePaymentAllocationSchema } from './payment-allocation.validator'
 import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
+import { ClientPaymentDTO, IClientPaymentDoc } from './client-payment.types'
 
 // Tipul de răspuns pentru acțiunile de alocare
 type AllocationActionResult = {
   success: boolean
   message: string
   data?: PopulatedAllocation
+  updatedPayment?: ClientPaymentDTO
 }
 
 export type PopulatedAllocation = IPaymentAllocationDoc & {
@@ -34,12 +36,19 @@ export type PopulatedAllocation = IPaymentAllocationDoc & {
  */
 export async function createManualAllocation(
   data: CreatePaymentAllocationInput
-): Promise<AllocationActionResult> {
+): Promise<{
+  success: boolean
+  message: string
+  data?: PopulatedAllocation
+  updatedPayment?: ClientPaymentDTO // <--- CÂMP NOU
+}> {
   const session = await startSession()
   let newAllocation: IPaymentAllocationDoc | null = null
+  let updatedPaymentDoc: IClientPaymentDoc | null = null
 
   try {
-    newAllocation = await session.withTransaction(async (session) => {
+    // Executăm tranzacția și capturăm rezultatele
+    const transactionResult = await session.withTransaction(async (session) => {
       const authSession = await auth()
       const userId = authSession?.user?.id
       const userName = authSession?.user?.name
@@ -59,18 +68,25 @@ export async function createManualAllocation(
         throw new Error('Factura este deja marcată ca "Plătită".')
 
       const roundedAmount = round2(amountAllocated)
-      if (roundedAmount > round2(payment.unallocatedAmount)) {
-        throw new Error(
-          `Suma de alocat (${roundedAmount}) este mai mare decât suma nealocată din încasare (${payment.unallocatedAmount}).`
-        )
-      }
-      if (roundedAmount > round2(invoice.remainingAmount)) {
-        throw new Error(
-          `Suma de alocat (${roundedAmount}) este mai mare decât restul de plată al facturii (${invoice.remainingAmount}).`
-        )
+      const currentUnallocated = round2(payment.unallocatedAmount)
+      const invoiceRemaining = round2(invoice.remainingAmount)
+
+      // --- VALIDĂRI ---
+      if (roundedAmount > 0) {
+        // Cazul Pozitiv (Plată Normală)
+        if (roundedAmount > currentUnallocated)
+          throw new Error(`Fonduri insuficiente în încasare.`)
+        if (roundedAmount > invoiceRemaining)
+          throw new Error(`Depășește restul de plată al facturii.`)
+      } else {
+        // Cazul Negativ (Discount/Storno)
+        // Nu putem aloca mai mult negativ decât valoarea facturii
+        // Ex: Factura = -100. Alocare = -150. (-150 < -100) -> Eroare
+        if (roundedAmount < invoiceRemaining)
+          throw new Error(`Depășește valoarea de stornat a facturii.`)
       }
 
-      // 4. Crearea Alocării
+      // 1. Crearea Alocării
       const [createdAllocation] = await PaymentAllocationModel.create(
         [
           {
@@ -85,19 +101,23 @@ export async function createManualAllocation(
         { session }
       )
 
-      // 5. Actualizare Încasare
+      // 2. Actualizare Încasare
       payment.unallocatedAmount = round2(
         payment.unallocatedAmount - roundedAmount
       )
-      await payment.save({ session })
+      // SALVĂM DOCUMENTUL PENTRU A-L RETURNA
+      const savedPayment = await payment.save({ session })
 
-      // 6. Actualizare Factură
+      // 3. Actualizare Factură
       invoice.paidAmount = round2(invoice.paidAmount + roundedAmount)
       invoice.remainingAmount = round2(invoice.remainingAmount - roundedAmount)
       await invoice.save({ session })
 
-      return createdAllocation
+      return { createdAllocation, savedPayment }
     })
+
+    newAllocation = transactionResult.createdAllocation
+    updatedPaymentDoc = transactionResult.savedPayment
 
     await session.endSession()
 
@@ -105,12 +125,12 @@ export async function createManualAllocation(
       throw new Error('Tranzacția nu a returnat o alocare.')
     }
 
-    revalidatePath(`/financial/invoices/${newAllocation.invoiceId.toString()}`)
+    revalidatePath(`/financial/invoices`)
     revalidatePath('/admin/management/incasari-si-plati/receivables')
     revalidatePath('/clients')
 
     const populatedAllocation = await PaymentAllocationModel.findById(
-      newAllocation._id
+      (newAllocation as IPaymentAllocationDoc)._id
     )
       .populate({
         path: 'invoiceId',
@@ -125,6 +145,8 @@ export async function createManualAllocation(
       data: JSON.parse(
         JSON.stringify(populatedAllocation)
       ) as PopulatedAllocation,
+      // RETURNĂM PLATA ACTUALIZATĂ
+      updatedPayment: JSON.parse(JSON.stringify(updatedPaymentDoc)),
     }
   } catch (error) {
     if (session.inTransaction()) {
@@ -253,7 +275,7 @@ export async function getUnpaidInvoicesByClient(clientId: string) {
     const invoices = await InvoiceModel.find({
       clientId: new Types.ObjectId(clientId),
       status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
-      remainingAmount: { $gt: 0 },
+      remainingAmount: { $ne: 0 },
     })
       .sort({ dueDate: 1 }) // Ordonăm FIFO
       .select(
@@ -295,5 +317,93 @@ export async function getAllocationsForInvoice(invoiceId: string) {
   } catch (error) {
     console.error('❌ Eroare getAllocationsForInvoice:', error)
     return { success: false, data: [], message: (error as Error).message }
+  }
+}
+export async function createCompensationPayment(
+  invoiceId: string,
+  userId: string,
+  userName: string
+): Promise<{ success: boolean; message: string }> {
+  const session = await startSession()
+
+  try {
+    await session.withTransaction(async (session) => {
+      // 1. Găsim factura negativă
+      const invoice = await InvoiceModel.findById(invoiceId).session(session)
+      if (!invoice) throw new Error('Factura nu a fost găsită.')
+
+      if (invoice.remainingAmount >= 0) {
+        throw new Error(
+          'Această funcție este doar pentru facturi negative (Discount/Storno).'
+        )
+      }
+
+      const absAmount = Math.abs(invoice.remainingAmount) // ex: 121
+
+      // 2. Creăm "Încasarea" de Compensare
+      // ATENȚIE: totalAmount este 0 !!!
+      const [compensationPayment] = await ClientPaymentModel.create(
+        [
+          {
+            paymentNumber: `COMP-${invoice.invoiceNumber}`,
+            seriesName: 'INTERNA',
+            clientId: invoice.clientId,
+            paymentDate: new Date(),
+            paymentMethod: 'COMPENSARE',
+            totalAmount: 0,
+            unallocatedAmount: 0,
+            referenceDocument: `Compensare Factura seria ${invoice.seriesName} nr. ${invoice.invoiceNumber}`,
+            status: 'NEALOCATA',
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+          },
+        ],
+        { session }
+      )
+
+      // 3. Creăm alocarea negativă
+      // Asta mută "datoria negativă" în "credit disponibil"
+      await PaymentAllocationModel.create(
+        [
+          {
+            paymentId: compensationPayment._id,
+            invoiceId: invoice._id,
+            amountAllocated: invoice.remainingAmount, // ex: -121
+            allocationDate: new Date(),
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+          },
+        ],
+        { session }
+      )
+
+      // 4. Actualizăm "Încasarea"
+      // Matematica: unallocated = total(0) - allocated(-121) = +121
+      compensationPayment.unallocatedAmount = absAmount
+      await compensationPayment.save({ session })
+
+      // 5. Închidem factura de discount
+      invoice.paidAmount = invoice.paidAmount + invoice.remainingAmount
+      invoice.remainingAmount = 0
+      invoice.status = 'PAID'
+      await invoice.save({ session })
+    })
+
+    await session.endSession()
+
+    revalidatePath('/financial/invoices')
+    revalidatePath('/admin/management/incasari-si-plati/receivables')
+    revalidatePath('/clients')
+
+    return {
+      success: true,
+      message:
+        'Compensarea a fost creată. Puteți aloca suma din noua înregistrare.',
+    }
+  } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction()
+    await session.endSession()
+    console.error('Eroare createCompensation:', error)
+    return { success: false, message: (error as Error).message }
   }
 }

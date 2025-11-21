@@ -123,6 +123,44 @@ export function AllocationModal({
 
   const isOpen = !!latestPayment
 
+  const handleAllocationSuccess = async (
+    updatedPayment?: PopulatedClientPayment
+  ) => {
+    // 1. Actualizăm plata INSTANT cu ce am primit de la server
+    if (updatedPayment) {
+      setLatestPayment(
+        (prev) =>
+          ({
+            ...updatedPayment,
+            clientId: prev?.clientId || { _id: '', name: '' },
+          }) as PopulatedClientPayment
+      )
+    }
+
+    // 2. Reîmprospătăm DOAR listele de alocări și facturi, NU și plata (dacă o avem deja)
+    setIsLoading(true)
+    const [allocationsResult, invoicesResult] = await Promise.all([
+      // NU mai apelăm getClientPaymentById aici dacă avem updatedPayment
+      getAllocationsForPayment(updatedPayment?._id || latestPayment!._id),
+      getUnpaidInvoicesByClient(latestPayment!.clientId._id),
+    ])
+
+    if (allocationsResult.success)
+      setAllocations(allocationsResult.data as PopulatedAllocation[])
+    if (invoicesResult.success)
+      setInvoices(invoicesResult.data as UnpaidInvoice[])
+
+    // Dacă NU am primit updatedPayment (ex: delete allocation), atunci facem refresh complet
+    if (!updatedPayment && latestPayment) {
+      const paymentRes = await getClientPaymentById(latestPayment._id)
+      if (paymentRes.success && paymentRes.data)
+        setLatestPayment(paymentRes.data)
+    }
+
+    router.refresh()
+    setIsLoading(false)
+  }
+
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className='sm:max-w-3xl w-full'>
@@ -159,9 +197,10 @@ export function AllocationModal({
               <div className='space-y-4'>
                 <h3 className='font-semibold'>Facturi Disponibile</h3>
                 <UnpaidInvoiceList
+                  key={`${latestPayment?._id}-${latestPayment?.unallocatedAmount}-${invoices.length}`}
                   invoices={invoices}
                   payment={latestPayment}
-                  onAllocationCreated={refreshData}
+                  onAllocationCreated={handleAllocationSuccess}
                 />
               </div>
             )}

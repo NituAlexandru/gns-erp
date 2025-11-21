@@ -60,6 +60,7 @@ export function CreateSupplierPaymentForm({
       totalAmount: 0,
       paymentMethod: 'ORDIN_DE_PLATA',
       seriesName: '',
+      paymentNumber: '',
       referenceDocument: '',
       mainCategoryId: undefined,
       subCategoryId: undefined,
@@ -135,7 +136,7 @@ export function CreateSupplierPaymentForm({
         onSubmit={form.handleSubmit(onSubmit, onInvalid)}
         className='space-y-6'
       >
-        <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
+        <div className='grid grid-cols-1 md:grid-cols-5 gap-4'>
           <FormField
             control={control}
             name='supplierId'
@@ -170,10 +171,27 @@ export function CreateSupplierPaymentForm({
           />
           <FormField
             control={control}
+            name='paymentNumber'
+            render={({ field }) => (
+              <FormItem className='md:col-span-1'>
+                <FormLabel>Număr Document</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder='ex: 1001'
+                    {...field}
+                    value={field.value || ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={control}
             name='referenceDocument'
             render={({ field }) => (
               <FormItem className='md:col-span-1'>
-                <FormLabel>Număr Document (Opțional)</FormLabel>
+                <FormLabel>Referință Externă (Opțional)</FormLabel>
                 <FormControl>
                   <Input
                     placeholder='ex: 12345'
@@ -238,7 +256,7 @@ export function CreateSupplierPaymentForm({
         </div>
 
         {/* --- MODIFICARE: GRUPA 3 (Calendar și Notițe) --- */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6'>
           <FormField
             control={control}
             name='paymentDate'
@@ -258,6 +276,66 @@ export function CreateSupplierPaymentForm({
               </FormItem>
             )}
           />
+          {/* --- MODIFICARE: GRUPA 4 (Buget) --- */}
+          <div className='grid grid-cols-1  gap-4'>
+            <FormField
+              control={control}
+              name='mainCategoryId'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Categorie Buget (Opțional)</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder='Selectează categoria principală...' />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {budgetCategories.map((cat) => (
+                        <SelectItem key={cat._id} value={cat._id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {/* Afișăm subcategoria doar dacă există */}
+            {subCategories.length > 0 && (
+              <FormField
+                control={control}
+                name='subCategoryId'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Subcategorie Buget (Opțional)</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value || ''}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder='Selectează subcategoria...' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {subCategories.map((subCat: IBudgetCategoryTree) => (
+                          <SelectItem key={subCat._id} value={subCat._id}>
+                            {subCat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+          </div>
           {/* Adăugăm wrapper-ul flex pentru ca Textarea să ia înălțimea calendarului */}
           <div className='flex flex-col h-full'>
             <FormField
@@ -279,67 +357,6 @@ export function CreateSupplierPaymentForm({
               )}
             />
           </div>
-        </div>
-
-        {/* --- MODIFICARE: GRUPA 4 (Buget) --- */}
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          <FormField
-            control={control}
-            name='mainCategoryId'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Categorie Buget (Opțional)</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Selectează categoria principală...' />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {budgetCategories.map((cat) => (
-                      <SelectItem key={cat._id} value={cat._id}>
-                        {cat.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          {/* Afișăm subcategoria doar dacă există */}
-          {subCategories.length > 0 && (
-            <FormField
-              control={control}
-              name='subCategoryId'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Subcategorie Buget (Opțional)</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    value={field.value || ''}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder='Selectează subcategoria...' />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {subCategories.map((subCat: IBudgetCategoryTree) => (
-                        <SelectItem key={subCat._id} value={subCat._id}>
-                          {subCat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          )}
         </div>
 
         {/* Butonul de Salvare */}

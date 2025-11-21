@@ -18,9 +18,14 @@ const ClientPaymentSchema = new Schema<IClientPaymentDoc>(
     },
     paymentDate: { type: Date, required: true, default: Date.now },
     paymentMethod: { type: String, required: true, enum: PAYMENT_METHODS },
-    totalAmount: { type: Number, required: true, min: 0.01 },
+    totalAmount: { type: Number, required: true },
     unallocatedAmount: { type: Number, required: true },
-    referenceDocument: { type: String },
+    referenceDocument: {
+      type: String,
+      index: true,
+      unique: true,
+      sparse: true,
+    },
     notes: { type: String },
     status: {
       type: String,
@@ -69,9 +74,6 @@ ClientPaymentSchema.pre('save', function (this: IClientPaymentDoc, next) {
       // ex: 100 >= 100
       this.status = 'NEALOCATA'
       // Asigurăm că suma nealocată nu depășește totalul (în caz de erori)
-      if (unallocated > total) {
-        this.unallocatedAmount = total
-      }
     }
   }
   next()
