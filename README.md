@@ -48,8 +48,6 @@ Adauga Nr incarcare spv la facturi (dupa finalizarea modul efactura)
 
 - Livrari\*
 
-Bug - editare comanda, nu vede ce mai e de adaugat
-
 Comenzi - acum ca am finalizat fisa de client / client summary, trebuie sa adaug informatiile "live" in comanda in selectorul de client.
 
 Livrari - in momentul de fata toate livrarile urmeaza acelasi flux, comenzile sunt finalizate, dupa se redirectioneaza la livrari, se selecteaza ce si cand se livreaza si se creaza livrarea. Trebuie separat fluxul pentru edge caseuri, respectiv, pentru comenzile pe care le ridica clientul, acesta trebuie programat, dar nu are nevoie sa se selecteze tipul de masina si nici sa se puna transport (tipul de maisna se alege la toate acum, la asta ar trebui sa apara ridicare client), iar pentru livrarile directe, care se fac masini straine, la fel, nu se mai selecteaza masina asa ca trebuie sa adaug un checkmark cu "livrare transportator tert" care daca e selectat nu se mai alege tipul masinii.

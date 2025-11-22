@@ -160,8 +160,6 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
   return { processedLineItems, finalTotals: totals }
 }
 
-
-
 export async function getOrderFormInitialData() {
   try {
     const [shippingRatesResult, vatRatesResult, services, permits] =
@@ -284,6 +282,7 @@ export async function createOrder(
     await session.endSession()
   }
 }
+
 export async function updateOrder(orderId: string, newData: CreateOrderInput) {
   const session = await startSession()
   session.startTransaction()
@@ -298,13 +297,11 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
       throw new Error('ID Comandă invalid.')
     }
 
-    // Preluăm comanda existentă
     const oldOrder = await Order.findById(orderId).session(session)
     if (!oldOrder) {
       throw new Error('Comanda nu a fost găsită.')
     }
 
-    //  Verificăm starea comenzii
     const allowedStatuses: IOrder['status'][] = [
       'DRAFT',
       'CONFIRMED',
@@ -320,20 +317,55 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
 
     const wasConfirmed =
       oldOrder.status === 'CONFIRMED' ||
-      oldOrder.status === 'PARTIALLY_DELIVERED'
-    // O comandă editată este considerată confirmată (dacă nu e DRAFT)
+      oldOrder.status === 'PARTIALLY_DELIVERED' ||
+      oldOrder.status === 'SCHEDULED'
+
     const newStatus = oldOrder.status === 'DRAFT' ? 'DRAFT' : 'CONFIRMED'
 
-    // Validăm și procesăm datele noi (recalculăm totaluri, base units etc.)
-    // Folosim funcția existentă `processOrderData`
+    // 1. Procesăm datele brute
     const validatedData = CreateOrderInputSchema.parse(newData)
-    const {
-      processedLineItems: newProcessedItems,
-      finalTotals: newFinalTotals,
-    } = processOrderData(validatedData.lineItems)
+    const { processedLineItems: rawNewItems, finalTotals: newFinalTotals } =
+      processOrderData(validatedData.lineItems)
+
+
+    const oldLinesMap = new Map<string, IOrderLineItem>()
+    oldOrder.lineItems.forEach((item: IOrderLineItem) => {
+      if (item._id) oldLinesMap.set(item._id.toString(), item)
+    })
+
+    const mergedLineItems = rawNewItems.map((newItem) => {
+      let existingItem: IOrderLineItem | undefined = undefined
+
+      if (newItem._id && oldLinesMap.has(newItem._id.toString())) {
+        existingItem = oldLinesMap.get(newItem._id.toString())
+      }
+
+      const newQuantity = Number(newItem.quantity) || 0
+
+      if (existingItem) {
+        // Validare de Business
+        if (newQuantity < existingItem.quantityShipped) {
+          throw new Error(
+            `Eroare la "${newItem.productName}": Cantitatea nouă (${newQuantity}) nu poate fi mai mică decât cea deja livrată (${existingItem.quantityShipped}).`
+          )
+        }
+
+        return {
+          ...newItem,
+          _id: existingItem._id, 
+          quantityShipped: existingItem.quantityShipped, 
+        }
+      }
+
+      // Linie nouă
+      return {
+        ...newItem,
+        quantityShipped: 0,
+        _id: new Types.ObjectId(),
+      }
+    })
 
     // ANULĂM STOCUL VECHI
-    // Anulăm stocul DOAR dacă comanda era deja confirmată
     if (wasConfirmed) {
       console.log(
         `[updateOrder] Anulare rezervări vechi pentru comanda ${oldOrder.orderNumber}`
@@ -341,21 +373,29 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
       await unreserveStock(oldOrder.lineItems, session)
     }
 
-    // Actualizăm documentul comenzii
+    // Actualizăm documentul
     oldOrder.set({
-      ...validatedData, // Aplicăm datele validate (client, adresă, logistică, etc.)
-      totals: newFinalTotals, // Salvăm noile totaluri
-      status: newStatus,
+      ...validatedData,
+      totals: newFinalTotals,
+      status: newStatus === 'DRAFT' ? 'DRAFT' : oldOrder.status,
     })
 
-    oldOrder.lineItems =
-      newProcessedItems as Types.DocumentArray<IOrderLineItem>
+    oldOrder.lineItems = mergedLineItems as Types.DocumentArray<IOrderLineItem>
+
+    const totalShipped = mergedLineItems.reduce(
+      (acc: number, item: { quantityShipped: number }) =>
+        acc + (item.quantityShipped || 0),
+      0
+    )
+
+    if (totalShipped > 0 && oldOrder.status !== 'DELIVERED') {
+      oldOrder.status = 'PARTIALLY_DELIVERED'
+    }
 
     const updatedOrder = await oldOrder.save({ session })
 
     // REZERVĂM STOCUL NOU
-    // Rezervăm stocul DOAR dacă noua stare este confirmată
-    if (newStatus === 'CONFIRMED') {
+    if (updatedOrder.status !== 'DRAFT') {
       console.log(
         `[updateOrder] Rezervare stoc nou pentru comanda ${updatedOrder.orderNumber}`
       )
@@ -367,7 +407,6 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
       )
     }
 
-    // Finalizăm tranzacția
     await session.commitTransaction()
 
     revalidatePath('/orders')
@@ -382,7 +421,8 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
   } catch (error) {
     await session.abortTransaction()
     console.error('Eroare la actualizarea comenzii:', error)
-    return { success: false, message: formatError(error) }
+    const msg = error instanceof Error ? error.message : formatError(error)
+    return { success: false, message: msg }
   } finally {
     await session.endSession()
   }

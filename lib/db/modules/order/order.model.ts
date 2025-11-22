@@ -124,6 +124,7 @@ const OrderSchema = new Schema<IOrder>(
       enum: [
         'DRAFT',
         'CONFIRMED',
+        'SCHEDULED',
         'PARTIALLY_DELIVERED',
         'DELIVERED',
         'PARTIALLY_INVOICED',

@@ -21,13 +21,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
-import { Calendar } from '@/components/ui/calendar'
 import { CalendarIcon, Loader2, PlusCircle, Trash2, Save } from 'lucide-react'
 import { HeaderSchema } from '@/lib/db/modules/deliveries/validator'
 import {
@@ -57,6 +55,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { Calendar } from '@/components/ui/calendar'
 
 interface EditDeliveryModalProps {
   isOpen: boolean
@@ -104,22 +103,20 @@ export function EditDeliveryModal({
     },
   })
 
-  const { control, reset, handleSubmit } = methods
-  const { fields, append, remove, update } = useFieldArray({
+  const { control, reset, handleSubmit, setValue } = methods
+  const { fields, append, remove } = useFieldArray({
     control,
     name: 'items',
     keyName: 'keyId',
   })
 
-  // Resetăm formularul de fiecare dată când `deliveryToEdit` se schimbă (când se deschide modalul)
+  // Resetăm formularul
   useEffect(() => {
     if (deliveryToEdit) {
-      // Validăm fiecare slot din array-ul solicitat
       const validReqSlots = Array.isArray(deliveryToEdit.requestedDeliverySlots)
-        ? deliveryToEdit.requestedDeliverySlots.filter(isDeliverySlot) // Filtrează doar sloturile valide
-        : [] // Default la array gol dacă nu e array
+        ? deliveryToEdit.requestedDeliverySlots.filter(isDeliverySlot)
+        : []
 
-      // Validăm fiecare slot din array-ul programat (dacă există)
       const validSlots = Array.isArray(deliveryToEdit.deliverySlots)
         ? deliveryToEdit.deliverySlots.filter(isDeliverySlot)
         : undefined
@@ -133,7 +130,6 @@ export function EditDeliveryModal({
         deliveryDate: deliveryToEdit.deliveryDate
           ? new Date(deliveryToEdit.deliveryDate)
           : undefined,
-
         deliverySlots: validSlots,
       })
     } else {
@@ -149,10 +145,10 @@ export function EditDeliveryModal({
     }
   }, [deliveryToEdit, isOpen, reset])
 
-  // --- Calculul Articolelor Disponibile ---
-
+  // --- Calculul Articolelor Disponibile (Lista de jos) ---
   const availableItemsToAdd = useMemo(() => {
     return currentPlannerItems.filter((plannerItem) => {
+      // Ascundem articolul dacă este deja în lista de sus
       const isAlreadyInDelivery = fields.some(
         (field) => field.id === plannerItem.id
       )
@@ -163,9 +159,22 @@ export function EditDeliveryModal({
         plannerItem.quantityAlreadyShipped -
         plannerItem.quantityAlreadyPlanned
 
+      // Afișăm doar dacă mai e ceva de adăugat
       return remainingBase > 0.001
     })
   }, [currentPlannerItems, fields])
+
+  // --- Mapare Cantități Originale (Snapshot) ---
+  // Avem nevoie de asta pentru a ști cât "eliberăm" în pool când edităm o cantitate
+  const originalQuantitiesMap = useMemo(() => {
+    const map = new Map<string, number>()
+    if (deliveryToEdit?.items) {
+      deliveryToEdit.items.forEach((item) => {
+        map.set(item.id, item.quantityToAllocate)
+      })
+    }
+    return map
+  }, [deliveryToEdit])
 
   // --- Acțiunea de Salvare ---
   const onSave = async (data: EditDeliveryFormInput) => {
@@ -207,7 +216,6 @@ export function EditDeliveryModal({
   }
 
   const handleAddItem = (item: PlannerItem, quantity: number) => {
-    // Validare 1: Cantitatea trebuie să fie pozitivă
     if (quantity <= 0) {
       toast.warning('Introduceți o cantitate validă (> 0).')
       return
@@ -216,10 +224,7 @@ export function EditDeliveryModal({
     const originalPlannerItem = currentPlannerItems.find(
       (p) => p.id === item.id
     )
-    if (!originalPlannerItem) {
-      toast.error('Eroare internă: Articolul original nu a fost găsit.')
-      return
-    }
+    if (!originalPlannerItem) return
 
     const remainingBase =
       originalPlannerItem.quantityOrdered -
@@ -232,10 +237,11 @@ export function EditDeliveryModal({
     const remainingSelected = remainingBase / factor
     const remainingRounded = parseFloat(remainingSelected.toFixed(2))
 
-    // Validare 2: Cantitatea de adăugat nu poate depăși rămasul total
     if (quantity > remainingRounded) {
       toast.error('Cantitate Invalidă', {
-        description: `Nu puteți adăuga mai mult decât cantitatea rămasă (${remainingRounded.toFixed(2)} ${item.unitOfMeasure}).`,
+        description: `Maxim disponibil: ${remainingRounded.toFixed(2)} ${
+          item.unitOfMeasure
+        }.`,
       })
       setQuantitiesToAdd((prev) => ({ ...prev, [item.id]: remainingRounded }))
       return
@@ -253,22 +259,15 @@ export function EditDeliveryModal({
     remove(index)
   }
 
+  // --- Logica Corectată pentru Modificare Cantitate (Lista de sus) ---
   const handleItemQtyChange = (index: number, value: string) => {
     let newQty = parseFloat(value)
 
     if (isNaN(newQty) || newQty < 0 || value.trim() === '') {
       newQty = 0
-      if (
-        value.trim() !== '' &&
-        !isNaN(parseFloat(value)) &&
-        parseFloat(value) < 0
-      ) {
-        toast.warning('Cantitatea nu poate fi negativă.')
-      }
     }
 
     const itemInForm = fields[index]
-
     const originalPlannerItem = currentPlannerItems.find(
       (p) => p.id === itemInForm.id
     )
@@ -279,10 +278,19 @@ export function EditDeliveryModal({
         (opt) => opt.unitName === itemInForm.unitOfMeasure
       )?.baseUnitEquivalent || 1
 
+    // 1. Cât era planificat în ACEASTĂ livrare înainte de editare? (din DB snapshot)
+    // Dacă e un item nou adăugat acum (nu era în snapshot), originalQty = 0
+    const originalQtyInThisDelivery =
+      originalQuantitiesMap.get(itemInForm.id) || 0
+
+    // 2. Cât este planificat în ALTE livrări?
+    // Total Planificat Global - Ce era planificat în livrarea asta
     const plannedInOthersBase =
       originalPlannerItem.quantityAlreadyPlanned -
-      itemInForm.quantityToAllocate * factor
+      originalQtyInThisDelivery * factor
 
+    // 3. Cât este disponibil total pentru această livrare?
+    // Comandat - Livrat - Planificat în altele
     const availableForThisDeliveryBase =
       originalPlannerItem.quantityOrdered -
       originalPlannerItem.quantityAlreadyShipped -
@@ -291,20 +299,43 @@ export function EditDeliveryModal({
     const maxAllowedSelected = availableForThisDeliveryBase / factor
     const maxAllowedRounded = parseFloat(maxAllowedSelected.toFixed(2))
 
-    // Validare 2: Noua cantitate nu poate depăși maximul permis pentru această livrare
     if (newQty > maxAllowedRounded) {
       toast.warning(
-        `Cantitatea maximă permisă pentru acest articol în această livrare este ${maxAllowedRounded.toFixed(2)} ${itemInForm.unitOfMeasure}.`
+        `Maxim disponibil: ${maxAllowedRounded.toFixed(2)} ${
+          itemInForm.unitOfMeasure
+        }.`
       )
       newQty = maxAllowedRounded
     }
 
-    // Rotunjim la 2 zecimale pentru consistență
-    const roundedQty = parseFloat(newQty.toFixed(2))
+    // Actualizăm câmpul în formular
+    // Folosim setValue pentru performanță mai bună decât update() pe field array complet uneori
+    setValue(`items.${index}.quantityToAllocate`, parseFloat(newQty.toFixed(2)))
+  }
 
-    if (itemInForm.quantityToAllocate !== roundedQty) {
-      update(index, { ...itemInForm, quantityToAllocate: roundedQty })
-    }
+  // Funcție helper pentru afișarea limitei în tabel
+  const getMaxAvailable = (item: PlannerItem) => {
+    const originalPlannerItem = currentPlannerItems.find(
+      (p) => p.id === item.id
+    )
+    if (!originalPlannerItem) return 0
+
+    const factor =
+      item.packagingOptions?.find((opt) => opt.unitName === item.unitOfMeasure)
+        ?.baseUnitEquivalent || 1
+
+    const originalQtyInThisDelivery = originalQuantitiesMap.get(item.id) || 0
+
+    const plannedInOthersBase =
+      originalPlannerItem.quantityAlreadyPlanned -
+      originalQtyInThisDelivery * factor
+
+    const availableBase =
+      originalPlannerItem.quantityOrdered -
+      originalPlannerItem.quantityAlreadyShipped -
+      plannedInOthersBase
+
+    return parseFloat((availableBase / factor).toFixed(2))
   }
 
   return (
@@ -313,7 +344,7 @@ export function EditDeliveryModal({
         <DialogHeader>
           <DialogTitle>Editare Livrare</DialogTitle>
           <DialogDescription className='sr-only'>
-            Formular pentru editarea detaliilor livrării.
+            Formular editare.
           </DialogDescription>
         </DialogHeader>
 
@@ -322,7 +353,7 @@ export function EditDeliveryModal({
             onSubmit={handleSubmit(onSave)}
             className='flex-grow overflow-y-auto space-y-6 pr-2'
           >
-            {/* Secțiunea Header (Data, Slot, Note, UIT) */}
+            {/* Header (Data, Sloturi, Note) */}
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <FormField
                 control={control}
@@ -352,7 +383,6 @@ export function EditDeliveryModal({
                           </Button>
                         </FormControl>
                       </CollapsibleTrigger>
-
                       <CollapsibleContent>
                         <Calendar
                           mode='single'
@@ -380,11 +410,7 @@ export function EditDeliveryModal({
                   <FormItem>
                     <div className='mb-4'>
                       <FormLabel>Interval(e) Orar(e) Solicitat(e)</FormLabel>
-                      <FormDescription>
-                        Selectează unul sau mai multe intervale preferate.
-                      </FormDescription>
                     </div>
-                    {/* Container Grid pt Checkboxes */}
                     <div className='grid grid-cols-3 gap-x-4 gap-y-2'>
                       {DELIVERY_SLOTS.map((slot) => (
                         <FormItem
@@ -450,7 +476,7 @@ export function EditDeliveryModal({
 
             <Separator />
 
-            {/* Secțiunea Articole DIN Livrare */}
+            {/* Tabel: Articole în Această Livrare */}
             <Card>
               <CardHeader>
                 <CardTitle>Articole în Această Livrare</CardTitle>
@@ -475,9 +501,19 @@ export function EditDeliveryModal({
                     )}
                     {fields.map((field, index) => {
                       const item = field
+                      const maxAvailable = getMaxAvailable(item)
+
                       return (
                         <TableRow key={item.keyId}>
-                          <TableCell>{item.productName}</TableCell>
+                          <TableCell>
+                            <div className='flex flex-col'>
+                              <span>{item.productName}</span>
+                              <span className='text-xs text-muted-foreground'>
+                                Max disponibil: {maxAvailable}{' '}
+                                {item.unitOfMeasure}
+                              </span>
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <FormField
                               control={control}
@@ -494,7 +530,12 @@ export function EditDeliveryModal({
                                   onChange={(e) =>
                                     handleItemQtyChange(index, e.target.value)
                                   }
-                                  className='text-right'
+                                  className={cn(
+                                    'text-right',
+                                    // Highlight vizual dacă depășim (deși e blocat logic)
+                                    qtyField.value > maxAvailable &&
+                                      'border-destructive text-destructive'
+                                  )}
                                 />
                               )}
                             />
@@ -518,7 +559,7 @@ export function EditDeliveryModal({
               </CardContent>
             </Card>
 
-            {/* Secțiunea Articole DISPONIBILE */}
+            {/* Tabel: Articole Disponibile (Lista de jos) */}
             <Card>
               <CardHeader>
                 <CardTitle>Articole Disponibile pentru Adăugare</CardTitle>
@@ -531,7 +572,6 @@ export function EditDeliveryModal({
                       <TableHead className='w-[100px] text-right'>
                         Rămas
                       </TableHead>
-                      {/* Coloana Nouă */}
                       <TableHead className='w-[120px]'>
                         Adaugă Cantitate
                       </TableHead>
@@ -542,12 +582,12 @@ export function EditDeliveryModal({
                     {availableItemsToAdd.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={4} className='text-center'>
-                          Niciun articol disponibil.
+                          Niciun articol nou disponibil. (Dacă măriți cantitatea
+                          unei comenzi, modificați direct în tabelul de sus).
                         </TableCell>
                       </TableRow>
                     )}
                     {availableItemsToAdd.map((item) => {
-                      // Calculăm rămasul specific pentru acest item
                       const remainingBase =
                         item.quantityOrdered -
                         item.quantityAlreadyShipped -
@@ -560,8 +600,6 @@ export function EditDeliveryModal({
                       const remainingRounded = parseFloat(
                         remainingSelected.toFixed(2)
                       )
-
-                      // Handler local pentru inputul cantității
                       const handleQtyToAddChange = (
                         e: React.ChangeEvent<HTMLInputElement>
                       ) => {
@@ -595,7 +633,6 @@ export function EditDeliveryModal({
                           <TableCell className='text-right'>
                             {remainingRounded.toFixed(2)} {item.unitOfMeasure}
                           </TableCell>
-
                           <TableCell>
                             <Input
                               type='number'
@@ -608,7 +645,6 @@ export function EditDeliveryModal({
                               disabled={remainingRounded <= 0}
                             />
                           </TableCell>
-
                           <TableCell>
                             <Button
                               type='button'
