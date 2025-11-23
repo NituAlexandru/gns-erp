@@ -100,6 +100,7 @@ export interface IOrder extends Document {
     grandTotal: number
   }
   deliveryType: string
+  isThirdPartyHauler: boolean
   estimatedVehicleType?: string
   estimatedTransportCount: number
   distanceInKm?: number
@@ -184,7 +185,8 @@ const OrderSchema = new Schema<IOrder>(
       grandTotal: { type: Number, required: true, default: 0 },
     },
     deliveryType: { type: String, required: true },
-    estimatedVehicleType: { type: String, required: true },
+    isThirdPartyHauler: { type: Boolean, default: false },
+    estimatedVehicleType: { type: String },
     estimatedTransportCount: { type: Number, default: 1 },
     distanceInKm: { type: Number },
     travelTimeInMinutes: { type: Number },

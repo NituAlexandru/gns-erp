@@ -6,7 +6,7 @@ export const DELIVERY_METHODS = [
   {
     key: 'DIRECT_SALE',
     label: 'Vânzare Directă',
-    requiresVehicle: false, // Nu necesită selecție vehicul
+    requiresVehicle: true, // Necesită selecție vehicul
   },
   {
     key: 'DELIVERY_FULL_TRUCK',
@@ -36,6 +36,30 @@ export const DELIVERY_METHODS = [
 ] as const
 
 export type DeliveryMethodKey = (typeof DELIVERY_METHODS)[number]['key']
+
+export const ALLOWED_VEHICLES_FOR_METHOD: Record<string, string[] | 'ALL'> = {
+  // Pentru vânzare directă / TIR Complet -> 'Cap Tractor - Tir'
+  DIRECT_SALE: ['Cap Tractor - Tir'],
+
+  DELIVERY_FULL_TRUCK: ['Cap Tractor - Tir'],
+
+  // Macaralele mari
+  DELIVERY_CRANE: ['Camion cu Macara 22t', 'Camion cu Macara 22t cu Remorca'],
+
+  // Vehicule mici și macarale mici
+  DELIVERY_SMALL_VEHICLE_PJ: [
+    'Autoturism',
+    'Autoutilitara cu Prelata',
+    'Camion cu Macara 7t',
+    'Camion cu Macara 13t',
+  ],
+
+  // Toate (inclusiv Curier, etc.)
+  RETAIL_SALE_PF: 'ALL',
+
+  // Niciun vehicul
+  PICK_UP_SALE: [],
+}
 
 export const ORDER_STATUS_MAP: Record<
   OrderStatusKey,

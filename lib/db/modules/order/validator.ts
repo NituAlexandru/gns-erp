@@ -75,9 +75,8 @@ export const CreateOrderInputSchema = z.object({
   deliveryType: z.string({
     required_error: 'Tipul livrării este obligatoriu.',
   }),
-  estimatedVehicleType: z.string({
-    required_error: 'Tipul de vehicul este obligatoriu.',
-  }),
+  isThirdPartyHauler: z.boolean().default(false),
+  estimatedVehicleType: z.string().optional(),
   estimatedTransportCount: z.number().int().positive().default(1),
   distanceInKm: z.number().optional(),
   travelTimeInMinutes: z.number().optional(),
