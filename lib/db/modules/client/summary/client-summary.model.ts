@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose'
+import { IClientDoc } from '../types'
 
 // Interfața TypeScript pentru a beneficia de type-checking
 export interface IClientSummary extends Document {
@@ -17,6 +18,9 @@ export interface IClientSummary extends Document {
   returnablePackaging: Map<string, number>
   totalSalesValue: number
   lastOrderDate?: Date
+}
+export type ClientWithSummary = IClientDoc & {
+  summary?: IClientSummary | null
 }
 
 const ClientSummarySchema = new Schema<IClientSummary>(

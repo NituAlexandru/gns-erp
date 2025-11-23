@@ -1,6 +1,12 @@
 'use client'
 
-import { Check, ChevronsUpDown } from 'lucide-react'
+import {
+  AlertCircle,
+  Ban,
+  Check,
+  CheckCircle,
+  ChevronsUpDown,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -23,10 +29,12 @@ import {
 import { IClientDoc } from '@/lib/db/modules/client/types'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useEffect, useState } from 'react'
+import { cn, formatCurrency } from '@/lib/utils'
+import { ClientWithSummary } from '@/lib/db/modules/client/summary/client-summary.model'
 
 interface ClientSelectorProps {
   onClientSelect: (client: IClientDoc | null) => void
-  selectedClient: IClientDoc | null
+  selectedClient: ClientWithSummary | null
 }
 
 export function ClientSelector({
@@ -143,47 +151,94 @@ export function ClientSelector({
       )}
 
       {selectedClient && !isFetchingDetails && (
-        <div className='mt-2 p-3 border rounded-md bg-muted text-sm space-y-1'>
-          <div className='mb-1 pb-1 border-b  text-sm'>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Plafon de livrare:</span>
-              <span className='font-semibold text-red-500'>
-                100.000,00 RON (Placeholder)
-              </span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Sold Curent:</span>
-              <span className='font-semibold text-yellow-500'>
-                -1,234.56 RON (Placeholder)
-              </span>
-            </div>
+        <div className='mt-2 p-3 border rounded-md bg-card text-sm space-y-3 shadow-sm'>
+          {/* Secțiunea Financiară */}
+          <div className='pb-3 border-b space-y-2'>
+            {/* Plafon */}
             <div className='flex justify-between items-center'>
-              <span className='text-muted-foreground'>Status Livrare:</span>
-              <span className='font-semibold text-red-500'>
-                Blocat (Placeholder)
+              <span className='text-muted-foreground'>Plafon Credit:</span>
+              <span className='font-semibold'>
+                {selectedClient.summary?.creditLimit
+                  ? formatCurrency(selectedClient.summary.creditLimit)
+                  : 'Nelimitat / Nesetat'}
               </span>
+            </div>
+
+            {/* Sold */}
+            <div className='flex justify-between items-center'>
+              <span className='text-muted-foreground'>Sold Curent:</span>
+              <span
+                className={cn(
+                  'font-bold',
+                  (selectedClient.summary?.outstandingBalance || 0) > 0.01
+                    ? 'text-red-500'
+                    : 'text-green-500'
+                )}
+              >
+                {formatCurrency(
+                  selectedClient.summary?.outstandingBalance || 0
+                )}
+              </span>
+            </div>
+
+            {/* Facturi Scadente (Apare doar dacă există) */}
+            {(selectedClient.summary?.overdueInvoicesCount || 0) > 0 && (
+              <div className='flex justify-between items-center'>
+                <span className='text-muted-foreground'>
+                  Scadențe depășite:
+                </span>
+                <span className='font-bold text-destructive flex items-center gap-1'>
+                  <AlertCircle className='h-3 w-3' />
+                  {selectedClient.summary?.overdueInvoicesCount} facturi (
+                  {formatCurrency(selectedClient.summary?.overdueBalance || 0)})
+                </span>
+              </div>
+            )}
+
+            {/* Status Livrare */}
+            <div className='flex justify-between items-center p-0'>
+              <span className='text-muted-foreground'>Status Livrare:</span>
+              {selectedClient.summary?.isBlocked ? (
+                <span className='font-bold text-destructive flex items-center gap-1  rounded'>
+                  <Ban className='h-3 w-3' /> Livrări Sistate
+                </span>
+              ) : (
+                <span className='font-bold text-green-500 flex items-center gap-1  rounded'>
+                  <CheckCircle className='h-3 w-3 text-green-500' /> Livrări
+                  Permise
+                </span>
+              )}
             </div>
           </div>
 
-          <p>
-            <strong>Client:</strong> {selectedClient.name}
-          </p>
-          <p>
-            <strong>CUI:</strong> {selectedClient.vatId}
-          </p>
-          <p>
-            <strong>Adresă:</strong>{' '}
-            {`${selectedClient.address.strada}, ${selectedClient.address.localitate}`}
-          </p>
-          <p>
-            <strong>Telefon:</strong> {selectedClient.phone || 'N/A'}
-          </p>
-          <p>
-            <strong>Email:</strong> {selectedClient.email || 'N/A'}
-          </p>
-          <p>
-            <strong>Termen plată:</strong> {selectedClient.paymentTerm} zile
-          </p>
+          {/* Detalii Generale  */}
+          <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-muted-foreground'>
+            {/* Rândul 1: CUI și Termen Plată */}
+            <p>
+              <strong className='text-foreground'>CUI:</strong>{' '}
+              {selectedClient.vatId || selectedClient.cnp}
+            </p>
+            <p>
+              <strong className='text-foreground'>Termen plată:</strong>{' '}
+              {selectedClient.paymentTerm} zile
+            </p>
+
+            {/* Rândul 2: Contact */}
+            <p>
+              <strong className='text-foreground'>Telefon:</strong>{' '}
+              {selectedClient.phone || 'N/A'}
+            </p>
+            <p>
+              <strong className='text-foreground'>Email:</strong>{' '}
+              <span className='break-all'>{selectedClient.email || 'N/A'}</span>
+            </p>
+
+            {/* Rândul 3: Adresa (pe toată lățimea) */}
+            <p className='col-span-2'>
+              <strong className='text-foreground'>Adresă:</strong>{' '}
+              {`${selectedClient.address.strada}, ${selectedClient.address.localitate}`}
+            </p>
+          </div>
         </div>
       )}
     </div>

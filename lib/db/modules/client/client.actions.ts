@@ -7,6 +7,8 @@ import type { IClientCreate, IClientDoc, IClientUpdate } from './types'
 import { revalidatePath } from 'next/cache'
 import { PAGE_SIZE } from '@/lib/constants'
 import { logAudit } from '../audit-logs/audit.actions'
+import { ClientWithSummary } from './summary/client-summary.model'
+import { getClientSummary } from './summary/client-summary.actions'
 
 // Creează client
 export async function createClient(
@@ -107,11 +109,21 @@ export async function deleteClient(
 }
 
 // Obține client după ID (nu audităm la citire)
-export async function getClientById(id: string): Promise<IClientDoc> {
+export async function getClientById(id: string): Promise<ClientWithSummary> {
   await connectToDatabase()
-  const doc = await ClientModel.findById(id).lean()
+
+  // Executăm ambele cereri în paralel (pentru viteză)
+  const [doc, summary] = await Promise.all([
+    ClientModel.findById(id).lean(),
+    getClientSummary(id),
+  ])
+
   if (!doc) throw new Error('Client inexistent')
-  return JSON.parse(JSON.stringify(doc)) as IClientDoc
+
+  return {
+    ...JSON.parse(JSON.stringify(doc)),
+    summary: summary ? JSON.parse(JSON.stringify(summary)) : null,
+  }
 }
 
 // Listă cu paginare (nici aici nu audităm)
@@ -227,7 +239,7 @@ export async function deactivateDeliveryAddress(
   clientId: string,
   addressId: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _userId: string 
+  _userId: string
 ) {
   return updateAddressStatus(clientId, addressId, false)
 }
@@ -236,7 +248,7 @@ export async function reactivateDeliveryAddress(
   clientId: string,
   addressId: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _userId: string 
+  _userId: string
 ) {
   return updateAddressStatus(clientId, addressId, true)
 }

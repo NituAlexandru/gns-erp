@@ -30,6 +30,7 @@ import { ShippingRateDTO } from '@/lib/db/modules/setting/shipping-rates/types'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { SearchedService } from '@/lib/db/modules/setting/services/types'
 import { getClientById } from '@/lib/db/modules/client/client.actions'
+import { ClientWithSummary } from '@/lib/db/modules/client/summary/client-summary.model'
 
 type InitialData = {
   shippingRates: ShippingRateDTO[]
@@ -55,7 +56,8 @@ export function OrderForm({
     resolver: zodResolver(CreateOrderInputSchema),
   })
 
-  const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
+  const [selectedClient, setSelectedClient] =
+    useState<ClientWithSummary | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [initialDataForm, setInitialDataForm] = useState<InitialData | null>(
