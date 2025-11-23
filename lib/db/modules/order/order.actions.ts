@@ -327,7 +327,6 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     const { processedLineItems: rawNewItems, finalTotals: newFinalTotals } =
       processOrderData(validatedData.lineItems)
 
-
     const oldLinesMap = new Map<string, IOrderLineItem>()
     oldOrder.lineItems.forEach((item: IOrderLineItem) => {
       if (item._id) oldLinesMap.set(item._id.toString(), item)
@@ -352,8 +351,8 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
 
         return {
           ...newItem,
-          _id: existingItem._id, 
-          quantityShipped: existingItem.quantityShipped, 
+          _id: existingItem._id,
+          quantityShipped: existingItem.quantityShipped,
         }
       }
 
@@ -506,5 +505,50 @@ export async function getOrderById(
   } catch (error) {
     console.error('Eroare la preluarea comenzii:', error)
     return null
+  }
+}
+
+export async function confirmOrder(orderId: string) {
+  const session = await startSession()
+  session.startTransaction()
+
+  try {
+    const sessionAuth = await auth()
+    if (!sessionAuth?.user?.id) {
+      throw new Error('Utilizator neautentificat.')
+    }
+
+    // 1. Găsim comanda
+    const order = await Order.findById(orderId).session(session)
+    if (!order) throw new Error('Comanda nu a fost găsită.')
+
+    if (order.status !== 'DRAFT') {
+      throw new Error(
+        'Doar comenzile "Ciornă" pot fi finalizate prin această acțiune.'
+      )
+    }
+
+    // 2. Schimbăm statusul
+    order.status = 'CONFIRMED'
+    await order.save({ session })
+
+    await reserveStock(order._id, order.client, order.lineItems, session)
+
+    await session.commitTransaction()
+
+    revalidatePath('/orders')
+    revalidatePath(`/orders/${orderId}`)
+
+    return {
+      success: true,
+      message: 'Comanda a fost finalizată și stocul rezervat.',
+    }
+  } catch (error) {
+    await session.abortTransaction()
+    console.error('Eroare la confirmarea comenzii:', error)
+    const msg = error instanceof Error ? error.message : 'Eroare necunoscută'
+    return { success: false, message: msg }
+  } finally {
+    await session.endSession()
   }
 }

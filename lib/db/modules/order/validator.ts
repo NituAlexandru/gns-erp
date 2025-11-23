@@ -19,6 +19,7 @@ export const OrderLineItemInputSchema = z.object({
   priceAtTimeOfOrder: z.coerce
     .number({ required_error: 'Prețul unitar este obligatoriu.' })
     .nonnegative(),
+  cost: z.number().optional().default(0),
   minimumSalePrice: z.number().optional(),
   vatRateDetails: z.object({
     rate: z.number({ required_error: 'Cota TVA este obligatorie.' }),

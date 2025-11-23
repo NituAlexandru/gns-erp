@@ -16,6 +16,7 @@ import {
   calculateShippingCost,
   getOrderFormInitialData,
   updateOrder,
+  confirmOrder,
 } from '@/lib/db/modules/order/order.actions'
 import {
   CreateOrderInput,
@@ -235,6 +236,13 @@ export function OrderForm({
   }
 
   const onSubmit = async (data: CreateOrderInput) => {
+    const isConfrmationAction =
+      !isEditing || (initialOrderData && initialOrderData.status !== 'DRAFT')
+
+    if (isConfrmationAction && !validateClientStatus()) {
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const finalData = await prepareSubmissionData(data)
@@ -294,6 +302,67 @@ export function OrderForm({
       }
     } else {
       toast.info('Salvarea ca draft nu este disponibilă în modul editare.')
+    }
+  }
+
+  const validateClientStatus = (): boolean => {
+    if (!selectedClient) return true
+    const isBlocked = selectedClient.summary?.isBlocked
+
+    if (isBlocked) {
+      if (isAdmin) {
+        toast.warning('Clientul are livrările sistate!', {
+          description: 'Fiind admin, puteți continua.',
+          duration: 5000,
+        })
+        return true
+      } else {
+        toast.error('Acțiune Blocată', {
+          description:
+            'Clientul are livrările sistate. Nu puteți confirma comanda. Salvati ca draft si contactati un admin pentru confirmare.',
+        })
+        return false
+      }
+    }
+    return true
+  }
+
+  // --- Funcție Confirmare Draft -> Confirmat ---
+  const onConfirmDraft = async () => {
+    if (!initialOrderData) return
+    if (!validateClientStatus()) return
+
+    setIsSubmitting(true)
+    try {
+      // 1. Salvăm datele curente din formular
+      const data = methods.getValues()
+      const finalData = await prepareSubmissionData(data as CreateOrderInput)
+
+      // Facem update preliminar
+      const updateResult = await updateOrder(initialOrderData._id, finalData)
+
+      if (!updateResult.success) {
+        throw new Error(
+          updateResult.message || 'Eroare la salvarea preliminară.'
+        )
+      }
+
+      const confirmResult = await confirmOrder(initialOrderData._id)
+
+      if (confirmResult.success) {
+        toast.success(confirmResult.message)
+        router.push(`/deliveries/new?orderId=${initialOrderData._id}`)
+      } else {
+        toast.error('Eroare la finalizare:', {
+          description: confirmResult.message,
+        })
+      }
+    } catch (error) {
+      console.error(error)
+      const msg = error instanceof Error ? error.message : 'Eroare neașteptată'
+      toast.error(msg)
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -377,6 +446,18 @@ export function OrderForm({
               {isSubmitting ? 'Se salvează...' : 'Salvează Ciornă'}
             </Button>
           )}
+
+          {isEditing && initialOrderData?.status === 'DRAFT' && (
+            <Button
+              type='button'
+              className='bg-green-600 hover:bg-green-700 text-white'
+              onClick={onConfirmDraft}
+              disabled={isSubmitting}
+            >
+              Finalizează Comanda
+            </Button>
+          )}
+
           <Button
             type='submit'
             disabled={isSubmitting || isLoadingData || isClientLoading}

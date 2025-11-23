@@ -16,6 +16,7 @@ import { connectToDatabase } from '@/lib/db'
 import Supplier from '../../../suppliers/supplier.model'
 import { SupplierInvoiceStatus } from './supplier-invoice.constants'
 import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
+import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 
 type SupplierInvoiceActionResult = {
   success: boolean
@@ -111,6 +112,17 @@ export async function createSupplierInvoice(
 
     await session.endSession()
 
+    if (newInvoice) {
+      try {
+        await recalculateSupplierSummary(
+          newInvoice.supplierId.toString(),
+          'auto-recalc',
+          true
+        )
+      } catch (err) {
+        console.error('Eroare recalculare sold furnizor (create invoice):', err)
+      }
+    }
     if (!newInvoice) {
       throw new Error('Tranzacția nu a returnat o factură.')
     }

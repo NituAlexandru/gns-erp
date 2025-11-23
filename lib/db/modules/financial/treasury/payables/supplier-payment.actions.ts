@@ -23,6 +23,7 @@ import BudgetCategoryModel from '../budgeting/budget-category.model'
 import { PopulatedSupplierPayment } from '@/app/admin/management/incasari-si-plati/payables/components/SupplierAllocationModal'
 import { SupplierPaymentStatus } from './supplier-payment.constants'
 import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
+import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 
 type AllocationDetail = { invoiceNumber: string; allocatedAmount: number }
 
@@ -198,6 +199,19 @@ export async function createSupplierPayment(
     })
 
     await session.endSession()
+
+    if (newPaymentDoc) {
+      try {
+        await recalculateSupplierSummary(
+          newPaymentDoc.supplierId.toString(),
+          'auto-recalc',
+          true
+        )
+      } catch (err) {
+        console.error('Eroare recalculare sold furnizor (create payment):', err)
+      }
+    }
+
     if (!newPaymentDoc) {
       throw new Error('Tranzacția nu a returnat un document de plată.')
     }
@@ -273,6 +287,8 @@ export async function cancelSupplierPayment(
 ): Promise<PaymentCancellationResult> {
   const session = await startSession()
 
+  let supplierIdToRecalc = ''
+
   try {
     await session.withTransaction(async (session) => {
       // 1. Validare și Autentificare
@@ -285,6 +301,8 @@ export async function cancelSupplierPayment(
       const payment =
         await SupplierPaymentModel.findById(paymentId).session(session)
       if (!payment) throw new Error('Plata nu a fost găsită.')
+
+      supplierIdToRecalc = payment.supplierId.toString()
 
       // 3. Verificări de Business
       if (payment.status === 'ANULATA') {
@@ -316,6 +334,18 @@ export async function cancelSupplierPayment(
     })
 
     await session.endSession()
+
+    if (supplierIdToRecalc) {
+      try {
+        await recalculateSupplierSummary(
+          supplierIdToRecalc,
+          'auto-recalc',
+          true
+        )
+      } catch (err) {
+        console.error(err)
+      }
+    }
 
     revalidatePath('/admin/management/incasari-si-plati/payables')
     revalidatePath(`/suppliers/${paymentId}`)

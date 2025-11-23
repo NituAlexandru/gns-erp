@@ -14,6 +14,7 @@ import {
 import { CreateSupplierAllocationSchema } from './supplier-allocation.validator'
 import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
+import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 
 type AllocationActionResult = {
   success: boolean
@@ -30,6 +31,8 @@ export async function createManualSupplierAllocation(
   const session = await startSession()
   let newAllocation: ISupplierAllocationDoc | null = null
   let supplierIdToRevalidate: string | null = null
+
+  let supplierIdToRecalc = ''
 
   try {
     newAllocation = await session.withTransaction(async (session) => {
@@ -53,6 +56,7 @@ export async function createManualSupplierAllocation(
       if (!payment) throw new Error('Plata sursă nu a fost găsită.')
       if (!invoice) throw new Error('Factura furnizor țintă nu a fost găsită.')
 
+      supplierIdToRecalc = payment.supplierId.toString()
       supplierIdToRevalidate = payment.supplierId.toString()
 
       // --- MODIFICARE: Folosim statusul corect ---
@@ -93,7 +97,20 @@ export async function createManualSupplierAllocation(
       payment.unallocatedAmount = round2(
         payment.unallocatedAmount - roundedAmount
       )
+
       await payment.save({ session })
+
+      if (supplierIdToRecalc) {
+        try {
+          await recalculateSupplierSummary(
+            supplierIdToRecalc,
+            'auto-recalc',
+            true
+          )
+        } catch (err) {
+          console.error(err)
+        }
+      }
 
       // 6. Actualizare Factură Furnizor (Model 3)
       invoice.paidAmount = round2(invoice.paidAmount + roundedAmount)
@@ -146,6 +163,8 @@ export async function deleteSupplierAllocation(
   const session = await startSession()
   let supplierIdToRevalidate: string | null = null
 
+  let supplierIdToRecalc = ''
+
   try {
     await session.withTransaction(async (session) => {
       // 1. Validare și Autentificare
@@ -176,6 +195,7 @@ export async function deleteSupplierAllocation(
         )
       }
 
+      supplierIdToRecalc = payment.supplierId.toString()
       supplierIdToRevalidate = payment.supplierId.toString()
 
       if (invoice.status === 'ANULATA') {
@@ -205,6 +225,18 @@ export async function deleteSupplierAllocation(
       }
 
       await invoice.save({ session })
+
+      if (supplierIdToRecalc) {
+        try {
+          await recalculateSupplierSummary(
+            supplierIdToRecalc,
+            'auto-recalc',
+            true
+          )
+        } catch (err) {
+          console.error(err)
+        }
+      }
 
       // 6. Șterge Alocarea (Model 5)
       await SupplierAllocationModel.findByIdAndDelete(allocationId).session(

@@ -1,4 +1,3 @@
-
 'use server'
 
 import { startSession, Types } from 'mongoose'
@@ -16,6 +15,7 @@ import { CreateClientPaymentSchema } from './client-payment.validator'
 import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
 import ClientModel from '../../../client/client.model'
+import { recalculateClientSummary } from '../../../client/summary/client-summary.actions'
 
 type PopulatedClientPayment = ClientPaymentDTO & {
   clientId: {
@@ -151,6 +151,17 @@ export async function createClientPayment(
     revalidatePath('/admin/management/incasari-si-plati/receivables')
     revalidatePath(`/clients/${newPaymentDoc.clientId.toString()}`)
 
+    try {
+      // 'auto-recalc' e un slug fictiv, nu contează pentru logica de calcul, doar pt revalidare
+      await recalculateClientSummary(
+        newPaymentDoc.clientId.toString(),
+        'auto-recalc',
+        true
+      )
+    } catch (err) {
+      console.error('Eroare recalculare sold (create payment):', err)
+    }
+
     return {
       success: true,
       message: `Încasarea ${newPaymentDoc.paymentNumber} de ${formatCurrency(newPaymentDoc.totalAmount)} a fost salvată.`,
@@ -177,7 +188,7 @@ export async function getClientPayments() {
         model: ClientModel,
         select: 'name',
       })
-      .sort({ paymentDate: -1 }) 
+      .sort({ paymentDate: -1 })
       .lean()
 
     return {
@@ -194,18 +205,24 @@ export async function cancelClientPayment(
 ): Promise<{ success: boolean; message: string }> {
   const session = await startSession()
 
+  // Variabilă pentru a ține minte clientul ca să-i recalculăm soldul la final
+  let clientIdToRecalc = ''
+
   try {
     await session.withTransaction(async (session) => {
       // 1. Validare și Autentificare
       const authSession = await auth()
       if (!authSession?.user?.id) throw new Error('Utilizator neautentificat.')
       if (!Types.ObjectId.isValid(paymentId))
-        throw new Error('ID Încasare invalid.')
+        throw new Error('ID Plată invalid.')
 
       // 2. Găsește Încasarea
       const payment =
         await ClientPaymentModel.findById(paymentId).session(session)
       if (!payment) throw new Error('Încasarea nu a fost găsită.')
+
+      // SALVĂM ID-UL CLIENTULUI PENTRU RECALCULARE ULTERIOARĂ
+      clientIdToRecalc = payment.clientId.toString()
 
       // 3. Verificări de Business
       if (payment.status === 'ANULATA') {
@@ -222,7 +239,7 @@ export async function cancelClientPayment(
         )
       }
 
-      // Verificare suplimentară (deși statusul NEALOCATA ar trebui să acopere)
+      // Verificare suplimentară
       const allocationCount = await PaymentAllocationModel.countDocuments({
         paymentId: new Types.ObjectId(paymentId),
       }).session(session)
@@ -239,6 +256,16 @@ export async function cancelClientPayment(
     })
 
     await session.endSession()
+
+    // --- RECALCULARE SOLD ---
+    if (clientIdToRecalc) {
+      try {
+        await recalculateClientSummary(clientIdToRecalc, 'auto-recalc', true)
+      } catch (err) {
+        console.error('Eroare recalculare sold (cancel payment):', err)
+      }
+    }
+    // ------------------------
 
     revalidatePath('/admin/management/incasari-si-plati/receivables')
 

@@ -14,6 +14,7 @@ import { CreatePaymentAllocationSchema } from './payment-allocation.validator'
 import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
 import { ClientPaymentDTO, IClientPaymentDoc } from './client-payment.types'
+import { recalculateClientSummary } from '../../../client/summary/client-summary.actions'
 
 // Tipul de răspuns pentru acțiunile de alocare
 type AllocationActionResult = {
@@ -40,11 +41,14 @@ export async function createManualAllocation(
   success: boolean
   message: string
   data?: PopulatedAllocation
-  updatedPayment?: ClientPaymentDTO // <--- CÂMP NOU
+  updatedPayment?: ClientPaymentDTO
 }> {
   const session = await startSession()
   let newAllocation: IPaymentAllocationDoc | null = null
   let updatedPaymentDoc: IClientPaymentDoc | null = null
+
+  // Variabilă pentru recalculare
+  let clientIdToRecalc = ''
 
   try {
     // Executăm tranzacția și capturăm rezultatele
@@ -63,6 +67,10 @@ export async function createManualAllocation(
       const invoice = await InvoiceModel.findById(invoiceId).session(session)
 
       if (!payment) throw new Error('Încasarea sursă nu a fost găsită.')
+
+      // SALVĂM CLIENT ID
+      clientIdToRecalc = payment.clientId.toString()
+
       if (!invoice) throw new Error('Factura țintă nu a fost găsită.')
       if (invoice.status === 'PAID')
         throw new Error('Factura este deja marcată ca "Plătită".')
@@ -73,15 +81,11 @@ export async function createManualAllocation(
 
       // --- VALIDĂRI ---
       if (roundedAmount > 0) {
-        // Cazul Pozitiv (Plată Normală)
         if (roundedAmount > currentUnallocated)
           throw new Error(`Fonduri insuficiente în încasare.`)
         if (roundedAmount > invoiceRemaining)
           throw new Error(`Depășește restul de plată al facturii.`)
       } else {
-        // Cazul Negativ (Discount/Storno)
-        // Nu putem aloca mai mult negativ decât valoarea facturii
-        // Ex: Factura = -100. Alocare = -150. (-150 < -100) -> Eroare
         if (roundedAmount < invoiceRemaining)
           throw new Error(`Depășește valoarea de stornat a facturii.`)
       }
@@ -105,7 +109,6 @@ export async function createManualAllocation(
       payment.unallocatedAmount = round2(
         payment.unallocatedAmount - roundedAmount
       )
-      // SALVĂM DOCUMENTUL PENTRU A-L RETURNA
       const savedPayment = await payment.save({ session })
 
       // 3. Actualizare Factură
@@ -123,6 +126,14 @@ export async function createManualAllocation(
 
     if (!newAllocation) {
       throw new Error('Tranzacția nu a returnat o alocare.')
+    }
+
+    if (clientIdToRecalc) {
+      try {
+        await recalculateClientSummary(clientIdToRecalc, 'auto-recalc', true)
+      } catch (err) {
+        console.error('Eroare recalculare sold (create allocation):', err)
+      }
     }
 
     revalidatePath(`/financial/invoices`)
@@ -145,7 +156,6 @@ export async function createManualAllocation(
       data: JSON.parse(
         JSON.stringify(populatedAllocation)
       ) as PopulatedAllocation,
-      // RETURNĂM PLATA ACTUALIZATĂ
       updatedPayment: JSON.parse(JSON.stringify(updatedPaymentDoc)),
     }
   } catch (error) {
@@ -164,6 +174,9 @@ export async function deleteAllocation(
   allocationId: string
 ): Promise<Omit<AllocationActionResult, 'data'>> {
   const session = await startSession()
+
+  // Variabilă pentru recalculare
+  let clientIdToRecalc = ''
 
   try {
     await session.withTransaction(async (session) => {
@@ -191,6 +204,10 @@ export async function deleteAllocation(
           'Date corupte. Factura sau Încasarea aferentă nu au fost găsite.'
         )
       }
+
+      // SALVĂM ID
+      clientIdToRecalc = payment.clientId.toString()
+
       if (invoice.status === 'CANCELLED') {
         throw new Error('Nu se poate anula o alocare de pe o factură anulată.')
       }
@@ -216,6 +233,16 @@ export async function deleteAllocation(
     })
 
     await session.endSession()
+
+    // --- RECALCULARE SOLD ---
+    if (clientIdToRecalc) {
+      try {
+        await recalculateClientSummary(clientIdToRecalc, 'auto-recalc', true)
+      } catch (err) {
+        console.error('Eroare recalculare sold (delete allocation):', err)
+      }
+    }
+    // ------------------------
 
     revalidatePath('/financial/invoices')
     revalidatePath('/admin/management/incasari-si-plati/receivables')
@@ -326,11 +353,17 @@ export async function createCompensationPayment(
 ): Promise<{ success: boolean; message: string }> {
   const session = await startSession()
 
+  // Variabilă pentru recalculare
+  let clientIdToRecalc = ''
+
   try {
     await session.withTransaction(async (session) => {
       // 1. Găsim factura negativă
       const invoice = await InvoiceModel.findById(invoiceId).session(session)
       if (!invoice) throw new Error('Factura nu a fost găsită.')
+
+      // SALVĂM ID
+      clientIdToRecalc = invoice.clientId.toString()
 
       if (invoice.remainingAmount >= 0) {
         throw new Error(
@@ -338,10 +371,9 @@ export async function createCompensationPayment(
         )
       }
 
-      const absAmount = Math.abs(invoice.remainingAmount) // ex: 121
+      const absAmount = Math.abs(invoice.remainingAmount)
 
       // 2. Creăm "Încasarea" de Compensare
-      // ATENȚIE: totalAmount este 0 !!!
       const [compensationPayment] = await ClientPaymentModel.create(
         [
           {
@@ -362,13 +394,12 @@ export async function createCompensationPayment(
       )
 
       // 3. Creăm alocarea negativă
-      // Asta mută "datoria negativă" în "credit disponibil"
       await PaymentAllocationModel.create(
         [
           {
             paymentId: compensationPayment._id,
             invoiceId: invoice._id,
-            amountAllocated: invoice.remainingAmount, // ex: -121
+            amountAllocated: invoice.remainingAmount,
             allocationDate: new Date(),
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
@@ -378,7 +409,6 @@ export async function createCompensationPayment(
       )
 
       // 4. Actualizăm "Încasarea"
-      // Matematica: unallocated = total(0) - allocated(-121) = +121
       compensationPayment.unallocatedAmount = absAmount
       await compensationPayment.save({ session })
 
@@ -390,6 +420,16 @@ export async function createCompensationPayment(
     })
 
     await session.endSession()
+
+    // --- RECALCULARE SOLD ---
+    if (clientIdToRecalc) {
+      try {
+        await recalculateClientSummary(clientIdToRecalc, 'auto-recalc', true)
+      } catch (err) {
+        console.error('Eroare recalculare sold (compensation):', err)
+      }
+    }
+    // ------------------------
 
     revalidatePath('/financial/invoices')
     revalidatePath('/admin/management/incasari-si-plati/receivables')

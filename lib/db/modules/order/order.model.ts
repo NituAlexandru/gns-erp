@@ -13,6 +13,7 @@ const OrderLineItemSchema = new Schema<IOrderLineItem>({
   unitOfMeasure: { type: String, required: true },
   unitOfMeasureCode: { type: String, default: 'H87' },
   priceAtTimeOfOrder: { type: Number, required: true },
+  cost: { type: Number, default: 0 },
   minimumSalePrice: { type: Number, required: false },
   lineValue: { type: Number, required: true },
   lineVatValue: { type: Number, required: true },

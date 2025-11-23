@@ -23,7 +23,6 @@ export interface ClientInvoiceListItem {
     name: string
   }
 }
-// -----------------------------------------------------------
 
 export type ClientInvoicesPage = {
   data: ClientInvoiceListItem[]

@@ -60,7 +60,6 @@ export function OrderLogistics({
   }, [shippingRates, deliveryMethodKey])
 
   // --- LOGICĂ RESETARE & AUTO-SELECTARE --- //
-
   useEffect(() => {
     if (isThirdParty) {
       setValue('estimatedVehicleType', undefined)
@@ -77,7 +76,7 @@ export function OrderLogistics({
     }
   }, [isThirdParty, filteredRates, setValue, selectedVehicleType])
 
-  // Calcul Costuri
+  // Calcul Costuri (Local pentru afișare)
   const selectedRateInfo =
     (!isThirdParty &&
       shippingRates.find((rate) => rate.type === selectedVehicleType)) ||
@@ -88,6 +87,16 @@ export function OrderLogistics({
     totalTransportCost =
       selectedRateInfo.ratePerKm * deliveryAddress.distanceInKm
   }
+
+  // --- SINCRONIZARE CU FORMULARUL ---
+  // Salvăm costul calculat în câmpul 'recommendedShippingCost' pentru a fi accesibil în OrderItemsManager
+  useEffect(() => {
+    if (totalTransportCost !== null) {
+      setValue('recommendedShippingCost', Number(totalTransportCost.toFixed(2)))
+    } else {
+      setValue('recommendedShippingCost', 0)
+    }
+  }, [totalTransportCost, setValue])
 
   return (
     <div className='space-y-4'>
@@ -198,7 +207,7 @@ export function OrderLogistics({
                   </div>
                   {selectedRateInfo.costPerKm && (
                     <div className='flex justify-between text-xs'>
-                      <span>Cost transport est.:</span>
+                      <span>Cost intern est.:</span>
                       <span>
                         {formatCurrency(selectedRateInfo.costPerKm)} / km
                       </span>

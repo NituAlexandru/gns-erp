@@ -51,6 +51,7 @@ import { LogisticsTotals } from './mini-components/LogisticsTotals'
 import { formatCurrency } from '@/lib/utils'
 import { getPackagingForOrderLine } from '@/lib/db/modules/packaging-products/packaging.actions'
 import { PackagingForOrderLine } from '@/lib/db/modules/packaging-products/types'
+import { AlertCircle } from 'lucide-react'
 
 interface OrderItemsManagerProps {
   isAdmin: boolean
@@ -103,6 +104,10 @@ export function OrderItemsManager({
   const [isAddingItem, setIsAddingItem] = useState(false)
   const [isPermitPopoverOpen, setIsPermitPopoverOpen] = useState(false)
   const [permitSearchTerm, setPermitSearchTerm] = useState('')
+
+  const hasServices = useMemo(() => {
+    return (lineItems || []).some((item) => item.serviceId)
+  }, [lineItems])
 
   useEffect(() => {
     async function fetchItems() {
@@ -256,6 +261,7 @@ export function OrderItemsManager({
         productCode: fullData.productCode,
         quantity: 1,
         priceAtTimeOfOrder: minPrice,
+        cost: 0,
         minimumSalePrice: minPrice,
         vatRateDetails: {
           rate: defaultVat.rate,
@@ -285,7 +291,32 @@ export function OrderItemsManager({
 
   const handleSelectService = (service: SearchedService) => {
     const vat = vatRates.find((v) => v._id === service.vatRateId)
-    const vatRate = vat ? vat.rate : 21
+    const effectiveVat = vat || vatRates.find((v) => v.isDefault)
+
+    if (!effectiveVat) {
+      toast.error(
+        `Nu s-a găsit o cotă de TVA validă pentru serviciul "${service.name}".`
+      )
+      return
+    }
+
+    const vatRate = effectiveVat.rate
+
+    const recommendedCost = getValues('recommendedShippingCost') || 0
+
+    // Costul este: Dacă e transport (per delivery) ? Costul Calculat : Costul din Serviciu
+    const finalCost =
+      service.isPerDelivery && recommendedCost > 0
+        ? recommendedCost
+        : service.cost
+
+    // Dacă am preluat costul calculat, anunțăm utilizatorul (doar informativ)
+    if (service.isPerDelivery && recommendedCost > 0) {
+      toast.info(
+        `Cost intern actualizat la: ${formatCurrency(finalCost)} (Calculat pe distanță)`
+      )
+    }
+
     const newItem: OrderLineItemInput = {
       serviceId: service._id,
       isManualEntry: false,
@@ -295,6 +326,7 @@ export function OrderItemsManager({
       unitOfMeasure: service.unitOfMeasure,
       unitOfMeasureCode: getEFacturaUomCode(service.unitOfMeasure),
       priceAtTimeOfOrder: service.price,
+      cost: finalCost,
       minimumSalePrice: service.price,
       vatRateDetails: {
         rate: vatRate,
@@ -325,6 +357,7 @@ export function OrderItemsManager({
       unitOfMeasure: 'bucata',
       unitOfMeasureCode: 'H87',
       priceAtTimeOfOrder: 0,
+      cost: 0,
       vatRateDetails: {
         rate: defaultVat.rate,
         value: 0,
@@ -465,10 +498,18 @@ export function OrderItemsManager({
         <Button variant='outline' type='button' onClick={handleAddManualLine}>
           Adaugă Linie Liberă
         </Button>
+        {!hasServices && (
+          <div className='flex items-center text-red-600 text-xs sm:text-sm gap-2 px-3 py-2 rounded border border-red-500 ml-auto animate-in fade-in'>
+            <AlertCircle className='h-4 w-4 flex-shrink-0' />
+            <span className='font-medium'>
+              Nu uita să adaugi servicii / transport / autorizații!
+            </span>
+          </div>
+        )}
       </div>
 
       <div className='border rounded-lg'>
-        <Table className='border-separate border-spacing-y-3'>
+        <Table className='border-separate border-spacing-y-1'>
           <TableHeader>
             <TableRow>
               <TableHead>Produs/Serviciu</TableHead>

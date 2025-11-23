@@ -48,6 +48,7 @@ import { revalidatePath } from 'next/cache'
 import { IUser } from '../../user/user.model'
 import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
 import { InvoiceInputSchema } from './invoice.validator'
+import { recalculateClientSummary } from '../../client/summary/client-summary.actions'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -1410,6 +1411,16 @@ export async function approveInvoice(
     invoice.approvedByName = session.user.name || 'Admin'
 
     await invoice.save()
+
+    try {
+      await recalculateClientSummary(
+        invoice.clientId.toString(),
+        'auto-recalc',
+        true
+      )
+    } catch (err) {
+      console.error('Eroare recalculare sold (approve invoice):', err)
+    }
 
     revalidatePath('/financial/invoices')
     return { success: true, message: 'Factura a fost aprobată.' }
