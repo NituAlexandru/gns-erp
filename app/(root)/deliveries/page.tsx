@@ -28,7 +28,7 @@ export default async function LogisticsPlannerPage({
 
   const [
     unassignedDeliveriesRaw,
-    assignedDeliveriesRaw,
+    allAssignedDeliveriesRaw, // Am redenumit variabila pentru claritate
     assignmentsRaw,
     trailersRaw,
   ] = await Promise.all([
@@ -39,17 +39,38 @@ export default async function LogisticsPlannerPage({
   ])
 
   const unassignedDeliveries = sanitizeForClient(unassignedDeliveriesRaw)
-  const assignedDeliveries = sanitizeForClient(assignedDeliveriesRaw)
+  const allAssignedDeliveries = sanitizeForClient(
+    allAssignedDeliveriesRaw
+  ) as IDelivery[]
   const assignments = sanitizeForClient(assignmentsRaw)
   const availableTrailers = sanitizeForClient(trailersRaw)
 
+  // --- FILTRARE LIVRĂRI SPECIALE (Server Side) ---
+  const pickUpDeliveries = allAssignedDeliveries.filter(
+    (d) => d.deliveryType === 'PICK_UP_SALE'
+  )
+
+  const thirdPartyDeliveries = allAssignedDeliveries.filter(
+    (d) => d.isThirdPartyHauler === true && d.deliveryType !== 'PICK_UP_SALE'
+  )
+
+  // Livrările de flotă sunt restul (cele care au un assemblyId valid)
+  // SAU cele care nu sunt nici PickUp nici Terț (pentru siguranță)
+  const fleetDeliveries = allAssignedDeliveries.filter(
+    (d) => d.deliveryType !== 'PICK_UP_SALE' && d.isThirdPartyHauler !== true
+  )
+  // -----------------------------------------------
+
   return (
-    <div className=' space-y-1'>
+    <div className='space-y-1'>
       <Suspense fallback={<div>Încărcare Planner...</div>}>
         <LogisticsPlannerClient
           initialSelectedDate={selectedDate}
           unassignedDeliveries={unassignedDeliveries as IDelivery[]}
-          assignedDeliveries={assignedDeliveries as IDelivery[]}
+          // Trimitem listele separate
+          assignedDeliveries={fleetDeliveries} // Grid-ul primește doar Flota
+          pickUpDeliveries={pickUpDeliveries} // Listă nouă
+          thirdPartyDeliveries={thirdPartyDeliveries} // Listă nouă
           assignments={assignments as IPopulatedAssignmentDoc[]}
           availableTrailers={availableTrailers as ITrailerDoc[]}
         />

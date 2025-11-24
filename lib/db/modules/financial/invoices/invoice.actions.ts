@@ -491,6 +491,8 @@ export async function generateProformaFromOrder(
         codPostal: order.deliveryAddress.codPostal,
         tara: 'RO', // <-- ADAUGĂM CÂMPUL OBLIGATORIU 'tara'
         alteDetalii: order.deliveryAddress.alteDetalii || '',
+        persoanaContact: order.deliveryAddress.persoanaContact,
+        telefonContact: order.deliveryAddress.telefonContact,
       }
 
       // 7. Mapează Liniile (fără costuri)
@@ -684,6 +686,8 @@ export async function createInvoiceFromSingleNote(
           codPostal: note.deliveryAddress.codPostal,
           tara: 'RO',
           alteDetalii: note.deliveryAddress.alteDetalii || '',
+          persoanaContact: note.deliveryAddress.persoanaContact,
+          telefonContact: note.deliveryAddress.telefonContact,
         },
         seriesName: activeSeries,
         invoiceType: 'STANDARD',

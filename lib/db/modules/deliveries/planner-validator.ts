@@ -10,9 +10,7 @@ export const ScheduleDeliverySchema = z.object({
     .array(z.enum(DELIVERY_SLOTS))
     .min(1, { message: 'Selectează cel puțin un interval orar.' }),
 
-  assemblyId: z
-    .string()
-    .min(1, { message: 'Trebuie să selectezi un ansamblu.' }),
+  assemblyId: z.string().optional().nullable(),
   trailerId: z.string().optional().nullable(),
   deliveryNotes: z.string().optional(),
 })

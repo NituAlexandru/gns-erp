@@ -121,6 +121,9 @@ export interface IDeliveryNoteDoc extends Document {
     numar: string
     codPostal: string
     alteDetalii?: string
+    tara?: string
+    persoanaContact?: string
+    telefonContact?: string
   }
   items: IDeliveryNoteLine[]
   totals: IDeliveryNoteTotals
@@ -198,8 +201,8 @@ const DeliveryNoteTotalsSchema = new Schema<IDeliveryNoteTotals>(
   {
     productsSubtotal: { type: Number, required: true },
     productsVat: { type: Number, required: true },
-    packagingSubtotal: { type: Number, required: true, default: 0 }, 
-    packagingVat: { type: Number, required: true, default: 0 }, 
+    packagingSubtotal: { type: Number, required: true, default: 0 },
+    packagingVat: { type: Number, required: true, default: 0 },
     servicesSubtotal: { type: Number, required: true },
     servicesVat: { type: Number, required: true },
     manualSubtotal: { type: Number, required: true },
@@ -288,6 +291,9 @@ const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
       numar: { type: String, required: true },
       codPostal: { type: String, required: true },
       alteDetalii: { type: String },
+      tara: { type: String, default: 'RO' },
+      persoanaContact: { type: String },
+      telefonContact: { type: String },
     },
     salesAgentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     salesAgentSnapshot: {

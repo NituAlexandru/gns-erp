@@ -78,6 +78,8 @@ export interface IOrder extends Document {
     numar: string
     codPostal: string
     alteDetalii?: string
+    persoanaContact?: string
+    telefonContact?: string
   }
   deliveryAddressId?: Types.ObjectId
   delegate?: {
@@ -162,6 +164,8 @@ const OrderSchema = new Schema<IOrder>(
       numar: { type: String, required: true },
       codPostal: { type: String, required: true },
       alteDetalii: { type: String },
+      persoanaContact: { type: String },
+      telefonContact: { type: String },
     },
     deliveryAddressId: { type: Schema.Types.ObjectId },
     delegate: {

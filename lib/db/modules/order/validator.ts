@@ -60,6 +60,8 @@ export const CreateOrderInputSchema = z.object({
     numar: z.string().min(1, 'Numărul este obligatoriu.'),
     codPostal: z.string().min(1, 'Codul poștal este obligatoriu.'),
     alteDetalii: z.string().optional(),
+    persoanaContact: z.string().optional(),
+    telefonContact: z.string().optional(),
   }),
   deliveryAddressId: z.string().optional(),
   delegate: z

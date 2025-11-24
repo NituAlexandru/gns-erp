@@ -36,6 +36,9 @@ export interface DeliveryAddress {
   numar: string
   codPostal: string
   alteDetalii?: string
+  tara?: string
+  persoanaContact?: string
+  telefonContact?: string
 }
 
 export const DeliveryAddressSchema = new Schema<DeliveryAddress>(
@@ -46,6 +49,9 @@ export const DeliveryAddressSchema = new Schema<DeliveryAddress>(
     numar: { type: String, required: true },
     codPostal: { type: String, required: true },
     alteDetalii: { type: String },
+    tara: { type: String, default: 'RO' },
+    persoanaContact: { type: String },
+    telefonContact: { type: String },
   },
   { _id: false }
 )
@@ -138,6 +144,8 @@ export interface IDelivery extends Document {
   deliveryDate?: Date
   deliverySlots?: string[]
   vehicleType: string
+  deliveryType: string
+  isThirdPartyHauler: boolean
   deliveryNotes?: string
   orderNotes?: string
   uitCode?: string
@@ -202,6 +210,8 @@ const DeliverySchema = new Schema<IDelivery>(
     deliveryDate: { type: Date },
     deliverySlots: { type: [String], enum: DELIVERY_SLOTS },
     vehicleType: { type: String, required: true },
+    deliveryType: { type: String, required: true },
+    isThirdPartyHauler: { type: Boolean, default: false },
     deliveryNotes: { type: String },
     orderNotes: { type: String },
     uitCode: { type: String },
@@ -261,11 +271,16 @@ DeliverySchema.path('status').validate(function (value) {
 }, 'Intervalele orare (deliverySlots) sunt obligatorii pentru o livrare programată (SCHEDULED).')
 
 DeliverySchema.path('status').validate(function (value) {
-  if (value === 'SCHEDULED' && !this.assemblyId) {
-    return false // Invalidează dacă e SCHEDULED și nu are ansamblu
+  // Verificăm dacă este o livrare specială
+  const isSpecial =
+    this.deliveryType === 'PICK_UP_SALE' || this.isThirdPartyHauler === true
+
+  // Dacă e SCHEDULED, NU e specială și NU are ansamblu => Eroare
+  if (value === 'SCHEDULED' && !isSpecial && !this.assemblyId) {
+    return false
   }
   return true
-}, 'Ansamblul (assemblyId) este obligatoriu pentru o livrare programată (SCHEDULED).')
+}, 'Ansamblul (assemblyId) este obligatoriu pentru livrările cu flotă proprie.')
 
 const DeliveryModel: Model<IDelivery> =
   (models.Delivery as Model<IDelivery>) ||

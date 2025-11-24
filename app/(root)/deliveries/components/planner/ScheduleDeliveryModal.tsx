@@ -613,131 +613,158 @@ export function ScheduleDeliveryModal({
               </div>
               {/* --- Coloana Dreaptă: Ansamblu și Note --- */}
               <div className='space-y-4'>
-                {/* Selectare Ansamblu */}
-                <FormField
-                  control={form.control}
-                  name='assemblyId'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Asignează Ansamblu</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Selectează șofer / mașină...' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {availableSortedAssignments.map((asm) => {
-                            const driver =
-                              asm.driverId && typeof asm.driverId === 'object'
-                                ? asm.driverId.name
-                                : 'N/A'
-                            const vehicle =
-                              asm.vehicleId && typeof asm.vehicleId === 'object'
-                                ? asm.vehicleId
-                                : null
+                {/* --- LOGICĂ AFISARE CÂMPURI --- */}
+                {(() => {
+                  const isSpecialDelivery =
+                    delivery?.deliveryType === 'PICK_UP_SALE' ||
+                    delivery?.isThirdPartyHauler === true
 
-                            const trailer =
-                              asm.trailerId && typeof asm.trailerId === 'object'
-                                ? asm.trailerId
-                                : null
+                  // Dacă e livrare specială, NU afișăm selectorii de flotă
+                  if (isSpecialDelivery) {
+                    return (
+                      <div className='p-4 border rounded-md bg-muted/50 text-sm text-muted-foreground text-center'>
+                        <p>
+                          Această livrare nu necesită alocare pe flota proprie.
+                        </p>
+                        <p className='font-semibold mt-1'>
+                          {delivery?.deliveryType === 'PICK_UP_SALE'
+                            ? 'Ridicare de către Client'
+                            : 'Transportator Terț'}
+                        </p>
+                      </div>
+                    )
+                  }
 
-                            const details = [
-                              driver,
-                              vehicle?.carNumber || 'N/A',
-                              trailer?.licensePlate,
-                            ]
-                              .filter(Boolean)
-                              .join(' - ')
+                  // Dacă e livrare normală (Flotă Proprie), afișăm selectorii
+                  return (
+                    <>
+                      {/* Selectare Ansamblu */}
+                      <FormField
+                        control={form.control}
+                        name='assemblyId'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Asignează Ansamblu</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              value={field.value || ''}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder='Selectează șofer / mașină...' />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {availableSortedAssignments.map((asm) => {
+                                  // ... (codul de randare itemi rămâne identic) ...
+                                  const driver =
+                                    asm.driverId &&
+                                    typeof asm.driverId === 'object'
+                                      ? asm.driverId.name
+                                      : 'N/A'
+                                  const vehicle =
+                                    asm.vehicleId &&
+                                    typeof asm.vehicleId === 'object'
+                                      ? asm.vehicleId
+                                      : null
+                                  const trailer =
+                                    asm.trailerId &&
+                                    typeof asm.trailerId === 'object'
+                                      ? asm.trailerId
+                                      : null
+                                  const details = [
+                                    driver,
+                                    vehicle?.carNumber || 'N/A',
+                                    trailer?.licensePlate,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' - ')
 
-                            return (
-                              <SelectItem
-                                key={asm._id}
-                                value={asm._id}
-                                className='flex justify-between items-center w-full'
-                              >
-                                {/* Grupul Stânga: Tipul Vehiculului */}
-                                <span className='font-semibold text-primary'>
-                                  {vehicle?.carType || 'Tip Necunoscut'}
-                                </span>
+                                  return (
+                                    <SelectItem
+                                      key={asm._id}
+                                      value={asm._id}
+                                      className='flex justify-between items-center w-full'
+                                    >
+                                      <span className='font-semibold text-primary'>
+                                        {vehicle?.carType || 'Tip Necunoscut'}
+                                      </span>
+                                      <div className='text-right'>
+                                        <span className='text-muted-foreground ml-2 text-xs'>
+                                          ({details})
+                                        </span>
+                                      </div>
+                                    </SelectItem>
+                                  )
+                                })}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                                {/* Grupul Dreapta: Detalii (FĂRĂ asm.name) */}
-                                <div className='text-right'>
-                                  <span className='text-muted-foreground ml-2 text-xs'>
-                                    ({details}){' '}
+                      {/* Selectare Remorcă */}
+                      <FormField
+                        control={form.control}
+                        name='trailerId'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Asignează Remorcă (Opțional)</FormLabel>
+                            <Select
+                              onValueChange={field.onChange}
+                              value={field.value || ''}
+                              disabled={!selectedAssemblyId}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder='Selectează o remorcă...' />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value='none'>
+                                  <span className='text-muted-foreground'>
+                                    Fără Remorcă
                                   </span>
-                                </div>
-                              </SelectItem>
-                            )
-                          })}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name='trailerId'
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Asignează Remorcă (Opțional)</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value || ''}
-                        // Dezactivăm selectorul dacă nu e ales un ansamblu
-                        disabled={!selectedAssemblyId}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder='Selectează o remorcă...' />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {/* Opțiune pentru "Fără Remorcă" */}
-                          <SelectItem value='none'>
-                            <span className='text-muted-foreground'>
-                              Fără Remorcă
-                            </span>
-                          </SelectItem>
+                                </SelectItem>
+                                {(availableTrailers || []).map((trailer) => {
+                                  const assignedVehicleNumber =
+                                    assignedTrailerMap.get(
+                                      trailer._id.toString()
+                                    )
+                                  return (
+                                    <SelectItem
+                                      key={trailer._id}
+                                      value={trailer._id}
+                                    >
+                                      <div className='flex justify-between w-full items-center'>
+                                        <span>
+                                          {trailer.licensePlate}{' '}
+                                          <span className='text-muted-foreground ml-2 text-xs'>
+                                            ({trailer.type || 'N/A'})
+                                          </span>
+                                        </span>
+                                        {assignedVehicleNumber && (
+                                          <span className='text-red-500 text-xs ml-4 font-medium'>
+                                            (Folosită de {assignedVehicleNumber}
+                                            )
+                                          </span>
+                                        )}
+                                      </div>
+                                    </SelectItem>
+                                  )
+                                })}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </>
+                  )
+                })()}
 
-                          {/* Listă remorci disponibile */}
-                          {(availableTrailers || []).map((trailer) => {
-                            // Verificăm dacă remorca curentă este pe harta noastră
-                            const assignedVehicleNumber =
-                              assignedTrailerMap.get(trailer._id.toString())
-
-                            return (
-                              <SelectItem key={trailer._id} value={trailer._id}>
-                                <div className='flex justify-between w-full items-center'>
-                                  {/* Partea principală (Stânga) */}
-                                  <span>
-                                    {trailer.licensePlate}{' '}
-                                    <span className='text-muted-foreground ml-2 text-xs'>
-                                      ({trailer.type || 'N/A'})
-                                    </span>
-                                  </span>
-
-                                  {/* Avertismentul (Dreapta) */}
-                                  {assignedVehicleNumber && (
-                                    <span className='text-red-500 text-xs ml-4 font-medium'>
-                                      (Folosită de {assignedVehicleNumber})
-                                    </span>
-                                  )}
-                                </div>
-                              </SelectItem>
-                            )
-                          })}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {/* Note Livrare */}
+                {/* Note Livrare (Apare Mereu) */}
                 <FormField
                   control={form.control}
                   name='deliveryNotes'

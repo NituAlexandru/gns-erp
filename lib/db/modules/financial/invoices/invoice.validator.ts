@@ -18,6 +18,8 @@ export const FiscalAddressSchema = z.object({
   codPostal: z.string().min(1, 'Codul poștal este obligatoriu.'),
   tara: z.string().min(2, 'Codul țării este obligatoriu (ex: RO).'),
   alteDetalii: z.string().optional(),
+  persoanaContact: z.string().optional(),
+  telefonContact: z.string().optional(),
 })
 
 // Snapshot-ul companiei tale

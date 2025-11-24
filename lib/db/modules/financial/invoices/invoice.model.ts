@@ -72,6 +72,8 @@ const FiscalAddressSubSchema = new Schema(
     codPostal: { type: String, required: true },
     tara: { type: String, required: true },
     alteDetalii: { type: String },
+    persoanaContact: { type: String },
+    telefonContact: { type: String },
   },
   { _id: false }
 )
@@ -300,7 +302,7 @@ InvoiceSchema.pre('save', function (next) {
       // Nu modificăm statusul dacă este Anulată
       return next()
     }
-    
+
     // Logica de marcare automată
     if (remaining <= 0.001 && paid >= total) {
       // Dacă restul e zero și suma plătită acoperă totalul

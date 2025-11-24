@@ -120,6 +120,8 @@ export interface NewDeliveryData {
   deliveryDate?: Date
   deliverySlots?: string[]
   vehicleType: string
+  deliveryType: string
+  isThirdPartyHauler: boolean
   deliveryNotes?: string
   orderNotes?: string
   uitCode?: string
@@ -144,7 +146,15 @@ export interface NewDeliveryData {
     grandTotal: number
   }
 }
-
+export type CompanyAddressSnapshot = {
+  judet: string
+  localitate: string
+  strada: string
+  numar?: string
+  codPostal: string
+  tara?: string
+  alteDetalii?: string
+}
 // Tipul final pentru insert (backend)
 export type DeliveryDataForInsert = NewDeliveryData & {
   deliveryNumber: string

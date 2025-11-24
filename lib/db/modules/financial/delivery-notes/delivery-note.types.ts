@@ -104,6 +104,9 @@ export interface DeliveryNoteDTO {
     numar: string
     codPostal: string
     alteDetalii?: string
+    tara?: string
+    persoanaContact?: string
+    telefonContact?: string
   }
   salesAgentSnapshot: { name: string }
   items: DeliveryNoteLineDTO[]

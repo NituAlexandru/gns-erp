@@ -6,7 +6,16 @@ import {
 } from '@/lib/db/modules/deliveries/delivery.model'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { CalendarCog, User, Truck, MapPin } from 'lucide-react'
+import {
+  CalendarCog,
+  User,
+  Truck,
+  MapPin,
+  Store,
+  ExternalLink,
+  Package,
+  Box,
+} from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -16,6 +25,7 @@ import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { Badge } from '@/components/ui/badge'
 import { DELIVERY_STATUS_MAP } from '@/lib/db/modules/deliveries/constants'
+import { DELIVERY_METHODS } from '@/lib/db/modules/order/constants'
 
 interface UnassignedDeliveryCardProps {
   delivery: IDelivery
@@ -26,6 +36,14 @@ export function UnassignedDeliveryCard({
   delivery,
   onSchedule,
 }: UnassignedDeliveryCardProps) {
+  const deliveryMethodLabel =
+    DELIVERY_METHODS.find((m) => m.key === delivery.deliveryType)?.label ||
+    delivery.deliveryType ||
+    'Livrare Standard'
+
+  const isThirdParty = delivery.isThirdPartyHauler
+  const isPickUp = delivery.deliveryType === 'PICK_UP_SALE'
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -90,9 +108,40 @@ export function UnassignedDeliveryCard({
               <span className='truncate text-primary'>
                 {delivery.vehicleType}
               </span>
+            </div>{' '}
+            <div className=' font-bold mt-2 flex flex-col gap-0.5'>
+              {isPickUp && (
+                <div className='flex items-center gap-2  font-bold'>
+                  <Store className='h-3 w-3' />
+                  <span className='text-red-600'>{deliveryMethodLabel}</span>
+                </div>
+              )}
+
+              {/* CAZ 2: TRANSPORTATOR TERȚ (Indiferent de metodă) */}
+              {isThirdParty && (
+                <div className='flex flex-col gap-1'>
+                  {/* Afișăm metoda (ex: Vânzare Directă) */}
+                  <div className='flex items-center gap-2 text-muted-foreground font-semibold'>
+                    <Package className='h-3 w-3' />{' '}
+                    <span className=' text-red-600'>{deliveryMethodLabel}</span>
+                  </div>
+                  {/* Afișăm eticheta de Terț distinct */}
+                  <div className='flex items-center gap-2  font-bold'>
+                    <ExternalLink className='h-3 w-3' />
+                    <span className='text-red-600'>Transportator Terț</span>
+                  </div>
+                </div>
+              )}
+
+              {/* CAZ 3: FLOTĂ PROPRIE (Nici PickUp, Nici Terț) */}
+              {!isPickUp && !isThirdParty && (
+                <div className='flex items-center gap-2 font-bold '>
+                  <Box className='h-3 w-3' />
+                  <span className='text-red-600'>{deliveryMethodLabel}</span>
+                </div>
+              )}
             </div>
             {/* Articole */}
-
             {/* Sloturi Solicitate */}
             <div className='font-semibold text-foreground pt-1'>
               <p>

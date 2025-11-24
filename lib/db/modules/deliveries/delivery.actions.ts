@@ -5,7 +5,11 @@ import mongoose, { FilterQuery, Types } from 'mongoose'
 import { revalidatePath } from 'next/cache'
 import { formatError, round2 } from '@/lib/utils'
 import { auth } from '@/auth'
-import DeliveryModel, { IDelivery, IDeliveryLineItem } from './delivery.model'
+import DeliveryModel, {
+  DeliveryAddress,
+  IDelivery,
+  IDeliveryLineItem,
+} from './delivery.model'
 import OrderModel, { IOrder } from '../order/order.model'
 import {
   IOrderLineItem,
@@ -15,6 +19,7 @@ import {
   PlannerItem,
   PlannedDelivery,
   DeliveryStatusKey,
+  CompanyAddressSnapshot,
 } from './types'
 import { generateDeliveryNumber } from '../numbering/numbering.actions'
 import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns'
@@ -24,6 +29,7 @@ import AssignmentModel from '../fleet/assignments/assignments.model'
 import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
 import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import TrailerModel from '../fleet/trailers/trailers.model'
+import { getSetting } from '../setting/setting.actions'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -139,7 +145,8 @@ function createSingleDeliveryDocument(
   plan: PlannedDelivery,
   originalOrder: IOrder,
   originalLinesMap: Map<string, IOrderLineItem>,
-  user: { id: string; name: string }
+  user: { id: string; name: string },
+  companyAddress?: CompanyAddressSnapshot
 ): NewDeliveryData {
   const deliveryLinesData = plan.items.map((item) => {
     const originalLine = originalLinesMap.get(item.orderLineItemId!)
@@ -151,6 +158,25 @@ function createSingleDeliveryDocument(
   })
   const deliveryTotals = calculateDeliveryTotals(deliveryLinesData)
 
+  let finalAddress: DeliveryAddress = JSON.parse(
+    JSON.stringify(originalOrder.deliveryAddress)
+  )
+
+  // Dacă e Ridicare Client și avem adresa companiei
+  if (originalOrder.deliveryType === 'PICK_UP_SALE' && companyAddress) {
+    finalAddress = {
+      judet: companyAddress.judet,
+      localitate: companyAddress.localitate,
+      strada: companyAddress.strada,
+      numar: companyAddress.numar || '-',
+      codPostal: companyAddress.codPostal,
+      tara: companyAddress.tara || 'RO',
+      alteDetalii: 'Ridicare din Depozit',
+      persoanaContact: undefined,
+      telefonContact: undefined,
+    }
+  }
+
   if (!originalOrder.deliveryAddressId)
     throw new Error(`Comanda ${originalOrder.orderNumber} nu are ID adresă.`)
 
@@ -160,6 +186,8 @@ function createSingleDeliveryDocument(
     deliveryDate: plan.deliveryDate, // Rămâne undefined la creare
     deliverySlots: plan.deliverySlots, //
     vehicleType: originalOrder.estimatedVehicleType || 'N/A',
+    deliveryType: originalOrder.deliveryType,
+    isThirdPartyHauler: originalOrder.isThirdPartyHauler || false,
     createdBy: new Types.ObjectId(user.id),
     createdByName: user.name,
     orderId: new Types.ObjectId(originalOrder._id),
@@ -168,7 +196,7 @@ function createSingleDeliveryDocument(
     clientSnapshot: originalOrder.clientSnapshot,
     salesAgent: new Types.ObjectId(originalOrder.salesAgent),
     salesAgentSnapshot: originalOrder.salesAgentSnapshot,
-    deliveryAddress: originalOrder.deliveryAddress,
+    deliveryAddress: finalAddress,
     deliveryAddressId: new Types.ObjectId(originalOrder.deliveryAddressId),
     items: deliveryLinesData,
     totals: deliveryTotals,
@@ -183,6 +211,9 @@ export async function createSingleDelivery(
   plan: PlannedDelivery
 ) {
   await connectToDatabase()
+
+  const settings = await getSetting()
+  const companyAddress = settings?.address
 
   const mongoSession = await mongoose.startSession()
   mongoSession.startTransaction()
@@ -210,7 +241,8 @@ export async function createSingleDelivery(
       plan,
       originalOrder,
       originalLinesMap,
-      user
+      user,
+      companyAddress
     )
 
     // 2. Generăm numărul de livrare folosind funcția atomică
@@ -530,18 +562,15 @@ export async function scheduleDelivery(
     if (!deliveryId || !mongoose.Types.ObjectId.isValid(deliveryId)) {
       throw new Error('ID Livrare invalid.')
     }
-    if (!data.assemblyId || !mongoose.Types.ObjectId.isValid(data.assemblyId)) {
-      throw new Error('ID Ansamblu invalid.')
-    }
 
-    //  Găsim livrarea
+    // Găsim livrarea pentru a verifica tipul ei
     const delivery =
       await DeliveryModel.findById(deliveryId).session(mongoSession)
     if (!delivery) {
       throw new Error('Livrarea nu a fost găsită.')
     }
 
-    //  Verificăm statusul (nu poți programa ceva anulat/facturat)
+    // Verificăm statusul
     const editableStatuses: DeliveryStatusKey[] = ['CREATED', 'SCHEDULED']
     if (!editableStatuses.includes(delivery.status)) {
       throw new Error(
@@ -549,95 +578,108 @@ export async function scheduleDelivery(
       )
     }
 
-    // --- VALIDARE SUPRAPUNERE  ---
+    // --- VALIDARE CONDITIONALĂ PENTRU ASSEMBLY ---
+    // Este 'specială' dacă e Ridicare sau Terț
+    const isSpecialDelivery =
+      delivery.deliveryType === 'PICK_UP_SALE' ||
+      delivery.isThirdPartyHauler === true
 
-    const slotsToBook = data.deliverySlots
-    // Verificăm dacă se dorește blocarea întregii zile
-    const isBookingAllDay = slotsToBook.includes('08:00 - 17:00')
-
-    // Construim interogarea de bază pentru suprapunere
-    const overlapQuery: FilterQuery<IDelivery> = {
-      _id: { $ne: deliveryId }, // Exclude livrarea curentă
-      assemblyId: new Types.ObjectId(data.assemblyId), // Același ansamblu
-      deliveryDate: {
-        $gte: startOfDay(data.deliveryDate),
-        $lte: endOfDay(data.deliveryDate),
-      },
-      status: { $ne: 'CANCELLED' },
+    // Dacă NU e specială (deci e flotă proprie), assemblyId este OBLIGATORIU
+    if (!isSpecialDelivery) {
+      if (
+        !data.assemblyId ||
+        !mongoose.Types.ObjectId.isValid(data.assemblyId)
+      ) {
+        throw new Error(
+          'Trebuie să selectezi un ansamblu (șofer/vehicul) pentru livrările cu flotă proprie.'
+        )
+      }
     }
+    // --------------------------------------------
 
-    if (isBookingAllDay) {
-      // Dacă vrem să rezervăm TOATĂ ziua, verificăm dacă există ORICE altă livrare (care are sloturi) în acea zi
-      overlapQuery.deliverySlots = { $exists: true, $ne: [] }
-    } else {
-      // Dacă vrem să rezervăm sloturi individuale, verificăm dacă se suprapun
-      // cu alte sloturi individuale SAU cu o rezervare "Toată Ziua" existentă
-      overlapQuery.$or = [
-        { deliverySlots: { $in: slotsToBook } }, // Se suprapune cu cel puțin un slot
-        { deliverySlots: '08:00 - 17:00' }, // Sau există deja o rezervare "Toată Ziua"
-      ]
+    // --- VALIDARE SUPRAPUNERE (Doar pentru Flotă Proprie) ---
+    // Dacă e specială, nu verificăm suprapunerea șoferilor (că nu există șofer intern)
+    if (!isSpecialDelivery && data.assemblyId) {
+      const slotsToBook = data.deliverySlots
+      const isBookingAllDay = slotsToBook.includes('08:00 - 17:00')
+
+      const overlapQuery: FilterQuery<IDelivery> = {
+        _id: { $ne: deliveryId },
+        assemblyId: new Types.ObjectId(data.assemblyId),
+        deliveryDate: {
+          $gte: startOfDay(data.deliveryDate),
+          $lte: endOfDay(data.deliveryDate),
+        },
+        status: { $ne: 'CANCELLED' },
+      }
+
+      if (isBookingAllDay) {
+        overlapQuery.deliverySlots = { $exists: true, $ne: [] }
+      } else {
+        overlapQuery.$or = [
+          { deliverySlots: { $in: slotsToBook } },
+          { deliverySlots: '08:00 - 17:00' },
+        ]
+      }
+
+      const existingOverlap = await DeliveryModel.findOne(overlapQuery)
+        .session(mongoSession)
+        .lean()
+
+      if (existingOverlap) {
+        throw new Error(
+          `Suprapunere detectată. Ansamblul este deja programat pe slotul/sloturile selectate (Livrarea ${existingOverlap.deliveryNumber}).`
+        )
+      }
     }
+    // --------------------------------------------------------
 
-    // Căutăm suprapunerea
-    const existingOverlap = await DeliveryModel.findOne(overlapQuery)
-      .session(mongoSession)
-      .lean()
-
-    if (existingOverlap) {
-      throw new Error(
-        `Suprapunere detectată. Ansamblul este deja programat pe slotul/sloturile selectate (Livrarea ${existingOverlap.deliveryNumber}).`
-      )
-    }
-
-    // Găsim ansamblul pentru a crea snapshot-ul
-    const assignment = await AssignmentModel.findById(data.assemblyId)
-      .populate<{ driverId: { name: string } }>('driverId', 'name')
-      .populate<{ vehicleId: { carNumber: string } }>('vehicleId', 'carNumber')
-      .lean<IPopulatedAssignmentDoc>()
-
-    if (!assignment) {
-      throw new Error('Ansamblul selectat nu a fost găsit.')
-    }
-
-    // Verificăm tipurile populate (Fără 'as any')
-    const driverName =
-      assignment.driverId && typeof assignment.driverId === 'object'
-        ? assignment.driverId.name
-        : 'N/A'
-    const finalDriverId =
-      assignment.driverId && typeof assignment.driverId === 'object'
-        ? assignment.driverId._id
-        : null
-
-    const vehicleNumber =
-      assignment.vehicleId && typeof assignment.vehicleId === 'object'
-        ? assignment.vehicleId.carNumber
-        : 'N/A'
-    const finalVehicleId =
-      assignment.vehicleId && typeof assignment.vehicleId === 'object'
-        ? assignment.vehicleId._id
-        : null
-
+    // Pregătire date ansamblu (Dacă există)
+    let finalDriverId = null
+    let driverName = undefined
+    let finalVehicleId = null
+    let vehicleNumber = undefined
     let finalTrailerId: Types.ObjectId | null = null
     let finalTrailerNumber: string | undefined = undefined
 
-    if (data.trailerId && data.trailerId !== 'none') {
-      // Cazul 1: O remorcă specifică a fost selectată în formular
-      finalTrailerId = new Types.ObjectId(data.trailerId)
+    if (data.assemblyId && !isSpecialDelivery) {
+      const assignment = await AssignmentModel.findById(data.assemblyId)
+        .populate<{ driverId: { name: string } }>('driverId', 'name')
+        .populate<{
+          vehicleId: { carNumber: string }
+        }>('vehicleId', 'carNumber')
+        .lean<IPopulatedAssignmentDoc>()
 
-      // Căutăm remorca pentru a-i crea snapshot-ul
-      const selectedTrailer = await TrailerModel.findById(finalTrailerId)
-        .lean()
-        .session(mongoSession)
+      if (!assignment) throw new Error('Ansamblul selectat nu a fost găsit.')
 
-      if (!selectedTrailer) {
-        throw new Error('Remorca selectată (trailerId) nu a fost găsită.')
+      driverName =
+        assignment.driverId && typeof assignment.driverId === 'object'
+          ? assignment.driverId.name
+          : 'N/A'
+      finalDriverId =
+        assignment.driverId && typeof assignment.driverId === 'object'
+          ? assignment.driverId._id
+          : null
+
+      vehicleNumber =
+        assignment.vehicleId && typeof assignment.vehicleId === 'object'
+          ? assignment.vehicleId.carNumber
+          : 'N/A'
+      finalVehicleId =
+        assignment.vehicleId && typeof assignment.vehicleId === 'object'
+          ? assignment.vehicleId._id
+          : null
+
+      // Remorcă
+      if (data.trailerId && data.trailerId !== 'none') {
+        finalTrailerId = new Types.ObjectId(data.trailerId)
+        const selectedTrailer = await TrailerModel.findById(finalTrailerId)
+          .lean()
+          .session(mongoSession)
+        if (!selectedTrailer)
+          throw new Error('Remorca selectată nu a fost găsită.')
+        finalTrailerNumber = selectedTrailer.licensePlate
       }
-      finalTrailerNumber = selectedTrailer.licensePlate
-    } else if (data.trailerId === 'none') {
-      // Cazul 2: S-a selectat explicit "Fără Remorcă"
-      finalTrailerId = null
-      finalTrailerNumber = undefined
     }
 
     // Actualizăm documentul de livrare
@@ -645,14 +687,23 @@ export async function scheduleDelivery(
       status: 'SCHEDULED',
       deliveryDate: data.deliveryDate,
       deliverySlots: data.deliverySlots,
-      assemblyId: new Types.ObjectId(data.assemblyId),
+
+      // Dacă e specială, assemblyId devine null
+      assemblyId: isSpecialDelivery
+        ? null
+        : data.assemblyId
+          ? new Types.ObjectId(data.assemblyId)
+          : null,
+
       driverId: finalDriverId,
       vehicleId: finalVehicleId,
       trailerId: finalTrailerId,
       deliveryNotes: data.deliveryNotes,
-      driverName: driverName,
+
+      driverName: driverName, // Va fi undefined pt speciale
       vehicleNumber: vehicleNumber,
       trailerNumber: finalTrailerNumber,
+
       lastUpdatedBy: new Types.ObjectId(user.id),
       lastUpdatedByName: user.name,
     })
