@@ -403,6 +403,7 @@ export const AVAILABLE_DELIVERY_DATES = [
     message: 'Nu implica costuri extra',
   },
 ]
+export const CHUNK_SIZE = 7 // Afișăm 7 ansambluri pe rând
 export const ADMIN_PAGE_SIZE = 14
 export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 12)
 export const CLIENT_DETAIL_PAGE_SIZE = Number(

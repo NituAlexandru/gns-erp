@@ -11,6 +11,8 @@ import { IDelivery } from '@/lib/db/modules/deliveries/delivery.model'
 import { sanitizeForClient } from '@/lib/utils'
 import TrailerModel from '@/lib/db/modules/fleet/trailers/trailers.model'
 import { ITrailerDoc } from '@/lib/db/modules/fleet/trailers/types'
+import { getBlocksForDate } from '@/lib/db/modules/deliveries/availability/availability.actions'
+import { IFleetAvailabilityDoc } from '@/lib/db/modules/deliveries/availability/availability.model'
 
 interface PlannerPageProps {
   searchParams: Promise<{ date?: string }>
@@ -28,14 +30,16 @@ export default async function LogisticsPlannerPage({
 
   const [
     unassignedDeliveriesRaw,
-    allAssignedDeliveriesRaw, // Am redenumit variabila pentru claritate
+    allAssignedDeliveriesRaw,
     assignmentsRaw,
     trailersRaw,
+    timeBlocksRaw,
   ] = await Promise.all([
     getUnassignedDeliveriesForDate(selectedDate),
     getAssignedDeliveriesForDate(selectedDate),
     getActiveAssignments(),
     TrailerModel.find().lean(),
+    getBlocksForDate(selectedDate),
   ])
 
   const unassignedDeliveries = sanitizeForClient(unassignedDeliveriesRaw)
@@ -44,8 +48,8 @@ export default async function LogisticsPlannerPage({
   ) as IDelivery[]
   const assignments = sanitizeForClient(assignmentsRaw)
   const availableTrailers = sanitizeForClient(trailersRaw)
+  const timeBlocks = sanitizeForClient(timeBlocksRaw) as IFleetAvailabilityDoc[]
 
-  // --- FILTRARE LIVRĂRI SPECIALE (Server Side) ---
   const pickUpDeliveries = allAssignedDeliveries.filter(
     (d) => d.deliveryType === 'PICK_UP_SALE'
   )
@@ -54,12 +58,9 @@ export default async function LogisticsPlannerPage({
     (d) => d.isThirdPartyHauler === true && d.deliveryType !== 'PICK_UP_SALE'
   )
 
-  // Livrările de flotă sunt restul (cele care au un assemblyId valid)
-  // SAU cele care nu sunt nici PickUp nici Terț (pentru siguranță)
   const fleetDeliveries = allAssignedDeliveries.filter(
     (d) => d.deliveryType !== 'PICK_UP_SALE' && d.isThirdPartyHauler !== true
   )
-  // -----------------------------------------------
 
   return (
     <div className='space-y-1'>
@@ -67,12 +68,12 @@ export default async function LogisticsPlannerPage({
         <LogisticsPlannerClient
           initialSelectedDate={selectedDate}
           unassignedDeliveries={unassignedDeliveries as IDelivery[]}
-          // Trimitem listele separate
-          assignedDeliveries={fleetDeliveries} // Grid-ul primește doar Flota
-          pickUpDeliveries={pickUpDeliveries} // Listă nouă
-          thirdPartyDeliveries={thirdPartyDeliveries} // Listă nouă
+          assignedDeliveries={fleetDeliveries}
+          pickUpDeliveries={pickUpDeliveries}
+          thirdPartyDeliveries={thirdPartyDeliveries}
           assignments={assignments as IPopulatedAssignmentDoc[]}
           availableTrailers={availableTrailers as ITrailerDoc[]}
+          timeBlocks={timeBlocks}
         />
       </Suspense>
     </div>

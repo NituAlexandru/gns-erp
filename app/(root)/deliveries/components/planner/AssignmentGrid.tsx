@@ -5,6 +5,8 @@ import { IDelivery } from '@/lib/db/modules/deliveries/delivery.model'
 import { IPopulatedAssignmentDoc } from '@/lib/db/modules/fleet/assignments/types'
 import { DELIVERY_SLOTS } from '@/lib/db/modules/deliveries/constants'
 import { AssignmentGridRow } from './AssignmentGridRow' // <-- IMPORT NOU
+import { IFleetAvailabilityDoc } from '@/lib/db/modules/deliveries/availability/availability.model'
+import { CHUNK_SIZE } from '@/lib/constants'
 
 type DeliverySlot = (typeof DELIVERY_SLOTS)[number]
 type DisplaySlot = Exclude<DeliverySlot, '08:00 - 17:00'>
@@ -12,7 +14,9 @@ type DisplaySlot = Exclude<DeliverySlot, '08:00 - 17:00'>
 interface AssignmentGridProps {
   assignments: IPopulatedAssignmentDoc[]
   assignedDeliveries: IDelivery[]
+  timeBlocks: IFleetAvailabilityDoc[]
   onSchedule: (delivery: IDelivery) => void
+  selectedDate: Date
 }
 
 type DeliveryCardInfo = {
@@ -38,7 +42,9 @@ function chunkArray<T>(array: T[], size: number): T[][] {
 export function AssignmentGrid({
   assignments,
   assignedDeliveries,
+  timeBlocks,
   onSchedule,
+  selectedDate,
 }: AssignmentGridProps) {
   // --- Pregătirea Datelor (Map-ul global - neschimbat) ---
   const deliveryMap = useMemo(() => {
@@ -78,15 +84,13 @@ export function AssignmentGrid({
   }, [assignedDeliveries])
 
   // --- Logica de Împărțire (Chunking) ---
-  const CHUNK_SIZE = 7 // Afișăm 7 ansambluri pe rând
+
   const assignmentChunks = useMemo(
     () => chunkArray(assignments, CHUNK_SIZE),
     [assignments]
   )
 
-  // --- Randarea ---
   return (
-    // Container principal care ține rândurile de grid stivuite vertical
     <div className='space-y-4'>
       {assignmentChunks.map((chunk, index) => (
         <AssignmentGridRow
@@ -94,7 +98,9 @@ export function AssignmentGrid({
           assignmentsForRow={chunk}
           displaySlots={displaySlots}
           deliveryMap={deliveryMap}
+          timeBlocks={timeBlocks}
           onSchedule={onSchedule}
+          selectedDate={selectedDate}
         />
       ))}
     </div>

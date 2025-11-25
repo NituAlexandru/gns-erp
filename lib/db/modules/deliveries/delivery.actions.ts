@@ -30,6 +30,7 @@ import { IPopulatedAssignmentDoc } from '../fleet/assignments/types'
 import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import TrailerModel from '../fleet/trailers/trailers.model'
 import { getSetting } from '../setting/setting.actions'
+import FleetAvailabilityModel from './availability/availability.model'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -579,12 +580,10 @@ export async function scheduleDelivery(
     }
 
     // --- VALIDARE CONDITIONALĂ PENTRU ASSEMBLY ---
-    // Este 'specială' dacă e Ridicare sau Terț
     const isSpecialDelivery =
       delivery.deliveryType === 'PICK_UP_SALE' ||
       delivery.isThirdPartyHauler === true
 
-    // Dacă NU e specială (deci e flotă proprie), assemblyId este OBLIGATORIU
     if (!isSpecialDelivery) {
       if (
         !data.assemblyId ||
@@ -595,14 +594,13 @@ export async function scheduleDelivery(
         )
       }
     }
-    // --------------------------------------------
 
     // --- VALIDARE SUPRAPUNERE (Doar pentru Flotă Proprie) ---
-    // Dacă e specială, nu verificăm suprapunerea șoferilor (că nu există șofer intern)
     if (!isSpecialDelivery && data.assemblyId) {
       const slotsToBook = data.deliverySlots
       const isBookingAllDay = slotsToBook.includes('08:00 - 17:00')
 
+      // 1. Verificăm suprapunerea cu alte LIVRĂRI
       const overlapQuery: FilterQuery<IDelivery> = {
         _id: { $ne: deliveryId },
         assemblyId: new Types.ObjectId(data.assemblyId),
@@ -631,8 +629,35 @@ export async function scheduleDelivery(
           `Suprapunere detectată. Ansamblul este deja programat pe slotul/sloturile selectate (Livrarea ${existingOverlap.deliveryNumber}).`
         )
       }
+
+      // 2. Verificăm suprapunerea cu BLOCAJE (ITP/Service) - COD NOU
+      const overlapBlockQuery: FilterQuery<typeof FleetAvailabilityModel> = {
+        assignmentId: new Types.ObjectId(data.assemblyId),
+        date: {
+          $gte: startOfDay(data.deliveryDate),
+          $lte: endOfDay(data.deliveryDate),
+        },
+      }
+
+      if (isBookingAllDay) {
+        // Dacă livrarea e toată ziua, orice blocaj pe acea zi e o problemă
+        overlapBlockQuery.slots = { $exists: true, $ne: [] }
+      } else {
+        // Dacă livrarea e pe ore, verificăm suprapunerea sloturilor
+        overlapBlockQuery.slots = { $in: slotsToBook }
+      }
+
+      // Folosim findOne().lean() fără sesiune (de obicei nu e nevoie de sesiune pt citire Availability, dar e safe)
+      const existingBlock =
+        await FleetAvailabilityModel.findOne(overlapBlockQuery).lean()
+
+      if (existingBlock) {
+        throw new Error(
+          `Interval indisponibil. Există o notiță (${existingBlock.type}) pe acest interval.`
+        )
+      }
+      // ------------------------------------------------------------
     }
-    // --------------------------------------------------------
 
     // Pregătire date ansamblu (Dacă există)
     let finalDriverId = null
@@ -688,7 +713,6 @@ export async function scheduleDelivery(
       deliveryDate: data.deliveryDate,
       deliverySlots: data.deliverySlots,
 
-      // Dacă e specială, assemblyId devine null
       assemblyId: isSpecialDelivery
         ? null
         : data.assemblyId
@@ -700,7 +724,7 @@ export async function scheduleDelivery(
       trailerId: finalTrailerId,
       deliveryNotes: data.deliveryNotes,
 
-      driverName: driverName, // Va fi undefined pt speciale
+      driverName: driverName,
       vehicleNumber: vehicleNumber,
       trailerNumber: finalTrailerNumber,
 

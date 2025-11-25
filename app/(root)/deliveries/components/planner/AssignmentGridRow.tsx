@@ -1,146 +1,214 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useState, useMemo } from 'react'
 import { IDelivery } from '@/lib/db/modules/deliveries/delivery.model'
 import { IPopulatedAssignmentDoc } from '@/lib/db/modules/fleet/assignments/types'
 import { DELIVERY_SLOTS } from '@/lib/db/modules/deliveries/constants'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { AssignmentHeaderCell } from './grid/AssignmentHeaderCell'
 import { AssignedDeliveryCard } from './grid/AssignedDeliveryCard'
+import { TimeBlockCard } from './grid/TimeBlockCard'
+import { BlockTimeModal } from './BlockTimeModal'
+import { Plus } from 'lucide-react'
+import { IFleetAvailabilityDoc } from '@/lib/db/modules/deliveries/availability/availability.model'
+import { AssignmentHeaderCell } from './grid/AssignmentHeaderCell'
 
 type DeliverySlot = (typeof DELIVERY_SLOTS)[number]
 type DisplaySlot = Exclude<DeliverySlot, '08:00 - 17:00'>
-// Tipul pentru harta globală a livrărilor
+
+// Tipuri Hărți
+type DeliveryCardInfo = { delivery: IDelivery; startSlot: string; span: number }
+type BlockCardInfo = { block: IFleetAvailabilityDoc; span: number }
 type DeliveryMap = Map<string, DeliveryCardInfo>
 
-// Tipul pentru un card individual
-type DeliveryCardInfo = {
-  delivery: IDelivery
-  startSlot: string
-  span: number
-}
-
 interface AssignmentGridRowProps {
-  assignmentsForRow: IPopulatedAssignmentDoc[] // Doar ansamblurile pt acest rând
-  displaySlots: DisplaySlot[] // Lista sloturilor vizibile
-  deliveryMap: DeliveryMap // Harta globală cu TOATE livrările
+  assignmentsForRow: IPopulatedAssignmentDoc[]
+  displaySlots: DisplaySlot[]
+  deliveryMap: DeliveryMap
+  timeBlocks: IFleetAvailabilityDoc[]
   onSchedule: (delivery: IDelivery) => void
+  selectedDate: Date
 }
 
 export function AssignmentGridRow({
   assignmentsForRow,
   displaySlots,
   deliveryMap,
+  timeBlocks,
   onSchedule,
+  selectedDate,
 }: AssignmentGridRowProps) {
-  // --- Randarea Grid-ului (doar pentru acest rând) ---
-  // Numărul total de coloane: 1 (pentru ore) + numărul de ansambluri din acest rând
+  // State pentru Modalul de Blocare
+  const [blockModalOpen, setBlockModalOpen] = useState(false)
+  const [selectedCell, setSelectedCell] = useState<{
+    assignmentId: string
+    slot: string
+  } | null>(null)
+
+  // --- 1. Construim Harta Blocajelor (Memoizat) ---
+  const blockMap = useMemo(() => {
+    const map = new Map<string, BlockCardInfo>()
+    // Adăugat fallback (|| []) pentru siguranță
+    const blocks = timeBlocks || []
+
+    blocks.forEach((block) => {
+      const belongsToRow = assignmentsForRow.some(
+        (a) => a._id === block.assignmentId.toString()
+      )
+      if (belongsToRow && block.slots && block.slots.length > 0) {
+        const startSlot = block.slots[0]
+        const span = block.slots.includes('08:00 - 17:00')
+          ? displaySlots.length
+          : block.slots.length
+        const actualStartSlot = block.slots.includes('08:00 - 17:00')
+          ? displaySlots[0]
+          : startSlot
+        const key = `${block.assignmentId.toString()}-${actualStartSlot}`
+        map.set(key, { block, span })
+      }
+    })
+    return map
+  }, [timeBlocks, assignmentsForRow, displaySlots])
+
+  const handleCellClick = (assignmentId: string, slot: string) => {
+    setSelectedCell({ assignmentId, slot })
+    setBlockModalOpen(true)
+  }
+
   const gridColsClass = `grid-cols-[100px_repeat(${assignmentsForRow.length},_minmax(180px,_1fr))]`
-  // Numărul total de rânduri: 1 (header) + numărul de sloturi VIZIBILE
   const gridRowsClass = `grid-rows-[auto_repeat(${displaySlots.length},_minmax(80px,_auto))]`
 
   return (
     <TooltipProvider>
       <div
         className={`grid ${gridColsClass} ${gridRowsClass} border-l border-t border-border`}
-        // Stilurile sunt calculate pe baza assignmentsForRow.length
         style={{
           gridTemplateColumns: `100px repeat(${assignmentsForRow.length}, minmax(100px, 1fr))`,
           gridTemplateRows: `auto repeat(${displaySlots.length}, minmax(50px, auto))`,
         }}
       >
-        {/* --- Rândul 1: Header (Ore + Ansamblurile din rând) --- */}
-
-        {/* Celulă goală colț stânga-sus */}
+        {/* Header */}
         <div className='p-2 border-r border-b border-border bg-muted/50 sticky top-0 z-10'>
           <span className='font-semibold text-sm'>Orar</span>
         </div>
-
-        {/* Header Ansambluri (Șoferi) - mapăm DOAR assignmentsForRow */}
         {assignmentsForRow.map((asm) => (
           <AssignmentHeaderCell key={asm._id} assignment={asm} />
         ))}
 
-        {/* --- Rândurile 2+: Sloturi Orar și Celule de Livrare --- */}
-
+        {/* Body */}
         {displaySlots.map((slot, slotIndex) => (
           <Fragment key={slot}>
-            {/* Celula 1: Ora */}
+            {/* Coloana Ora */}
             <div
-              key={slot} 
               className='p-2 border-r border-b border-border bg-muted/30 text-xs font-medium sticky left-0'
               style={{ gridRow: slotIndex + 2 }}
             >
               {slot}
             </div>
 
-            {/* Celulele de conținut (Livrările) - mapăm DOAR assignmentsForRow */}
             {assignmentsForRow.map((asm, asmIndex) => {
-              const key = `${asm._id}-${slot}`
-              const cardInfo = deliveryMap.get(key)
+              const cellKey = `${asm._id}-${slot}`
 
-              // Dacă există un card care ÎNCEPE în această celulă
-              if (cardInfo) {
-                const { span } = cardInfo
-
+              // A. Verificăm Livrări
+              const deliveryInfo = deliveryMap.get(cellKey)
+              if (deliveryInfo) {
                 return (
                   <div
-                    key={key}
-                    className='p-1 border-r border-b border-border relative'
+                    key={`del-${cellKey}`}
+                    className='p-1 border-r border-b border-border relative z-10'
                     style={{
-                      gridColumn: asmIndex + 2, // +2 pt coloana de ore
-                      gridRow: `${slotIndex + 2} / span ${span}`, // Întindere
+                      gridColumn: asmIndex + 2,
+                      gridRow: `${slotIndex + 2} / span ${deliveryInfo.span}`,
                     }}
                   >
                     <AssignedDeliveryCard
-                      cardInfo={cardInfo}
+                      cardInfo={{ ...deliveryInfo, startSlot: slot }}
                       onSchedule={onSchedule}
                     />
                   </div>
                 )
               }
 
-              // Verificăm dacă această celulă este DEJA OCUPATĂ
-              let isOccupied = false
-              for (const [mapKey, { span }] of deliveryMap.entries()) {
-                const [mapAsmId, mapStartSlot] = mapKey.split('-')
-                const mapSlotIndex = displaySlots.indexOf(
-                  mapStartSlot as DisplaySlot
+              // B. Verificăm Blocaje
+              const blockInfo = blockMap.get(cellKey)
+              if (blockInfo) {
+                return (
+                  <div
+                    key={`blk-${cellKey}`}
+                    className='p-1 border-r border-b border-border relative z-10'
+                    style={{
+                      gridColumn: asmIndex + 2,
+                      gridRow: `${slotIndex + 2} / span ${blockInfo.span}`,
+                    }}
+                  >
+                    <TimeBlockCard block={blockInfo.block} />
+                  </div>
                 )
-                if (mapSlotIndex === -1) continue
+              }
 
+              // C. Verificăm dacă celula e "acoperită" (span) de altcineva de sus
+              let isOccupied = false
+
+              // Check Deliveries Span
+              for (const [k, v] of deliveryMap.entries()) {
+                const [id, s] = k.split('-')
+                const idx = displaySlots.indexOf(s as DisplaySlot)
                 if (
-                  mapAsmId === asm._id &&
-                  slotIndex > mapSlotIndex &&
-                  slotIndex < mapSlotIndex + span
+                  id === asm._id &&
+                  slotIndex > idx &&
+                  slotIndex < idx + v.span
                 ) {
                   isOccupied = true
                   break
                 }
               }
-
-              // Dacă e ocupat, nu randăm nimic
-              if (isOccupied) {
-                return null
+              // Check Blocks Span
+              if (!isOccupied) {
+                for (const [k, v] of blockMap.entries()) {
+                  const [id, s] = k.split('-')
+                  const idx = displaySlots.indexOf(s as DisplaySlot)
+                  // Fix pentru index -1 (dacă e slot invalid)
+                  if (idx === -1) continue
+                  if (
+                    id === asm._id &&
+                    slotIndex > idx &&
+                    slotIndex < idx + v.span
+                  ) {
+                    isOccupied = true
+                    break
+                  }
+                }
               }
 
-              // Dacă e goală
+              if (isOccupied) return null
+
+              // D. Celula Goală (Clickable)
               return (
                 <div
-                  key={key}
-                  className='border-r border-b border-border'
-                  style={{
-                    gridColumn: asmIndex + 2,
-                    gridRow: slotIndex + 2,
-                  }}
+                  key={`empty-${cellKey}`}
+                  className='border-r border-b border-border hover:bg-muted/20 cursor-pointer group relative h-full'
+                  style={{ gridColumn: asmIndex + 2, gridRow: slotIndex + 2 }}
+                  onClick={() => handleCellClick(asm._id, slot)}
                 >
-                  {/* Celulă goală */}
+                  <div className='absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity'>
+                    <Plus className='h-4 w-4 text-muted-foreground' />
+                  </div>
                 </div>
               )
             })}
           </Fragment>
         ))}
       </div>
+
+      {/* Modalul de Blocare */}
+      {blockModalOpen && selectedCell && (
+        <BlockTimeModal
+          isOpen={blockModalOpen}
+          onClose={() => setBlockModalOpen(false)}
+          assignmentId={selectedCell.assignmentId}
+          date={selectedDate}
+          initialSlot={selectedCell.slot}
+        />
+      )}
     </TooltipProvider>
   )
 }

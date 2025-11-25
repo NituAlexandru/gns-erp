@@ -18,6 +18,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Package, Truck } from 'lucide-react'
 import { AssignedDeliveryCard } from './planner/grid/AssignedDeliveryCard'
+import { IFleetAvailabilityDoc } from '@/lib/db/modules/deliveries/availability/availability.model'
 
 interface LogisticsPlannerClientProps {
   initialSelectedDate: Date
@@ -27,6 +28,7 @@ interface LogisticsPlannerClientProps {
   thirdPartyDeliveries: IDelivery[]
   assignments: IPopulatedAssignmentDoc[]
   availableTrailers: ITrailerDoc[]
+  timeBlocks: IFleetAvailabilityDoc[]
 }
 
 export function LogisticsPlannerClient({
@@ -37,6 +39,7 @@ export function LogisticsPlannerClient({
   thirdPartyDeliveries,
   assignments,
   availableTrailers,
+  timeBlocks,
 }: LogisticsPlannerClientProps) {
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -162,7 +165,9 @@ export function LogisticsPlannerClient({
           <AssignmentGrid
             assignments={assignments}
             assignedDeliveries={assignedDeliveries}
+            timeBlocks={timeBlocks}
             onSchedule={handleOpenScheduleModal}
+            selectedDate={initialSelectedDate}
           />
         </div>
       </div>
