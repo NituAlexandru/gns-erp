@@ -7,7 +7,7 @@ export type InternalUoM = (typeof UNITS)[number]
  * Harta de corespondență între unitățile de măsură interne
  * și codurile oficiale cerute de standardul RO e-Factura (UNECE Rec. 20).
  */
-const uomToEFacturaMap: Record<InternalUoM, string> = {
+export const uomToEFacturaMap: Record<InternalUoM, string> = {
   bucata: 'H87',
   kg: 'KGM',
   litru: 'LTR',

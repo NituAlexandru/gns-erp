@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import React from 'react'
 import SettingNav from './setting-nav'
@@ -13,6 +13,8 @@ import { ShippingRateDTO } from '@/lib/db/modules/setting/shipping-rates/types'
 import { ShippingRatesManager } from './shipping-rates/shipping-manager'
 import { ISettingInput } from '@/lib/db/modules/setting/types'
 import { CompanySettingsForm } from './components/company-settings-form'
+import { useSearchParams } from 'next/navigation'
+import { EFacturaSettings } from './efactura/efactura-settings'
 
 interface SettingsContainerProps {
   initialCompanySettings: ISettingInput | null
@@ -20,6 +22,11 @@ interface SettingsContainerProps {
   initialServices: ServiceDTO[]
   initialSeries: SeriesDTO[]
   initialShippingRates: ShippingRateDTO[]
+  anafStatus: {
+    connected: boolean
+    expiresAt?: Date
+    lastLogin?: Date
+  }
   userId: string
   children?: React.ReactNode
 }
@@ -30,10 +37,20 @@ export default function SettingsContainer({
   initialServices,
   initialSeries,
   initialShippingRates,
+  anafStatus,
   userId,
   children,
 }: SettingsContainerProps) {
   const [activeSection, setActiveSection] = useState('company-info')
+  const searchParams = useSearchParams()
+
+  // --- Detectare Redirect ANAF ---
+  useEffect(() => {
+    // Dacă URL-ul conține ?code=..., înseamnă că ne-am întors de la ANAF
+    if (searchParams.get('code')) {
+      setActiveSection('efactura')
+    }
+  }, [searchParams])
 
   return (
     <div className='grid md:grid-cols-5 max-w-7xl mx-auto gap-8'>
@@ -46,6 +63,10 @@ export default function SettingsContainer({
       <main className='md:col-span-4 space-y-6'>
         {activeSection === 'company-info' && (
           <CompanySettingsForm initialData={initialCompanySettings} />
+        )}
+
+        {activeSection === 'efactura' && (
+          <EFacturaSettings initialStatus={anafStatus} />
         )}
 
         {activeSection === 'vat-rates' && (

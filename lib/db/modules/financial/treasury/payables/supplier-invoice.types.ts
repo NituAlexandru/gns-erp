@@ -62,21 +62,16 @@ export interface ISupplierInvoiceDoc extends Document {
   invoiceNumber: string
   invoiceDate: Date
   dueDate: Date
-
   items: (SupplierInvoiceLine & { _id: Types.ObjectId })[]
   totals: SupplierInvoiceTotals
-
   status: SupplierInvoiceStatus
   paidAmount: number
   remainingAmount: number
-
   eFacturaXMLId?: string
   eFacturaIndex?: string
-
   notes?: string
   createdBy: Types.ObjectId
   createdByName: string
-
   createdAt: Date
   updatedAt: Date
 }

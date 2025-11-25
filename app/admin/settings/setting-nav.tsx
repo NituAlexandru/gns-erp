@@ -7,10 +7,16 @@ import {
   FileText,
   Truck,
   Building,
+  ShieldCheck,
 } from 'lucide-react'
 
 const navItems = [
   { name: 'Date Companie', hash: 'company-info', icon: <Building /> },
+  {
+    name: 'e-Factura (ANAF)',
+    hash: 'efactura',
+    icon: <ShieldCheck className='w-4 h-4' />,
+  },
   { name: 'Cote TVA', hash: 'vat-rates', icon: <PercentSquare /> },
   { name: 'Servicii', hash: 'services', icon: <Handshake /> },
   { name: 'Tarife Transport', hash: 'shipping-rates', icon: <Truck /> },
