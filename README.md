@@ -48,11 +48,11 @@ Adauga Nr incarcare spv la facturi (dupa finalizarea modul efactura)
 
 - Livrari\*
 
-Comenzi - acum ca am finalizat fisa de client / client summary, trebuie sa adaug informatiile "live" in comanda in selectorul de client.
-
-Livrari - in momentul de fata toate livrarile urmeaza acelasi flux, comenzile sunt finalizate, dupa se redirectioneaza la livrari, se selecteaza ce si cand se livreaza si se creaza livrarea. Trebuie separat fluxul pentru edge caseuri, respectiv, pentru comenzile pe care le ridica clientul, acesta trebuie programat, dar nu are nevoie sa se selecteze tipul de masina si nici sa se puna transport (tipul de maisna se alege la toate acum, la asta ar trebui sa apara ridicare client), iar pentru livrarile directe, care se fac masini straine, la fel, nu se mai selecteaza masina asa ca trebuie sa adaug un checkmark cu "livrare transportator tert" care daca e selectat nu se mai alege tipul masinii.
-
-Acum, pe langa asta, dupa crearea livrarilor, toate livrarile sunt in lista de alocare, ceea ce e bine, dar, toate se aloca pe masinile noastre, livrarile unde se ridica produsul, si care se livreaza cu masini terte, trebuie alocate separat, nu in tabelul cu masinile proprii, trebuie adaugate coloane de "ridicare client" si "livrare terta", sau o singura coloana care sa fie pentru ambele.
+Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 - Nota de Retur (de la facturile storno create de GNS)
 - Nota de Retur (o redenumesc - pentru produsele stornate la furnizori)
+
+* Receptii + Inventar (pe fiecare lot)
+
+- De adaugat certificate - nr si data/ sarja / raport incercari/ la intrari si pe stoc

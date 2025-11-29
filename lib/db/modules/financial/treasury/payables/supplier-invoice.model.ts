@@ -1,11 +1,10 @@
-
 import mongoose, { Schema, models, Model } from 'mongoose'
 import {
   ISupplierInvoiceDoc,
   SupplierInvoiceLine,
   SupplierInvoiceTotals,
   SupplierSnapshot,
-  OurCompanySnapshot, 
+  OurCompanySnapshot,
 } from './supplier-invoice.types'
 import { SUPPLIER_INVOICE_STATUSES } from './supplier-invoice.constants'
 
@@ -33,6 +32,7 @@ const CompanySnapshotSubSchema = new Schema<OurCompanySnapshot>(
     bank: { type: String, required: true },
     iban: { type: String, required: true },
     currency: { type: String, required: true },
+    contactName: { type: String },
   },
   { _id: false }
 )
@@ -42,9 +42,14 @@ const SupplierSnapshotSubSchema = new Schema<SupplierSnapshot>(
     name: { type: String, required: true },
     cui: { type: String, required: true },
     regCom: { type: String, required: true },
-    address: { type: FiscalAddressSubSchema, required: true }, 
+    address: { type: FiscalAddressSubSchema, required: true },
     bank: { type: String },
     iban: { type: String },
+    capital: { type: String },
+    bic: { type: String },
+    contactName: { type: String },
+    contactPhone: { type: String },
+    contactEmail: { type: String },
   },
   { _id: false }
 )
@@ -56,6 +61,7 @@ const SupplierInvoiceLineSubSchema = new Schema<SupplierInvoiceLine>(
     productCode: { type: String },
     quantity: { type: Number, required: true },
     unitOfMeasure: { type: String, required: true },
+    unitCode: { type: String },
     unitPrice: { type: Number, required: true },
     lineValue: { type: Number, required: true },
     vatRateDetails: {
@@ -63,10 +69,30 @@ const SupplierInvoiceLineSubSchema = new Schema<SupplierInvoiceLine>(
       value: { type: Number, required: true },
     },
     lineTotal: { type: Number, required: true },
+    originCountry: { type: String },
+    baseQuantity: { type: Number },
+    allowanceAmount: { type: Number },
+    description: { type: String },
+    cpvCode: { type: String },
   },
   { _id: true }
 )
-
+const ReferencesSubSchema = new Schema(
+  {
+    contract: String,
+    order: String,
+    salesOrder: String,
+    despatch: String,
+    deliveryLocationId: String,
+    deliveryPartyName: String,
+    actualDeliveryDate: Date,
+    billingReference: {
+      oldInvoiceNumber: String,
+      oldInvoiceDate: Date,
+    },
+  },
+  { _id: false }
+)
 const SupplierInvoiceTotalsSubSchema = new Schema<SupplierInvoiceTotals>(
   {
     productsSubtotal: { type: Number, default: 0 },
@@ -80,6 +106,10 @@ const SupplierInvoiceTotalsSubSchema = new Schema<SupplierInvoiceTotals>(
     subtotal: { type: Number, required: true },
     vatTotal: { type: Number, required: true },
     grandTotal: { type: Number, required: true },
+    payableAmount: { type: Number },
+    prepaidAmount: { type: Number },
+    globalDiscount: { type: Number },
+    globalTax: { type: Number },
   },
   { _id: false }
 )
@@ -104,10 +134,27 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
     invoiceNumber: { type: String, required: true, index: true },
     invoiceDate: { type: Date, required: true, index: true },
     dueDate: { type: Date, required: true },
-
+    taxPointDate: { type: Date },
+    exchangeRate: Number,
     items: [SupplierInvoiceLineSubSchema],
     totals: { type: SupplierInvoiceTotalsSubSchema, required: true },
-
+    taxSubtotals: [
+      {
+        taxableAmount: Number,
+        taxAmount: Number,
+        percent: Number,
+        categoryCode: String,
+      },
+    ],
+    paymentId: { type: String },
+    buyerReference: { type: String },
+    paymentMethodCode: { type: String },
+    invoiceCurrency: { type: String },
+    references: { type: ReferencesSubSchema },
+    invoicePeriod: {
+      startDate: Date,
+      endDate: Date,
+    },
     status: {
       type: String,
       enum: SUPPLIER_INVOICE_STATUSES,
@@ -117,11 +164,10 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
     },
     paidAmount: { type: Number, default: 0 },
     remainingAmount: { type: Number, default: 0 },
-
     eFacturaXMLId: { type: String, index: true, sparse: true },
     eFacturaIndex: { type: String, index: true, sparse: true },
-
     notes: { type: String },
+    paymentTermsNote: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
   },

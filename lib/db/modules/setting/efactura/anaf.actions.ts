@@ -3,10 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
 import { auth } from '@/auth'
-import { decrypt, encrypt } from '@/lib/utils/encryption' 
+import { decrypt, encrypt } from '@/lib/utils/encryption'
 import AnafToken from './anaf-token.model'
-import { AnafAuthResponse, AnafMessagesResponse } from './anaf.types' 
-import { ExchangeTokenSchema } from './anaf.validator' 
+import { AnafAuthResponse, AnafMessagesResponse } from './anaf.types'
+import { ExchangeTokenSchema } from './anaf.validator'
 import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
 import SupplierInvoiceModel from '../../financial/treasury/payables/supplier-invoice.model'
 import Supplier from '../../suppliers/supplier.model'
@@ -14,8 +14,9 @@ import { parseAnafXml } from '@/lib/db/modules/setting/efactura/anaf-parser'
 import AnafMessage from './anaf-message.model'
 import AnafLog from './anaf-log.model'
 import { ISupplierDoc } from '../../suppliers/types'
-
-// DE MODIFICAT DATELE COMPANIEI HARDCODATE
+import AdmZip from 'adm-zip'
+import { getNoCachedSetting } from '../setting.actions'
+import { XMLParser } from 'fast-xml-parser'
 
 // --- HELPER AUTH CHECK ---
 async function checkAdmin() {
@@ -23,11 +24,10 @@ async function checkAdmin() {
   const userRole = session?.user?.role?.toLowerCase() || ''
 
   if (!session || !session.user || !SUPER_ADMIN_ROLES.includes(userRole)) {
-    throw new Error('Unauthorized: Acces permis doar Administratorilor.')
+    throw new Error('Neautorizat: Acces permis doar Adminilor.')
   }
   return true
 }
-
 // --- HELPER LOGGING ---
 async function logAnaf(
   type: 'INFO' | 'SUCCESS' | 'ERROR',
@@ -41,11 +41,9 @@ async function logAnaf(
     console.error('Failed to write ANAF log', e)
   }
 }
-
-// --- 1. GENERATE LOGIN URL ---
+// GENERATE LOGIN URL ---
 export async function generateAnafLoginUrl() {
   await checkAdmin()
-
   const clientId = process.env.ANAF_CLIENT_ID
   const redirectUri = process.env.ANAF_REDIRECT_URI
   const authEndpoint = process.env.ANAF_AUTH_ENDPOINT
@@ -54,17 +52,15 @@ export async function generateAnafLoginUrl() {
     throw new Error('Missing ANAF configuration in .env')
   }
 
-  // Token content type = jwt este standardul nou ANAF
-  const url = `${authEndpoint}?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&token_content_type=jwt`
+  const url = `${authEndpoint}?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
+    redirectUri
+  )}&token_content_type=jwt`
 
   return url
 }
-
-// --- 2. EXCHANGE CODE FOR TOKEN ---
+// EXCHANGE CODE FOR TOKEN ---
 export async function exchangeCodeForToken(code: string) {
   await checkAdmin()
-
-  // Validare input cu Zod
   const validation = ExchangeTokenSchema.safeParse({ code })
   if (!validation.success) {
     return { success: false, error: validation.error.errors[0].message }
@@ -72,53 +68,44 @@ export async function exchangeCodeForToken(code: string) {
 
   try {
     await connectToDatabase()
-
     const body = new URLSearchParams()
     body.append('grant_type', 'authorization_code')
     body.append('code', code)
     body.append('client_id', process.env.ANAF_CLIENT_ID!)
     body.append('client_secret', process.env.ANAF_CLIENT_SECRET!)
     body.append('redirect_uri', process.env.ANAF_REDIRECT_URI!)
+    body.append('token_content_type', 'jwt')
 
     const response = await fetch(process.env.ANAF_TOKEN_ENDPOINT!, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body,
+      body: body.toString(),
       cache: 'no-store',
     })
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('ANAF Token Error:', errorText)
       return {
         success: false,
-        error: `Eroare ANAF (${response.status}): ${response.statusText}`,
+        error: `Eroare ANAF (${response.status}): ${errorText}`,
       }
     }
 
     const data: AnafAuthResponse = await response.json()
-
-    // Criptare Token-uri
     const encryptedAccess = encrypt(data.access_token)
     const encryptedRefresh = encrypt(data.refresh_token)
-
     const now = new Date()
-    // Expirare access token (scadem 60s marja siguranta)
     const accessTokenExpiresAt = new Date(
       now.getTime() + (data.expires_in - 60) * 1000
     )
-    // Expirare refresh token (90 zile fix)
     const refreshTokenExpiresAt = new Date(
       now.getTime() + 90 * 24 * 60 * 60 * 1000
     )
 
-    // Ștergem orice setare veche (Single Tenant)
     await AnafToken.deleteMany({})
-
     await AnafToken.create({
       iv: encryptedAccess.iv,
       encryptedAccessToken: encryptedAccess.data,
-      // Stocăm IV-ul refresh token-ului lipit de data pentru a nu complica schema
       encryptedRefreshToken: encryptedRefresh.data + ':' + encryptedRefresh.iv,
       accessTokenExpiresAt,
       refreshTokenExpiresAt,
@@ -134,48 +121,35 @@ export async function exchangeCodeForToken(code: string) {
     }
   }
 }
-
-// --- 3. GET STATUS ---
+//  GET STATUS ---
 export async function getAnafStatus() {
   await checkAdmin()
-
   await connectToDatabase()
   const tokenDoc = await AnafToken.findOne()
-
   if (!tokenDoc) return { connected: false }
-
   const now = new Date()
   const isExpired = tokenDoc.refreshTokenExpiresAt < now
-
   return {
     connected: !isExpired,
     expiresAt: tokenDoc.refreshTokenExpiresAt,
     lastLogin: tokenDoc.updatedAt,
   }
 }
-
-// --- HELPER INTERNAL TOKEN (REFRESH LOGIC) ---
-// Aceasta trebuie să fie robustă. Dacă nu merge, aruncă eroare.
-async function getInternalAccessToken() {
+// HELPER INTERNAL TOKEN
+async function getInternalAccessToken(): Promise<string> {
   await connectToDatabase()
   const tokenDoc = await AnafToken.findOne()
   if (!tokenDoc) throw new Error('Nu există conexiune ANAF.')
-
   const now = new Date()
 
-  // 1. Access Token Valid
   if (tokenDoc.accessTokenExpiresAt.getTime() - now.getTime() > 60 * 1000) {
     return decrypt(tokenDoc.encryptedAccessToken, tokenDoc.iv)
   }
 
-  // 2. Refresh Token
   if (tokenDoc.refreshTokenExpiresAt > now) {
-    // Logica de split IV:Data
     const parts = tokenDoc.encryptedRefreshToken.split(':')
-    // Validăm că avem ambele părți
     if (parts.length !== 2)
       throw new Error('Format Refresh Token Invalid în DB')
-
     const refreshToken = decrypt(parts[0], parts[1])
 
     const body = new URLSearchParams()
@@ -187,7 +161,7 @@ async function getInternalAccessToken() {
     const response = await fetch(process.env.ANAF_TOKEN_ENDPOINT!, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body,
+      body: body.toString(),
       cache: 'no-store',
     })
 
@@ -197,8 +171,6 @@ async function getInternalAccessToken() {
     }
 
     const data: AnafAuthResponse = await response.json()
-
-    // Update DB
     const encAccess = encrypt(data.access_token)
     const encRefresh = encrypt(data.refresh_token)
 
@@ -215,191 +187,329 @@ async function getInternalAccessToken() {
 
     return data.access_token
   }
-
   throw new Error('Token Expirat. Necesită reconectare fizică.')
 }
-
-// DE MODIFICAT DATELE FIRMEI HARDCODATE, DE LUAT DIN SETTINGS
-// --- MAIN SYNC ACTION ---
+// MAIN SYNC ACTION --- const daysBack = 10 - de schimbat la 60 de zile
 export async function syncAndProcessAnaf() {
   await checkAdmin()
   const session = await auth()
   const userId = session?.user?.id
 
-  // Stats
+  // 1. Preluăm setările companiei din DB
+  const settings = await getNoCachedSetting()
+  if (!settings) {
+    throw new Error(
+      'Datele companiei nu sunt configurate. Mergi la Setări > Companie.'
+    )
+  }
+
   const stats = { newMessages: 0, processed: 0, errors: 0 }
 
   try {
-    const token = await getInternalAccessToken()
+    // Luăm token-ul explicit ca string
+    const accessToken: string = await getInternalAccessToken()
 
-    // CUI-ul firmei tale
-    const cuid = 'RO123456' // TODO: De înlocuit cu valoarea din Settings
-    const daysBack = 60
-    const urlList = `${process.env.ANAF_API_BASE_URL}/listaMesajeFactura?zile=${daysBack}&cui=${cuid}`
+    // Configurare CUI / CIF
+    let cifDeFolosit = settings.cui.toUpperCase().replace('RO', '').trim()
+
+    // Logică pentru Mediu de TEST
+    if (process.env.ANAF_API_BASE_URL?.includes('test')) {
+      try {
+        const parts = accessToken.split('.')
+        if (parts.length === 3) {
+          const payload = Buffer.from(parts[1], 'base64').toString('utf-8')
+          const parsedToken = JSON.parse(payload)
+          if (parsedToken.sub) cifDeFolosit = parsedToken.sub
+        }
+      } catch (e) {
+        console.log('Info: Token parse ignore', e)
+      }
+    }
+
+    // APEL API
+    const daysBack = 10 // 60 zile
+    const endpoint = `${process.env.ANAF_API_BASE_URL}/listaMesajeFactura`
+    const urlList = `${endpoint}?zile=${daysBack}&cif=${cifDeFolosit}&raspuns=NU&pagina=1&sistem=RO%20e-Factura`
+
+    console.log('--- 🚀 APEL API LIVE ---')
+    console.log('URL:', urlList)
 
     const resList = await fetch(urlList, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     })
-    if (!resList.ok) throw new Error('Eroare la obținerea listei de mesaje')
+
+    if (!resList.ok) {
+      const errorBody = await resList.text()
+      throw new Error(`Eroare ANAF (${resList.status}): ${errorBody}`)
+    }
 
     const dataList: AnafMessagesResponse = await resList.json()
     const messages = dataList.mesaje || []
 
+    console.log(
+      `✅ SUCCES! S-au găsit ${messages.length} mesaje totale. Începem procesarea...`
+    )
+
+    const defaultBank =
+      settings.bankAccounts.find((b) => b.isDefault) || settings.bankAccounts[0]
+    const defaultEmail =
+      settings.emails.find((e) => e.isDefault) || settings.emails[0]
+    const defaultPhone =
+      settings.phones.find((p) => p.isDefault) || settings.phones[0]
+
+    // PROCESARE MESAJE
     for (const msg of messages) {
-      const exists = await AnafMessage.findOne({
-        id_descarcare: msg.id_descarcare,
-      })
+      try {
+        // --- DATA NORMALIZATION ---
+        const realId = msg.id || msg.id_descarcare
+        const rawTip = msg.tip || 'NECUNOSCUT'
+        const realTip = rawTip.replace(/\s+/g, '_')
 
-      if (!exists) {
-        stats.newMessages++
+        // FILTRU: Ignorăm ce nu e primit
+        if (realTip !== 'FACTURA_PRIMITA') continue
 
-        const dbMsg = await AnafMessage.create({
-          id_descarcare: msg.id_descarcare,
-          cui_emitent: msg.cui_emitent,
-          titlu: msg.titlu,
-          tip: msg.tip,
-          data_creare: parseAnafDate(msg.data_creare),
-          detalii: msg.detalii,
-          serial: msg.serial,
-          is_downloaded: false,
-          processing_status: 'UNPROCESSED',
-        })
+        // Fallback CUI Emitent
+        let realCuiEmitent = msg.cif_emitent || msg.cui_emitent
+        if (!realCuiEmitent && msg.detalii) {
+          const match = msg.detalii.match(/cif_emitent=(\d+)/)
+          if (match && match[1]) realCuiEmitent = match[1]
+          else realCuiEmitent = 'NECUNOSCUT'
+        } else if (!realCuiEmitent) {
+          realCuiEmitent = 'NECUNOSCUT'
+        }
 
-        if (msg.tip === 'FACTURA_PRIMITA') {
+        const exists = await AnafMessage.findOne({ id_descarcare: realId })
+
+        if (!exists) {
+          stats.newMessages++
+
+          const dbMsg = await AnafMessage.create({
+            id_descarcare: realId,
+            cui_emitent: realCuiEmitent,
+            titlu: msg.titlu || 'Fara Titlu',
+            tip: realTip,
+            data_creare: parseAnafDate(msg.data_creare),
+            detalii: msg.detalii || '',
+            serial: msg.serial || '',
+            is_downloaded: false,
+            processing_status: 'UNPROCESSED',
+          })
+
+          // DOWNLOAD & UNZIP LOGIC
           try {
-            // A. DOWNLOAD XML
-            const urlDownload = `${process.env.ANAF_API_BASE_URL}/descarcare?id=${msg.id_descarcare}`
-            const resXml = await fetch(urlDownload, {
-              headers: { Authorization: `Bearer ${token}` },
+            const urlDownload = `${process.env.ANAF_API_BASE_URL}/descarcare?id=${realId}`
+            const resXml: Response = await fetch(urlDownload, {
+              headers: { Authorization: `Bearer ${accessToken}` },
             })
 
             if (resXml.ok) {
-              const xmlText = await resXml.text()
+              const blob = await resXml.blob()
+              const buffer = Buffer.from(await blob.arrayBuffer())
+              let xmlText = ''
+
+              // VERIFICARE ZIP
+              if (buffer.toString('utf-8', 0, 2) === 'PK') {
+                console.log(`📦 Dezarhivare ZIP ID: ${realId}`)
+                const zip = new AdmZip(buffer)
+                const zipEntries = zip.getEntries()
+
+                const xmlEntry =
+                  zipEntries.find(
+                    (entry) =>
+                      entry.entryName.toLowerCase().endsWith('.xml') &&
+                      !entry.entryName.toLowerCase().includes('semnatura')
+                  ) || zipEntries[0]
+
+                if (xmlEntry) {
+                  xmlText = zip.readAsText(xmlEntry)
+                } else {
+                  throw new Error('ZIP gol sau fără XML valid')
+                }
+              } else {
+                xmlText = buffer.toString('utf8')
+              }
+
               dbMsg.is_downloaded = true
 
-              // B. PARSE XML
-              const parsed = parseAnafXml(xmlText)
+              // PARSARE XML
+              try {
+                const parsed = parseAnafXml(xmlText)
+                const cleanCuiSupplier = parsed.supplierCui
+                  .replace(/^RO/, '')
+                  .trim()
 
-              // C. FIND SUPPLIER
-              const cleanCui = parsed.supplierCui.replace(/^RO/, '').trim()
+                const supplier = (await Supplier.findOne({
+                  fiscalCode: {
+                    $regex: new RegExp(`^RO?${cleanCuiSupplier}$`, 'i'),
+                  },
+                }).lean()) as ISupplierDoc | null
 
-              const supplier = (await Supplier.findOne({
-                fiscalCode: { $regex: new RegExp(`^RO?${cleanCui}$`, 'i') },
-              }).lean()) as ISupplierDoc | null
+                if (supplier) {
+                  // Definim supAddr pentru fallback la adresa
+                  const supAddr = supplier.address as unknown as Record<
+                    string,
+                    string | number | undefined
+                  >
 
-              if (supplier) {
-                // CAZ A: FURNIZOR EXISTĂ
-
-                const invoiceItems = parsed.lines.map((line) => ({
-                  productName: line.productName,
-                  quantity: line.quantity,
-                  unitOfMeasure: line.unitOfMeasure,
-                  unitPrice: line.price,
-                  lineValue: line.lineValue,
-                  vatRateDetails: { rate: 19, value: 0 },
-                  lineTotal: line.lineValue,
-                }))
-
-                // FIX TS2352: Castare sigură care acceptă și numere (pt distanceInKm), dar noi citim doar string-urile
-                const supAddr = supplier.address as unknown as Record<
-                  string,
-                  string | number | undefined
-                >
-
-                await SupplierInvoiceModel.create({
-                  supplierId: supplier._id,
-                  supplierSnapshot: {
-                    name: supplier.name,
-                    cui: supplier.fiscalCode || parsed.supplierCui,
-                    regCom: supplier.regComNumber || '',
-                    // FIX: Structura corectă (închidem obiectul address înainte de bank)
-                    address: {
-                      judet: String(supAddr.county || supAddr.judet || ''),
-                      localitate: String(
-                        supAddr.city || supAddr.localitate || ''
-                      ),
-                      strada: String(supAddr.street || supAddr.strada || ''),
-                      numar: String(supAddr.number || supAddr.numar || ''),
-                      codPostal: String(
-                        supAddr.zipCode || supAddr.codPostal || '000000'
-                      ),
-                      tara: 'RO',
-                      alteDetalii: String(
-                        supAddr.details || supAddr.alteDetalii || ''
-                      ),
-                      persoanaContact: '',
-                      telefonContact: '',
+                  await SupplierInvoiceModel.create({
+                    supplierId: supplier._id,
+                    supplierSnapshot: {
+                      name: parsed.supplierName || supplier.name,
+                      cui: parsed.supplierCui || supplier.fiscalCode,
+                      regCom: supplier.regComNumber || '',
+                      address: {
+                        judet:
+                          parsed.supplierAddressDetails.county ||
+                          String(supAddr.county || supAddr.judet || ''),
+                        localitate:
+                          parsed.supplierAddressDetails.city ||
+                          String(supAddr.city || supAddr.localitate || ''),
+                        strada:
+                          parsed.supplierAddressDetails.street ||
+                          String(supAddr.street || supAddr.strada || ''),
+                        numar:
+                          parsed.supplierAddressDetails.number ||
+                          String(supAddr.number || supAddr.numar || ''),
+                        codPostal:
+                          parsed.supplierAddressDetails.zip ||
+                          String(
+                            supAddr.zipCode || supAddr.codPostal || '000000'
+                          ),
+                        tara: parsed.supplierAddressDetails.country || '',
+                        alteDetalii: parsed.supplierAddress,
+                        persoanaContact: parsed.supplierContact?.name || '',
+                        telefonContact: parsed.supplierContact?.phone || '',
+                      },
+                      bank: parsed.supplierBank || '',
+                      iban:
+                        parsed.supplierIban ||
+                        supplier.bankAccountLei?.iban ||
+                        '',
+                      capital: parsed.supplierCapital || '',
+                      bic: parsed.supplierBic || '',
+                      contactName: parsed.supplierContact?.name || '',
+                      contactPhone: parsed.supplierContact?.phone || '',
+                      contactEmail: parsed.supplierContact?.email || '',
                     },
-                    bank: supplier.bankAccountLei?.bankName || '',
-                    iban: supplier.bankAccountLei?.iban || '',
-                  },
-                  ourCompanySnapshot: {
-                    name: 'Compania Mea',
-                    cui: cuid,
-                    address: {
-                      judet: 'B',
-                      localitate: 'B',
-                      strada: 'S',
-                      codPostal: '0',
-                      tara: 'RO',
+                    ourCompanySnapshot: {
+                      name: settings.name,
+                      cui: settings.cui,
+                      regCom: settings.regCom,
+                      address: {
+                        judet: settings.address.judet,
+                        localitate: settings.address.localitate,
+                        strada: settings.address.strada,
+                        numar: settings.address.numar || '',
+                        codPostal: settings.address.codPostal,
+                        tara: settings.address.tara,
+                        alteDetalii: settings.address.alteDetalii || '',
+                      },
+                      currency: defaultBank?.currency || 'RON',
+                      email: defaultEmail?.address || '',
+                      phone: defaultPhone?.number || '',
+                      bank: defaultBank?.bankName || '',
+                      iban: defaultBank?.iban || '',
+                      contactName: parsed.customerContact?.name || '',
                     },
-                    currency: 'RON',
-                    email: '',
-                    phone: '',
-                    regCom: '',
-                    bank: '',
-                    iban: '',
-                  },
-                  invoiceType: 'STANDARD',
-                  invoiceSeries: parsed.invoiceSeries,
-                  invoiceNumber: parsed.invoiceNumber,
-                  invoiceDate: parsed.invoiceDate,
-                  dueDate: parsed.dueDate,
-                  items: invoiceItems,
-                  totals: {
-                    subtotal: parsed.totalAmount,
-                    vatTotal: 0,
-                    grandTotal: parsed.totalAmount,
-                    productsSubtotal: parsed.totalAmount,
-                    productsVat: 0,
-                    packagingSubtotal: 0,
-                    packagingVat: 0,
-                    servicesSubtotal: 0,
-                    servicesVat: 0,
-                    manualSubtotal: 0,
-                    manualVat: 0,
-                  },
-                  status: 'NEPLATITA',
-                  eFacturaXMLId: msg.id_descarcare,
-                  createdBy: userId,
-                  createdByName: 'Sistem e-Factura',
-                })
+                    invoiceType: 'STANDARD',
+                    invoiceSeries: parsed.invoiceSeries,
+                    invoiceNumber: parsed.invoiceNumber,
+                    invoiceDate: parsed.invoiceDate,
+                    dueDate: parsed.dueDate,
+                    invoicePeriod: parsed.invoicePeriod,
+                    invoiceCurrency: parsed.currency,
+                    paymentMethodCode: parsed.paymentMethodCode,
+                    notes: parsed.notes ? parsed.notes.join('\n') : '',
+                    exchangeRate: parsed.exchangeRate,
+                    references: {
+                      contract: parsed.contractReference,
+                      order: parsed.orderReference,
+                      salesOrder: parsed.salesOrderID,
+                      despatch: parsed.despatchReference,
+                      deliveryLocationId: parsed.deliveryLocationId,
+                      deliveryPartyName: parsed.deliveryPartyName,
+                      actualDeliveryDate: parsed.actualDeliveryDate,
+                      billingReference: parsed.billingReference,
+                    },
+                    items: parsed.lines.map((line) => ({
+                      productName: line.productName,
+                      productCode: line.productCode,
+                      quantity: line.quantity,
+                      unitOfMeasure: line.unitOfMeasure,
+                      unitPrice: line.price,
+                      lineValue: line.lineValue,
+                      vatRateDetails: {
+                        rate: line.vatRate,
+                        value: line.vatAmount,
+                      },
+                      lineTotal: line.lineValue + line.vatAmount,
+                      originCountry: line.originCountry,
+                      baseQuantity: line.baseQuantity,
+                      allowanceAmount: line.lineAllowanceAmount,
+                      unitCode: line.unitCode,
+                      description: line.productDescription,
+                      cpvCode: line.commodityCode,
+                    })),
+                    taxSubtotals: parsed.taxSubtotals,
+                    totals: {
+                      subtotal: parsed.totalAmount - parsed.totalTax,
+                      vatTotal: parsed.totalTax,
+                      grandTotal: parsed.totalAmount,
+                      payableAmount: parsed.payableAmount,
+                      prepaidAmount: parsed.prepaidAmount,
+                      globalDiscount: parsed.totalAllowance,
+                      globalTax: parsed.totalCharges,
+                      productsSubtotal: parsed.totalAmount - parsed.totalTax,
+                      productsVat: parsed.totalTax,
+                      packagingSubtotal: 0,
+                      packagingVat: 0,
+                      servicesSubtotal: 0,
+                      servicesVat: 0,
+                      manualSubtotal: 0,
+                      manualVat: 0,
+                    },
 
-                dbMsg.processing_status = 'COMPLETED'
-                stats.processed++
-              } else {
-                // CAZ B: FURNIZOR LIPSA
-                dbMsg.processing_status = 'ERROR_NO_SUPPLIER'
-                dbMsg.processing_error = `Furnizorul cu CUI ${parsed.supplierCui} (${parsed.supplierName}) nu a fost găsit.`
+                    status: 'NEPLATITA',
+                    eFacturaXMLId: realId,
+                    createdBy: userId,
+                    createdByName: 'Sistem e-Factura',
+                  })
+
+                  dbMsg.processing_status = 'COMPLETED'
+                  stats.processed++
+                } else {
+                  dbMsg.processing_status = 'ERROR_NO_SUPPLIER'
+                  dbMsg.processing_error = `Furnizor inexistent: ${parsed.supplierCui}`
+                  stats.errors++
+                }
+              } catch (parseErr) {
+                const e =
+                  parseErr instanceof Error
+                    ? parseErr.message
+                    : String(parseErr)
+                console.error(`XML Parse Error ${realId}:`, e)
+                dbMsg.processing_status = 'ERROR_OTHER'
+                dbMsg.processing_error = `Eroare parsare: ${e.substring(0, 100)}`
                 stats.errors++
               }
 
               await dbMsg.save()
             }
-          } catch (err: unknown) {
-            const errorMessage =
-              err instanceof Error ? err.message : String(err)
-            console.error(
-              `Eroare procesare mesaj ${msg.id_descarcare}:`,
-              errorMessage
-            )
-
+          } catch (downloadErr) {
+            const e =
+              downloadErr instanceof Error
+                ? downloadErr.message
+                : String(downloadErr)
+            console.error(`Download Error ${realId}:`, e)
             dbMsg.processing_status = 'ERROR_OTHER'
-            dbMsg.processing_error = errorMessage
+            dbMsg.processing_error = e
             await dbMsg.save()
             stats.errors++
           }
         }
+      } catch (itemErr) {
+        console.error('Critical item error:', itemErr)
+        stats.errors++
       }
     }
 
@@ -407,13 +517,12 @@ export async function syncAndProcessAnaf() {
     revalidatePath('/financial/treasury/payables')
     return { success: true, stats }
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    console.error('Sync Critical Error:', errorMessage)
-    await logAnaf('ERROR', 'SYNC_CRITICAL', errorMessage)
-    return { success: false, error: errorMessage }
+    const e = error instanceof Error ? error.message : String(error)
+    console.error('Sync Critical Error:', e)
+    await logAnaf('ERROR', 'SYNC_CRITICAL', e)
+    return { success: false, error: e }
   }
 }
-
 // Helper Data
 function parseAnafDate(str: string): Date {
   const y = parseInt(str.substring(0, 4))
@@ -423,143 +532,225 @@ function parseAnafDate(str: string): Date {
   const min = parseInt(str.substring(10, 12))
   return new Date(y, m, d, h, min)
 }
-// --- 6. GET INBOX MESSAGES (Pentru Tab-ul "Mesaje SPV") ---
-// Aduce mesajele care NU sunt procesate cu succes (adică erori sau neprocesate)
+// GET INBOX MESSAGES from eFactura ---
 export async function getAnafInboxErrors() {
   await checkAdmin()
   await connectToDatabase()
-
-  // Vrem să vedem doar ce NU s-a transformat în factură
   const messages = await AnafMessage.find({
     processing_status: { $ne: 'COMPLETED' },
   })
     .sort({ data_creare: -1 })
     .lean()
-
-  // Serializare simplă pentru a evita erorile de Date in Client Components
   return JSON.parse(JSON.stringify(messages))
 }
-
-// --- 7. GET LOGS (Pentru Tab-ul "Logs") ---
+// GET LOGS FROM DB
 export async function getAnafLogs(limit = 50000) {
   await checkAdmin()
   await connectToDatabase()
-
   const logs = await AnafLog.find({})
     .sort({ createdAt: -1 })
     .limit(limit)
     .lean()
-
   return JSON.parse(JSON.stringify(logs))
 }
-
-// --- 8. RETRY PROCESS MESSAGE (Acțiunea Manuală) ---
-// Se apelează când userul a creat furnizorul și apasă "Reîncearcă" pe mesaj
+// RETRY PROCESS MESSAGE (SINGLE ITEM) ---
 export async function retryProcessMessage(messageId: string) {
   await checkAdmin()
   const session = await auth()
   const userId = session?.user?.id
+  const settings = await getNoCachedSetting()
+  if (!settings) {
+    return { success: false, error: 'Setările companiei lipsesc.' }
+  }
 
   try {
     await connectToDatabase()
-    const msg = await AnafMessage.findById(messageId)
-    if (!msg) throw new Error('Mesajul nu mai există.')
 
+    // Găsim mesajul în DB
+    const msg = await AnafMessage.findById(messageId)
+    if (!msg)
+      return { success: false, error: 'Mesajul nu mai există în baza de date.' }
+
+    // Obținem token și descărcăm fișierul
     const token = await getInternalAccessToken()
+    // Folosim id_descarcare salvat in mesaj
     const urlDownload = `${process.env.ANAF_API_BASE_URL}/descarcare?id=${msg.id_descarcare}`
+
     const resXml = await fetch(urlDownload, {
       headers: { Authorization: `Bearer ${token}` },
     })
 
-    if (!resXml.ok)
-      throw new Error('Nu s-a putut redescărca XML-ul de la ANAF.')
+    if (!resXml.ok) {
+      return { success: false, error: `Eroare download ANAF: ${resXml.status}` }
+    }
 
-    const xmlText = await resXml.text()
+    // Procesare ZIP / XML (Logică identică cu Sync)
+    const blob = await resXml.blob()
+    const buffer = Buffer.from(await blob.arrayBuffer())
+    let xmlText = ''
 
-    // 2. Parse
+    // Verificare ZIP
+    if (buffer.toString('utf-8', 0, 2) === 'PK') {
+      try {
+        const zip = new AdmZip(buffer)
+        const zipEntries = zip.getEntries()
+        const xmlEntry =
+          zipEntries.find(
+            (entry) =>
+              entry.entryName.toLowerCase().endsWith('.xml') &&
+              !entry.entryName.toLowerCase().includes('semnatura')
+          ) || zipEntries[0]
+
+        if (xmlEntry) {
+          xmlText = zip.readAsText(xmlEntry)
+        } else {
+          return { success: false, error: 'ZIP gol sau fără XML valid.' }
+        }
+      } catch {
+        return { success: false, error: 'Eroare la dezarhivare ZIP.' }
+      }
+    } else {
+      xmlText = buffer.toString('utf8')
+    }
+
+    //. Parsare XML
     const parsed = parseAnafXml(xmlText)
+    const cleanCuiSupplier = parsed.supplierCui.replace(/^RO/, '').trim()
 
-    // 3. Find Supplier
-    const cleanCui = parsed.supplierCui.replace(/^RO/, '').trim()
-
-    //  Castare explicită la interfața documentului
+    // Căutare Furnizor
     const supplier = (await Supplier.findOne({
-      fiscalCode: { $regex: new RegExp(`^RO?${cleanCui}$`, 'i') },
+      fiscalCode: { $regex: new RegExp(`^RO?${cleanCuiSupplier}$`, 'i') },
     }).lean()) as ISupplierDoc | null
 
     if (!supplier) {
+      msg.processing_status = 'ERROR_NO_SUPPLIER'
+      msg.processing_error = `Furnizor inexistent ${parsed.supplierCui} `
+      await msg.save()
       return {
         success: false,
-        error: `Furnizorul cu CUI ${parsed.supplierCui} tot nu a fost găsit. L-ai creat?`,
+        error: `Furnizor inexistent: ${parsed.supplierCui}`,
       }
     }
 
-    // 4. Create Invoice
-    const invoiceItems = parsed.lines.map((line) => ({
-      productName: line.productName,
-      quantity: line.quantity,
-      unitOfMeasure: line.unitOfMeasure,
-      unitPrice: line.price,
-      lineValue: line.lineValue,
-      vatRateDetails: { rate: 19, value: 0 },
-      lineTotal: line.lineValue,
-    }))
+    // Creare Factură (Invoice)
+    // Pregătim datele implicite
+    const defaultBank =
+      settings.bankAccounts.find((b) => b.isDefault) || settings.bankAccounts[0]
+    const defaultEmail =
+      settings.emails.find((e) => e.isDefault) || settings.emails[0]
+    const defaultPhone =
+      settings.phones.find((p) => p.isDefault) || settings.phones[0]
 
-    //  Castare sigură la Record<string, unknown> pentru adresa sursă
     const supAddr = supplier.address as unknown as Record<
       string,
       string | number | undefined
     >
-    // DE MODIFICAT DATE COMPANIE HARDCODATE, DE LUAT DIN SETTINGS
+
     await SupplierInvoiceModel.create({
       supplierId: supplier._id,
       supplierSnapshot: {
-        name: supplier.name,
-        cui: supplier.fiscalCode || parsed.supplierCui,
+        name: parsed.supplierName || supplier.name,
+        cui: parsed.supplierCui || supplier.fiscalCode,
         regCom: supplier.regComNumber || '',
         address: {
-          judet: String(supAddr.county || supAddr.judet || ''),
-          localitate: String(supAddr.city || supAddr.localitate || ''),
-          strada: String(supAddr.street || supAddr.strada || ''),
-          numar: String(supAddr.number || supAddr.numar || ''),
-          codPostal: String(supAddr.zipCode || supAddr.codPostal || '000000'),
-          tara: 'RO',
-          alteDetalii: String(supAddr.details || supAddr.alteDetalii || ''),
-          persoanaContact: '',
-          telefonContact: '',
+          judet:
+            parsed.supplierAddressDetails.county ||
+            String(supAddr.county || supAddr.judet || ''),
+          localitate:
+            parsed.supplierAddressDetails.city ||
+            String(supAddr.city || supAddr.localitate || ''),
+          strada:
+            parsed.supplierAddressDetails.street ||
+            String(supAddr.street || supAddr.strada || ''),
+          numar:
+            parsed.supplierAddressDetails.number ||
+            String(supAddr.number || supAddr.numar || ''),
+          codPostal:
+            parsed.supplierAddressDetails.zip ||
+            String(supAddr.zipCode || supAddr.codPostal || '000000'),
+          tara: parsed.supplierAddressDetails.country || 'RO',
+          alteDetalii: parsed.supplierAddress,
+          persoanaContact: parsed.supplierContact?.name || '',
+          telefonContact: parsed.supplierContact?.phone || '',
         },
-        bank: supplier.bankAccountLei?.bankName || '',
-        iban: supplier.bankAccountLei?.iban || '',
+        bank: parsed.supplierBank || '',
+        iban: parsed.supplierIban || '',
+        capital: parsed.supplierCapital || '',
+        bic: parsed.supplierBic || '',
+        contactName: parsed.supplierContact?.name || '',
+        contactPhone: parsed.supplierContact?.phone || '',
+        contactEmail: parsed.supplierContact?.email || '',
       },
       ourCompanySnapshot: {
-        name: 'Compania Mea',
-        cui: 'RO123456', // TODO: Settings
+        name: settings.name,
+        cui: settings.cui,
+        regCom: settings.regCom,
         address: {
-          judet: 'B',
-          localitate: 'B',
-          strada: 'S',
-          codPostal: '0',
-          tara: 'RO',
+          judet: settings.address.judet,
+          localitate: settings.address.localitate,
+          strada: settings.address.strada,
+          numar: settings.address.numar || '',
+          codPostal: settings.address.codPostal,
+          tara: settings.address.tara,
+          alteDetalii: settings.address.alteDetalii || '',
         },
-        currency: 'RON',
-        email: '',
-        phone: '',
-        regCom: '',
-        bank: '',
-        iban: '',
+        currency: defaultBank?.currency || 'RON',
+        email: defaultEmail?.address || '',
+        phone: defaultPhone?.number || '',
+        bank: defaultBank?.bankName || '',
+        iban: defaultBank?.iban || '',
+        contactName: parsed.customerContact?.name || '',
       },
       invoiceType: 'STANDARD',
       invoiceSeries: parsed.invoiceSeries,
       invoiceNumber: parsed.invoiceNumber,
       invoiceDate: parsed.invoiceDate,
+      invoicePeriod: parsed.invoicePeriod,
       dueDate: parsed.dueDate,
-      items: invoiceItems,
+      invoiceCurrency: parsed.currency,
+      paymentMethodCode: parsed.paymentMethodCode,
+      notes: parsed.notes ? parsed.notes.join('\n') : '',
+      exchangeRate: parsed.exchangeRate,
+      references: {
+        contract: parsed.contractReference,
+        order: parsed.orderReference,
+        salesOrder: parsed.salesOrderID,
+        despatch: parsed.despatchReference,
+        deliveryLocationId: parsed.deliveryLocationId,
+        deliveryPartyName: parsed.deliveryPartyName,
+        actualDeliveryDate: parsed.actualDeliveryDate,
+        billingReference: parsed.billingReference,
+      },
+      items: parsed.lines.map((line) => ({
+        productName: line.productName,
+        productCode: line.productCode,
+        quantity: line.quantity,
+        unitOfMeasure: line.unitOfMeasure,
+        unitCode: line.unitCode,
+        unitPrice: line.price,
+        lineValue: line.lineValue,
+        vatRateDetails: {
+          rate: line.vatRate,
+          value: line.vatAmount,
+        },
+        lineTotal: line.lineValue + line.vatAmount,
+        originCountry: line.originCountry,
+        baseQuantity: line.baseQuantity,
+        allowanceAmount: line.lineAllowanceAmount,
+        description: line.productDescription,
+        cpvCode: line.commodityCode,
+      })),
+      taxSubtotals: parsed.taxSubtotals,
       totals: {
-        subtotal: parsed.totalAmount,
-        vatTotal: 0,
+        subtotal: parsed.totalAmount - parsed.totalTax,
+        vatTotal: parsed.totalTax,
         grandTotal: parsed.totalAmount,
-        productsSubtotal: parsed.totalAmount,
-        productsVat: 0,
+        payableAmount: parsed.payableAmount,
+        prepaidAmount: parsed.prepaidAmount,
+        globalDiscount: parsed.totalAllowance,
+        globalTax: parsed.totalCharges,
+        productsSubtotal: parsed.totalAmount - parsed.totalTax,
+        productsVat: parsed.totalTax,
         packagingSubtotal: 0,
         packagingVat: 0,
         servicesSubtotal: 0,
@@ -567,22 +758,102 @@ export async function retryProcessMessage(messageId: string) {
         manualSubtotal: 0,
         manualVat: 0,
       },
+
       status: 'NEPLATITA',
       eFacturaXMLId: msg.id_descarcare,
       createdBy: userId,
-      createdByName: 'Manual Retry',
+      createdByName: 'Sistem e-Factura Manual Retry',
     })
 
-    // Update Message Status
+    // 8. Finalizare cu succes
+    msg.is_downloaded = true
     msg.processing_status = 'COMPLETED'
     msg.processing_error = undefined
     await msg.save()
 
-    revalidatePath('/financial/treasury/payables')
+    revalidatePath('/admin/management/incasari-si-plati/payables')
     return { success: true }
   } catch (error: unknown) {
-    //  Error handling strict cu unknown
     const errorMessage = error instanceof Error ? error.message : String(error)
+    console.error('Retry Error:', errorMessage)
     return { success: false, error: errorMessage }
+  }
+}
+// PREVIEW INVOICE (READ ONLY & DEBUG RAW)
+export async function previewAnafInvoice(messageId: string) {
+  await checkAdmin()
+
+  try {
+    await connectToDatabase()
+    const msg = await AnafMessage.findById(messageId)
+    if (!msg) return { success: false, error: 'Mesajul nu mai există.' }
+
+    const token = await getInternalAccessToken()
+    const urlDownload = `${process.env.ANAF_API_BASE_URL}/descarcare?id=${msg.id_descarcare}`
+
+    const resXml = await fetch(urlDownload, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!resXml.ok) return { success: false, error: 'Eroare download ANAF.' }
+
+    const blob = await resXml.blob()
+    const buffer = Buffer.from(await blob.arrayBuffer())
+    let xmlText = ''
+
+    if (buffer.toString('utf-8', 0, 2) === 'PK') {
+      try {
+        const zip = new AdmZip(buffer)
+        const zipEntries = zip.getEntries()
+        const xmlEntry =
+          zipEntries.find(
+            (entry) =>
+              entry.entryName.toLowerCase().endsWith('.xml') &&
+              !entry.entryName.toLowerCase().includes('semnatura')
+          ) || zipEntries[0]
+
+        if (xmlEntry) xmlText = zip.readAsText(xmlEntry)
+        else return { success: false, error: 'ZIP fără XML.' }
+      } catch {
+        return { success: false, error: 'Eroare dezarhivare.' }
+      }
+    } else {
+      xmlText = buffer.toString('utf8')
+    }
+
+    // Parsăm RAW (Tot ce e în fișier, fără filtre)
+    const debugParser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '',
+      removeNSPrefix: true,
+    })
+    const rawObject = debugParser.parse(xmlText)
+
+    // Parsăm cu Logica
+    const parsed = parseAnafXml(xmlText)
+
+    // AFISĂM ÎN CONSOLA COMPARATIA
+    console.log('=====================================================')
+    console.log(
+      `🔎 ANALIZĂ FACTURĂ: ${parsed.invoiceSeries} ${parsed.invoiceNumber}`
+    )
+    console.log('=====================================================')
+
+    // Structura originală completă.
+    console.log('📦 STRUCTURA RAW (Ce trimite ANAF):')
+    // Afisam Invoice-ul, ignoram headerele XML
+    console.log(JSON.stringify(rawObject.Invoice || rawObject, null, 2))
+    console.log('\n-----------------------------------------------------\n')
+    console.log('✅ STRUCTURA PARSATA (Ce salvăm noi):')
+    console.log(JSON.stringify(parsed, null, 2))
+    console.log('=====================================================')
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(parsed)),
+    }
+  } catch (error: unknown) {
+    const e = error instanceof Error ? error.message : String(error)
+    return { success: false, error: e }
   }
 }

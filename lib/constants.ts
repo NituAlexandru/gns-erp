@@ -11,20 +11,20 @@ export const TIMEZONE = 'Europe/Bucharest'
 
 export const UNITS = [
   'bucata',
-  'sac',
-  'rola',
-  'set',
-  'balot',
-  'cutie',
-  'punga',
-  'colac',
-  'palet',
-  'bax',
-  'litru',
   'kg',
-  'm3',
+  'litru',
   'm2',
+  'm3',
   'ml',
+  'palet',
+  'set',
+  'cutie',
+  'bax',
+  'rola',
+  'sac',
+  'punga',
+  'balot',
+  'colac',
 ] as const
 // Resend
 export const SERVER_URL =

@@ -1,145 +1,313 @@
 import { XMLParser } from 'fast-xml-parser'
-import { ParsedAnafInvoice, UblInvoice, UblInvoiceLine } from './anaf.types'
-import { uomToEFacturaMap } from '@/lib/constants/uom.constants'
+import {
+  ParsedAnafInvoice,
+  UblAllowanceCharge,
+  UblInvoice,
+  UblInvoiceLine,
+  XmlNumberValue,
+  XmlTextValue,
+} from './anaf.types'
+import { getInternalUom } from '@/lib/constants/uom.constants'
 
-// Tip helper pentru valorile numerice din XML care pot fi obiecte sau numere
-type XmlNumber = number | { '#text': number } | undefined | null
+function asArray<T>(item: T | T[] | undefined): T[] {
+  if (!item) return []
+  return Array.isArray(item) ? item : [item]
+}
 
-// Construim harta inversă: {'H87': 'bucata'}
-const ANAF_TO_INTERNAL_UOM_MAP = Object.entries(uomToEFacturaMap).reduce(
-  (acc, [internalKey, anafCode]) => {
-    // Forțăm cheia să fie string pentru a evita erorile de indexare
-    acc[String(anafCode)] = internalKey
-    return acc
-  },
-  {} as Record<string, string>
-)
+const getText = (val: XmlTextValue): string => {
+  if (val === undefined || val === null) return ''
+  if (typeof val === 'string') return val
+  if (typeof val === 'object' && '#text' in val) {
+    return String(val['#text'])
+  }
+  return String(val)
+}
+
+const getNumber = (val: XmlNumberValue): number => {
+  if (val === undefined || val === null) return 0
+  if (typeof val === 'number') return val
+  if (typeof val === 'object' && '#text' in val) {
+    return Number(val['#text'])
+  }
+  return 0
+}
 
 export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
-    removeNSPrefix: true, 
+    removeNSPrefix: true,
   })
+  const result = parser.parse(xmlContent) as { Invoice?: UblInvoice }
+  if (!result || !result.Invoice) throw new Error('Format XML invalid.')
 
-  const result = parser.parse(xmlContent)
+  const invoice = result.Invoice
 
-  // Verificare mai strictă folosind unknown pentru siguranță
-  if (!result || typeof result !== 'object' || !('Invoice' in result)) {
-    throw new Error('Format XML invalid: Lipseste tag-ul rădăcină Invoice.')
-  }
-
-  const invoice = result.Invoice as UblInvoice
-
-  // 1. Extragere Furnizor
+  //  FURNIZOR & ADRESA ---
   const supplierParty = invoice.AccountingSupplierParty?.Party
-  const supplierCuiRaw = supplierParty?.PartyTaxScheme?.CompanyID || ''
-  const supplierCui =
-    typeof supplierCuiRaw === 'string' ? supplierCuiRaw : String(supplierCuiRaw)
-
+  const supplierCui = getText(supplierParty?.PartyTaxScheme?.CompanyID)
+  const supplierRegCom = getText(supplierParty?.PartyLegalEntity?.CompanyID)
+  const supplierCapital = getText(
+    supplierParty?.PartyLegalEntity?.CompanyLegalForm
+  )
   const supplierName =
-    supplierParty?.PartyName?.Name ||
-    supplierParty?.PartyLegalEntity?.RegistrationName ||
+    getText(supplierParty?.PartyName?.Name) ||
+    getText(supplierParty?.PartyLegalEntity?.RegistrationName) ||
     'Furnizor Necunoscut'
 
-  const addr = supplierParty?.PostalAddress
-  const addressParts = [
-    addr?.StreetName,
-    addr?.CityName,
-    addr?.CountrySubentity,
+  const sAddr = supplierParty?.PostalAddress
+  const rawStreet = getText(sAddr?.StreetName)
+  const rawCity = getText(sAddr?.CityName)
+  const rawCounty = getText(sAddr?.CountrySubentity)
+  const rawNumber = getText(sAddr?.BuildingNumber)
+  const rawZip = getText(sAddr?.PostalZone)
+  const rawCountry = getText(sAddr?.Country?.IdentificationCode) || ''
+
+  const supplierAddressDetails = {
+    street: rawStreet,
+    city: rawCity,
+    county: rawCounty.replace(/^RO-?/i, ''),
+    number: rawNumber,
+    zip: rawZip,
+    country: rawCountry,
+  }
+  const supplierAddress = [
+    rawStreet,
+    rawNumber ? `Nr. ${rawNumber}` : '',
+    rawCity,
+    supplierAddressDetails.county,
+    rawZip,
   ]
-  const supplierAddress = addressParts
-    .filter((p) => p && typeof p === 'string')
+    .filter(Boolean)
     .join(', ')
 
-  // 2. Date Factură
-  const rawInvoiceId = String(invoice.ID || '')
-  const match = rawInvoiceId.match(/^([A-Za-z]+)(.*)$/)
-  const invoiceSeries = match && match[1] ? match[1] : 'SPV'
-  const invoiceNumber = match && match[2] ? match[2] : rawInvoiceId
-  const issueDateStr = invoice.IssueDate || new Date().toISOString()
-  const invoiceDate = new Date(issueDateStr)
-
-  // Scadența
-  const dueDateStr = invoice.DueDate || issueDateStr
-  const dueDate = new Date(dueDateStr)
-
-  // 3. Totaluri
-  const getTotal = (val: XmlNumber): number => {
-    if (typeof val === 'number') return val
-    if (val && typeof val === 'object' && '#text' in val) return val['#text']
-    return 0
+  const sContact = supplierParty?.Contact
+  const supplierContact = {
+    name: getText(sContact?.Name),
+    phone: getText(sContact?.Telephone),
+    email: getText(sContact?.ElectronicMail),
   }
 
-  const totalAmount = getTotal(invoice.LegalMonetaryTotal?.TaxInclusiveAmount)
-  const currency = invoice.DocumentCurrencyCode || 'RON'
+  //  CLIENT ----------------
+  const customerParty = invoice.AccountingCustomerParty?.Party
+  const customerCui = getText(customerParty?.PartyTaxScheme?.CompanyID)
+  const customerName =
+    getText(customerParty?.PartyLegalEntity?.RegistrationName) || 'Client'
+  const customerRegCom = getText(customerParty?.PartyLegalEntity?.CompanyID)
+  const cContact = customerParty?.Contact
+  const customerContact = {
+    name: getText(cContact?.Name),
+    phone: getText(cContact?.Telephone),
+    email: getText(cContact?.ElectronicMail),
+  }
 
-  // 4. Linii
-  const rawLines = invoice.InvoiceLine
-  const linesArray: UblInvoiceLine[] = Array.isArray(rawLines)
-    ? rawLines
-    : rawLines
-      ? [rawLines]
-      : []
+  //  PLATA -----------------------
+  const pmArr = asArray(invoice.PaymentMeans)
+  const pm = pmArr[0]
+  const supplierIban = getText(pm?.PayeeFinancialAccount?.ID)
+  const supplierBank = getText(pm?.PayeeFinancialAccount?.Name)
+  const supplierBic = getText(
+    pm?.PayeeFinancialAccount?.FinancialInstitutionBranch?.ID
+  )
+  const paymentId = getText(pm?.PaymentID)
+  const paymentMethodCode = getText(pm?.PaymentMeansCode)
+  const supplierBankAccounts = pmArr
+    .map((p) => ({
+      iban: getText(p.PayeeFinancialAccount?.ID),
+      bank: getText(p.PayeeFinancialAccount?.Name),
+      bic: getText(p.PayeeFinancialAccount?.FinancialInstitutionBranch?.ID),
+    }))
+    .filter((acc) => acc.iban) // Păstrăm doar cele care au IBAN valid
+  const billingRefRaw = invoice.BillingReference?.InvoiceDocumentReference
+  let billingReference = undefined
+  if (billingRefRaw?.ID) {
+    billingReference = {
+      oldInvoiceNumber: getText(billingRefRaw.ID),
+      oldInvoiceDate: billingRefRaw.IssueDate
+        ? new Date(getText(billingRefRaw.IssueDate))
+        : undefined,
+    }
+  }
 
-  const parsedLines = linesArray.map((line) => {
-    const name = line.Item?.Name || 'Produs Fără Nume'
+  const exchangeRate = getNumber(invoice.TaxExchangeRate?.CalculationRate)
+  //  REFERINTE -------------------
+  const notes = asArray(invoice.Note).map((n) => getText(n))
+  const contractReference = getText(invoice.ContractDocumentReference?.ID)
+  const orderReference = getText(invoice.OrderReference?.ID)
+  const salesOrderID = getText(invoice.OrderReference?.SalesOrderID)
+  const despatchReference = getText(invoice.DespatchDocumentReference?.ID)
+  const buyerReference = getText(invoice.BuyerReference)
+  const delArr = asArray(invoice.Delivery)
+  const deliveryLocationId = getText(delArr[0]?.DeliveryLocation?.ID)
+  const deliveryPartyName = getText(delArr[0]?.DeliveryParty?.PartyName?.Name)
+  const rawDeliveryDate = getText(delArr[0]?.ActualDeliveryDate)
+  const actualDeliveryDate = rawDeliveryDate
+    ? new Date(rawDeliveryDate)
+    : undefined
+  const ptArr = asArray(invoice.PaymentTerms)
+  const paymentTermsNote = getText(ptArr[0]?.Note)
 
-    // Extragere Cantitate și Cod UM
-    let quantity = 0
-    let unitCode = 'H87'
+  // DATE ------------------------------
+  const rawInvoiceId = String(invoice.ID || '')
+  const match = rawInvoiceId.match(/^([A-Za-z\-]+)\s*(\d+)$/)
+  const invoiceSeries = match && match[1] ? match[1] : 'SPV'
+  const invoiceNumber = match && match[2] ? match[2] : rawInvoiceId
 
-    if (line.InvoicedQuantity) {
-      if (
-        typeof line.InvoicedQuantity === 'object' &&
-        line.InvoicedQuantity !== null
-      ) {
-        quantity = parseFloat(String(line.InvoicedQuantity['#text'] || 0))
-        unitCode = line.InvoicedQuantity['@_unitCode'] || unitCode
-      } else {
-        quantity = parseFloat(String(line.InvoicedQuantity))
+  const invoiceDate = new Date(
+    getText(invoice.IssueDate) || new Date().toISOString()
+  )
+  const dueDate = new Date(
+    getText(invoice.DueDate) || invoiceDate.toISOString()
+  )
+  const taxPointDate = invoice.TaxPointDate
+    ? new Date(getText(invoice.TaxPointDate))
+    : undefined
+
+  const invoicePeriodRaw = invoice.InvoicePeriod
+  let invoicePeriod = undefined
+  if (invoicePeriodRaw) {
+    const ip = Array.isArray(invoicePeriodRaw)
+      ? invoicePeriodRaw[0]
+      : invoicePeriodRaw
+    if (ip.StartDate && ip.EndDate) {
+      invoicePeriod = {
+        startDate: new Date(getText(ip.StartDate)),
+        endDate: new Date(getText(ip.EndDate)),
       }
     }
+  }
 
-    const internalUnit = ANAF_TO_INTERNAL_UOM_MAP[unitCode]
+  // TOTALURI (TOATE CAMPURILE) --------------------
+  const totals = invoice.LegalMonetaryTotal
+  const totalAmount = getNumber(totals?.TaxInclusiveAmount)
+  let payableAmount = totalAmount // Default fallback
+  if (totals && totals.PayableAmount !== undefined) {
+    payableAmount = getNumber(totals.PayableAmount)
+  }
+  const prepaidAmount = getNumber(totals?.PrepaidAmount)
+  const totalAllowance = getNumber(totals?.AllowanceTotalAmount)
+  const totalCharges = getNumber(totals?.ChargeTotalAmount)
+  const currency = getText(invoice.DocumentCurrencyCode) || 'RON'
 
-    if (!internalUnit) {
-      throw new Error(
-        `Unitate de măsură ANAF necunoscută: '${unitCode}' (produs: ${name}). Te rog adaug-o în uom.constants.ts`
-      )
+  // TAXE (Defalcare)
+  const taxTotalArr = asArray(invoice.TaxTotal)
+  const taxObj = taxTotalArr.find((t) => t.TaxSubtotal) || taxTotalArr[0] // Cautam obiectul care are subtotaluri
+  const totalTax = getNumber(taxObj?.TaxAmount)
+
+  const taxSubtotals = asArray(taxObj?.TaxSubtotal).map((sub) => ({
+    taxableAmount: getNumber(sub.TaxableAmount),
+    taxAmount: getNumber(sub.TaxAmount),
+    percent: getNumber(sub.TaxCategory?.Percent),
+    categoryCode: getText(sub.TaxCategory?.ID),
+  }))
+
+  // LINII ------------------------
+  const rawLines = asArray(invoice.InvoiceLine)
+  const parsedLines = rawLines.map((line: UblInvoiceLine) => {
+    // Cast temporar intern pt ca TS se incurca la complexitatea UBL
+    const name = getText(line.Item?.Name) || 'Produs'
+    const rawDesc = getText(line.Item?.Description)
+    const rawNote = getText(line.Note)
+    const description = [rawDesc, rawNote].filter(Boolean).join(' - ')
+    const productCode = getText(
+      line.Item?.SellersItemIdentification?.ID ||
+        line.Item?.StandardItemIdentification?.ID
+    )
+    const commodityCode = getText(
+      line.Item?.CommodityClassification?.ItemClassificationCode
+    )
+    const originCountry = getText(line.Item?.OriginCountry?.IdentificationCode)
+
+    let quantity = 0
+    let unitCode = 'H87'
+    if (line.InvoicedQuantity && typeof line.InvoicedQuantity === 'object') {
+      quantity = getNumber(line.InvoicedQuantity)
+      unitCode = String(line.InvoicedQuantity['@_unitCode'] || 'H87')
+    } else {
+      quantity = getNumber(line.InvoicedQuantity)
     }
+    const internalUnit = getInternalUom(unitCode) || 'bucata'
 
-    // Preț și Valoare
-    const price =
-      typeof line.Price?.PriceAmount === 'object'
-        ? parseFloat(String(line.Price.PriceAmount['#text'] || 0))
-        : parseFloat(String(line.Price?.PriceAmount || 0))
+    const price = getNumber(line.Price?.PriceAmount)
+    const baseQuantity = getNumber(line.Price?.BaseQuantity) || 1
+    const lineValue = getNumber(line.LineExtensionAmount)
+    const vatRate = getNumber(line.Item?.ClassifiedTaxCategory?.Percent)
+    const vatAmount = parseFloat((lineValue * (vatRate / 100)).toFixed(2))
 
-    const lineValue =
-      typeof line.LineExtensionAmount === 'object'
-        ? parseFloat(String(line.LineExtensionAmount['#text'] || 0))
-        : parseFloat(String(line.LineExtensionAmount || 0))
+    // Calcul Discount/Taxa pe linie
+    let lineAllowanceAmount = 0
+    asArray<UblAllowanceCharge>(line.AllowanceCharge).forEach((c) => {
+      const indicator = c.ChargeIndicator
+
+      // Verificam daca e string 'true' sau boolean true
+      const isCharge =
+        String(indicator === 'true' || indicator === true) === 'true'
+      const amt = getNumber(c.Amount)
+      if (!isCharge) lineAllowanceAmount += amt
+    })
 
     return {
       productName: name,
+      productCode,
+      productDescription: description,
+      commodityCode,
       quantity,
       price,
+      baseQuantity,
       unitOfMeasure: internalUnit,
-      unitCode: unitCode,
+      unitCode,
+      vatRate,
+      vatAmount,
       lineValue,
+      lineAllowanceAmount,
+      originCountry,
     }
   })
 
   return {
     supplierCui,
-    supplierName: String(supplierName),
+    supplierName,
     supplierAddress,
+    supplierAddressDetails,
+    supplierIban,
+    supplierBank,
+    supplierBic,
+    supplierBankAccounts,
+    supplierContact,
+    customerCui,
+    customerName,
+    customerContact,
     invoiceNumber,
     invoiceSeries,
     invoiceDate,
     dueDate,
+    taxPointDate,
+    invoicePeriod,
+    notes,
+    contractReference,
+    orderReference,
+    salesOrderID,
+    despatchReference,
+    buyerReference,
+    deliveryLocationId,
+    deliveryPartyName,
+    actualDeliveryDate,
+    paymentTermsNote,
+    paymentId,
     totalAmount,
+    totalTax,
+    payableAmount,
+    prepaidAmount,
+    totalAllowance,
+    totalCharges,
     currency,
+    taxSubtotals,
     lines: parsedLines,
+    supplierRegCom,
+    supplierCapital,
+    customerRegCom,
+    paymentMethodCode,
+    billingReference,
+    exchangeRate,
   }
 }

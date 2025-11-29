@@ -36,6 +36,7 @@
     "@vercel/speed-insights": "^1.2.0",
     "@zxing/library": "^0.21.3",
     "ably": "^2.14.0",
+    "adm-zip": "^0.5.16",
     "bcryptjs": "^3.0.2",
     "bwip-js": "^4.7.0",
     "class-variance-authority": "^0.7.1",
@@ -77,6 +78,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/adm-zip": "^0.5.7",
     "@types/bcryptjs": "^2.4.6",
     "@types/bwip-js": "^3.2.3",
     "@types/node": "^24.1.0",
