@@ -38,10 +38,17 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
     attributeNamePrefix: '@_',
     removeNSPrefix: true,
   })
-  const result = parser.parse(xmlContent) as { Invoice?: UblInvoice }
-  if (!result || !result.Invoice) throw new Error('Format XML invalid.')
+  const result = parser.parse(xmlContent)
+  // Verificăm care este rădăcina documentului
+  const invoice = (result.Invoice || result.CreditNote) as UblInvoice
 
-  const invoice = result.Invoice
+  if (!invoice)
+    throw new Error('Format XML invalid (lipsă Invoice sau CreditNote).')
+
+  // Determinăm tipul documentului: dacă are CreditNote, e STORNO
+  const docType = result.CreditNote ? 'STORNO' : 'STANDARD'
+
+  const invoiceTypeCode = getText(invoice.InvoiceTypeCode)
 
   //  FURNIZOR & ADRESA ---
   const supplierParty = invoice.AccountingSupplierParty?.Party
@@ -202,7 +209,7 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
   }))
 
   // LINII ------------------------
-  const rawLines = asArray(invoice.InvoiceLine)
+  const rawLines = asArray(invoice.InvoiceLine || invoice.CreditNoteLine)
   const parsedLines = rawLines.map((line: UblInvoiceLine) => {
     // Cast temporar intern pt ca TS se incurca la complexitatea UBL
     const name = getText(line.Item?.Name) || 'Produs'
@@ -309,5 +316,7 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
     paymentMethodCode,
     billingReference,
     exchangeRate,
+    invoiceType: docType,
+    invoiceTypeCode: invoiceTypeCode,
   }
 }

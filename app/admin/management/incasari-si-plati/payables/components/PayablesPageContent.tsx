@@ -13,36 +13,33 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PlusCircle, FileText } from 'lucide-react'
-import { SupplierPaymentsList } from './SupplierPaymentsList'
-import { SupplierInvoicesList } from './SupplierInvoicesList'
+
+// --- IMPORTURI TABELE (Asigură-te că fișierele există!) ---
+import { SupplierInvoicesTable } from './SupplierInvoicesTable'
+// <--- AICI ERA EROAREA "NOT DEFINED"
+import { AnafLogsTable } from './AnafLogsTable'
+
+import { CreateSupplierInvoiceForm } from './CreateSupplierInvoiceForm'
 import { CreateSupplierPaymentForm } from './CreateSupplierPaymentForm'
 import {
   SupplierAllocationModal,
-  PopulatedSupplierPayment,
+  PopulatedSupplierPayment, // <--- IMPORT TIPUL CORECT
 } from './SupplierAllocationModal'
 import { SupplierInvoiceDetailSheet } from './SupplierInvoiceDetailSheet'
-import { AnafLogsTable } from './AnafLogsTable'
 import { AnafSyncButton } from './AnafSyncButton'
+
+// --- IMPORTURI TYPES & ACTIONS ---
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { BudgetCategoryDTO } from '@/lib/db/modules/financial/treasury/budgeting/budget-category.types'
 import { IBudgetCategoryTree } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.types'
-import { z } from 'zod'
-import { CreateSupplierInvoiceSchema } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.validator'
-import { SupplierInvoiceStatus } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.constants'
+import { SupplierInvoiceListItem } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 import {
-  AnafProcessingStatus,
   AnafLogType,
+  AnafProcessingStatus,
 } from '@/lib/db/modules/setting/efactura/anaf.constants'
 import { AnafInboxTable } from './AnafImboxTable'
-
-type PopulatedInvoice = z.infer<typeof CreateSupplierInvoiceSchema> & {
-  _id: string
-  status: SupplierInvoiceStatus
-  paidAmount: number
-  remainingAmount: number
-  supplierId: { _id: string; name: string }
-}
+import { SupplierPaymentsTable } from './SupplierPaymentsTable'
 
 interface InboxErrorItem {
   _id: string
@@ -63,28 +60,55 @@ interface LogItem {
 
 interface PayablesPageContentProps {
   suppliers: ISupplierDoc[]
-  invoices: PopulatedInvoice[]
-  payments: PopulatedSupplierPayment[]
+
+  invoicesData: {
+    data: SupplierInvoiceListItem[]
+    totalPages: number
+    total: number
+    totalCurrentYear?: number
+  }
+
+  paymentsData: {
+    data: PopulatedSupplierPayment[]
+    totalPages: number
+    total: number
+    totalCurrentYear?: number
+  }
+
+  inboxData: {
+    data: InboxErrorItem[]
+    totalPages: number
+    total: number
+    totalCurrentYear?: number
+  }
+  logsData: {
+    data: LogItem[]
+    totalPages: number
+    total: number
+    totalCurrentYear?: number
+  }
+
   vatRates: VatRateDTO[]
   defaultVatRate: VatRateDTO | null
   budgetCategoriesFlat: BudgetCategoryDTO[]
   budgetCategoriesTree: IBudgetCategoryTree[]
-  inboxErrors: InboxErrorItem[]
-  logsData: LogItem[]
 }
 
 export function PayablesPageContent({
   suppliers,
-  invoices,
-  payments,
-  budgetCategoriesFlat,
-  inboxErrors,
+  invoicesData,
+  paymentsData,
+  inboxData,
   logsData,
+  budgetCategoriesFlat,
+  vatRates,
+  defaultVatRate,
 }: PayablesPageContentProps) {
   const router = useRouter()
 
-  // --- STATE-URI CENTRALE PENTRU MODALE ---
+  // --- STATE-URI ---
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false)
   const [allocationModalPayment, setAllocationModalPayment] =
     useState<PopulatedSupplierPayment | null>(null)
   const [preselectedSupplierId, setPreselectedSupplierId] = useState<
@@ -94,7 +118,7 @@ export function PayablesPageContent({
     string | null
   >(null)
 
-  // --- LOGICA DE CONSTRUIRE A ARBORELUI ---
+  // --- ARBORE BUGETE ---
   const budgetCategoriesTree = useMemo(() => {
     const map = new Map<string, IBudgetCategoryTree>()
     const tree: IBudgetCategoryTree[] = []
@@ -120,16 +144,10 @@ export function PayablesPageContent({
     return tree
   }, [budgetCategoriesFlat])
 
-  // --- FUNCTII DE COORDONARE ---
+  // --- HANDLERS ---
   const handleOpenCreatePaymentFromInvoice = (supplierId: string) => {
     setPreselectedSupplierId(supplierId)
     setPaymentModalOpen(true)
-  }
-
-  const handleOpenAllocationFromInvoice = (
-    payment: PopulatedSupplierPayment
-  ) => {
-    setAllocationModalPayment(payment)
   }
 
   const handlePaymentFormSubmit = () => {
@@ -139,9 +157,9 @@ export function PayablesPageContent({
   }
 
   return (
-    <div className='space-y-6 flex flex-col h-[calc(100vh-180px)]'>
-      {/* 1. HEADER & ACTION BAR */}
-      <div className='flex flex-col md:flex-row gap-4 md:items-center justify-between'>
+    <div className='flex flex-col h-full min-h-0 gap-0'>
+      {/* 1. HEADER */}
+      <div className='flex flex-col md:flex-row gap-0 md:items-center justify-between pb-0'>
         <div>
           <h1 className='text-2xl font-bold tracking-tight'>
             Plăți către Furnizori
@@ -152,12 +170,14 @@ export function PayablesPageContent({
         </div>
         <div className='flex items-center gap-2'>
           <AnafSyncButton />
-
-          <Button variant='outline' className='gap-2' onClick={() => {}}>
+          <Button
+            variant='outline'
+            className='gap-2'
+            onClick={() => setCreateInvoiceOpen(true)}
+          >
             <FileText className='h-4 w-4' />
             Adaugă Factură Primită
           </Button>
-
           <Button
             className='gap-2 bg-red-600 hover:bg-red-700 text-white'
             onClick={() => {
@@ -171,30 +191,30 @@ export function PayablesPageContent({
         </div>
       </div>
 
-      {/* 2. TABS PRINCIPALE - DEFAULT SETAT PE INVOICES */}
+      {/* 2. TABS */}
       <Tabs
         defaultValue='invoices'
-        className='flex-1 flex flex-col overflow-hidden '
+        className='flex-1 flex flex-col overflow-hidden p-0'
       >
-        <div className='border-b pb-0 mb-1'>
-          <TabsList className='bg-transparent h-auto p-0 gap-2'>
+        <div className='border-b'>
+          <TabsList className='bg-transparent h-auto p-0 gap-1'>
             <TabsTrigger
               value='invoices'
-              className=' border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 cursor-pointer'
+              className=' border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-1 cursor-pointer'
             >
               Facturi
               <Badge variant='secondary' className='ml-2'>
-                {invoices.length}
+                {invoicesData.totalCurrentYear}
               </Badge>
             </TabsTrigger>
 
             <TabsTrigger
               value='payments'
-              className=' border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 cursor-pointer'
+              className='border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-1 cursor-pointer'
             >
               Plăți
               <Badge variant='secondary' className='ml-2'>
-                {payments.length}
+                {paymentsData.totalCurrentYear}
               </Badge>
             </TabsTrigger>
 
@@ -203,9 +223,9 @@ export function PayablesPageContent({
               className=' border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 cursor-pointer'
             >
               Mesaje SPV
-              {inboxErrors.length > 0 && (
+              {inboxData.total > 0 && (
                 <Badge variant='destructive' className='ml-2'>
-                  {inboxErrors.length}
+                  {inboxData.totalCurrentYear}
                 </Badge>
               )}
             </TabsTrigger>
@@ -215,42 +235,57 @@ export function PayablesPageContent({
               className=' border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 cursor-pointer'
             >
               Logs
+              <Badge variant='secondary' className='ml-2'>
+                {logsData.totalCurrentYear}
+              </Badge>
             </TabsTrigger>
           </TabsList>
         </div>
 
         <div className='flex-1 overflow-hidden'>
           {/* TAB: FACTURI */}
-          <TabsContent value='invoices' className='h-full m-0'>
-            <SupplierInvoicesList
-              invoices={invoices}
+          <TabsContent
+            value='invoices'
+            className='h-full m-0 overflow-hidden flex flex-col'
+          >
+            <SupplierInvoicesTable
+              initialData={invoicesData}
               onOpenCreatePayment={handleOpenCreatePaymentFromInvoice}
-              onOpenAllocationModal={handleOpenAllocationFromInvoice}
               onOpenDetailsSheet={setInvoiceToViewDetails}
             />
           </TabsContent>
 
           {/* TAB: PLĂȚI */}
-          <TabsContent value='payments' className='h-full m-0'>
-            <SupplierPaymentsList
-              payments={payments}
+          <TabsContent
+            value='payments'
+            className='h-full m-0 overflow-hidden flex flex-col'
+          >
+            {/* Folosim componenta corect importată */}
+            <SupplierPaymentsTable
+              initialData={paymentsData}
               onOpenAllocationModal={setAllocationModalPayment}
             />
           </TabsContent>
 
           {/* TAB: MESAJE SPV */}
-          <TabsContent value='anaf-inbox' className='h-full m-0 overflow-auto'>
-            <AnafInboxTable initialMessages={inboxErrors} />
+          <TabsContent
+            value='anaf-inbox'
+            className='h-full m-0 overflow-hidden flex flex-col'
+          >
+            <AnafInboxTable initialData={inboxData} />
           </TabsContent>
 
           {/* TAB: LOGS */}
-          <TabsContent value='logs' className='h-full m-0 overflow-auto'>
-            <AnafLogsTable logs={logsData} />
+          <TabsContent
+            value='logs'
+            className='h-full m-0 overflow-hidden flex flex-col'
+          >
+            <AnafLogsTable initialData={logsData} />
           </TabsContent>
         </div>
       </Tabs>
 
-      {/* 3. MODALE CENTRALE */}
+      {/* 3. MODALE */}
       {paymentModalOpen && (
         <Sheet open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
           <SheetContent
@@ -284,6 +319,31 @@ export function PayablesPageContent({
         invoiceId={invoiceToViewDetails}
         onClose={() => setInvoiceToViewDetails(null)}
       />
+
+      <Sheet open={createInvoiceOpen} onOpenChange={setCreateInvoiceOpen}>
+        <SheetContent
+          side='right'
+          className='w-[90%] max-w-none sm:w-[90%] md:w-[80%] lg:w-[70%] xl:w-[60%] overflow-y-auto'
+        >
+          <SheetHeader>
+            <SheetTitle>Adăugare Factură Furnizor</SheetTitle>
+            <SheetDescription>
+              Introdu manual detaliile facturii primite.
+            </SheetDescription>
+          </SheetHeader>
+          <div className='p-5'>
+            <CreateSupplierInvoiceForm
+              suppliers={suppliers}
+              vatRates={vatRates}
+              defaultVatRate={defaultVatRate}
+              onFormSubmit={() => {
+                setCreateInvoiceOpen(false)
+                router.refresh()
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }

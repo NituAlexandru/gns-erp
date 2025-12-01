@@ -12,6 +12,7 @@ import {
   getAnafInboxErrors,
   getAnafLogs,
 } from '@/lib/db/modules/setting/efactura/anaf.actions'
+import { PAGE_SIZE } from '@/lib/constants'
 
 export default async function PayablesPage() {
   const [
@@ -25,13 +26,13 @@ export default async function PayablesPage() {
     logsResult,
   ] = await Promise.all([
     getAllSuppliersForAdmin({ limit: 1000 }),
-    getSupplierInvoices(),
-    getSupplierPayments(),
+    getSupplierInvoices(1, PAGE_SIZE),
+    getSupplierPayments(1, PAGE_SIZE),
     getVatRates(),
     getDefaultVatRate(),
     getBudgetCategories(),
-    getAnafInboxErrors(),
-    getAnafLogs(),
+    getAnafInboxErrors(1, PAGE_SIZE),
+    getAnafLogs(1, PAGE_SIZE),
   ])
 
   const budgetCategoriesTree: IBudgetCategoryTree[] = []
@@ -39,14 +40,14 @@ export default async function PayablesPage() {
   return (
     <PayablesPageContent
       suppliers={suppliersResult.data || []}
-      invoices={invoicesResult.data || []}
-      payments={paymentsResult.data || []}
+      invoicesData={invoicesResult}
+      paymentsData={paymentsResult}
+      inboxData={inboxErrorsResult}
+      logsData={logsResult}
       vatRates={vatRatesData.data || []}
       defaultVatRate={defaultVatData.data || null}
       budgetCategoriesFlat={budgetCategoriesData.data || []}
       budgetCategoriesTree={budgetCategoriesTree}
-      inboxErrors={inboxErrorsResult}
-      logsData={logsResult}
     />
   )
 }

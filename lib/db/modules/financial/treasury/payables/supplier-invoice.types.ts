@@ -86,6 +86,7 @@ export interface ISupplierInvoiceDoc extends Document {
   supplierSnapshot: SupplierSnapshot
   ourCompanySnapshot: OurCompanySnapshot
   invoiceType: 'STANDARD' | 'STORNO' | 'AVANS'
+  invoiceTypeCode?: string
   invoiceSeries: string
   invoiceNumber: string
   invoiceDate: Date

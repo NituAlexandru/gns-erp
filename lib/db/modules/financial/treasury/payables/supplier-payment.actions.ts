@@ -22,7 +22,7 @@ import Supplier from '../../../suppliers/supplier.model'
 import BudgetCategoryModel from '../budgeting/budget-category.model'
 import { PopulatedSupplierPayment } from '@/app/admin/management/incasari-si-plati/payables/components/SupplierAllocationModal'
 import { SupplierPaymentStatus } from './supplier-payment.constants'
-import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
+import { CLIENT_DETAIL_PAGE_SIZE, PAGE_SIZE } from '@/lib/constants'
 import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 
 type AllocationDetail = { invoiceNumber: string; allocatedAmount: number }
@@ -48,14 +48,22 @@ export interface SupplierPaymentListItem {
   _id: string
   paymentDate: Date
   paymentMethod: string
-  paymentNumber?: string
-  seriesName?: string
+  paymentNumber?: string | null
+  seriesName?: string | null
+  sequenceNumber?: number | null
   totalAmount: number
+  unallocatedAmount: number
   status: SupplierPaymentStatus
+  createdAt: Date
+  createdByName: string
+  supplierId: {
+    _id: string
+    name: string
+  }
 }
 
 export type SupplierPaymentsPage = {
-  data: SupplierPaymentListItem[]
+  data: PopulatedSupplierPayment[]
   totalPages: number
   total: number
 }
@@ -233,26 +241,47 @@ export async function createSupplierPayment(
     return { success: false, message: (error as Error).message }
   }
 }
-
-// ... (getSupplierPayments rămâne la fel) ...
-export async function getSupplierPayments() {
+// aduce toate platile, indiferent de furnizor
+export async function getSupplierPayments(
+  page: number = 1,
+  limit: number = PAGE_SIZE
+): Promise<
+  SupplierPaymentsPage & { success: boolean; totalCurrentYear?: number }
+> {
   try {
     await connectToDatabase()
-    const payments = await SupplierPaymentModel.find()
-      .populate({
-        path: 'supplierId',
-        model: Supplier,
-        select: 'name',
-      })
-      .sort({ paymentDate: -1 })
-      .lean()
+    const skip = (page - 1) * limit
+    const startOfYear = new Date(new Date().getFullYear(), 0, 1)
+
+    const [payments, total, totalCurrentYear] = await Promise.all([
+      SupplierPaymentModel.find()
+        .populate({ path: 'supplierId', select: 'name' })
+        .sort({ paymentDate: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      SupplierPaymentModel.countDocuments(),
+      SupplierPaymentModel.countDocuments({
+        paymentDate: { $gte: startOfYear },
+      }),
+    ])
+
     return {
       success: true,
       data: JSON.parse(JSON.stringify(payments)),
+      totalPages: Math.ceil(total / limit),
+      total: total,
+      totalCurrentYear: totalCurrentYear,
     }
   } catch (error) {
     console.error('❌ Eroare getSupplierPayments:', error)
-    return { success: false, data: [] }
+    return {
+      success: false,
+      data: [],
+      totalPages: 0,
+      total: 0,
+      totalCurrentYear: 0,
+    }
   }
 }
 
@@ -394,6 +423,7 @@ export async function checkSupplierHasUnallocatedPayments(
     return { success: false, hasUnallocatedPayment: false, payment: null }
   }
 }
+// aduce platile pentru un furnizor, indiferent de furnizor
 export async function getPaymentsForSupplier(
   supplierId: string,
   page: number = 1
@@ -420,21 +450,42 @@ export async function getPaymentsForSupplier(
     }
 
     const payments = await SupplierPaymentModel.find(queryConditions)
-      .select(
-        'paymentDate paymentMethod paymentNumber seriesName totalAmount status'
-      )
+      .populate({ path: 'supplierId', select: 'name' })
       .sort({ paymentDate: -1 })
       .skip(skip)
       .limit(limit)
       .lean()
 
-    const normalizedPayments = payments.map((p) => ({
-      ...p,
-      _id: p._id.toString(),
-    })) as unknown as SupplierPaymentListItem[]
+    // FIX: Fără 'any'. TypeScript va infera tipul din Mongoose,
+    // iar noi facem cast doar pe supplierId care este populat.
+    const normalizedPayments: SupplierPaymentListItem[] = payments.map((p) => {
+      // Definim strict ce așteptăm de la populate, fără any
+      const populatedSupplier = p.supplierId as unknown as {
+        _id: Types.ObjectId
+        name: string
+      } | null
+
+      return {
+        _id: p._id.toString(),
+        paymentDate: p.paymentDate,
+        paymentMethod: p.paymentMethod,
+        paymentNumber: p.paymentNumber || null,
+        seriesName: p.seriesName,
+        sequenceNumber: p.sequenceNumber || null,
+        totalAmount: p.totalAmount,
+        unallocatedAmount: p.unallocatedAmount,
+        status: p.status,
+        createdAt: p.createdAt,
+        createdByName: p.createdByName,
+        supplierId: {
+          _id: populatedSupplier?._id.toString() || supplierId,
+          name: populatedSupplier?.name || 'N/A',
+        },
+      }
+    })
 
     return {
-      data: normalizedPayments,
+      data: JSON.parse(JSON.stringify(normalizedPayments)),
       totalPages: Math.ceil(total / limit),
       total: total,
     }

@@ -11,6 +11,7 @@ import {
 import {
   ArrowLeftRight,
   FileSignature,
+  FileText,
   Info,
   Loader2,
   MapPin,
@@ -40,7 +41,10 @@ import {
   getInvoiceAllocationHistory,
   PopulatedInvoiceAllocationHistory,
 } from '@/lib/db/modules/financial/treasury/payables/supplier-allocation.actions'
-import { getPaymentMethodName } from '@/lib/db/modules/setting/efactura/anaf.constants'
+import {
+  getInvoiceTypeName,
+  getPaymentMethodName,
+} from '@/lib/db/modules/setting/efactura/anaf.constants'
 
 interface SupplierInvoiceDetailSheetProps {
   invoiceId: string | null
@@ -158,6 +162,13 @@ export function SupplierInvoiceDetailSheet({
             {isLoading
               ? 'Încărcare...'
               : `Seria ${invoice?.invoiceSeries || 'F-'} nr. ${invoice?.invoiceNumber}`}
+            {!isLoading && invoice && (
+              <span className='ml-1'>
+                {invoice.invoiceType === 'STORNO'
+                  ? '- Storno'
+                  : getInvoiceTypeName(invoice.invoiceTypeCode) || '- Standard'}
+              </span>
+            )}
           </SheetTitle>
           <SheetDescription>
             <span className='flex flex-col gap-1 text-foreground'>
@@ -188,10 +199,33 @@ export function SupplierInvoiceDetailSheet({
 
                 {/* SECȚIUNE REFERINȚE --- */}
                 <div className='bg-muted/30 border rounded-lg p-2 grid grid-cols-1 gap-y-1 '>
+                  <div className='flex items-center gap-2 text-sm'>
+                    <FileText className='h-4 w-4 text-muted-foreground' />
+                    <span className='text-muted-foreground w-30'>
+                      Tip Factură:
+                    </span>
+                    <div className='flex items-center gap-2'>
+                      {invoice.invoiceType === 'STORNO' ? (
+                        <span className='h-5  '>Storno</span>
+                      ) : (
+                        <span className='h-5 '>Standard</span>
+                      )}
+
+                      {invoice.invoiceTypeCode && (
+                        <span
+                          className='font-medium text-xs truncate max-w-[120px]'
+                          title={getInvoiceTypeName(invoice.invoiceTypeCode)}
+                        >
+                          {getInvoiceTypeName(invoice.invoiceTypeCode)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Contract */}
                   <div className='flex items-center gap-2 text-sm'>
                     <FileSignature className='h-4 w-4 text-muted-foreground' />
-                    <span className='text-muted-foreground w-35'>
+                    <span className='text-muted-foreground w-30'>
                       Contract:
                     </span>
                     <span className='font-medium'>
@@ -202,7 +236,7 @@ export function SupplierInvoiceDetailSheet({
                   {/* Comandă Client */}
                   <div className='flex items-center gap-2 text-sm'>
                     <ShoppingCart className='h-4 w-4 text-muted-foreground' />
-                    <span className='text-muted-foreground w-35'>
+                    <span className='text-muted-foreground w-30'>
                       Comandă Client:
                     </span>
                     <span className='font-medium'>
@@ -213,7 +247,7 @@ export function SupplierInvoiceDetailSheet({
                   {/* Comandă Vânzare */}
                   <div className='flex items-center gap-2 text-sm'>
                     <ShoppingCart className='h-4 w-4 text-muted-foreground' />
-                    <span className='text-muted-foreground w-35'>
+                    <span className='text-muted-foreground w-30'>
                       Comandă Vânz.:
                     </span>
                     <span className='font-medium'>
@@ -224,7 +258,7 @@ export function SupplierInvoiceDetailSheet({
                   {/* Aviz */}
                   <div className='flex items-center gap-2 text-sm'>
                     <Truck className='h-4 w-4 text-muted-foreground' />
-                    <span className='text-muted-foreground w-35'>Aviz:</span>
+                    <span className='text-muted-foreground w-30'>Aviz:</span>
                     <span className='font-medium'>
                       {invoice.references?.despatch || '-'}
                     </span>
@@ -233,7 +267,7 @@ export function SupplierInvoiceDetailSheet({
                   {/* ID Locație */}
                   <div className='flex items-center gap-2 text-sm'>
                     <MapPin className='h-4 w-4 text-muted-foreground' />
-                    <span className='text-muted-foreground w-35'>
+                    <span className='text-muted-foreground w-30'>
                       ID Locație:
                     </span>
                     <span className='font-medium'>
@@ -244,7 +278,7 @@ export function SupplierInvoiceDetailSheet({
                   {/* Destinatar */}
                   <div className='flex items-center gap-2 text-sm'>
                     <MapPin className='h-4 w-4 text-muted-foreground' />
-                    <span className='text-muted-foreground w-35'>
+                    <span className='text-muted-foreground w-30'>
                       Destinatar:
                     </span>
                     <span
@@ -258,7 +292,7 @@ export function SupplierInvoiceDetailSheet({
                   {/* Cost Center / Buyer Ref */}
                   <div className='flex items-center gap-2 text-sm'>
                     <Info className='h-4 w-4 text-muted-foreground' />
-                    <span className='text-muted-foreground w-35'>
+                    <span className='text-muted-foreground w-30'>
                       Ref. Cumparator:
                     </span>
                     <span className='font-medium'>
@@ -497,7 +531,7 @@ export function SupplierInvoiceDetailSheet({
                   <h4 className='font-semibold text-sm flex justify-items-normal gap-2 align-middle text-muted-foreground mt-4'>
                     <Info className='h-4 w-4' /> Mențiuni Termeni de Plată
                   </h4>
-                  <p className='text-sm p-3 border rounded-md bg-muted min-h-[50px]'>        
+                  <p className='text-sm p-3 border rounded-md bg-muted min-h-[50px]'>
                     {invoice.paymentTermsNote ||
                       'Nu există mențiuni de plată salvate.'}
                   </p>
@@ -516,7 +550,7 @@ export function SupplierInvoiceDetailSheet({
                           <span className='text-left'>
                             Cota TVA: {sub.percent}% ({sub.categoryCode})
                           </span>
-                
+
                           <div className='flex gap-2'>
                             <span>
                               <span className='text-muted-foreground'>

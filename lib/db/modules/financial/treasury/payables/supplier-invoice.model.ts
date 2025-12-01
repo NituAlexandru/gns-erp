@@ -130,6 +130,7 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
       required: true,
       index: true,
     },
+    invoiceTypeCode: { type: String },
     invoiceSeries: { type: String, required: true },
     invoiceNumber: { type: String, required: true, index: true },
     invoiceDate: { type: Date, required: true, index: true },

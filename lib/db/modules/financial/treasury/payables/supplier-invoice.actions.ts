@@ -15,7 +15,7 @@ import { ISettingInput } from '../../../setting/types'
 import { connectToDatabase } from '@/lib/db'
 import Supplier from '../../../suppliers/supplier.model'
 import { SupplierInvoiceStatus } from './supplier-invoice.constants'
-import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
+import { CLIENT_DETAIL_PAGE_SIZE, PAGE_SIZE } from '@/lib/constants'
 import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 
 type SupplierInvoiceActionResult = {
@@ -38,12 +38,18 @@ export interface SupplierInvoiceListItem {
   totals: {
     grandTotal: number
   }
+  createdAt: Date
+  supplierId?: {
+    _id: string
+    name: string
+  } | null
 }
 
 export type SupplierInvoicesPage = {
   data: SupplierInvoiceListItem[]
   totalPages: number
   total: number
+  totalCurrentYear?: number
 }
 function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -145,26 +151,51 @@ export async function createSupplierInvoice(
   }
 }
 
-export async function getSupplierInvoices() {
+export async function getSupplierInvoices(
+  page: number = 1,
+  limit: number = PAGE_SIZE
+) {
   try {
     await connectToDatabase()
 
-    const invoices = await SupplierInvoiceModel.find()
-      .populate({
-        path: 'supplierId',
-        model: Supplier,
-        select: 'name',
-      })
-      .sort({ invoiceDate: -1 })
-      .lean()
+    const skip = (page - 1) * limit
+    const startOfYear = new Date(new Date().getFullYear(), 0, 1)
+
+    const [invoices, total, totalCurrentYear] = await Promise.all([
+      SupplierInvoiceModel.find()
+        .populate({
+          path: 'supplierId',
+          model: Supplier,
+          select: 'name',
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      SupplierInvoiceModel.countDocuments(),
+      SupplierInvoiceModel.countDocuments({
+        invoiceDate: { $gte: startOfYear },
+      }),
+    ])
+
+    const normalizedInvoices = JSON.parse(JSON.stringify(invoices))
 
     return {
       success: true,
-      data: JSON.parse(JSON.stringify(invoices)),
+      data: normalizedInvoices,
+      totalPages: Math.ceil(total / limit),
+      total: total,
+      totalCurrentYear: totalCurrentYear,
     }
   } catch (error) {
     console.error('❌ Eroare getSupplierInvoices:', error)
-    return { success: false, data: [] }
+    return {
+      success: false,
+      data: [],
+      totalPages: 0,
+      total: 0,
+      totalCurrentYear: 0,
+    }
   }
 }
 

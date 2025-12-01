@@ -14,7 +14,7 @@ export interface AnafMessageItem {
   detalii: string
   titlu: string
   serial: string
-  id?: string 
+  id?: string
   cif_emitent?: string
 }
 
@@ -57,7 +57,7 @@ export interface UblInvoicePeriod {
 export interface IAnafToken extends Document {
   iv: string // Vectorul de inițializare pentru decriptare AccessToken
   encryptedAccessToken: string
-  encryptedRefreshToken: string 
+  encryptedRefreshToken: string
   accessTokenExpiresAt: Date
   refreshTokenExpiresAt: Date
   updatedAt: Date
@@ -74,7 +74,7 @@ export interface IAnafMessage extends Document {
   is_downloaded: boolean
   processing_status: AnafProcessingStatus
   processing_error?: string
-  related_invoice_id?: string 
+  related_invoice_id?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -122,7 +122,7 @@ export interface UblInvoiceLine {
   Note?: XmlTextValue
 }
 
-// Structura Facturii din XML (Raw) 
+// Structura Facturii din XML (Raw)
 export interface UblInvoice {
   ID?: XmlTextValue
   IssueDate?: string
@@ -252,6 +252,22 @@ export interface UblInvoice {
           Item?: { OriginCountry?: { IdentificationCode?: XmlTextValue } }
         }
       >
+  CreditNoteLine?:
+    | (UblInvoiceLine & {
+        AllowanceCharge?: UblAllowanceCharge | UblAllowanceCharge[]
+        Price?: { PriceAmount?: XmlNumberValue; BaseQuantity?: XmlNumberValue }
+        Item?: { OriginCountry?: { IdentificationCode?: XmlTextValue } }
+      })
+    | Array<
+        UblInvoiceLine & {
+          AllowanceCharge?: UblAllowanceCharge | UblAllowanceCharge[]
+          Price?: {
+            PriceAmount?: XmlNumberValue
+            BaseQuantity?: XmlNumberValue
+          }
+          Item?: { OriginCountry?: { IdentificationCode?: XmlTextValue } }
+        }
+      >
 }
 
 export interface ParsedAnafInvoice {
@@ -284,6 +300,7 @@ export interface ParsedAnafInvoice {
   paymentMethodCode?: string
   invoiceNumber: string
   invoiceSeries: string
+  invoiceTypeCode: string
   invoiceDate: Date
   dueDate: Date
   taxPointDate?: Date
@@ -296,6 +313,7 @@ export interface ParsedAnafInvoice {
     oldInvoiceDate?: Date
   }
   exchangeRate?: number
+  invoiceType: 'STANDARD' | 'STORNO'
   notes: string[]
   contractReference: string
   orderReference: string

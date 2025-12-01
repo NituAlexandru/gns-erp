@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import {
   Table,
   TableBody,
@@ -18,12 +18,13 @@ import {
   Eye,
   Loader2,
   UserPlus,
-} from 'lucide-react' 
+} from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import {
   retryProcessMessage,
   previewAnafInvoice,
+  getAnafInboxErrors,
 } from '@/lib/db/modules/setting/efactura/anaf.actions'
 import {
   AnafProcessingStatus,
@@ -31,6 +32,7 @@ import {
 } from '@/lib/db/modules/setting/efactura/anaf.constants'
 import { AnafPreviewModal } from './AnafPreviewModal'
 import { ParsedAnafInvoice } from '@/lib/db/modules/setting/efactura/anaf.types'
+import { PAGE_SIZE } from '@/lib/constants'
 
 interface InboxMessage {
   _id: string
@@ -42,17 +44,35 @@ interface InboxMessage {
 }
 
 interface AnafInboxTableProps {
-  initialMessages: InboxMessage[]
+  initialData: {
+    data: InboxMessage[]
+    totalPages: number
+    total: number
+  }
 }
 
-export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
-  const [messages, setMessages] = useState(initialMessages)
+export function AnafInboxTable({ initialData }: AnafInboxTableProps) {
+  const [messages, setMessages] = useState(initialData.data)
+  const [totalPages, setTotalPages] = useState(initialData.totalPages)
+  const [page, setPage] = useState(1)
   const [isPending, startTransition] = useTransition()
+
   // State pentru Preview
   const [previewData, setPreviewData] = useState<ParsedAnafInvoice | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null)
 
+  // Fetch la schimbarea paginii
+  useEffect(() => {
+    if (page === 1) return
+    startTransition(async () => {
+      const result = await getAnafInboxErrors(page, PAGE_SIZE)
+      setMessages(result.data)
+      setTotalPages(result.totalPages)
+    })
+  }, [page])
+
+  // Handler Retry
   const handleRetry = (id: string) => {
     toast.loading('Se procesează...', { id: 'retry-toast' })
     startTransition(async () => {
@@ -61,6 +81,7 @@ export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
         toast.success('Factura a fost importată cu succes!', {
           id: 'retry-toast',
         })
+        // Reîmprospătăm lista local (sau am putea reface fetch-ul)
         setMessages((prev) => prev.filter((m) => m._id !== id))
       } else {
         toast.error('Eroare la procesare', {
@@ -71,6 +92,7 @@ export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
     })
   }
 
+  // Handler Preview
   const handlePreview = async (id: string) => {
     setLoadingPreviewId(id)
     try {
@@ -89,11 +111,13 @@ export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
   }
 
   return (
-    <>
-      <div className='border rounded-lg overflow-hidden bg-card'>
+    <div className='flex flex-col h-full'>
+      {/* Wrapper tabel cu scroll intern */}
+      <div className='rounded-md border flex-1 overflow-auto min-h-0 relative'>
         <Table>
-          <TableHeader>
-            <TableRow className='bg-muted/50'>
+          <TableHeader className='sticky top-0 z-10 bg-background shadow-sm'>
+            <TableRow className='bg-muted/50 hover:bg-muted/50'>
+              <TableHead className='w-[50px]'>#</TableHead>
               <TableHead>Data</TableHead>
               <TableHead>CUI Emitent</TableHead>
               <TableHead>Titlu Mesaj</TableHead>
@@ -103,11 +127,17 @@ export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {messages.length === 0 ? (
+            {isPending ? (
+              <TableRow>
+                <TableCell colSpan={6} className='h-24 text-center'>
+                  Se încarcă...
+                </TableCell>
+              </TableRow>
+            ) : messages.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={6}
-                  className='text-center h-32 text-muted-foreground'
+                  className='text-center h-26 text-muted-foreground'
                 >
                   <div className='flex flex-col items-center justify-center gap-2'>
                     <CheckCircle2 className='h-8 w-8 text-green-500' />
@@ -116,14 +146,17 @@ export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
                 </TableCell>
               </TableRow>
             ) : (
-              messages.map((msg) => {
+              messages.map((msg, index) => {
                 const statusInfo = ANAF_PROCESSING_STATUS_MAP[
                   msg.processing_status
                 ] || { label: msg.processing_status, variant: 'outline' }
 
                 return (
                   <TableRow key={msg._id} className='hover:bg-muted/50'>
-                    <TableCell className='font-medium'>
+                    <TableCell className='font-medium text-muted-foreground text-xs py-1'>
+                      {(page - 1) * PAGE_SIZE + index + 1}
+                    </TableCell>
+                    <TableCell className='font-medium py-1'>
                       {new Date(msg.data_creare).toLocaleDateString('ro-RO')}
                       <div className='text-xs text-muted-foreground'>
                         {new Date(msg.data_creare).toLocaleTimeString('ro-RO', {
@@ -150,13 +183,18 @@ export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
                       {msg.processing_error && (
                         <div className='flex items-start gap-1'>
                           <AlertCircle className='h-4 w-4 mt-0.5 shrink-0' />
-                          <span>{msg.processing_error}</span>
+                          <span
+                            className='truncate'
+                            title={msg.processing_error}
+                          >
+                            {msg.processing_error}
+                          </span>
                         </div>
                       )}
                     </TableCell>
                     <TableCell className='text-right'>
                       <div className='flex justify-end gap-2 items-center'>
-                        {/* BUTON ADĂUGARE FURNIZOR  */}
+                        {/* BUTON ADĂUGARE FURNIZOR */}
                         {msg.processing_status === 'ERROR_NO_SUPPLIER' && (
                           <Button
                             size='sm'
@@ -182,7 +220,7 @@ export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
                           {loadingPreviewId === msg._id ? (
                             <Loader2 className='h-4 w-4 animate-spin' />
                           ) : (
-                            <Eye className='h-4 w-4 ' />
+                            <Eye className='h-4 w-4' />
                           )}
                         </Button>
 
@@ -208,11 +246,36 @@ export function AnafInboxTable({ initialMessages }: AnafInboxTableProps) {
         </Table>
       </div>
 
+      {/* Paginare */}
+      {(totalPages > 1 || true) && (
+        <div className='flex items-center justify-center gap-2 py-4 border-t bg-background shrink-0'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1 || isPending}
+          >
+            Anterior
+          </Button>
+          <span className='text-sm text-muted-foreground'>
+            Pagina {page} din {totalPages || 1}
+          </span>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages || isPending}
+          >
+            Următor
+          </Button>
+        </div>
+      )}
+
       <AnafPreviewModal
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         data={previewData}
       />
-    </>
+    </div>
   )
 }

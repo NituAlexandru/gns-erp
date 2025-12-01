@@ -33,7 +33,10 @@ import {
   User,
   ArrowLeftRight,
 } from 'lucide-react'
-import { getPaymentMethodName } from '@/lib/db/modules/setting/efactura/anaf.constants'
+import {
+  getInvoiceTypeName,
+  getPaymentMethodName,
+} from '@/lib/db/modules/setting/efactura/anaf.constants'
 
 interface AnafPreviewModalProps {
   isOpen: boolean
@@ -247,6 +250,19 @@ export function AnafPreviewModal({
             </div>
 
             <div className='grid grid-cols-2 gap-y-1 text-sm'>
+              <div className='text-muted-foreground font-semibold'>
+                Tip Factură:
+              </div>
+              <div className='font-bold flex items-center gap-2'>
+                {data.invoiceType === 'STORNO' ? (
+                  <span>Storno</span>
+                ) : (
+                  <span>Standard</span>
+                )}
+                <span className='text-xs font-normal text-muted-foreground'>
+                  ({getInvoiceTypeName(data.invoiceTypeCode)})
+                </span>
+              </div>
               <div className='text-muted-foreground'>Serie:</div>
               <div className='font-bold '>{data.invoiceSeries || '-'}</div>
               <div className='text-muted-foreground'>Număr:</div>

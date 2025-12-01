@@ -17,6 +17,7 @@ import { ISupplierDoc } from '../../suppliers/types'
 import AdmZip from 'adm-zip'
 import { getNoCachedSetting } from '../setting.actions'
 import { XMLParser } from 'fast-xml-parser'
+import { PAGE_SIZE } from '@/lib/constants'
 
 // --- HELPER AUTH CHECK ---
 async function checkAdmin() {
@@ -189,7 +190,7 @@ async function getInternalAccessToken(): Promise<string> {
   }
   throw new Error('Token Expirat. Necesită reconectare fizică.')
 }
-// MAIN SYNC ACTION --- const daysBack = 10 - de schimbat la 60 de zile
+// MAIN SYNC ACTION ---
 export async function syncAndProcessAnaf() {
   await checkAdmin()
   const session = await auth()
@@ -226,290 +227,339 @@ export async function syncAndProcessAnaf() {
       }
     }
 
-    // APEL API
-    const daysBack = 10 // 60 zile
-    const endpoint = `${process.env.ANAF_API_BASE_URL}/listaMesajeFactura`
-    const urlList = `${endpoint}?zile=${daysBack}&cif=${cifDeFolosit}&raspuns=NU&pagina=1&sistem=RO%20e-Factura`
+    // APEL API & PAGINARE (Folosim endpoint-ul istoric cu TIMESTAMPS)
+    const endData = new Date()
+    const startData = new Date()
+    startData.setDate(endData.getDate() - 59) // Calculăm data de acum 60 zile
 
-    console.log('--- 🚀 APEL API LIVE ---')
-    console.log('URL:', urlList)
+    const startTime = startData.getTime() // Unix Timestamp (milisecunde)
+    const endTime = endData.getTime()
 
-    const resList = await fetch(urlList, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    })
+    // ATENȚIE: Endpoint diferit, specific pentru paginație/istoric
+    const endpoint = `${process.env.ANAF_API_BASE_URL}/listaMesajePaginatieFactura`
 
-    if (!resList.ok) {
-      const errorBody = await resList.text()
-      throw new Error(`Eroare ANAF (${resList.status}): ${errorBody}`)
-    }
+    let currentPage = 1
+    let hasMorePages = true
 
-    const dataList: AnafMessagesResponse = await resList.json()
-    const messages = dataList.mesaje || []
+    // Deschidem bucla WHILE
+    while (hasMorePages) {
+      const urlList = `${endpoint}?startTime=${startTime}&endTime=${endTime}&cif=${cifDeFolosit}&pagina=${currentPage}`
 
-    console.log(
-      `✅ SUCCES! S-au găsit ${messages.length} mesaje totale. Începem procesarea...`
-    )
+      console.log(`📡 Descarc pagina ${currentPage}... URL: ${urlList}`)
 
-    const defaultBank =
-      settings.bankAccounts.find((b) => b.isDefault) || settings.bankAccounts[0]
-    const defaultEmail =
-      settings.emails.find((e) => e.isDefault) || settings.emails[0]
-    const defaultPhone =
-      settings.phones.find((p) => p.isDefault) || settings.phones[0]
+      const resList = await fetch(urlList, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: 'no-store',
+      })
 
-    // PROCESARE MESAJE
-    for (const msg of messages) {
+      console.log('👉 STATUS HTTP:', resList.status, resList.statusText)
+
+      if (!resList.ok) {
+        const errorBody = await resList.text()
+        throw new Error(`Eroare ANAF (${resList.status}): ${errorBody}`)
+      }
+
+      // Parsare text pentru siguranță
+      // Safe JSON parsing
+      const textResponse = await resList.text()
+
+      // Definim un tip local care să accepte și eroarea, ca să nu folosim 'any'
+      type AnafResponseOrError = AnafMessagesResponse & { eroare?: string }
+
+      let dataList: AnafResponseOrError
       try {
-        // --- DATA NORMALIZATION ---
-        const realId = msg.id || msg.id_descarcare
-        const rawTip = msg.tip || 'NECUNOSCUT'
-        const realTip = rawTip.replace(/\s+/g, '_')
+        dataList = JSON.parse(textResponse)
+      } catch {
+        hasMorePages = false
+        break
+      }
 
-        // FILTRU: Ignorăm ce nu e primit
-        if (realTip !== 'FACTURA_PRIMITA') continue
+      // Verificăm dacă ANAF ne-a dat o eroare logică
+      if (dataList.eroare) {
+        throw new Error(`ANAF Refuză cererea: ${dataList.eroare}`)
+      }
 
-        // Fallback CUI Emitent
-        let realCuiEmitent = msg.cif_emitent || msg.cui_emitent
-        if (!realCuiEmitent && msg.detalii) {
-          const match = msg.detalii.match(/cif_emitent=(\d+)/)
-          if (match && match[1]) realCuiEmitent = match[1]
-          else realCuiEmitent = 'NECUNOSCUT'
-        } else if (!realCuiEmitent) {
-          realCuiEmitent = 'NECUNOSCUT'
-        }
+      // Acum TS știe că dataList este valid și folosim tipul importat
+      const messages = dataList.mesaje || []
 
-        const exists = await AnafMessage.findOne({ id_descarcare: realId })
+      console.log(`✅ Pagina ${currentPage}: ${messages.length} mesaje găsite.`)
 
-        if (!exists) {
-          stats.newMessages++
+      // Dacă nu sunt mesaje, oprim bucla
+      if (messages.length === 0) {
+        hasMorePages = false
+        break
+      }
 
-          const dbMsg = await AnafMessage.create({
-            id_descarcare: realId,
-            cui_emitent: realCuiEmitent,
-            titlu: msg.titlu || 'Fara Titlu',
-            tip: realTip,
-            data_creare: parseAnafDate(msg.data_creare),
-            detalii: msg.detalii || '',
-            serial: msg.serial || '',
-            is_downloaded: false,
-            processing_status: 'UNPROCESSED',
-          })
+      const defaultBank =
+        settings.bankAccounts.find((b) => b.isDefault) ||
+        settings.bankAccounts[0]
+      const defaultEmail =
+        settings.emails.find((e) => e.isDefault) || settings.emails[0]
+      const defaultPhone =
+        settings.phones.find((p) => p.isDefault) || settings.phones[0]
 
-          // DOWNLOAD & UNZIP LOGIC
-          try {
-            const urlDownload = `${process.env.ANAF_API_BASE_URL}/descarcare?id=${realId}`
-            const resXml: Response = await fetch(urlDownload, {
-              headers: { Authorization: `Bearer ${accessToken}` },
+      // PROCESARE MESAJE
+      for (const msg of messages) {
+        try {
+          // --- DATA NORMALIZATION ---
+          const realId = msg.id || msg.id_descarcare
+          const rawTip = msg.tip || 'NECUNOSCUT'
+          const realTip = rawTip.replace(/\s+/g, '_')
+
+          // FILTRU: Ignorăm ce nu e primit
+          if (realTip !== 'FACTURA_PRIMITA') continue
+
+          // Fallback CUI Emitent
+          let realCuiEmitent = msg.cif_emitent || msg.cui_emitent
+          if (!realCuiEmitent && msg.detalii) {
+            const match = msg.detalii.match(/cif_emitent=(\d+)/)
+            if (match && match[1]) realCuiEmitent = match[1]
+            else realCuiEmitent = 'NECUNOSCUT'
+          } else if (!realCuiEmitent) {
+            realCuiEmitent = 'NECUNOSCUT'
+          }
+
+          const exists = await AnafMessage.findOne({ id_descarcare: realId })
+
+          if (!exists) {
+            stats.newMessages++
+
+            const dbMsg = await AnafMessage.create({
+              id_descarcare: realId,
+              cui_emitent: realCuiEmitent,
+              titlu: msg.titlu || 'Fara Titlu',
+              tip: realTip,
+              data_creare: parseAnafDate(msg.data_creare),
+              detalii: msg.detalii || '',
+              serial: msg.serial || '',
+              is_downloaded: false,
+              processing_status: 'UNPROCESSED',
             })
 
-            if (resXml.ok) {
-              const blob = await resXml.blob()
-              const buffer = Buffer.from(await blob.arrayBuffer())
-              let xmlText = ''
+            // DOWNLOAD & UNZIP LOGIC
+            try {
+              const urlDownload = `${process.env.ANAF_API_BASE_URL}/descarcare?id=${realId}`
+              const resXml: Response = await fetch(urlDownload, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              })
 
-              // VERIFICARE ZIP
-              if (buffer.toString('utf-8', 0, 2) === 'PK') {
-                console.log(`📦 Dezarhivare ZIP ID: ${realId}`)
-                const zip = new AdmZip(buffer)
-                const zipEntries = zip.getEntries()
+              if (resXml.ok) {
+                const blob = await resXml.blob()
+                const buffer = Buffer.from(await blob.arrayBuffer())
+                let xmlText = ''
 
-                const xmlEntry =
-                  zipEntries.find(
-                    (entry) =>
-                      entry.entryName.toLowerCase().endsWith('.xml') &&
-                      !entry.entryName.toLowerCase().includes('semnatura')
-                  ) || zipEntries[0]
+                // VERIFICARE ZIP
+                if (buffer.toString('utf-8', 0, 2) === 'PK') {
+                  console.log(`📦 Dezarhivare ZIP ID: ${realId}`)
+                  const zip = new AdmZip(buffer)
+                  const zipEntries = zip.getEntries()
 
-                if (xmlEntry) {
-                  xmlText = zip.readAsText(xmlEntry)
+                  const xmlEntry =
+                    zipEntries.find(
+                      (entry) =>
+                        entry.entryName.toLowerCase().endsWith('.xml') &&
+                        !entry.entryName.toLowerCase().includes('semnatura')
+                    ) || zipEntries[0]
+
+                  if (xmlEntry) {
+                    xmlText = zip.readAsText(xmlEntry)
+                  } else {
+                    throw new Error('ZIP gol sau fără XML valid')
+                  }
                 } else {
-                  throw new Error('ZIP gol sau fără XML valid')
+                  xmlText = buffer.toString('utf8')
                 }
-              } else {
-                xmlText = buffer.toString('utf8')
-              }
 
-              dbMsg.is_downloaded = true
+                dbMsg.is_downloaded = true
 
-              // PARSARE XML
-              try {
-                const parsed = parseAnafXml(xmlText)
-                const cleanCuiSupplier = parsed.supplierCui
-                  .replace(/^RO/, '')
-                  .trim()
+                // PARSARE XML
+                try {
+                  const parsed = parseAnafXml(xmlText)
+                  const cleanCuiSupplier = parsed.supplierCui
+                    .replace(/^RO/, '')
+                    .trim()
 
-                const supplier = (await Supplier.findOne({
-                  fiscalCode: {
-                    $regex: new RegExp(`^RO?${cleanCuiSupplier}$`, 'i'),
-                  },
-                }).lean()) as ISupplierDoc | null
+                  const supplier = (await Supplier.findOne({
+                    fiscalCode: {
+                      $regex: new RegExp(`^RO?${cleanCuiSupplier}$`, 'i'),
+                    },
+                  }).lean()) as ISupplierDoc | null
 
-                if (supplier) {
-                  // Definim supAddr pentru fallback la adresa
-                  const supAddr = supplier.address as unknown as Record<
-                    string,
-                    string | number | undefined
-                  >
+                  if (supplier) {
+                    // Definim supAddr pentru fallback la adresa
+                    const supAddr = supplier.address as unknown as Record<
+                      string,
+                      string | number | undefined
+                    >
 
-                  await SupplierInvoiceModel.create({
-                    supplierId: supplier._id,
-                    supplierSnapshot: {
-                      name: parsed.supplierName || supplier.name,
-                      cui: parsed.supplierCui || supplier.fiscalCode,
-                      regCom: supplier.regComNumber || '',
-                      address: {
-                        judet:
-                          parsed.supplierAddressDetails.county ||
-                          String(supAddr.county || supAddr.judet || ''),
-                        localitate:
-                          parsed.supplierAddressDetails.city ||
-                          String(supAddr.city || supAddr.localitate || ''),
-                        strada:
-                          parsed.supplierAddressDetails.street ||
-                          String(supAddr.street || supAddr.strada || ''),
-                        numar:
-                          parsed.supplierAddressDetails.number ||
-                          String(supAddr.number || supAddr.numar || ''),
-                        codPostal:
-                          parsed.supplierAddressDetails.zip ||
-                          String(
-                            supAddr.zipCode || supAddr.codPostal || '000000'
-                          ),
-                        tara: parsed.supplierAddressDetails.country || '',
-                        alteDetalii: parsed.supplierAddress,
-                        persoanaContact: parsed.supplierContact?.name || '',
-                        telefonContact: parsed.supplierContact?.phone || '',
+                    await SupplierInvoiceModel.create({
+                      supplierId: supplier._id,
+                      supplierSnapshot: {
+                        name: parsed.supplierName || supplier.name,
+                        cui: parsed.supplierCui || supplier.fiscalCode,
+                        regCom: supplier.regComNumber || '',
+                        address: {
+                          judet:
+                            parsed.supplierAddressDetails.county ||
+                            String(supAddr.county || supAddr.judet || ''),
+                          localitate:
+                            parsed.supplierAddressDetails.city ||
+                            String(supAddr.city || supAddr.localitate || ''),
+                          strada:
+                            parsed.supplierAddressDetails.street ||
+                            String(supAddr.street || supAddr.strada || ''),
+                          numar:
+                            parsed.supplierAddressDetails.number ||
+                            String(supAddr.number || supAddr.numar || ''),
+                          codPostal:
+                            parsed.supplierAddressDetails.zip ||
+                            String(
+                              supAddr.zipCode || supAddr.codPostal || '000000'
+                            ),
+                          tara: parsed.supplierAddressDetails.country || '',
+                          alteDetalii: parsed.supplierAddress,
+                          persoanaContact: parsed.supplierContact?.name || '',
+                          telefonContact: parsed.supplierContact?.phone || '',
+                        },
+                        bank: parsed.supplierBank || '',
+                        iban:
+                          parsed.supplierIban ||
+                          supplier.bankAccountLei?.iban ||
+                          '',
+                        capital: parsed.supplierCapital || '',
+                        bic: parsed.supplierBic || '',
+                        contactName: parsed.supplierContact?.name || '',
+                        contactPhone: parsed.supplierContact?.phone || '',
+                        contactEmail: parsed.supplierContact?.email || '',
                       },
-                      bank: parsed.supplierBank || '',
-                      iban:
-                        parsed.supplierIban ||
-                        supplier.bankAccountLei?.iban ||
-                        '',
-                      capital: parsed.supplierCapital || '',
-                      bic: parsed.supplierBic || '',
-                      contactName: parsed.supplierContact?.name || '',
-                      contactPhone: parsed.supplierContact?.phone || '',
-                      contactEmail: parsed.supplierContact?.email || '',
-                    },
-                    ourCompanySnapshot: {
-                      name: settings.name,
-                      cui: settings.cui,
-                      regCom: settings.regCom,
-                      address: {
-                        judet: settings.address.judet,
-                        localitate: settings.address.localitate,
-                        strada: settings.address.strada,
-                        numar: settings.address.numar || '',
-                        codPostal: settings.address.codPostal,
-                        tara: settings.address.tara,
-                        alteDetalii: settings.address.alteDetalii || '',
+                      ourCompanySnapshot: {
+                        name: settings.name,
+                        cui: settings.cui,
+                        regCom: settings.regCom,
+                        address: {
+                          judet: settings.address.judet,
+                          localitate: settings.address.localitate,
+                          strada: settings.address.strada,
+                          numar: settings.address.numar || '',
+                          codPostal: settings.address.codPostal,
+                          tara: settings.address.tara,
+                          alteDetalii: settings.address.alteDetalii || '',
+                        },
+                        currency: defaultBank?.currency || 'RON',
+                        email: defaultEmail?.address || '',
+                        phone: defaultPhone?.number || '',
+                        bank: defaultBank?.bankName || '',
+                        iban: defaultBank?.iban || '',
+                        contactName: parsed.customerContact?.name || '',
                       },
-                      currency: defaultBank?.currency || 'RON',
-                      email: defaultEmail?.address || '',
-                      phone: defaultPhone?.number || '',
-                      bank: defaultBank?.bankName || '',
-                      iban: defaultBank?.iban || '',
-                      contactName: parsed.customerContact?.name || '',
-                    },
-                    invoiceType: 'STANDARD',
-                    invoiceSeries: parsed.invoiceSeries,
-                    invoiceNumber: parsed.invoiceNumber,
-                    invoiceDate: parsed.invoiceDate,
-                    dueDate: parsed.dueDate,
-                    invoicePeriod: parsed.invoicePeriod,
-                    invoiceCurrency: parsed.currency,
-                    paymentMethodCode: parsed.paymentMethodCode,
-                    notes: parsed.notes ? parsed.notes.join('\n') : '',
-                    exchangeRate: parsed.exchangeRate,
-                    references: {
-                      contract: parsed.contractReference,
-                      order: parsed.orderReference,
-                      salesOrder: parsed.salesOrderID,
-                      despatch: parsed.despatchReference,
-                      deliveryLocationId: parsed.deliveryLocationId,
-                      deliveryPartyName: parsed.deliveryPartyName,
-                      actualDeliveryDate: parsed.actualDeliveryDate,
-                      billingReference: parsed.billingReference,
-                    },
-                    items: parsed.lines.map((line) => ({
-                      productName: line.productName,
-                      productCode: line.productCode,
-                      quantity: line.quantity,
-                      unitOfMeasure: line.unitOfMeasure,
-                      unitPrice: line.price,
-                      lineValue: line.lineValue,
-                      vatRateDetails: {
-                        rate: line.vatRate,
-                        value: line.vatAmount,
+                      invoiceType: parsed.invoiceType,
+                      invoiceTypeCode: parsed.invoiceTypeCode,
+                      invoiceSeries: parsed.invoiceSeries,
+                      invoiceNumber: parsed.invoiceNumber,
+                      invoiceDate: parsed.invoiceDate,
+                      dueDate: parsed.dueDate,
+                      invoicePeriod: parsed.invoicePeriod,
+                      invoiceCurrency: parsed.currency,
+                      paymentMethodCode: parsed.paymentMethodCode,
+                      notes: parsed.notes ? parsed.notes.join('\n') : '',
+                      exchangeRate: parsed.exchangeRate,
+                      references: {
+                        contract: parsed.contractReference,
+                        order: parsed.orderReference,
+                        salesOrder: parsed.salesOrderID,
+                        despatch: parsed.despatchReference,
+                        deliveryLocationId: parsed.deliveryLocationId,
+                        deliveryPartyName: parsed.deliveryPartyName,
+                        actualDeliveryDate: parsed.actualDeliveryDate,
+                        billingReference: parsed.billingReference,
                       },
-                      lineTotal: line.lineValue + line.vatAmount,
-                      originCountry: line.originCountry,
-                      baseQuantity: line.baseQuantity,
-                      allowanceAmount: line.lineAllowanceAmount,
-                      unitCode: line.unitCode,
-                      description: line.productDescription,
-                      cpvCode: line.commodityCode,
-                    })),
-                    taxSubtotals: parsed.taxSubtotals,
-                    totals: {
-                      subtotal: parsed.totalAmount - parsed.totalTax,
-                      vatTotal: parsed.totalTax,
-                      grandTotal: parsed.totalAmount,
-                      payableAmount: parsed.payableAmount,
-                      prepaidAmount: parsed.prepaidAmount,
-                      globalDiscount: parsed.totalAllowance,
-                      globalTax: parsed.totalCharges,
-                      productsSubtotal: parsed.totalAmount - parsed.totalTax,
-                      productsVat: parsed.totalTax,
-                      packagingSubtotal: 0,
-                      packagingVat: 0,
-                      servicesSubtotal: 0,
-                      servicesVat: 0,
-                      manualSubtotal: 0,
-                      manualVat: 0,
-                    },
+                      items: parsed.lines.map((line) => ({
+                        productName: line.productName,
+                        productCode: line.productCode,
+                        quantity: line.quantity,
+                        unitOfMeasure: line.unitOfMeasure,
+                        unitPrice: line.price,
+                        lineValue: line.lineValue,
+                        vatRateDetails: {
+                          rate: line.vatRate,
+                          value: line.vatAmount,
+                        },
+                        lineTotal: line.lineValue + line.vatAmount,
+                        originCountry: line.originCountry,
+                        baseQuantity: line.baseQuantity,
+                        allowanceAmount: line.lineAllowanceAmount,
+                        unitCode: line.unitCode,
+                        description: line.productDescription,
+                        cpvCode: line.commodityCode,
+                      })),
+                      taxSubtotals: parsed.taxSubtotals,
+                      totals: {
+                        subtotal: parsed.totalAmount - parsed.totalTax,
+                        vatTotal: parsed.totalTax,
+                        grandTotal: parsed.totalAmount,
+                        payableAmount: parsed.payableAmount,
+                        prepaidAmount: parsed.prepaidAmount,
+                        globalDiscount: parsed.totalAllowance,
+                        globalTax: parsed.totalCharges,
+                        productsSubtotal: parsed.totalAmount - parsed.totalTax,
+                        productsVat: parsed.totalTax,
+                        packagingSubtotal: 0,
+                        packagingVat: 0,
+                        servicesSubtotal: 0,
+                        servicesVat: 0,
+                        manualSubtotal: 0,
+                        manualVat: 0,
+                      },
 
-                    status: 'NEPLATITA',
-                    eFacturaXMLId: realId,
-                    createdBy: userId,
-                    createdByName: 'Sistem e-Factura',
-                  })
+                      status: 'NEPLATITA',
+                      eFacturaXMLId: realId,
+                      createdBy: userId,
+                      createdByName: 'Sistem e-Factura',
+                    })
 
-                  dbMsg.processing_status = 'COMPLETED'
-                  stats.processed++
-                } else {
-                  dbMsg.processing_status = 'ERROR_NO_SUPPLIER'
-                  dbMsg.processing_error = `Furnizor inexistent: ${parsed.supplierCui}`
+                    dbMsg.processing_status = 'COMPLETED'
+                    stats.processed++
+                  } else {
+                    dbMsg.processing_status = 'ERROR_NO_SUPPLIER'
+                    dbMsg.processing_error = `Furnizor inexistent: ${parsed.supplierCui}`
+                    stats.errors++
+                  }
+                } catch (parseErr) {
+                  const e =
+                    parseErr instanceof Error
+                      ? parseErr.message
+                      : String(parseErr)
+                  console.error(`XML Parse Error ${realId}:`, e)
+                  dbMsg.processing_status = 'ERROR_OTHER'
+                  dbMsg.processing_error = `Eroare parsare: ${e.substring(0, 100)}`
                   stats.errors++
                 }
-              } catch (parseErr) {
-                const e =
-                  parseErr instanceof Error
-                    ? parseErr.message
-                    : String(parseErr)
-                console.error(`XML Parse Error ${realId}:`, e)
-                dbMsg.processing_status = 'ERROR_OTHER'
-                dbMsg.processing_error = `Eroare parsare: ${e.substring(0, 100)}`
-                stats.errors++
-              }
 
+                await dbMsg.save()
+              }
+            } catch (downloadErr) {
+              const e =
+                downloadErr instanceof Error
+                  ? downloadErr.message
+                  : String(downloadErr)
+              console.error(`Download Error ${realId}:`, e)
+              dbMsg.processing_status = 'ERROR_OTHER'
+              dbMsg.processing_error = e
               await dbMsg.save()
+              stats.errors++
             }
-          } catch (downloadErr) {
-            const e =
-              downloadErr instanceof Error
-                ? downloadErr.message
-                : String(downloadErr)
-            console.error(`Download Error ${realId}:`, e)
-            dbMsg.processing_status = 'ERROR_OTHER'
-            dbMsg.processing_error = e
-            await dbMsg.save()
-            stats.errors++
           }
+        } catch (itemErr) {
+          console.error('Critical item error:', itemErr)
+          stats.errors++
         }
-      } catch (itemErr) {
-        console.error('Critical item error:', itemErr)
-        stats.errors++
+      }
+
+      // Verificăm dacă mai sunt pagini (ANAF dă max 500 per pagină)
+      if (messages.length < 500) {
+        hasMorePages = false
+      } else {
+        currentPage++
       }
     }
 
@@ -533,25 +583,62 @@ function parseAnafDate(str: string): Date {
   return new Date(y, m, d, h, min)
 }
 // GET INBOX MESSAGES from eFactura ---
-export async function getAnafInboxErrors() {
+export async function getAnafInboxErrors(
+  page: number = 1,
+  limit: number = PAGE_SIZE
+) {
   await checkAdmin()
   await connectToDatabase()
-  const messages = await AnafMessage.find({
+
+  const skip = (page - 1) * limit
+  const startOfYear = new Date(new Date().getFullYear(), 0, 1)
+
+  // Query de bază (doar neprocesate)
+  const baseQuery = { processing_status: { $ne: 'COMPLETED' } }
+
+  // Query pentru an curent
+  const currentYearQuery = {
     processing_status: { $ne: 'COMPLETED' },
-  })
-    .sort({ data_creare: -1 })
-    .lean()
-  return JSON.parse(JSON.stringify(messages))
+    data_creare: { $gte: startOfYear },
+  }
+
+  const [messages, total, totalCurrentYear] = await Promise.all([
+    AnafMessage.find(baseQuery) // Tabelul arată tot ce e neprocesat, indiferent de an
+      .sort({ data_creare: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    AnafMessage.countDocuments(baseQuery),
+    AnafMessage.countDocuments(currentYearQuery), // Badge doar pe anul curent
+  ])
+
+  return {
+    data: JSON.parse(JSON.stringify(messages)),
+    totalPages: Math.ceil(total / limit),
+    total,
+    totalCurrentYear,
+  }
 }
-// GET LOGS FROM DB
-export async function getAnafLogs(limit = 50000) {
+// 2. Logs Paginat
+export async function getAnafLogs(page: number = 1, limit: number = PAGE_SIZE) {
   await checkAdmin()
   await connectToDatabase()
-  const logs = await AnafLog.find({})
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .lean()
-  return JSON.parse(JSON.stringify(logs))
+
+  const skip = (page - 1) * limit
+  const startOfYear = new Date(new Date().getFullYear(), 0, 1)
+
+  const [logs, total, totalCurrentYear] = await Promise.all([
+    AnafLog.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    AnafLog.countDocuments({}),
+    AnafLog.countDocuments({ createdAt: { $gte: startOfYear } }),
+  ])
+
+  return {
+    data: JSON.parse(JSON.stringify(logs)),
+    totalPages: Math.ceil(total / limit),
+    total,
+    totalCurrentYear,
+  }
 }
 // RETRY PROCESS MESSAGE (SINGLE ITEM) ---
 export async function retryProcessMessage(messageId: string) {
@@ -701,7 +788,8 @@ export async function retryProcessMessage(messageId: string) {
         iban: defaultBank?.iban || '',
         contactName: parsed.customerContact?.name || '',
       },
-      invoiceType: 'STANDARD',
+      invoiceType: parsed.invoiceType,
+      invoiceTypeCode: parsed.invoiceTypeCode,
       invoiceSeries: parsed.invoiceSeries,
       invoiceNumber: parsed.invoiceNumber,
       invoiceDate: parsed.invoiceDate,
@@ -771,6 +859,12 @@ export async function retryProcessMessage(messageId: string) {
     msg.processing_error = undefined
     await msg.save()
 
+    await logAnaf(
+      'SUCCESS',
+      'MANUAL_RETRY',
+      `Mesaj procesat manual (ID: ${msg.id_descarcare})`
+    )
+
     revalidatePath('/admin/management/incasari-si-plati/payables')
     return { success: true }
   } catch (error: unknown) {
@@ -827,7 +921,13 @@ export async function previewAnafInvoice(messageId: string) {
       attributeNamePrefix: '',
       removeNSPrefix: true,
     })
+
     const rawObject = debugParser.parse(xmlText)
+
+    console.log('=====================================================')
+    console.log(`🔎 DEBUG XML (ID: ${messageId}) - Primele 500 caractere:`)
+    console.log(xmlText.substring(0, 1000)) // Vedem antetul XML
+    console.log('=====================================================')
 
     // Parsăm cu Logica
     const parsed = parseAnafXml(xmlText)

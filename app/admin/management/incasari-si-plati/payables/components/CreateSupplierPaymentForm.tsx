@@ -157,7 +157,7 @@ export function CreateSupplierPaymentForm({
             name='seriesName'
             render={({ field }) => (
               <FormItem className='md:col-span-1'>
-                <FormLabel>Serie Document (Opțional)</FormLabel>
+                <FormLabel>Serie (Opțional)</FormLabel>
                 <FormControl>
                   <Input
                     placeholder='ex: OP'
@@ -174,7 +174,7 @@ export function CreateSupplierPaymentForm({
             name='paymentNumber'
             render={({ field }) => (
               <FormItem className='md:col-span-1'>
-                <FormLabel>Număr Document</FormLabel>
+                <FormLabel>Număr (Obligatoriu)</FormLabel>
                 <FormControl>
                   <Input
                     placeholder='ex: 1001'
@@ -191,7 +191,7 @@ export function CreateSupplierPaymentForm({
             name='referenceDocument'
             render={({ field }) => (
               <FormItem className='md:col-span-1'>
-                <FormLabel>Referință Externă (Opțional)</FormLabel>
+                <FormLabel>Referință (Opțional)</FormLabel>
                 <FormControl>
                   <Input
                     placeholder='ex: 12345'
