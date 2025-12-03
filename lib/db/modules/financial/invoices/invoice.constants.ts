@@ -42,9 +42,9 @@ export const EFACTURA_STATUS_MAP: Record<
 > = {
   NOT_REQUIRED: { name: 'Nu e necesară', variant: 'secondary' },
   PENDING: { name: 'De Trimis', variant: 'default' },
-  SENT: { name: 'Trimisă (ANAF)', variant: 'info' },
-  ACCEPTED: { name: 'Acceptată (ANAF)', variant: 'success' },
-  REJECTED_ANAF: { name: 'Respinsă (ANAF)', variant: 'destructive' },
+  SENT: { name: 'Trimisă', variant: 'info' },
+  ACCEPTED: { name: 'Acceptată', variant: 'success' },
+  REJECTED_ANAF: { name: 'Respinsă', variant: 'destructive' },
 }
 
 export const ADVANCE_SCOPES = ['GLOBAL', 'ADDRESS_SPECIFIC'] as const

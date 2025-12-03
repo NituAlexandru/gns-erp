@@ -10,6 +10,7 @@ import { EFACTURA_STATUSES, INVOICE_STATUSES } from './invoice.constants'
 import { IClientDoc } from '../../client/types'
 import { IUser } from '../../user/user.model'
 import { IInvoiceDoc } from './invoice.model'
+import { VatCategoryCode } from '../../setting/efactura/outgoing/outgoing.constants'
 
 // Tipuri exportate din Zod
 export type InvoiceInput = z.infer<typeof InvoiceInputSchema>
@@ -29,27 +30,22 @@ export interface InvoiceDTO {
   invoiceNumber: string // Combinația (ex: 'F-GNS/00001')
   invoiceDate: string // ISO Date
   dueDate: string // ISO Date
-
   clientId: string
   clientSnapshot: ClientSnapshot
   companySnapshot: CompanySnapshot
-
   items: (InvoiceLineInput & { _id: string })[]
   totals: InvoiceTotals
-
   sourceDeliveryNotes: string[] // Array de ID-uri
   relatedOrders: string[]
   relatedDeliveries: string[]
-
   status: InvoiceStatusKey
   rejectionReason?: string
-
   eFacturaStatus: EFacturaStatusKey
   eFacturaError?: string
   eFacturaUploadId?: string
-
   invoiceType: 'STANDARD' | 'STORNO'
-
+  vatCategory: VatCategoryCode
+  vatExemptionReason?: string
   createdBy: string
   createdByName: string
   approvedBy?: string

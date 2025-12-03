@@ -43,13 +43,19 @@ function buildDeliveryLine(
   const unitInfo = allUnits.find((u) => u.unitName === item.unitOfMeasure)
   const conversionFactor = unitInfo?.baseUnitEquivalent || 1
   const quantityInBaseUnit = round2(item.quantityToAllocate * conversionFactor)
-  const basePrice =
-    originalLine.priceInBaseUnit ?? originalLine.priceAtTimeOfOrder
-  const lineValue = round2(basePrice * quantityInBaseUnit)
+  const lineValue = round2(
+    item.quantityToAllocate * originalLine.priceAtTimeOfOrder
+  )
+
   const lineVatValue = round2(
     lineValue * (originalLine.vatRateDetails.rate / 100)
   )
   const lineTotal = round2(lineValue + lineVatValue)
+  let correctedPriceInBaseUnit = originalLine.priceInBaseUnit
+  if (quantityInBaseUnit > 0 && lineValue > 0) {
+    const rawPrice = lineValue / quantityInBaseUnit
+    correctedPriceInBaseUnit = Number(rawPrice.toFixed(6))
+  }
   const productCodeValue = originalLine.productCode
     ? originalLine.productCode.trim()
     : 'N/A'
@@ -71,7 +77,7 @@ function buildDeliveryLine(
     baseUnit: originalLine.baseUnit,
     conversionFactor: conversionFactor,
     quantityInBaseUnit: quantityInBaseUnit,
-    priceInBaseUnit: originalLine.priceInBaseUnit,
+    priceInBaseUnit: correctedPriceInBaseUnit,
     packagingOptions: originalLine.packagingOptions ?? [],
     stockableItemType: originalLine.stockableItemType,
     lineValue: lineValue,

@@ -87,7 +87,7 @@ export function AnafPreviewModal({
                   <span className='text-sm text-muted-foreground'>
                     Reg. Com:
                   </span>
-                  <span className='font-mono'>{data.customerRegCom}</span>
+                  <span className='font-mono'>{data.supplierRegCom}</span>
                 </div>
               )}
 
@@ -221,6 +221,41 @@ export function AnafPreviewModal({
                     <span className='font-mono'>{data.customerRegCom}</span>
                   </div>
                 )}
+            </div>
+
+            {/* --- ADRESA CLIENT (IDENTIC CU FURNIZOR) --- */}
+            <div className='flex items-start gap-2 text-xs text-muted-foreground mt-2 border-t pt-2'>
+              <MapPin className='h-4 w-4 mt-0.5 shrink-0' />
+              <div className='w-full'>
+                <div className='text-muted-foreground'>
+                  {data.customerAddressDetails?.street && (
+                    <span>
+                      Str. &nbsp;{data.customerAddressDetails.street},{' '}
+                    </span>
+                  )}
+                  {data.customerAddressDetails?.number && (
+                    <span>
+                      Nr. &nbsp; {data.customerAddressDetails.number},
+                    </span>
+                  )}
+                  {data.customerAddressDetails?.city && (
+                    <span>Loc. &nbsp;{data.customerAddressDetails.city},</span>
+                  )}
+                  {data.customerAddressDetails?.county && (
+                    <span>
+                      &nbsp; Jud. &nbsp;{data.customerAddressDetails.county},
+                    </span>
+                  )}
+                  {data.customerAddressDetails?.zip && (
+                    <span>
+                      Cod Postal &nbsp;{data.customerAddressDetails.zip}
+                    </span>
+                  )}
+                  {data.customerAddressDetails?.country && (
+                    <span> {data.customerAddressDetails.country}</span>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Contact */}
@@ -489,9 +524,15 @@ export function AnafPreviewModal({
                 </div>
                 {data.taxSubtotals.map((sub, idx) => (
                   <div key={idx} className='flex justify-between gap-4 text-sm'>
-                    <span>
-                      Cota TVA: {sub.percent}% ({sub.categoryCode})
-                    </span>
+                    <div className='flex flex-col'>
+                      <span>
+                        Cota TVA: {sub.percent}% - Cod: {sub.categoryCode}
+                      </span>
+                      <span className='text-[10px] text-red-600 font-medium leading-tight mt-0.5'>
+                        Motiv: {sub.exemptionReason}
+                      </span>
+                    </div>
+
                     <div className='flex gap-2'>
                       <span>
                         <span className='text-muted-foreground'>Bază:</span>{' '}

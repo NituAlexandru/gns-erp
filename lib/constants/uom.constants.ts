@@ -14,7 +14,7 @@ export const uomToEFacturaMap: Record<InternalUoM, string> = {
   m2: 'MTK',
   m3: 'MTQ',
   ml: 'MLT',
-  palet: 'PX',
+  palet: 'NAR', // PX, NAR
   set: 'SET',
   cutie: 'BX',
   bax: 'CS',
@@ -52,9 +52,10 @@ export const eFacturaToInternalMap: Record<string, InternalUoM> = {
 
   // --- Ambalaje ---
   PX: 'palet', // Pallet
+  NAR: 'palet', // Pallet
   PF: 'palet', // Pallet
   BX: 'cutie', // Box
-  CT: 'cutie', // Carton
+  CT: 'cutie', // CartonF
   CS: 'bax', // Case
   SA: 'sac', // Sack
   BG: 'sac', // Bag (Pungă/Sac)

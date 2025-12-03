@@ -15,6 +15,10 @@ import {
 } from './invoice.constants'
 import { CostBreakdownBatchSchema } from '../../inventory/movement.model'
 import { round2 } from '@/lib/utils'
+import {
+  VAT_CATEGORY_CODES,
+  VatCategoryCode,
+} from '../../setting/efactura/outgoing/outgoing.constants'
 
 // --- Interfața Documentului Mongoose ---
 export interface IInvoiceDoc extends Document {
@@ -39,6 +43,8 @@ export interface IInvoiceDoc extends Document {
   eFacturaError?: string
   eFacturaUploadId?: string
   invoiceType: 'STANDARD' | 'STORNO' | 'AVANS' | 'PROFORMA'
+  vatCategory: VatCategoryCode
+  vatExemptionReason?: string
   relatedInvoiceIds: Types.ObjectId[] // Pt Storno (leagă facturile stornate)
   relatedAdvanceIds: Types.ObjectId[] // Pt Standard (leagă avansurile folosite)
   notes?: string
@@ -238,6 +244,13 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
       default: 'STANDARD',
       required: true,
     },
+    vatCategory: {
+      type: String,
+      enum: Object.values(VAT_CATEGORY_CODES), // ['S', 'Z', 'E', 'AE'...]
+      default: VAT_CATEGORY_CODES.STANDARD,
+      required: true,
+    },
+    vatExemptionReason: { type: String },
     notes: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
@@ -272,7 +285,7 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
   { timestamps: true }
 )
 
-InvoiceSchema.pre('save', function (next) {
+InvoiceSchema.pre<IInvoiceDoc>('save', function (next) {
   // Setări inițiale doar la creare (rămân la fel)
   if (this.isNew) {
     this.paidAmount = 0

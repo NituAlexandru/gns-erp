@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { MongoId } from '@/lib/validator' // Presupunem că ai acest validator
 import { ADVANCE_SCOPES } from './invoice.constants'
+import { VAT_CATEGORY_CODES } from '../../setting/efactura/outgoing/outgoing.constants'
 
 export const CostBreakdownBatchSchema = z.object({
   movementId: MongoId.optional(),
@@ -147,6 +148,17 @@ export const InvoiceInputSchema = z.object({
   items: z
     .array(InvoiceLineSchema)
     .min(1, 'Factura trebuie să aibă cel puțin o linie.'),
+  vatCategory: z
+    .enum([
+      VAT_CATEGORY_CODES.STANDARD, // 'S'
+      VAT_CATEGORY_CODES.ZERO, // 'Z'
+      VAT_CATEGORY_CODES.EXEMPT, // 'E'
+      VAT_CATEGORY_CODES.REVERSE, // 'AE'
+      VAT_CATEGORY_CODES.INTRACOMMUNITY, // 'K'
+      VAT_CATEGORY_CODES.EXPORT, // 'G'
+    ])
+    .default(VAT_CATEGORY_CODES.STANDARD),
+  vatExemptionReason: z.string().optional(),
   totals: InvoiceTotalsSchema,
   sourceDeliveryNotes: z.array(MongoId).default([]), // Lista ID-urilor avizelor folosite
   relatedInvoiceIds: z.array(MongoId).default([]), // (pentru a ține minte ce stornăm)

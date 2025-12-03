@@ -116,10 +116,14 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
       if (option && option.baseUnitEquivalent) {
         conversionFactor = option.baseUnitEquivalent
         quantityInBaseUnit = item.quantity * conversionFactor
-        priceInBaseUnit =
-          conversionFactor > 0
-            ? round2(item.priceAtTimeOfOrder / conversionFactor)
-            : 0
+
+        if (conversionFactor > 0) {
+          const rawPrice = item.priceAtTimeOfOrder / conversionFactor
+          // Ex: 1000 / 1600 = 0.625. .toFixed(6) îl păstrează 0.625000 (fără erori de rotunjire)
+          priceInBaseUnit = Number(rawPrice.toFixed(6))
+        } else {
+          priceInBaseUnit = 0
+        }
       }
     }
 

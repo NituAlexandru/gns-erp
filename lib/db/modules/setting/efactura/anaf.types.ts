@@ -39,6 +39,7 @@ export interface UblTaxSubtotal {
   TaxCategory?: {
     ID?: XmlTextValue
     Percent?: XmlNumberValue
+    TaxExemptionReason?: XmlTextValue
     TaxScheme?: { ID?: XmlTextValue }
   }
 }
@@ -179,6 +180,14 @@ export interface UblInvoice {
         CompanyID?: XmlTextValue
       }
       PartyTaxScheme?: { CompanyID?: XmlTextValue }
+      PostalAddress?: {
+        StreetName?: XmlTextValue
+        CityName?: XmlTextValue
+        CountrySubentity?: XmlTextValue
+        BuildingNumber?: XmlTextValue
+        PostalZone?: XmlTextValue
+        Country?: { IdentificationCode?: XmlTextValue }
+      }
       Contact?: {
         Name?: XmlTextValue
         Telephone?: XmlTextValue
@@ -284,6 +293,14 @@ export interface ParsedAnafInvoice {
     zip: string
     country: string
   }
+  customerAddressDetails?: {
+    street: string
+    number: string
+    city: string
+    county: string
+    zip: string
+    country: string
+  }
   supplierIban: string
   supplierBank: string
   supplierBic?: string
@@ -337,6 +354,7 @@ export interface ParsedAnafInvoice {
     taxAmount: number
     percent: number
     categoryCode: string
+    exemptionReason?: string
   }>
   lines: Array<{
     productName: string

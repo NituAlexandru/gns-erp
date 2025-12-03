@@ -45,6 +45,7 @@ interface InvoiceFormItemsProps {
   loadedStornoSources: { id: string; ref: string }[]
   onRemoveStornoSource: (invoiceId: string) => void
   onShowStornoProductModal: () => void
+  isVatDisabled: boolean
 }
 
 export function InvoiceFormItems({
@@ -59,6 +60,7 @@ export function InvoiceFormItems({
   loadedStornoSources,
   onRemoveStornoSource,
   onShowStornoProductModal,
+  isVatDisabled,
 }: InvoiceFormItemsProps) {
   const form = useFormContext<InvoiceInput>()
   const totals = form.watch('totals')
@@ -67,7 +69,7 @@ export function InvoiceFormItems({
 
   const handleManualAdd = () => {
     const defaultUnit: string = UNITS[0] || 'bucata'
-    const defaultVat: number = vatRates[0]?.rate || 21
+    const defaultVat: number = isVatDisabled ? 0 : vatRates[0]?.rate || 21
     append({
       productName: '',
       productCode: 'MANUAL',
@@ -102,8 +104,10 @@ export function InvoiceFormItems({
   const handleSelectService = (service: SearchedService) => {
     const vat = vatRates.find((v) => v._id === service.vatRateId)
     const defaultVat = vatRates[0]
-    const vatRate = vat ? vat.rate : defaultVat ? defaultVat.rate : 19
-
+    let vatRate = vat ? vat.rate : defaultVat ? defaultVat.rate : 21
+    if (isVatDisabled) {
+      vatRate = 0
+    }
     const initialQuantity = watchedInvoiceType === 'STORNO' ? -1 : 1
 
     // --- Logica de Cost/Profit CORECTATĂ (pe baza Pas 1 și 2) ---
@@ -165,6 +169,7 @@ export function InvoiceFormItems({
     amount: number
     vatRate: number
   }) => {
+    const effectiveVatRate = isVatDisabled ? 0 : data.vatRate
     const discountValue = -Math.abs(data.amount)
     const discountVatValue = round2(discountValue * (data.vatRate / 100))
     const discountTotal = round2(discountValue + discountVatValue)
@@ -179,7 +184,7 @@ export function InvoiceFormItems({
       unitPrice: discountValue,
       lineValue: discountValue,
       vatRateDetails: {
-        rate: data.vatRate,
+        rate: effectiveVatRate,
         value: discountVatValue,
       },
       lineTotal: discountTotal,
@@ -476,6 +481,7 @@ export function InvoiceFormItems({
                     index={index}
                     remove={remove}
                     vatRates={vatRates}
+                    isVatDisabled={isVatDisabled}
                   />
                 )
               } else {
@@ -485,6 +491,7 @@ export function InvoiceFormItems({
                     index={index}
                     itemData={item}
                     remove={remove}
+                    isVatDisabled={isVatDisabled}
                   />
                 )
               }

@@ -45,6 +45,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Textarea } from '@/components/ui/textarea'
+import { VAT_CATEGORY_OPTIONS } from '@/lib/db/modules/setting/efactura/outgoing/outgoing.constants'
 
 interface InvoiceFormHeaderProps {
   companySettings: ISettingInput
@@ -285,6 +287,73 @@ export function InvoiceFormHeader({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {/* --- SELECTOR CATEGORIE TVA --- */}
+              <FormField
+                control={form.control}
+                name='vatCategory'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Regim TVA (e-Factura)</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value || 'S'}
+                      value={field.value || 'S'}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder='Selectează regimul TVA' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {VAT_CATEGORY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {/* --- CÂMP MOTIV SCUTIRE (Vizibil doar dacă NU e Standard) --- */}
+              {form.watch('vatCategory') !== 'S' && (
+                <FormField
+                  control={form.control}
+                  name='vatExemptionReason'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Motiv Scutire / Referință Legală</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          placeholder='Ex: Taxare inversă cf. Art 331...'
+                          className='resize-none h-20'
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+              {/* --- NOTE FACTURĂ --- */}
+              <FormField
+                control={form.control}
+                name='notes'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Note / Mențiuni</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder='Ex: Se aplică taxare inversă conform art...'
+                        className='resize-none'
+                        {...field}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

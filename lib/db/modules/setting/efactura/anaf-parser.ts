@@ -101,6 +101,24 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
   const customerName =
     getText(customerParty?.PartyLegalEntity?.RegistrationName) || 'Client'
   const customerRegCom = getText(customerParty?.PartyLegalEntity?.CompanyID)
+
+  const cAddr = customerParty?.PostalAddress
+  const cRawStreet = getText(cAddr?.StreetName)
+  const cRawCity = getText(cAddr?.CityName)
+  const cRawCounty = getText(cAddr?.CountrySubentity)
+  const cRawNumber = getText(cAddr?.BuildingNumber)
+  const cRawZip = getText(cAddr?.PostalZone)
+  const cRawCountry = getText(cAddr?.Country?.IdentificationCode) || ''
+
+  const customerAddressDetails = {
+    street: cRawStreet,
+    city: cRawCity,
+    county: cRawCounty.replace(/^RO-?/i, ''),
+    number: cRawNumber,
+    zip: cRawZip,
+    country: cRawCountry,
+  }
+
   const cContact = customerParty?.Contact
   const customerContact = {
     name: getText(cContact?.Name),
@@ -206,6 +224,7 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
     taxAmount: getNumber(sub.TaxAmount),
     percent: getNumber(sub.TaxCategory?.Percent),
     categoryCode: getText(sub.TaxCategory?.ID),
+    exemptionReason: getText(sub.TaxCategory?.TaxExemptionReason),
   }))
 
   // LINII ------------------------
@@ -276,6 +295,7 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
     supplierName,
     supplierAddress,
     supplierAddressDetails,
+    customerAddressDetails,
     supplierIban,
     supplierBank,
     supplierBic,

@@ -24,12 +24,14 @@ interface InvoiceFormManualRowProps {
   index: number
   vatRates: VatRateDTO[]
   remove: (index: number) => void
+  isVatDisabled: boolean
 }
 
 export function InvoiceFormManualRow({
   index,
   vatRates,
   remove,
+  isVatDisabled,
 }: InvoiceFormManualRowProps) {
   const { control, setValue, watch } = useFormContext<InvoiceInput>()
   const invoiceType = watch('invoiceType')
@@ -223,6 +225,7 @@ export function InvoiceFormManualRow({
             <Select
               onValueChange={(value) => field.onChange(parseFloat(value))}
               value={field.value?.toString()}
+              disabled={isVatDisabled}
             >
               <FormControl>
                 <SelectTrigger>

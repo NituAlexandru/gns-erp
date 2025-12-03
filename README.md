@@ -56,3 +56,9 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 * Receptii + Inventar (pe fiecare lot)
 
 - De adaugat certificate - nr si data/ sarja / raport incercari/ la intrari si pe stoc
+
+# Produse
+
+- Unele produse au furnizori multiplii. La receptie e ok, se selecteaza furnizorul in receptie. La comanda .... trebuie ales? catalog produse trebuie afisate ambele... sau?
+
+- aviz - cand se modifica comanda/livrarea, trebuie sa ma asigur ca se actualizeaza si avizul. De verificat / testat

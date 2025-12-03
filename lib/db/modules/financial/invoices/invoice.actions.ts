@@ -385,6 +385,8 @@ export async function createInvoice(
             deliveryAddressId: new Types.ObjectId(data.deliveryAddressId),
             deliveryAddress: data.deliveryAddress,
             invoiceType: data.invoiceType,
+            vatCategory: data.vatCategory,
+            vatExemptionReason: data.vatExemptionReason,
             status: status,
             eFacturaStatus: 'PENDING',
             salesAgentId: agentId,
@@ -498,6 +500,19 @@ export async function generateProformaFromOrder(
       // 7. Mapează Liniile (fără costuri)
       const invoiceItems: InvoiceLineInput[] = order.lineItems.map(
         (item: IOrderLineItem) => {
+          let correctedPriceInBaseUnit = item.priceInBaseUnit
+
+          // Dacă există cantitate în unitatea de bază, recalculăm prețul intern
+          // pentru a fi ultra-preciși (0.625 vs 0.63)
+          if (
+            item.quantityInBaseUnit &&
+            item.quantityInBaseUnit > 0 &&
+            item.lineValue > 0
+          ) {
+            const rawPrice = item.lineValue / item.quantityInBaseUnit
+            // Limităm la 6 zecimale
+            correctedPriceInBaseUnit = Number(rawPrice.toFixed(6))
+          }
           return {
             productId: item.productId?.toString(),
             serviceId: item.serviceId?.toString(),
@@ -515,7 +530,7 @@ export async function generateProformaFromOrder(
             baseUnit: item.baseUnit,
             conversionFactor: item.conversionFactor || 1,
             quantityInBaseUnit: item.quantityInBaseUnit,
-            priceInBaseUnit: item.priceInBaseUnit,
+            priceInBaseUnit: correctedPriceInBaseUnit,
             minimumSalePrice: item.minimumSalePrice,
             packagingOptions: item.packagingOptions || [],
             codNC: item.codNC,
@@ -692,6 +707,7 @@ export async function createInvoiceFromSingleNote(
         seriesName: activeSeries,
         invoiceType: 'STANDARD',
         invoiceDate: invoiceDate,
+        vatCategory: 'S',
         dueDate: dueDate,
         items: items,
         totals: totals,
@@ -1584,8 +1600,8 @@ export async function updateInvoice(
         notes: validatedData.notes,
         status: 'CREATED',
         rejectionReason: undefined,
-        // --- AICI E IMPORTANT ---
-        // Setează noua listă de avize sursă
+        vatCategory: validatedData.vatCategory,
+        vatExemptionReason: validatedData.vatExemptionReason,
         sourceDeliveryNotes: validatedData.sourceDeliveryNotes.map(
           (id) => new Types.ObjectId(id)
         ),

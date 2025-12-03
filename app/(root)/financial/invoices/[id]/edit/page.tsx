@@ -62,6 +62,7 @@ export default async function EditInvoicePage({
     ...invoiceData,
     clientId: invoiceData.clientId._id.toString(),
     salesAgentId: invoiceData.salesAgentId._id.toString(),
+    vatCategory: invoiceData.vatCategory || 'S',
     invoiceDate: new Date(invoiceData.invoiceDate),
     dueDate: new Date(invoiceData.dueDate),
     // Asigurăm că `items` conțin obiecte Date (dacă e cazul, ex: costBreakdown)

@@ -137,7 +137,7 @@ export async function getAnafStatus() {
   }
 }
 // HELPER INTERNAL TOKEN
-async function getInternalAccessToken(): Promise<string> {
+export async function getInternalAccessToken(): Promise<string> {
   await connectToDatabase()
   const tokenDoc = await AnafToken.findOne()
   if (!tokenDoc) throw new Error('Nu există conexiune ANAF.')

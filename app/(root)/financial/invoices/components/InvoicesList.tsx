@@ -26,7 +26,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { useRouter } from 'next/navigation'
-import { MoreHorizontal, Upload } from 'lucide-react'
+import {
+  Download,
+  Info,
+  Loader2,
+  MoreHorizontal,
+  RefreshCw,
+  Upload,
+} from 'lucide-react'
 import { InvoiceStatusBadge } from './InvoiceStatusBadge'
 import { EFacturaStatusBadge } from './EFacturaStatusBadge'
 import { toast } from 'sonner'
@@ -49,6 +56,21 @@ import {
   getMarginColorClass,
   getProfitColorClass,
 } from '@/lib/db/modules/financial/invoices/invoice.utils'
+import {
+  downloadOutgoingResult,
+  getOutgoingPreviewData,
+  updateOutgoingStatus,
+  uploadInvoiceToAnaf,
+} from '@/lib/db/modules/setting/efactura/outgoing/outgoing.actions'
+import { ParsedAnafInvoice } from '@/lib/db/modules/setting/efactura/anaf.types'
+import { AnafPreviewModal } from '@/app/admin/management/incasari-si-plati/payables/components/AnafPreviewModal'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface InvoicesListProps {
   initialData: {
@@ -76,6 +98,23 @@ export function InvoicesList({
   const [invoiceToActOn, setInvoiceToActOn] = useState<PopulatedInvoice | null>(
     null
   )
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
+  const [isBulkRefreshing, setIsBulkRefreshing] = useState(false)
+  // State pentru Preview XML
+  const [previewData, setPreviewData] = useState<ParsedAnafInvoice | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [errorModalOpen, setErrorModalOpen] = useState(false)
+  const [currentError, setCurrentError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setInvoices(initialData.data)
+    setTotalPages(initialData.totalPages)
+  }, [initialData])
+
+  const handleShowError = (errorMsg: string | undefined) => {
+    setCurrentError(errorMsg || 'Eroare necunoscută.')
+    setErrorModalOpen(true)
+  }
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -154,24 +193,167 @@ export function InvoicesList({
     })
   }
 
+  const handleUploadToAnaf = async (invoice: PopulatedInvoice) => {
+    if (actionLoadingId) return // Previne dublu-click
+    setActionLoadingId(invoice._id.toString())
+
+    try {
+      const result = await uploadInvoiceToAnaf(invoice._id.toString())
+
+      if (result.success) {
+        toast.success('Trimisă la ANAF!', { description: result.message })
+
+        // Actualizăm interfața local (fără refresh la pagină)
+        setInvoices((prev) =>
+          prev.map((inv) => {
+            if (inv._id === invoice._id) {
+              // Încercăm să extragem ID-ul din mesaj pentru a-l afișa imediat
+              const match = result.message.match(/Index:\s*(\d+)/)
+              const uploadId = match ? match[1] : 'PENDING...'
+
+              return {
+                ...inv,
+                eFacturaStatus: 'SENT',
+                eFacturaUploadId: uploadId,
+              }
+            }
+            return inv
+          })
+        )
+      } else {
+        toast.error('Eroare ANAF', { description: result.message })
+        // Putem marca vizual eroarea
+        setInvoices((prev) =>
+          prev.map((inv) =>
+            inv._id === invoice._id
+              ? { ...inv, eFacturaStatus: 'REJECTED_ANAF' }
+              : inv
+          )
+        )
+      }
+    } catch (err) {
+      toast.error('Eroare de comunicare', { description: String(err) })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+  // --- HANDLER 2: DOWNLOAD ZIP ---
+  const handleDownloadZip = async (invoice: PopulatedInvoice) => {
+    if (actionLoadingId) return
+    setActionLoadingId(invoice._id.toString())
+    toast.info('Se descarcă arhiva...')
+
+    try {
+      const result = await downloadOutgoingResult(invoice._id.toString())
+
+      if (result.success && result.data) {
+        // Magie: Convertim Base64 primit de la server într-un fișier descărcabil
+        const binaryString = window.atob(result.data)
+        const len = binaryString.length
+        const bytes = new Uint8Array(len)
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i)
+        }
+        const blob = new Blob([bytes], { type: 'application/zip' })
+
+        // Creăm un link invizibil și dăm click pe el automat
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download =
+          result.fileName || `Factura_${invoice.invoiceNumber}.zip`
+        document.body.appendChild(link)
+        link.click()
+
+        // Curățenie
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+
+        toast.success('Descărcare finalizată.')
+      } else {
+        toast.error('Eroare descărcare', { description: result.message })
+      }
+    } catch (err) {
+      toast.error('Eroare', { description: String(err) })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+  // --- HANDLER 3: CHECK STATUS ---
+  const handleCheckStatus = async (invoice: PopulatedInvoice) => {
+    if (actionLoadingId) return
+    setActionLoadingId(invoice._id.toString())
+    toast.info('Se verifică statusul la ANAF...')
+
+    try {
+      const result = await updateOutgoingStatus(invoice._id.toString())
+
+      if (result.success) {
+        toast.success(`Status ANAF: ${result.status}`, {
+          description: result.message,
+        })
+
+        // Dacă s-a schimbat statusul (ok/nok), actualizăm UI-ul
+        if (result.status === 'ok') {
+          setInvoices((prev) =>
+            prev.map((inv) =>
+              inv._id === invoice._id
+                ? { ...inv, eFacturaStatus: 'ACCEPTED' }
+                : inv
+            )
+          )
+        } else if (result.status === 'nok') {
+          setInvoices((prev) =>
+            prev.map((inv) =>
+              inv._id === invoice._id
+                ? { ...inv, eFacturaStatus: 'REJECTED_ANAF' }
+                : inv
+            )
+          )
+        }
+      } else {
+        toast.warning('Verificare nereușită', { description: result.message })
+      }
+    } catch (err) {
+      toast.error('Eroare', { description: String(err) })
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+  // --- HANDLER 4: PREVIEW XML ---
+  const handlePreviewXml = async (invoiceId: string) => {
+    toast.loading('Se pregătește previzualizarea...')
+    const result = await getOutgoingPreviewData(invoiceId)
+    toast.dismiss()
+
+    if (result.success && result.data) {
+      setPreviewData(result.data)
+      setIsPreviewOpen(true)
+    } else {
+      toast.error('Eroare previzualizare', { description: result.message })
+    }
+  }
+
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-2'>
       <InvoicesFilters
         filters={filters}
         onFiltersChange={handleFiltersChange}
+        onBulkRefreshLoading={setIsBulkRefreshing}
       />
 
       <div className='border rounded-lg overflow-x-auto bg-card'>
         <Table>
           <TableHeader>
             <TableRow className='bg-muted/50'>
-              <TableHead>Nr. Factură</TableHead>
+              <TableHead>Serie - Nr.</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead>Scadență</TableHead>
               <TableHead>Client</TableHead>
               <TableHead>Creator</TableHead>
-              <TableHead>Data Emiterii</TableHead>
-              <TableHead>Data Scadenței</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>eFactura</TableHead>
+              <TableHead>Acțiuni / ID</TableHead>
               <TableHead className='text-right'>Total</TableHead>
               {isAdmin && (
                 <>
@@ -205,60 +387,129 @@ export function InvoicesList({
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>{invoice.clientId?.name || 'N/A'}</TableCell>
-                  <TableCell>{invoice.createdByName || 'N/A'}</TableCell>
                   <TableCell>
                     {new Date(invoice.invoiceDate).toLocaleDateString('ro-RO')}
                   </TableCell>
                   <TableCell>
                     {new Date(invoice.dueDate).toLocaleDateString('ro-RO')}
                   </TableCell>
+                  <TableCell>{invoice.clientId?.name || 'N/A'}</TableCell>
+                  <TableCell>{invoice.createdByName || 'N/A'}</TableCell>
                   <TableCell>
                     <InvoiceStatusBadge status={invoice.status} />
                   </TableCell>
+                  {/* COLOANA 1: STATUS EFACTURA */}
                   <TableCell>
-                    <div className='flex items-center gap-2'>
-                      {/* 1. Toată lumea vede Statusul */}
-                      <EFacturaStatusBadge status={invoice.eFacturaStatus} />
-
-                      {/* 2. Doar Adminul vede acțiunile sau codul */}
-                      {isAdmin && (
-                        <>
-                          {/* CAZ A: Trebuie trimisă (PENDING sau REJECTED_ANAF) */}
-                          {(invoice.eFacturaStatus === 'PENDING' ||
-                            invoice.eFacturaStatus === 'REJECTED_ANAF') && (
-                            <Button
-                              variant='outline'
-                              size='icon'
-                              className='h-7 w-7'
-                              title='Încarcă în SPV'
-                              // Buton activ doar dacă factura este finalizată (Aprobată/Plătită)
-                              disabled={
-                                !(
-                                  invoice.status === 'APPROVED' ||
-                                  invoice.status === 'PAID' ||
-                                  invoice.status === 'PARTIAL_PAID'
-                                )
-                              }
-                              onClick={() =>
-                                toast.info('Modulul e-Factura este în lucru.')
-                              }
-                            >
-                              <Upload className='h-4 w-4' />
-                            </Button>
-                          )}
-
-                          {/* CAZ B: A fost deja trimisă (SENT sau ACCEPTED) - Afișăm ID Placeholder */}
-                          {(invoice.eFacturaStatus === 'SENT' ||
-                            invoice.eFacturaStatus === 'ACCEPTED') && (
-                            <span className='text-[10px] font-mono text-muted-foreground border px-1 py-0.5 rounded bg-muted'>
-                              {/* Aici va veni invoice.eFacturaUploadId real */}
-                              ID: 3040...
-                            </span>
-                          )}
-                        </>
+                    <div
+                      className={cn(
+                        'inline-block',
+                        // Adăugăm cursor special doar dacă e respinsă, ca să știe că poate da click/hover
+                        invoice.eFacturaStatus === 'REJECTED_ANAF' &&
+                          'cursor-help'
                       )}
+                      // 1. TOOLTIP PE BADGE
+                      title={
+                        invoice.eFacturaStatus === 'REJECTED_ANAF'
+                          ? invoice.eFacturaError
+                          : undefined
+                      }
+                      // 2. CLICK PE BADGE (Deschide Modalul)
+                      onClick={() => {
+                        if (invoice.eFacturaStatus === 'REJECTED_ANAF') {
+                          handleShowError(invoice.eFacturaError)
+                        }
+                      }}
+                    >
+                      <EFacturaStatusBadge status={invoice.eFacturaStatus} />
                     </div>
+                  </TableCell>
+
+                  {/* COLOANA 2: ACȚIUNI (Curățat de erori) */}
+                  <TableCell>
+                    {isAdmin ? (
+                      <div className='flex gap-1 items-start '>
+                        {/* A. Buton UPLOAD (Doar acțiunea de trimitere) */}
+                        {(invoice.eFacturaStatus === 'PENDING' ||
+                          invoice.eFacturaStatus === 'REJECTED_ANAF') && (
+                          <Button
+                            variant='outline'
+                            size='icon'
+                            className='h-7 w-7'
+                            // MODIFICAT: Tooltip simplu de acțiune, FĂRĂ EROARE
+                            title='Trimite factura în SPV'
+                            disabled={
+                              actionLoadingId === invoice._id.toString() ||
+                              !(
+                                invoice.status === 'APPROVED' ||
+                                invoice.status === 'PAID' ||
+                                invoice.status === 'PARTIAL_PAID'
+                              )
+                            }
+                            onClick={() => handleUploadToAnaf(invoice)}
+                          >
+                            {actionLoadingId === invoice._id.toString() ? (
+                              <Loader2 className='h-3 w-3 animate-spin' />
+                            ) : (
+                              <Upload className='h-4 w-4' />
+                            )}
+                          </Button>
+                        )}
+
+                        {/* B. Zona ID + DOWNLOAD + REFRESH (Dedesubt) */}
+                        {(invoice.eFacturaStatus === 'SENT' ||
+                          invoice.eFacturaStatus === 'ACCEPTED' ||
+                          (invoice.eFacturaStatus === 'REJECTED_ANAF' &&
+                            invoice.eFacturaUploadId)) &&
+                          invoice.eFacturaUploadId && (
+                            <div className='flex items-center gap-1'>
+                              {/* Buton Download ZIP / ID */}
+                              <div
+                                className={cn(
+                                  'text-[10px] font-mono border px-2 py-1 rounded flex items-center gap-1 transition-colors h-7',
+                                  'hover:bg-primary/10 hover:text-primary cursor-pointer',
+                                  'bg-muted text-muted-foreground'
+                                )}
+                                onClick={() => handleDownloadZip(invoice)}
+                                title='Descarcă XML / ZIP'
+                              >
+                                {actionLoadingId === invoice._id.toString() ? (
+                                  <Loader2 className='h-3 w-3 animate-spin' />
+                                ) : (
+                                  <Download className='h-3 w-3' />
+                                )}
+                                <span>{invoice.eFacturaUploadId}</span>
+                              </div>
+
+                              {/* Buton Refresh (Doar dacă e SENT) */}
+                              {invoice.eFacturaStatus === 'SENT' && (
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-7 w-7 hover:bg-muted'
+                                  title='Verifică status ANAF'
+                                  disabled={
+                                    actionLoadingId ===
+                                      invoice._id.toString() || isBulkRefreshing
+                                  }
+                                  onClick={() => handleCheckStatus(invoice)}
+                                >
+                                  <RefreshCw
+                                    className={cn(
+                                      'h-3 w-3',
+                                      (actionLoadingId ===
+                                        invoice._id.toString() ||
+                                        isBulkRefreshing) &&
+                                        'animate-spin'
+                                    )}
+                                  />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground text-xs'>-</span>
+                    )}
                   </TableCell>
                   <TableCell className='text-right font-semibold'>
                     {formatCurrency(invoice.totals.grandTotal)}
@@ -302,7 +553,24 @@ export function InvoicesList({
                         >
                           Vizualizează
                         </DropdownMenuItem>
-
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            handlePreviewXml(invoice._id.toString())
+                          }
+                          disabled={!invoice.eFacturaUploadId} // Activ doar dacă s-a încercat trimiterea
+                        >
+                          Vezi XML e-Factura
+                        </DropdownMenuItem>
+                        {invoice.eFacturaStatus === 'REJECTED_ANAF' && (
+                          <DropdownMenuItem
+                            className='text-red-600 focus:text-red-700'
+                            onSelect={() =>
+                              handleShowError(invoice.eFacturaError)
+                            }
+                          >
+                            Vezi Erori ANAF
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onSelect={() =>
                             router.push(
@@ -424,6 +692,34 @@ export function InvoicesList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AnafPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        data={previewData}
+      />
+      <Dialog open={errorModalOpen} onOpenChange={setErrorModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className='flex items-center gap-2 text-destructive'>
+              <Info className='h-5 w-5' />
+              Eroare Validare ANAF
+            </DialogTitle>
+            <DialogDescription>
+              Detalii despre eroarea returnată de serverul ANAF.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className=' rounded-md text-sm whitespace-pre-wrap max-h-[60vh] overflow-y-auto'>
+            {currentError}
+          </div>
+
+          <div className='flex justify-end mt-4'>
+            <Button variant='outline' onClick={() => setErrorModalOpen(false)}>
+              Închide
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

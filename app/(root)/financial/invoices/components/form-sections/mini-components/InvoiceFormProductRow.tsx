@@ -18,12 +18,14 @@ interface InvoiceFormProductRowProps {
   index: number
   itemData: InvoiceLineInput
   remove: (index: number) => void
+  isVatDisabled: boolean
 }
 
 export function InvoiceFormProductRow({
   index,
   itemData,
   remove,
+  isVatDisabled,
 }: InvoiceFormProductRowProps) {
   const { control, setValue, watch } = useFormContext<InvoiceInput>()
   const watchedInvoiceType = watch('invoiceType')
@@ -241,7 +243,11 @@ export function InvoiceFormProductRow({
       </TableCell>
       {/* 7. TVA % (BLOCAT) */}
       <TableCell className='w-[100px] text-center'>
-        <span>{vatRateDetails?.rate || 0}%</span>
+        <span
+          className={isVatDisabled ? 'text-muted-foreground opacity-50' : ''}
+        >
+          {vatRateDetails?.rate || 0}%{' '}
+        </span>
       </TableCell>
       {/* 8. Suma TVA */}
       <TableCell className='w-[100px] text-right text-sm'>

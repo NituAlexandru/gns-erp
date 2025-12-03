@@ -42,6 +42,7 @@ import { SelectStornoInvoicesModal } from './form-sections/SelectStornoInvoicesM
 import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbering.actions'
 import { CreateStornoInput } from '@/lib/db/modules/financial/invoices/storno.validator'
 import { SelectStornoProductModal } from './form-sections/SelectStornoProductModal'
+import { VAT_EXEMPTION_REASONS } from '@/lib/db/modules/setting/efactura/outgoing/outgoing.constants'
 
 interface InvoiceFormProps {
   initialData: (Partial<InvoiceInput> & { _id?: string }) | null
@@ -76,6 +77,7 @@ export function InvoiceForm({
     invoiceDate: new Date(),
     dueDate: new Date(),
     invoiceType: 'STANDARD',
+    vatCategory: 'S',
     items: [],
     totals: {
       productsSubtotal: 0,
@@ -337,6 +339,62 @@ export function InvoiceForm({
     }
     // Trebuie să urmărim 'selectedAddress' și să avem acces la 'form'
   }, [selectedAddress, form])
+
+  const watchedVatCategory = useWatch({
+    control: form.control,
+    name: 'vatCategory',
+  })
+
+  // 2. useEffect pentru a gestiona schimbarea regimului TVA
+  useEffect(() => {
+    // Dacă nu avem o categorie selectată, nu facem nimic
+    if (!watchedVatCategory) return
+
+    // Obținem motivul standard pentru codul selectat
+    const defaultReason = VAT_EXEMPTION_REASONS[watchedVatCategory] || ''
+
+    // Setăm motivul scutirii în formular (dacă nu e Standard, se completează singur)
+    // Putem pune o condiție: suprascriem doar dacă câmpul e gol sau e un mesaj standard vechi,
+    // ca să nu ștergem ce a scris omul manual. Dar pentru simplitate, momentan îl setăm direct.
+    setValue('vatExemptionReason', defaultReason, { shouldDirty: true })
+
+    // LOGICA DE FORȚARE A LINIILOR LA 0%
+    if (watchedVatCategory !== 'S') {
+      const currentItems = getValues('items')
+
+      // Verificăm dacă avem linii care au TVA diferit de 0
+      const needsUpdate = currentItems.some(
+        (item) => item.vatRateDetails.rate !== 0
+      )
+
+      if (needsUpdate) {
+        const updatedItems = currentItems.map((item) => {
+          // Dacă e deja 0, îl lăsăm așa
+          if (item.vatRateDetails.rate === 0) return item
+
+          // Recalculăm linia cu TVA 0
+          const newValue = item.lineValue // Valoarea fără TVA rămâne la fel
+          const newLineTotal = newValue // Totalul devine egal cu valoarea
+
+          return {
+            ...item,
+            vatRateDetails: { rate: 0, value: 0 },
+            lineTotal: newLineTotal,
+            // lineCost și profit rămân neschimbate
+          }
+        })
+
+        // Actualizăm tot array-ul de itemi o singură dată
+        setValue('items', updatedItems, {
+          shouldValidate: true,
+          shouldDirty: true,
+        })
+        toast.info(
+          `Cota TVA a fost schimbată automat la 0% pentru regimul ${watchedVatCategory}.`
+        )
+      }
+    }
+  }, [watchedVatCategory, setValue, getValues])
 
   const handleLoadNotes = (selectedNotes: IDeliveryNoteDoc[]) => {
     // 1. Obține starea curentă
@@ -633,7 +691,6 @@ export function InvoiceForm({
     setValue('sourceDeliveryNotes', newSourceIds)
     toast.info('Avizul și liniile asociate au fost scoase din factură.')
   }
-
   const handleRemoveStornoSource = (invoiceIdToRemove: string) => {
     // 1. Găsește indicii liniilor care trebuie șterse
     const currentItems = getValues('items')
@@ -664,7 +721,6 @@ export function InvoiceForm({
 
     toast.info('Factura sursă și liniile asociate au fost eliminate.')
   }
-
   async function onSubmit(values: InvoiceInput) {
     setIsLoading(true)
     const loadingToastId = toast.loading('Se salvează factura...')
@@ -745,7 +801,6 @@ export function InvoiceForm({
       setIsLoading(false)
     }
   }
-
   const onValidationErrors = () => {
     toast.error('Formularul este invalid!', {
       description: 'Vă rugăm verificați câmpurile marcate cu roșu.',
@@ -780,6 +835,7 @@ export function InvoiceForm({
             onShowStornoProductModal={() => setShowStornoProductModal(true)}
             loadedStornoSources={loadedStornoSources}
             onRemoveStornoSource={handleRemoveStornoSource}
+            isVatDisabled={watchedVatCategory !== 'S'}
           />
 
           <Button type='submit' disabled={isLoading}>
