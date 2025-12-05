@@ -21,7 +21,9 @@ export default async function InvoicesPage({
 
   return (
     <div className='flex flex-col gap-0'>
-      <h1 className='text-2xl font-bold tracking-tight'>Lista Facturi</h1>
+      <h1 className='text-2xl font-bold tracking-tight hidden'>
+        Lista Facturi
+      </h1>
       {/* Componenta Client care se ocupă de paginare și filtrare */}
       <InvoicesList
         initialData={initialData}

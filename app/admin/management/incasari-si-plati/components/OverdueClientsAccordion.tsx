@@ -46,15 +46,15 @@ export function OverdueClientsAccordion({
             key={client._id.toString()}
           >
             {/* Capul de tabel al Acordeonului (Clientul) */}
-            <AccordionTrigger className='hover:no-underline'>
-              <div className='flex justify-between w-full'>
+            <AccordionTrigger className='hover:no-underline text-xs'>
+              <div className='flex justify-between w-full text-xs'>
                 <span
-                  className='font-bold text-base truncate'
+                  className='font-bold text-xs truncate'
                   title={client.clientName}
                 >
                   {client.clientName}
                 </span>
-                <span className='font-bold text-base text-red-600'>
+                <span className='font-bold text-xs text-red-600'>
                   {formatCurrency(client.totalOverdue)}
                 </span>
               </div>
@@ -62,7 +62,7 @@ export function OverdueClientsAccordion({
 
             {/* Conținutul (Lista de facturi) */}
             <AccordionContent>
-              <div className=' space-y-1'>
+              <div className='space-y-1'>
                 <Table>
                   <TableHeader>
                     <TableRow className='text-xs'>

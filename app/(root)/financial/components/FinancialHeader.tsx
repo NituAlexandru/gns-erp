@@ -10,7 +10,7 @@ export default function FinancialHeader() {
       {/* Titlu și descriere */}
       <div>
         <h1 className='text-3xl font-bold tracking-tight'>
-          Documente Financiare Genesis
+          Documente Financiare
         </h1>
         <p className='text-muted-foreground'>
           Vizualizează și gestionează documentele financiare.
@@ -19,11 +19,7 @@ export default function FinancialHeader() {
 
       {/* Butoane acțiuni rapide */}
       <div className='flex flex-wrap gap-2'>
-        <Button variant='outline'>
-          <PlusCircle className='w-4 h-4 mr-2' />
-          Nou Document
-        </Button>
-        <Button variant='secondary'>
+        <Button variant='secondary' disabled>
           <FileCheck className='w-4 h-4 mr-2' />
           Creează Aviz
         </Button>

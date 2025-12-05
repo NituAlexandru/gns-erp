@@ -589,6 +589,8 @@ export async function generateProformaFromOrder(
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
             notes: `Proformă generată automat din Comanda ${order.orderNumber}.`,
+            salesAgentId: order.salesAgent,
+            salesAgentSnapshot: order.salesAgentSnapshot,
             logisticSnapshots: {
               orderNumbers: [order.orderNumber],
               deliveryNumbers: [],

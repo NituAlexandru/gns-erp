@@ -92,7 +92,7 @@ export default function ClientSummaryCard({
           {/* 4. Plafon Credit (Modificat cu Buton Admin) */}
           <Card>
             <CardHeader>
-              <div className='flex justify-between items-center'>
+              <div className='flex justify-between items-center p-0 mt-[-10px]'>
                 <CardTitle className='text-sm font-medium'>
                   Plafon Credit
                 </CardTitle>
@@ -111,7 +111,7 @@ export default function ClientSummaryCard({
               <div className='text-2xl font-bold'>
                 {formatCurrency(summary.creditLimit)}
               </div>
-              <p className='text-xs text-muted-foreground mt-1'>
+              <p className='text-xs text-muted-foreground'>
                 Disponibil: {formatCurrency(summary.availableCredit)}
               </p>
             </CardContent>

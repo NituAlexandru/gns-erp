@@ -13,11 +13,11 @@ export function StatCard({ title, value, icon, onClick }: StatCardProps) {
       className='hover:shadow-md transition-shadow cursor-pointer'
       onClick={onClick}
     >
-      <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
+      <CardHeader className='flex flex-row items-center justify-between space-y-0 py-0'>
         <CardTitle className='text-sm font-medium'>{title}</CardTitle>
         {icon}
       </CardHeader>
-      <CardContent>
+      <CardContent className='py-0'>
         <div className='text-2xl font-bold'>{value}</div>
       </CardContent>
     </Card>
