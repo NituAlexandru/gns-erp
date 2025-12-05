@@ -70,15 +70,15 @@ export function InvoiceFormHeader({
   const watchedInvoiceType = form.watch('invoiceType')
 
   return (
-    <Card>
+    <Card className='pt-0'>
       <CardHeader>
-        <CardTitle>Antet Factură</CardTitle>
+        <CardTitle className='hidden'>Antet Factură</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className='py-0'>
         <div className='grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6'>
           {/* --- COLOANA 1: Client & Adresă --- */}
-          <div className='space-y-6'>
-            <div className='flex gap-4'>
+          <div className='space-y-2'>
+            <div className='flex gap-2'>
               <FormField
                 control={form.control}
                 name='invoiceType'

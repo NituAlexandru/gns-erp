@@ -1,7 +1,8 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { FileCheck, FileText, PlusCircle } from 'lucide-react'
+import { FileCheck, PlusCircle } from 'lucide-react'
+import Link from 'next/link'
 
 export default function FinancialHeader() {
   return (
@@ -26,9 +27,11 @@ export default function FinancialHeader() {
           <FileCheck className='w-4 h-4 mr-2' />
           Creează Aviz
         </Button>
-        <Button>
-          <FileText className='w-4 h-4 mr-2' />
-          Creează Factură
+        <Button asChild>
+          <Link href='/financial/invoices/new'>
+            <PlusCircle className='w-4 h-4 mr-2' />
+            Creează Factură
+          </Link>
         </Button>
       </div>
     </div>

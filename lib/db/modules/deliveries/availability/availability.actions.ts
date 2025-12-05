@@ -8,6 +8,8 @@ import { revalidatePath } from 'next/cache'
 import { startOfDay, endOfDay } from 'date-fns'
 import { Types } from 'mongoose'
 import DeliveryModel from '../delivery.model'
+import { DELIVERY_SLOTS } from '../constants'
+import z from 'zod'
 
 // Create Block
 export async function createTimeBlock(data: CreateBlockInput) {
@@ -16,6 +18,11 @@ export async function createTimeBlock(data: CreateBlockInput) {
     if (!session?.user?.id) throw new Error('Neautentificat')
 
     const validated = CreateBlockSchema.parse(data)
+
+    validated.slots.sort(
+      (a, b) => DELIVERY_SLOTS.indexOf(a) - DELIVERY_SLOTS.indexOf(b)
+    )
+
     await connectToDatabase()
 
     const dayStart = startOfDay(validated.date)
@@ -64,6 +71,9 @@ export async function createTimeBlock(data: CreateBlockInput) {
     return { success: true, message: 'Interval blocat cu succes.' }
   } catch (error) {
     console.error('Error creating block:', error)
+    if (error instanceof z.ZodError) {
+      return { success: false, message: error.errors[0].message }
+    }
     return { success: false, message: 'Eroare la salvare.' }
   }
 }
