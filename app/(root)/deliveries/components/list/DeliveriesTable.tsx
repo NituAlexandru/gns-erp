@@ -20,6 +20,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 
 interface DeliveriesTableProps {
   deliveries: IDelivery[]
+  currentYearCount: number
   pagination: {
     totalCount: number
     currentPage: number
@@ -31,6 +32,7 @@ interface DeliveriesTableProps {
 export function DeliveriesTable({
   deliveries,
   pagination,
+  currentYearCount,
 }: DeliveriesTableProps) {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -45,11 +47,17 @@ export function DeliveriesTable({
   }
 
   return (
-    <div className='space-y-3'>
-      <div className='flex justify-end text-sm text-muted-foreground'>
-        Total livrări: <span className='font-medium ml-1'>{totalCount}</span>
+    <div className='space-y-1 mt-2'>
+      <div className='flex justify-end gap-4 text-sm text-muted-foreground'>
+        <div>
+          Total livrări:
+          <span className='font-medium ml-1'>{totalCount}</span>
+        </div>
+        <div>
+          Total livrări efectuate ({new Date().getFullYear()}):
+          <span className='font-medium ml-1'>{currentYearCount}</span>
+        </div>
       </div>
-
       <div className='rounded-md border'>
         <Table>
           <TableHeader>
@@ -59,6 +67,7 @@ export function DeliveriesTable({
               <TableHead>Client</TableHead>
               <TableHead>Comandă</TableHead>
               <TableHead>Livrare</TableHead>
+              <TableHead>Creata de</TableHead>
               <TableHead className='w-[100px] text-right'>Acțiuni</TableHead>
             </TableRow>
           </TableHeader>
@@ -80,22 +89,31 @@ export function DeliveriesTable({
                 }
                 return (
                   <TableRow key={delivery._id.toString()}>
-                    <TableCell>
+                    <TableCell className='py-1'>
                       <Badge variant={statusInfo.variant}>
                         {statusInfo.name}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='py-1'>
                       {delivery.createdAt
                         ? format(new Date(delivery.createdAt), 'PPP', {
                             locale: ro,
                           })
                         : 'N/A'}
                     </TableCell>
-                    <TableCell>{delivery.clientSnapshot?.name}</TableCell>
-                    <TableCell>{delivery.orderNumber}</TableCell>
-                    <TableCell>{delivery.deliveryNumber}</TableCell>
-                    <TableCell className='text-right'>
+                    <TableCell className='py-1'>
+                      {delivery.clientSnapshot?.name}
+                    </TableCell>
+                    <TableCell className='py-1'>
+                      {delivery.orderNumber}
+                    </TableCell>
+                    <TableCell className='py-1'>
+                      {delivery.deliveryNumber}
+                    </TableCell>
+                    <TableCell className='py-1'>
+                      {delivery.createdByName}
+                    </TableCell>
+                    <TableCell className='text-right py-1'>
                       <Button asChild variant='ghost' size='icon'>
                         <Link href={`/orders/${delivery.orderId.toString()}`}>
                           <Eye className='h-4 w-4' />

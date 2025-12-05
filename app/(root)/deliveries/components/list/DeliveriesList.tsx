@@ -16,6 +16,7 @@ export default function DeliveriesList() {
     pageSize: number
   }>({ totalCount: 0, currentPage: 1, totalPages: 1, pageSize: 0 })
   const [loading, setLoading] = useState(false)
+  const [currentYearCount, setCurrentYearCount] = useState(0)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -28,6 +29,7 @@ export default function DeliveriesList() {
       })
       setDeliveries(result.data)
       setPagination(result.pagination)
+      setCurrentYearCount(result.currentYearCount)
       setLoading(false)
     }
     fetchData()
@@ -41,5 +43,11 @@ export default function DeliveriesList() {
     )
   }
 
-  return <DeliveriesTable deliveries={deliveries} pagination={pagination} />
+  return (
+    <DeliveriesTable
+      deliveries={deliveries}
+      pagination={pagination}
+      currentYearCount={currentYearCount}
+    />
+  )
 }

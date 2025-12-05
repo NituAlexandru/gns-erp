@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -122,7 +121,7 @@ export default function FilterControls({ statuses }: FilterControlsProps) {
   }
 
   return (
-    <Card>
+    <Card className='m-0 p-3'>
       <CardContent>
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4'>
           {/* 🔍 Căutare */}

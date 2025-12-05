@@ -1,4 +1,3 @@
-
 import FilterControls from '../components/list/FilterControls'
 import DeliveriesList from '../components/list/DeliveriesList'
 import { DELIVERY_STATUS_MAP } from '@/lib/db/modules/deliveries/constants'
@@ -12,7 +11,7 @@ export default function DeliveriesListPage() {
   }))
 
   return (
-    <div className='space-y-2'>
+    <div className='space-y-1'>
       <div className='flex justify-between items-center'>
         <h1 className='text-2xl font-bold'>Listă Livrări</h1>
         <Button asChild variant='outline'>

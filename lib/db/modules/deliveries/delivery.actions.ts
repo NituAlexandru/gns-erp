@@ -22,7 +22,14 @@ import {
   CompanyAddressSnapshot,
 } from './types'
 import { generateDeliveryNumber } from '../numbering/numbering.actions'
-import { endOfDay, isValid, parseISO, startOfDay } from 'date-fns'
+import {
+  endOfDay,
+  endOfYear,
+  isValid,
+  parseISO,
+  startOfDay,
+  startOfYear,
+} from 'date-fns'
 import { fromZonedTime } from 'date-fns-tz'
 import { ScheduleDeliveryInput } from './planner-validator'
 import AssignmentModel from '../fleet/assignments/assignments.model'
@@ -882,9 +889,17 @@ export async function getFilteredDeliveries({
     query.status = status
   }
 
+  const now = new Date()
+  const currentYearCount = await DeliveryModel.countDocuments({
+    createdAt: {
+      $gte: startOfYear(now),
+      $lte: endOfYear(now),
+    },
+    status: { $ne: 'CANCELLED' }, // Opțional: Dacă vrei să excluzi anulatele din numărătoare
+  })
+
   const safePage = Math.max(1, page)
   const skipCount = (safePage - 1) * PAGE_SIZE
-
   const totalCount = await DeliveryModel.countDocuments(query)
 
   const deliveries = await DeliveryModel.find(query)
@@ -896,6 +911,7 @@ export async function getFilteredDeliveries({
   return JSON.parse(
     JSON.stringify({
       data: deliveries,
+      currentYearCount,
       pagination: {
         totalCount,
         currentPage: safePage,
