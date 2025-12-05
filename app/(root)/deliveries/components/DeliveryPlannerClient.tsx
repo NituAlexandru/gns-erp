@@ -473,6 +473,9 @@ export function DeliveryPlannerClient({
 
         <div className='flex gap-2'>
           <Button asChild variant='outline' type='button'>
+            <Link href='/deliveries'>Programează Livrare</Link>
+          </Button>
+          <Button asChild variant='outline' type='button'>
             <Link href={`/orders/${order._id}`}>Înapoi La Comanda</Link>
           </Button>
           <Button asChild variant='outline' type='button'>

@@ -58,6 +58,7 @@ export const InvoiceLineSchema = z.object({
   isManualEntry: z.boolean().default(false),
   productName: z.string().min(1),
   productCode: z.string().optional(),
+  productBarcode: z.string().optional(),
   quantity: z.number(),
   unitOfMeasure: z.string().min(1),
   unitOfMeasureCode: z.string().optional(), // Cod UN/ECE
@@ -164,7 +165,13 @@ export const InvoiceInputSchema = z.object({
   relatedInvoiceIds: z.array(MongoId).default([]), // (pentru a ține minte ce stornăm)
   // Câmpuri opționale
   notes: z.string().optional(),
+  orderNotesSnapshot: z.string().optional(),
+  deliveryNotesSnapshot: z.string().optional(),
   rejectionReason: z.string().optional(),
+  driverName: z.string().optional(),
+  vehicleNumber: z.string().optional(),
+  vehicleType: z.string().optional(),
+  trailerNumber: z.string().optional(),
   paidAmount: z.number().optional(),
   remainingAmount: z.number().optional(),
   advanceScope: z.enum(ADVANCE_SCOPES).optional(),

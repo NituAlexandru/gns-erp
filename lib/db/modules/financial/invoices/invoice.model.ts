@@ -48,12 +48,18 @@ export interface IInvoiceDoc extends Document {
   relatedInvoiceIds: Types.ObjectId[] // Pt Storno (leagă facturile stornate)
   relatedAdvanceIds: Types.ObjectId[] // Pt Standard (leagă avansurile folosite)
   notes?: string
+  orderNotesSnapshot?: string
+  deliveryNotesSnapshot?: string
   createdBy: Types.ObjectId
   createdByName: string
   approvedBy?: Types.ObjectId
   approvedByName?: string
   salesAgentId: Types.ObjectId
   salesAgentSnapshot: { name: string }
+  driverName?: string
+  vehicleNumber?: string
+  vehicleType?: string
+  trailerNumber?: string
   deliveryAddressId: Types.ObjectId
   deliveryAddress: ClientSnapshot['address']
   logisticSnapshots: {
@@ -123,6 +129,7 @@ const InvoiceLineSubSchema = new Schema<InvoiceLineInput>(
     },
     isManualEntry: { type: Boolean, default: false },
     productName: { type: String, required: true },
+    productBarcode: { type: String },
     productCode: { type: String },
     quantity: { type: Number, required: true },
     unitOfMeasure: { type: String, required: true },
@@ -251,13 +258,19 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
       required: true,
     },
     vatExemptionReason: { type: String },
-    notes: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
     approvedBy: { type: Schema.Types.ObjectId, ref: 'User' },
     approvedByName: { type: String },
     salesAgentId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     salesAgentSnapshot: { name: { type: String, required: true } },
+    driverName: { type: String },
+    vehicleNumber: { type: String },
+    vehicleType: { type: String },
+    trailerNumber: { type: String },
+    notes: { type: String },
+    orderNotesSnapshot: { type: String },
+    deliveryNotesSnapshot: { type: String },
     logisticSnapshots: {
       orderNumbers: [{ type: String }],
       deliveryNumbers: [{ type: String }],

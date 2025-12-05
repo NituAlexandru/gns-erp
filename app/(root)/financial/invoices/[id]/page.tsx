@@ -1,4 +1,3 @@
-// app/(root)/financial/invoices/[id]/page.tsx
 import { getInvoiceById } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { redirect } from 'next/navigation'
 import { auth } from '@/auth'
@@ -36,7 +35,7 @@ export default async function InvoiceDetailsPage({
       <InvoiceDetailsActions invoice={invoice} isAdmin={isAdmin} />
 
       {/* Componenta care afișează detaliile facturii */}
-      <InvoiceDetails invoice={invoice} isAdmin={isAdmin} />
+      <InvoiceDetails invoice={invoice} currentUserRole={userRole} />
     </div>
   )
 }

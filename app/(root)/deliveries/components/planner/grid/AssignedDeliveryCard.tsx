@@ -15,6 +15,8 @@ import {
   Box,
   CheckCircle2,
   DollarSign,
+  Download,
+  Eye,
   FilePenLine,
   FileText,
   Loader2,
@@ -203,7 +205,9 @@ export function AssignedDeliveryCard({
     delivery.isNoticed && delivery.status === 'IN_TRANSIT'
   const isLoading = isGenerating || isConfirming || isCancelling
   const canCancelNote = delivery.isNoticed && delivery.status === 'IN_TRANSIT'
-  const canEditDelivery = ['CREATED', 'SCHEDULED'].includes(delivery.status)
+  const canEditDelivery = ['CREATED', 'SCHEDULED', 'IN_TRANSIT'].includes(
+    delivery.status
+  )
   const canGenerateInvoice =
     delivery.status === 'DELIVERED' && !delivery.isInvoiced
 
@@ -282,7 +286,7 @@ export function AssignedDeliveryCard({
         <div className='space-y-4 text-base'>
           <div className='flex justify-between items-center gap-2'>
             <div className='space-y-1'>
-              <p className='text-lg font-semibold text-primary'>
+              <p className='text-lg font-semibold text-primary font-mono'>
                 Comanda: {delivery.orderNumber}
               </p>
               <p className='text-sm font-mono text-muted-foreground -mt-1'>
@@ -355,7 +359,7 @@ export function AssignedDeliveryCard({
             </div>
           </div>
 
-          <div className='border-t pt-3 mt-3 flex items-center justify-end gap-2'>
+          <div className='border-t pt-3 mt-3 grid grid-cols-3 items-center justify-end gap-2'>
             {/* --- MODIFICĂ COMANDA (Link)  --- */}
             {canEditDelivery && (
               <Button
@@ -386,7 +390,6 @@ export function AssignedDeliveryCard({
                 </Link>
               </Button>
             )}
-
             {/* --- Butonul GENEREAZĂ AVIZ --- */}
             {canGenerateNote && (
               <Button
@@ -404,6 +407,25 @@ export function AssignedDeliveryCard({
                   <FileText className='mr-2 h-4 w-4' />
                 )}
                 Generează Aviz
+              </Button>
+            )}{' '}
+            {/* --- NOU: Butonul CONFIRMĂ (cu Alert Dialog) --- */}
+            {canConfirmDelivery && (
+              <Button
+                size='sm'
+                variant='outline'
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowConfirmModal(true)
+                }}
+                disabled={isLoading}
+              >
+                {isConfirming ? (
+                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                ) : (
+                  <CheckCircle2 className='mr-2 h-4 w-4' />
+                )}
+                Confirmă Livrarea
               </Button>
             )}
             {/* --- NOU: Butonul ANULEAZĂ AVIZ --- */}
@@ -425,25 +447,40 @@ export function AssignedDeliveryCard({
                 Anulează Aviz
               </Button>
             )}
-            {/* --- NOU: Butonul CONFIRMĂ (cu Alert Dialog) --- */}
-            {canConfirmDelivery && (
-              <Button
-                size='sm'
-                variant='outline'
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setShowConfirmModal(true)
-                }}
-                disabled={isLoading}
-              >
-                {isConfirming ? (
-                  <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                ) : (
-                  <CheckCircle2 className='mr-2 h-4 w-4' />
-                )}
-                Confirmă Livrarea
-              </Button>
-            )}
+            {/* --- STATUS: LIVRATĂ sau ÎN TRANZIT (Vezi & Descarcă Aviz) --- */}
+            {(delivery.status === 'DELIVERED' ||
+              delivery.status === 'IN_TRANSIT') &&
+              delivery.deliveryNoteId && (
+                <>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className='w-full'
+                    asChild
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Link
+                      href={`/financial/delivery-notes/${delivery.deliveryNoteId}`}
+                    >
+                      <Eye className='mr-2 h-4 w-4' /> Vezi Aviz
+                    </Link>
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className='w-full'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      // handlePrintDocument(
+                      //   'delivery-note',
+                      //   delivery.deliveryNoteId?.toString()
+                      // )
+                    }}
+                  >
+                    <Download className='mr-2 h-4 w-4' /> Descarcă Aviz
+                  </Button>
+                </>
+              )}
             {/* --- GENEREAZĂ FACTURĂ --- */}
             {canGenerateInvoice && (
               <Button
@@ -463,6 +500,39 @@ export function AssignedDeliveryCard({
                 Generează Factură
               </Button>
             )}
+            {/* --- STATUS: FACTURATĂ (Vezi & Descarcă Factura) --- */}
+            {delivery.status === 'INVOICED' &&
+              delivery.relatedInvoices?.length > 0 && (
+                <>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className='w-full'
+                    asChild
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Link
+                      href={`/financial/invoices/${delivery.relatedInvoices[0].invoiceId}`}
+                    >
+                      <Eye className='mr-2 h-4 w-4' /> Vezi Factura
+                    </Link>
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className='w-full'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      // handlePrintDocument(
+                      //   'invoice',
+                      //   delivery.invoiceId?.toString()
+                      // )
+                    }}
+                  >
+                    <Download className='mr-2 h-4 w-4' /> Descarcă Factura
+                  </Button>
+                </>
+              )}
           </div>
         </div>
       </TooltipContent>
@@ -549,7 +619,6 @@ export function AssignedDeliveryCard({
           onCancel={() => setShowSeriesModal(false)}
         />
       )}
-
       {showInvoiceSeriesModal && (
         <SelectSeriesModal
           documentType={'Factura' as unknown as DocumentType}

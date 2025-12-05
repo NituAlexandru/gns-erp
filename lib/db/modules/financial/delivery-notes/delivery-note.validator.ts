@@ -18,6 +18,7 @@ export const DeliveryNoteLineSchema = z.object({
   isPerDelivery: z.boolean().optional(),
   productName: z.string().min(1),
   productCode: z.string().min(1),
+  productBarcode: z.string().optional(),
   quantity: z.number().positive(),
   unitOfMeasure: z.string().min(1),
   unitOfMeasureCode: z.string().optional(),
@@ -69,6 +70,7 @@ export const CreateDeliveryNoteSchema = z.object({
   createdBy: MongoId,
   createdByName: z.string().min(1),
   seriesName: z.string().min(1).max(10),
+  orderNotesSnapshot: z.string().optional(),
   items: z
     .array(DeliveryNoteLineSchema)
     .min(1, 'Cel puțin un produs este necesar.'),

@@ -88,7 +88,7 @@ export function InvoiceDetailsActions({
     <>
       <div className='flex flex-wrap items-center justify-between gap-2'>
         {/* Partea stângă: Navigare și Titlu */}
-        <div className='flex items-center gap-4'>
+        <div className='flex items-center gap-2'>
           <Button
             variant='outline'
             size='icon'
@@ -96,9 +96,10 @@ export function InvoiceDetailsActions({
           >
             <ChevronLeft className='h-4 w-4' />
           </Button>
-          <div>
+          <div className='flex gap-2'>
             <h1 className='text-2xl font-bold tracking-tight'>
-              Factura {invoice.seriesName}-{invoice.invoiceNumber}
+              Factura seria {invoice.seriesName} nr. {invoice.invoiceNumber} /{' '}
+              {new Date(invoice.invoiceDate).toLocaleDateString('ro-RO')}
             </h1>
             <Badge variant={statusInfo.variant}>{statusInfo.name}</Badge>
           </div>

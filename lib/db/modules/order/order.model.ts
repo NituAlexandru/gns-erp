@@ -9,6 +9,7 @@ const OrderLineItemSchema = new Schema<IOrderLineItem>({
   isPerDelivery: { type: Boolean, default: false },
   productName: { type: String, required: true },
   productCode: { type: String, default: '' },
+  productBarcode: { type: String, default: '' },
   quantity: { type: Number, required: true },
   unitOfMeasure: { type: String, required: true },
   unitOfMeasureCode: { type: String, default: 'H87' },

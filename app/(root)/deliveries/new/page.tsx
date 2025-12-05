@@ -4,6 +4,8 @@ import { Types } from 'mongoose'
 import { DeliveryPlannerClient } from '../components/DeliveryPlannerClient'
 import { getDeliveriesByOrderId } from '@/lib/db/modules/deliveries/delivery.actions'
 import { IDelivery } from '@/lib/db/modules/deliveries/delivery.model'
+import { ORDER_STATUS_MAP } from '@/lib/db/modules/order/constants'
+import { OrderStatusKey } from '@/lib/db/modules/order/types'
 
 // Funcția Helper de Serializare
 function sanitizeForClient<T>(data: T): T {
@@ -41,18 +43,25 @@ export default async function CreateDeliveryPage({
     'SCHEDULED',
     'PARTIALLY_DELIVERED',
     'DELIVERED',
+    'PARTIALLY_INVOICED',
+    'PARTIALLY_IN_TRANSIT',
+    'IN_TRANSIT',
   ]
   let existingDeliveriesRaw: IDelivery[] = []
 
   if (allowedPlanningStatuses.includes(order.status)) {
     existingDeliveriesRaw = await getDeliveriesByOrderId(orderId)
   } else {
+    const statusKey = order.status as OrderStatusKey
+    const statusFrumos = ORDER_STATUS_MAP[statusKey]?.name || order.status
+
     return (
       <div className='p-4 text-center text-destructive'>
         <h1>Status Comandă Invalid</h1>
         <p>
           Nu se pot planifica livrări pentru o comandă cu statusul{' '}
-          <strong>{order.status}</strong>.
+          {/* 👇 Afișăm statusul tradus */}
+          <strong>{statusFrumos}</strong>.
         </p>
       </div>
     )

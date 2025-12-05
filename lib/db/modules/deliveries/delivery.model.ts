@@ -83,6 +83,7 @@ export interface IDeliveryLineItem extends Types.Subdocument {
   isPerDelivery?: boolean
   productName: string
   productCode: string
+  productBarcode?: string
   quantity: number
   unitOfMeasure: string
   unitOfMeasureCode?: string
@@ -108,6 +109,7 @@ export const DeliveryLineItemSchema = new Schema<IDeliveryLineItem>({
   isPerDelivery: { type: Boolean, default: false },
   productName: { type: String, required: true },
   productCode: { type: String, required: true },
+  productBarcode: { type: String },
   quantity: { type: Number, required: true },
   unitOfMeasure: { type: String, required: true },
   unitOfMeasureCode: { type: String },
@@ -159,6 +161,13 @@ export interface IDelivery extends Document {
   trailerId?: Types.ObjectId
   isNoticed: boolean
   isInvoiced: boolean
+  deliveryNoteId?: Types.ObjectId
+  deliveryNoteNumber?: string
+  relatedInvoices: {
+    invoiceId: Types.ObjectId
+    invoiceNumber: string
+    details?: string
+  }[]
   createdBy: Types.ObjectId
   createdByName: string
   lastUpdatedBy?: Types.ObjectId
@@ -180,6 +189,16 @@ export interface IDelivery extends Document {
   createdAt: Date
   updatedAt: Date
 }
+
+// Schema pentru a stoca referința către o factură
+export const RelatedInvoiceSchema = new Schema(
+  {
+    invoiceId: { type: Schema.Types.ObjectId, ref: 'Invoice', required: true },
+    invoiceNumber: { type: String, required: true },
+    details: { type: String }, // Opțional: pentru viitor (ex: "Cota 50%")
+  },
+  { _id: false }
+)
 
 const DeliverySchema = new Schema<IDelivery>(
   {
@@ -238,6 +257,13 @@ const DeliverySchema = new Schema<IDelivery>(
     trailerNumber: { type: String },
     isNoticed: { type: Boolean, default: false, index: true },
     isInvoiced: { type: Boolean, default: false, index: true },
+    deliveryNoteId: {
+      type: Schema.Types.ObjectId,
+      ref: 'DeliveryNote',
+      index: true,
+    },
+    deliveryNoteNumber: { type: String },
+    relatedInvoices: { type: [RelatedInvoiceSchema], default: [] },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
     lastUpdatedBy: { type: Schema.Types.ObjectId, ref: 'User' },

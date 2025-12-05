@@ -20,14 +20,14 @@ export function PlannedDeliveriesList({
   onRemoveDelivery,
   onEditDelivery,
 }: PlannedDeliveriesListProps) {
-  const lockedStatuses: string[] = ['INVOICED', 'CANCELLED']
+  const lockedStatuses: string[] = ['INVOICED', 'CANCELLED', 'DELIVERED']
 
   return (
     <Card className='h-full sticky top-20'>
-      <CardHeader>
+      <CardHeader className='py-0'>
         <CardTitle>Livrări Create ({plannedDeliveries.length})</CardTitle>
       </CardHeader>
-      <CardContent className='space-y-4 max-h-[70vh] overflow-y-auto'>
+      <CardContent className='space-y-2 max-h-[70vh] overflow-y-auto'>
         {plannedDeliveries.length === 0 && (
           <p className='text-sm text-muted-foreground text-center p-4'>
             Nicio livrare planificată.
@@ -45,7 +45,7 @@ export function PlannedDeliveriesList({
           const canCancel = ['CREATED', 'SCHEDULED'].includes(delivery.status)
 
           return (
-            <Card key={delivery.id} className='bg-muted/50 pt-2 pb-2'>
+            <Card key={delivery.id} className='bg-muted/50 pt-2 pb-2 gap-2'>
               <CardHeader className='p-4 pb-0 pt-0'>
                 <div className='flex flex-row items-center justify-between m-0'>
                   <CardTitle className='text-xl font-semibold'>

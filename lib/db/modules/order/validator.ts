@@ -9,6 +9,7 @@ export const OrderLineItemInputSchema = z.object({
     .string({ required_error: 'Numele produsului este obligatoriu.' })
     .min(1),
   productCode: z.string().optional(),
+  productBarcode: z.string().optional(),
   quantity: z.coerce
     .number({ required_error: 'Cantitatea este obligatorie.' })
     .positive(),

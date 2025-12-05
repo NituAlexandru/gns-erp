@@ -36,7 +36,7 @@ import { round2 } from '@/lib/utils'
 import { IOrderLineItem } from '../../order/types'
 import { InvoiceLineInput } from './invoice.types'
 import Order, { IOrder } from '../../order/order.model'
-import { addDays, sub } from 'date-fns'
+import { addDays, format, sub } from 'date-fns'
 import { ISeries } from '../../numbering/series.model'
 import { CreateStornoInput, CreateStornoSchema } from './storno.validator'
 import { CreateReturnNoteInput } from '../return-notes/return-note.validator'
@@ -391,9 +391,15 @@ export async function createInvoice(
             eFacturaStatus: 'PENDING',
             salesAgentId: agentId,
             salesAgentSnapshot: agentSnapshot,
+            driverName: data.driverName,
+            vehicleNumber: data.vehicleNumber,
+            vehicleType: data.vehicleType,
+            trailerNumber: data.trailerNumber,
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
             notes: data.notes,
+            orderNotesSnapshot: data.orderNotesSnapshot,
+            deliveryNotesSnapshot: data.deliveryNotesSnapshot,
           },
         ],
         { session }
@@ -519,6 +525,7 @@ export async function generateProformaFromOrder(
             isManualEntry: item.isManualEntry,
             productName: item.productName,
             productCode: item.productCode || 'N/A',
+            productBarcode: item.productBarcode,
             stockableItemType: item.stockableItemType,
             quantity: item.quantity,
             unitOfMeasure: item.unitOfMeasure,
@@ -689,9 +696,16 @@ export async function createInvoiceFromSingleNote(
         throw new Error('Seria activă nu a putut fi determinată.')
       }
 
+      const noteDateFormatted = format(new Date(note.createdAt), 'dd.MM.yyyy')
+      const autoNoteMessage = `Factură generată automat din Avizul seria ${note.seriesName} nr. ${note.noteNumber} din data ${noteDateFormatted}, aferent Comenzii nr. ${note.orderNumberSnapshot}.`
+
       // 8. Construiește Obiectul `InvoiceInput`
       const invoiceInput: InvoiceInput = {
         clientId: note.clientId.toString(),
+        driverName: note.driverName,
+        vehicleNumber: note.vehicleNumber,
+        vehicleType: note.vehicleType,
+        trailerNumber: note.trailerNumber,
         deliveryAddressId: note.deliveryAddressId.toString(),
         deliveryAddress: {
           judet: note.deliveryAddress.judet,
@@ -713,7 +727,9 @@ export async function createInvoiceFromSingleNote(
         totals: totals,
         sourceDeliveryNotes: [note._id.toString()],
         relatedInvoiceIds: [],
-        notes: `Factură generată automat din Avizul ${note.seriesName}-${note.noteNumber}.`,
+        notes: autoNoteMessage,
+        orderNotesSnapshot: note.orderNotesSnapshot,
+        deliveryNotesSnapshot: note.deliveryNotesSnapshot,
       }
 
       // 9. Apelează funcția principală de creare
@@ -949,7 +965,7 @@ export async function createStornoInvoice(
           {
             ...validatedData,
             companySnapshot: companySnapshot,
-            clientSnapshot: clientSnapshot, // <--- ADĂUGAT AICI
+            clientSnapshot: clientSnapshot,
             sequenceNumber: nextSeq,
             invoiceNumber: invoiceNumber,
             year: year,

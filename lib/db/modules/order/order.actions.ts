@@ -129,6 +129,7 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
 
     return {
       ...item,
+      productBarcode: item.productBarcode,
       lineValue,
       lineVatValue,
       lineTotal,

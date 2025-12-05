@@ -88,6 +88,7 @@ export interface NewDeliveryLineData {
   isPerDelivery?: boolean
   productName: string
   productCode: string
+  productBarcode?: string
   quantity: number
   unitOfMeasure: string
   unitOfMeasureCode?: string

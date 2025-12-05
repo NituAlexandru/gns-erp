@@ -64,6 +64,7 @@ export function consolidateInvoiceFromNotes(notes: IDeliveryNoteDoc[]): {
         isManualEntry: item.isManualEntry,
         productName: item.productName,
         productCode: item.productCode,
+        productBarcode: item.productBarcode,
         codNC: item.codNC,
         quantity: item.quantity,
         unitOfMeasure: item.unitOfMeasure,
@@ -314,6 +315,8 @@ export async function updateRelatedDocuments(
   },
   { session }: { session: ClientSession }
 ) {
+  const invoiceRef = `${invoice.seriesName}-${invoice.invoiceNumber}`
+
   // 1. Calculăm diferențele (Diff)
   const newNoteIds = new Set(
     invoice.sourceDeliveryNotes.map((id) => id.toString())
@@ -336,16 +339,60 @@ export async function updateRelatedDocuments(
   if (notesToMarkAsInvoiced.length > 0) {
     await DeliveryNoteModel.updateMany(
       { _id: { $in: notesToMarkAsInvoiced } },
-      { $set: { status: 'INVOICED', isInvoiced: true } },
+      {
+        $set: { status: 'INVOICED', isInvoiced: true },
+        $push: {
+          relatedInvoices: {
+            invoiceId: invoice._id,
+            invoiceNumber: invoiceRef,
+          },
+        },
+      },
       { session }
     )
   }
+  // B. Găsește avizele care TOCMAI AU FOST ȘTERSE de pe factură (Release)
   if (notesToRelease.length > 0) {
+    // 1. Resetăm Avizele
     await DeliveryNoteModel.updateMany(
       { _id: { $in: notesToRelease } },
-      { $set: { status: 'DELIVERED', isInvoiced: false } }, // Le eliberăm
+      {
+        // 👇 Nu le mai trecem automat pe DELIVERED forțat,
+        // ci ar trebui să verificăm dacă mai au alte facturi (dar pt moment e ok așa, sau le lăsăm statusul neatins dacă vrem logică complexă).
+        // Pentru simplitate acum, presupunem că dacă scoți factura, devine nefacturat:
+        $set: { status: 'DELIVERED', isInvoiced: false },
+
+        // 👇 AICI E SCHIMBAREA: Scoatem factura specifică din array
+        $pull: {
+          relatedInvoices: { invoiceId: invoice._id },
+        },
+      },
       { session }
     )
+
+    // 👇 2. Resetăm și Livrările asociate acestor avize (să nu rămână blocate pe INVOICED)
+    // Trebuie să aflăm ID-urile livrărilor corespunzătoare avizelor șterse
+    const releasedNotesDocs = await DeliveryNoteModel.find({
+      _id: { $in: notesToRelease },
+    })
+      .select('deliveryId')
+      .session(session)
+
+    const deliveryIdsToRelease = releasedNotesDocs.map((n) => n.deliveryId)
+
+    if (deliveryIdsToRelease.length > 0) {
+      await DeliveryModel.updateMany(
+        { _id: { $in: deliveryIdsToRelease } },
+        {
+          $set: { status: 'DELIVERED', isInvoiced: false },
+
+          $pull: {
+            relatedInvoices: { invoiceId: invoice._id },
+          },
+        },
+        { session }
+      )
+    }
   }
 
   // 3. Extragem ID-urile unice DIRECT DIN FACTURĂ
@@ -353,13 +400,27 @@ export async function updateRelatedDocuments(
   const orderIds = invoice.relatedOrders
 
   // 4. Actualizăm Livrările (Delivery)
- await DeliveryModel.updateMany(
-    { _id: { $in: deliveryIds } },
-    { $set: { status: 'INVOICED', isInvoiced: true } },
-    { session }
-  )
+  if (deliveryIds && deliveryIds.length > 0) {
+    await DeliveryModel.updateMany(
+      { _id: { $in: deliveryIds } },
+      {
+        $set: {
+          status: 'INVOICED',
+          isInvoiced: true,
+        },
+        // 👇 AICI E SCHIMBAREA: Adăugăm în array
+        $push: {
+          relatedInvoices: {
+            invoiceId: invoice._id,
+            invoiceNumber: invoiceRef,
+          },
+        },
+      },
+      { session }
+    )
+  }
 
-  // 5. Actualizăm Comenzile (Order) 
+  // 5. Actualizăm Comenzile (Order)
   for (const orderId of orderIds) {
     const allDeliveriesForOrder = await DeliveryModel.find({
       orderId: orderId,

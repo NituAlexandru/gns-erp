@@ -2,11 +2,15 @@
 
 import { connectToDatabase } from '@/lib/db'
 import mongoose, { startSession, FilterQuery, Types } from 'mongoose'
-import DeliveryNoteModel, { IDeliveryNoteDoc } from './delivery-note.model'
+import DeliveryNoteModel, {
+  IDeliveryNoteDoc,
+  IDeliveryNoteLine,
+} from './delivery-note.model'
 import { UpdateDeliveryNoteStatusSchema } from './delivery-note.validator'
 import { DELIVERY_NOTE_STATUSES } from './delivery-note.constants'
 import { revalidatePath } from 'next/cache'
 import DeliveryModel, {
+  IDelivery,
   IDeliveryLineItem,
 } from '../../deliveries/delivery.model'
 import {
@@ -136,6 +140,7 @@ export async function createDeliveryNote({
         isPerDelivery: it.isPerDelivery,
         productName: it.productName,
         productCode: it.productCode,
+        productBarcode: it.productBarcode,
         quantity: it.quantity,
         unitOfMeasure: it.unitOfMeasure,
         unitOfMeasureCode: it.unitOfMeasureCode,
@@ -171,6 +176,18 @@ export async function createDeliveryNote({
             salesAgentSnapshot: delivery.salesAgentSnapshot,
             deliveryAddress: delivery.deliveryAddress,
             deliveryAddressId: delivery.deliveryAddressId,
+            driverId: delivery.driverId,
+            driverName: delivery.driverName,
+            vehicleId: delivery.vehicleId,
+            vehicleNumber: delivery.vehicleNumber,
+            vehicleType: delivery.vehicleType,
+            deliveryType: delivery.deliveryType,
+            trailerId: delivery.trailerId,
+            trailerNumber: delivery.trailerNumber,
+            deliveryDate: delivery.deliveryDate,
+            deliverySlots: delivery.deliverySlots,
+            orderNotesSnapshot: delivery.orderNotes,
+            deliveryNotesSnapshot: delivery.deliveryNotes,
             items: noteItems,
             totals: delivery.totals,
             status: 'IN_TRANSIT',
@@ -186,7 +203,15 @@ export async function createDeliveryNote({
 
       await DeliveryModel.findByIdAndUpdate(
         delivery._id,
-        { status: 'IN_TRANSIT', isNoticed: true },
+        {
+          $set: {
+            isNoticed: true,
+            status: 'IN_TRANSIT',
+            // Salvăm referința
+            deliveryNoteId: newNote._id,
+            deliveryNoteNumber: `${newNote.seriesName}-${newNote.noteNumber}`,
+          },
+        },
         { session }
       )
       await Order.findByIdAndUpdate(
@@ -624,4 +649,74 @@ export async function getDeliveryNotes(filters?: {
     console.error('❌ Eroare getDeliveryNotes:', error)
     return []
   }
+}
+export async function syncDeliveryNoteWithDelivery(
+  delivery: IDelivery,
+  session: mongoose.ClientSession,
+  user: { id: string; name: string }
+) {
+  const existingNote = await DeliveryNoteModel.findOne({
+    deliveryId: delivery._id,
+  }).session(session)
+
+  if (!existingNote) return
+
+  if (existingNote.status !== 'IN_TRANSIT') {
+    return
+  }
+
+  // 1. Mapăm itemele noi. TS va deduce tipul corect.
+  const updatedNoteItems = delivery.items.map((dItem) => ({
+    orderLineItemId: dItem.orderLineItemId,
+    productId: dItem.productId,
+    serviceId: dItem.serviceId,
+    stockableItemType: dItem.stockableItemType,
+    isManualEntry: dItem.isManualEntry,
+    isPerDelivery: dItem.isPerDelivery,
+    productName: dItem.productName,
+    productCode: dItem.productCode,
+    productBarcode: dItem.productBarcode,
+    quantity: dItem.quantity,
+    unitOfMeasure: dItem.unitOfMeasure,
+    unitOfMeasureCode: dItem.unitOfMeasureCode,
+    priceAtTimeOfOrder: dItem.priceAtTimeOfOrder,
+    minimumSalePrice: dItem.minimumSalePrice,
+    lineValue: dItem.lineValue,
+    lineVatValue: dItem.lineVatValue,
+    lineTotal: dItem.lineTotal,
+    vatRateDetails: dItem.vatRateDetails,
+    baseUnit: dItem.baseUnit,
+    conversionFactor: dItem.conversionFactor,
+    quantityInBaseUnit: dItem.quantityInBaseUnit,
+    priceInBaseUnit: dItem.priceInBaseUnit,
+    packagingOptions: dItem.packagingOptions,
+    unitCostFIFO: 0,
+    lineCostFIFO: 0,
+    costBreakdown: [],
+  }))
+
+  // 2. Atribuire Type-Safe pentru Mongoose Array
+  existingNote.items =
+    updatedNoteItems as unknown as Types.DocumentArray<IDeliveryNoteLine>
+
+  existingNote.totals = delivery.totals
+
+  // Date Logistice
+  existingNote.driverId = delivery.driverId
+  existingNote.driverName = delivery.driverName
+  existingNote.vehicleId = delivery.vehicleId
+  existingNote.vehicleNumber = delivery.vehicleNumber
+  existingNote.vehicleType = delivery.vehicleType
+  existingNote.deliveryType = delivery.deliveryType
+  existingNote.trailerId = delivery.trailerId
+  existingNote.trailerNumber = delivery.trailerNumber
+  existingNote.deliveryDate = delivery.deliveryDate
+  existingNote.deliverySlots = delivery.deliverySlots
+  existingNote.deliveryNotesSnapshot = delivery.deliveryNotes
+  existingNote.orderNotesSnapshot = delivery.orderNotes
+  existingNote.deliveryNotesSnapshot = delivery.deliveryNotes
+  existingNote.lastUpdatedBy = new Types.ObjectId(user.id)
+  existingNote.lastUpdatedByName = user.name
+
+  await existingNote.save({ session })
 }

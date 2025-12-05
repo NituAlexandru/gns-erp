@@ -61,4 +61,4 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 - Unele produse au furnizori multiplii. La receptie e ok, se selecteaza furnizorul in receptie. La comanda .... trebuie ales? catalog produse trebuie afisate ambele... sau?
 
-- aviz - cand se modifica comanda/livrarea, trebuie sa ma asigur ca se actualizeaza si avizul. De verificat / testat
+- verifica advanceScope

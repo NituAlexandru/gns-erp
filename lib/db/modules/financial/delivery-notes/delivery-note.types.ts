@@ -19,6 +19,7 @@ export interface DeliveryNoteLineDTO {
   isPerDelivery?: boolean
   productName: string
   productCode: string
+  productBarcode?: string
   quantity: number
   unitOfMeasure: string
   unitOfMeasureCode?: string
@@ -80,6 +81,12 @@ export interface DeliveryNoteDTO {
   year: number
   deliveryId: string
   orderId: string
+  deliveryNumberSnapshot: string
+  relatedInvoices: {
+    invoiceId: string
+    invoiceNumber: string
+    details?: string
+  }[]
   clientId: string
   status: DeliveryNoteStatusKey
   isInvoiced: boolean
@@ -109,6 +116,15 @@ export interface DeliveryNoteDTO {
     telefonContact?: string
   }
   salesAgentSnapshot: { name: string }
+  driverName?: string
+  vehicleNumber?: string
+  vehicleType?: string
+  deliveryType?: string
+  trailerNumber?: string
+  deliveryDate?: string
+  deliverySlots?: string[]
+  orderNotesSnapshot?: string
+  deliveryNotesSnapshot?: string
   items: DeliveryNoteLineDTO[]
   totals: DeliveryNoteTotalsDTO
   eTransportStatus: ETransportStatusKey

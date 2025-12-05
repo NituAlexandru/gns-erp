@@ -3,6 +3,7 @@ import {
   DELIVERY_NOTE_STATUSES,
   E_TRANSPORT_STATUSES,
 } from './delivery-note.constants'
+import { RelatedInvoiceSchema } from '../../deliveries/delivery.model'
 
 // -------------------------------------------------------------
 // Interfaces
@@ -47,6 +48,7 @@ export interface IDeliveryNoteLine {
   isPerDelivery?: boolean
   productName: string
   productCode: string
+  productBarcode?: string
   quantity: number
   unitOfMeasure: string
   unitOfMeasureCode?: string
@@ -90,10 +92,27 @@ export interface IDeliveryNoteDoc extends Document {
   orderId: Types.ObjectId
   orderNumberSnapshot: string
   deliveryNumberSnapshot: string
+  relatedInvoices: {
+    invoiceId: Types.ObjectId
+    invoiceNumber: string
+    details?: string
+  }[]
   clientId: Types.ObjectId
   deliveryAddressId: Types.ObjectId
   salesAgentId: Types.ObjectId
   salesAgentSnapshot: { name: string }
+  driverId?: Types.ObjectId
+  driverName?: string
+  vehicleId?: Types.ObjectId
+  vehicleNumber?: string
+  vehicleType?: string
+  deliveryType?: string
+  trailerId?: Types.ObjectId
+  trailerNumber?: string
+  deliveryDate?: Date
+  deliverySlots?: string[]
+  orderNotesSnapshot?: string
+  deliveryNotesSnapshot?: string
   status: (typeof DELIVERY_NOTE_STATUSES)[number]
   isInvoiced: boolean
   createdBy: Types.ObjectId
@@ -168,6 +187,7 @@ const DeliveryNoteLineSchema = new Schema<IDeliveryNoteLine>(
     isPerDelivery: { type: Boolean },
     productName: { type: String, required: true },
     productCode: { type: String, required: true },
+    productBarcode: { type: String },
     quantity: { type: Number, required: true },
     unitOfMeasure: { type: String, required: true },
     unitOfMeasureCode: { type: String },
@@ -254,6 +274,7 @@ const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
     orderId: { type: Schema.Types.ObjectId, ref: 'Order', required: true },
     orderNumberSnapshot: { type: String, required: true },
     deliveryNumberSnapshot: { type: String, required: true },
+    relatedInvoices: { type: [RelatedInvoiceSchema], default: [] },
     clientId: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
     deliveryAddressId: {
       type: Schema.Types.ObjectId,
@@ -299,6 +320,18 @@ const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
     salesAgentSnapshot: {
       name: { type: String, required: true },
     },
+    driverId: { type: Schema.Types.ObjectId, ref: 'Driver' },
+    driverName: { type: String },
+    vehicleId: { type: Schema.Types.ObjectId, ref: 'Vehicle' },
+    vehicleNumber: { type: String },
+    vehicleType: { type: String },
+    deliveryType: { type: String },
+    trailerId: { type: Schema.Types.ObjectId, ref: 'Trailer' },
+    trailerNumber: { type: String },
+    deliveryDate: { type: Date },
+    deliverySlots: { type: [String] },
+    orderNotesSnapshot: { type: String },
+    deliveryNotesSnapshot: { type: String },
     items: [DeliveryNoteLineSchema],
     totals: DeliveryNoteTotalsSchema,
     eTransportStatus: {

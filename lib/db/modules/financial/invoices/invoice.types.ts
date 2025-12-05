@@ -50,7 +50,10 @@ export interface InvoiceDTO {
   createdByName: string
   approvedBy?: string
   approvedByName?: string
-
+  driverName?: string
+  vehicleNumber?: string
+  vehicleType?: string
+  trailerNumber?: string
   createdAt: string
   updatedAt: string
 }

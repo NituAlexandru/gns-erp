@@ -31,6 +31,7 @@ import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import TrailerModel from '../fleet/trailers/trailers.model'
 import { getSetting } from '../setting/setting.actions'
 import FleetAvailabilityModel from './availability/availability.model'
+import { syncDeliveryNoteWithDelivery } from '../financial/delivery-notes/delivery-note.actions'
 
 function buildDeliveryLine(
   item: PlannerItem,
@@ -59,6 +60,9 @@ function buildDeliveryLine(
   const productCodeValue = originalLine.productCode
     ? originalLine.productCode.trim()
     : 'N/A'
+  const productBarcodeValue = originalLine.productBarcode
+    ? originalLine.productBarcode.trim()
+    : undefined
   const lineData: NewDeliveryLineData = {
     orderLineItemId: item.orderLineItemId
       ? new Types.ObjectId(item.orderLineItemId)
@@ -69,6 +73,7 @@ function buildDeliveryLine(
     isPerDelivery: originalLine.isPerDelivery,
     productName: originalLine.productName,
     productCode: productCodeValue,
+    productBarcode: productBarcodeValue,
     quantity: item.quantityToAllocate,
     unitOfMeasure: item.unitOfMeasure,
     unitOfMeasureCode: item.unitOfMeasureCode ?? undefined,
@@ -406,7 +411,7 @@ export async function updateSingleDelivery(
     }
 
     // 2. Verificăm statusul
-    const readOnlyStatuses: string[] = ['INVOICED', 'CANCELLED']
+    const readOnlyStatuses: string[] = ['INVOICED', 'CANCELLED', 'DELIVERED']
     if (readOnlyStatuses.includes(delivery.status)) {
       throw new Error(
         `Nu se poate modifica o livrare cu statusul "${delivery.status}".`
@@ -452,6 +457,12 @@ export async function updateSingleDelivery(
     })
 
     const savedDelivery = await delivery.save({ session: mongoSession })
+
+    await syncDeliveryNoteWithDelivery(
+      savedDelivery as unknown as IDelivery,
+      mongoSession,
+      user
+    )
 
     await mongoSession.commitTransaction()
 

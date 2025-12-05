@@ -10,6 +10,7 @@ export interface IOrderLineItem extends Types.Subdocument {
   isPerDelivery?: boolean
   productName: string
   productCode?: string
+  productBarcode?: string
   quantity: number
   unitOfMeasure: string
   unitOfMeasureCode?: string
