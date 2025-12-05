@@ -8,7 +8,7 @@ import {
 // Rute care oricum trebuie accesibile fără login:
 const publicPages = ['/sign-in', '/sign-up']
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname, origin } = req.nextUrl
 
   // 0) Permit toate asset-urile statice (logo, imagini, CSS/JS, _next etc)
