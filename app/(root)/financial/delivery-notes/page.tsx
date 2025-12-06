@@ -1,86 +1,38 @@
-'use client'
+import React from 'react'
+import { auth } from '@/auth'
+import { getDeliveryNotes } from '@/lib/db/modules/financial/delivery-notes/delivery-note.actions'
+import { DeliveryNotesList } from './components/DeliveryNotesList'
 
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { PlusCircle } from 'lucide-react'
-import { useState, useEffect } from 'react'
+export default async function DeliveryNotesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>
+}) {
+  const resolvedSearchParams = await searchParams
+  const page = Number(resolvedSearchParams.page) || 1
+  // Preluăm sesiunea pentru a ști cine face acțiunile
+  const session = await auth()
+  const userId = session?.user?.id || ''
+  const userName = session?.user?.name || 'Unknown User'
 
-// TODO: Vom înlocui cu apel real la getDeliveryNotes()
-interface DeliveryNote {
-  _id: string
-  noteNumber: string
-  clientName: string
-  status: string
-  createdAt: string
-}
-
-export default function DeliveryNotesPage() {
-  const router = useRouter()
-  const [notes, setNotes] = useState<DeliveryNote[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    // TODO: fetch real data din API /actions
-    setTimeout(() => {
-      setNotes([
-        {
-          _id: '1',
-          noteNumber: 'AVZ0001/2025',
-          clientName: 'SC Ultimul Client Test SRL',
-          status: 'IN_TRANSIT',
-          createdAt: '2025-10-18',
-        },
-      ])
-      setLoading(false)
-    }, 500)
-  }, [])
+  // Preluăm datele inițiale pe server (Server Side Rendering)
+  // Asta asigură că tabelul nu e gol când intră prima dată pe pagină (SEO & UX)
+  const initialData = await getDeliveryNotes(page)
 
   return (
-    <div className='flex flex-col gap-6'>
-      {/* Header: Titlu + Butoane */}
+    <div className='flex flex-col gap-4'>
       <div className='flex items-center justify-between'>
-        <h1 className='text-2xl font-bold tracking-tight'>Avize de Livrare</h1>
-        <Button onClick={() => router.push('/financial/delivery-notes/new')}>
-          <PlusCircle className='w-4 h-4 mr-2' />
-          Creează Aviz
-        </Button>
+        <h1 className='text-2xl font-bold tracking-tight'>
+          Avize de Însoțire a Mărfii
+        </h1>
       </div>
 
-      {/* Placeholder listă */}
-      <div className='border rounded-lg p-4 bg-card'>
-        {loading ? (
-          <p className='text-muted-foreground'>Se încarcă avizele...</p>
-        ) : notes.length === 0 ? (
-          <p className='text-muted-foreground'>Nu există avize încă.</p>
-        ) : (
-          <table className='w-full text-sm'>
-            <thead>
-              <tr className='border-b'>
-                <th className='py-2 text-left'>Număr</th>
-                <th className='py-2 text-left'>Client</th>
-                <th className='py-2 text-left'>Status</th>
-                <th className='py-2 text-left'>Data</th>
-              </tr>
-            </thead>
-            <tbody>
-              {notes.map((note) => (
-                <tr
-                  key={note._id}
-                  className='hover:bg-muted/40 cursor-pointer'
-                  onClick={() =>
-                    router.push(`/financial/delivery-notes/${note._id}`)
-                  }
-                >
-                  <td className='py-2'>{note.noteNumber}</td>
-                  <td>{note.clientName}</td>
-                  <td>{note.status}</td>
-                  <td>{note.createdAt}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <DeliveryNotesList
+        initialData={initialData}
+        currentPage={page}
+        currentUserId={userId}
+        currentUserName={userName}
+      />
     </div>
   )
 }

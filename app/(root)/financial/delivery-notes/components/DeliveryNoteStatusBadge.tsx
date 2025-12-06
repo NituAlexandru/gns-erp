@@ -1,22 +1,33 @@
-'use client'
-
+import React from 'react'
 import { Badge } from '@/components/ui/badge'
-import { DeliveryNoteStatusKey } from '@/lib/db/modules/financial/delivery-notes/delivery-note.constants'
-import { DELIVERY_STATUS_MAP } from '@/lib/db/modules/deliveries/constants'
+import {
+  DELIVERY_NOTE_STATUS_MAP,
+  DeliveryNoteStatusKey,
+} from '@/lib/db/modules/financial/delivery-notes/delivery-note.constants'
+import { cn } from '@/lib/utils'
+
+interface DeliveryNoteStatusBadgeProps {
+  status: string
+  className?: string
+}
 
 export function DeliveryNoteStatusBadge({
   status,
-}: {
-  status: DeliveryNoteStatusKey
-}) {
-  const statusInfo = DELIVERY_STATUS_MAP[status] || {
-    name: status || 'Necunoscut',
+  className,
+}: DeliveryNoteStatusBadgeProps) {
+  const statusConfig = DELIVERY_NOTE_STATUS_MAP[
+    status as DeliveryNoteStatusKey
+  ] || {
+    name: status,
     variant: 'secondary',
   }
 
   return (
-    <Badge variant={statusInfo.variant} className='whitespace-nowrap'>
-      {statusInfo.name}
+    <Badge
+      variant={statusConfig.variant}
+      className={cn('whitespace-nowrap', className)}
+    >
+      {statusConfig.name}
     </Badge>
   )
 }

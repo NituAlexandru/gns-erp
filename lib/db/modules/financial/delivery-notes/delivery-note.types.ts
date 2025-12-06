@@ -81,6 +81,7 @@ export interface DeliveryNoteDTO {
   year: number
   deliveryId: string
   orderId: string
+  orderNumberSnapshot: string
   deliveryNumberSnapshot: string
   relatedInvoices: {
     invoiceId: string

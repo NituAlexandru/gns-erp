@@ -32,6 +32,7 @@ import { IOrderLineItem } from '../../order/types'
 import { auth } from '@/auth'
 import Service from '../../setting/services/service.model'
 import { round2 } from '@/lib/utils'
+import { PAGE_SIZE } from '@/lib/constants'
 
 // -------------------------------------------------------------
 // CREATE DELIVERY NOTE
@@ -626,28 +627,61 @@ export async function cancelDeliveryNoteFromPlanner({
 // -------------------------------------------------------------
 // GET DELIVERY NOTES (filter / list)
 // -------------------------------------------------------------
-export async function getDeliveryNotes(filters?: {
-  status?: (typeof DELIVERY_NOTE_STATUSES)[number]
-  clientId?: string
-  q?: string
-}) {
+export async function getDeliveryNotes(
+  page: number = 1,
+  filters?: {
+    status?: (typeof DELIVERY_NOTE_STATUSES)[number]
+    clientId?: string
+    q?: string
+  }
+): Promise<{ data: DeliveryNoteDTO[]; totalPages: number }> {
   try {
     await connectToDatabase()
+
+    // Construim query-ul
     const query: FilterQuery<IDeliveryNoteDoc> = {}
-    if (filters?.status) query.status = filters.status
-    if (filters?.clientId) query.clientId = filters.clientId
-    if (filters?.q) {
-      const regex = new RegExp(filters.q, 'i')
-      query.$or = [{ noteNumber: regex }, { 'clientSnapshot.name': regex }]
+
+    if (filters?.status && filters.status !== ('ALL' as any)) {
+      query.status = filters.status
     }
 
-    const results = await DeliveryNoteModel.find(query)
-      .sort({ createdAt: -1 })
-      .lean()
-    return JSON.parse(JSON.stringify(results))
+    if (filters?.clientId) {
+      query.clientId = filters.clientId
+    }
+
+    if (filters?.q) {
+      const regex = new RegExp(filters.q, 'i')
+      // Căutăm după număr aviz sau nume client (din snapshot)
+      query.$or = [
+        { noteNumber: regex },
+        { 'clientSnapshot.name': regex },
+        { seriesName: regex }, // Optional: căutare și după serie
+      ]
+    }
+
+    // Calculăm skip pentru paginare
+    const skip = (page - 1) * PAGE_SIZE
+
+    // Executăm ambele query-uri în paralel pentru performanță
+    const [totalDocs, results] = await Promise.all([
+      DeliveryNoteModel.countDocuments(query),
+      DeliveryNoteModel.find(query)
+        .sort({ createdAt: -1 }) // Cele mai noi primele
+        .skip(skip)
+        .limit(PAGE_SIZE)
+        .lean(),
+    ])
+
+    const totalPages = Math.ceil(totalDocs / PAGE_SIZE)
+
+    return {
+      data: JSON.parse(JSON.stringify(results)),
+      totalPages: totalPages,
+    }
   } catch (error) {
     console.error('❌ Eroare getDeliveryNotes:', error)
-    return []
+    // În caz de eroare returnăm structura goală, nu doar array gol
+    return { data: [], totalPages: 0 }
   }
 }
 export async function syncDeliveryNoteWithDelivery(
@@ -719,4 +753,24 @@ export async function syncDeliveryNoteWithDelivery(
   existingNote.lastUpdatedByName = user.name
 
   await existingNote.save({ session })
+}
+export async function getDeliveryNoteById(
+  id: string
+): Promise<{ success: boolean; data?: DeliveryNoteDTO; message?: string }> {
+  try {
+    await connectToDatabase()
+    const note = await DeliveryNoteModel.findById(id).lean()
+
+    if (!note) {
+      return { success: false, message: 'Avizul nu a fost găsit.' }
+    }
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(note)) as DeliveryNoteDTO,
+    }
+  } catch (error) {
+    console.error('❌ Eroare getDeliveryNoteById:', error)
+    return { success: false, message: 'Eroare la preluarea avizului.' }
+  }
 }
