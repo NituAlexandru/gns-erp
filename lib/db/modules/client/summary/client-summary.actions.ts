@@ -2,7 +2,7 @@
 
 import { connectToDatabase } from '@/lib/db'
 import Client from '../client.model'
-import ClientSummary, { IClientSummary } from './client-summary.model'
+import ClientSummary from './client-summary.model'
 import mongoose, { PipelineStage, Types } from 'mongoose'
 import { ClientLedgerEntry } from './client-summary.types'
 import {
@@ -113,66 +113,57 @@ export async function recalculateClientSummary(
   }
 }
 
-export async function setClientCreditLimit(
+export async function updateClientFinancialSettings(
   clientId: string,
   clientSlug: string,
-  limit: number | null
+  data: {
+    limit: number | null
+    lockingStatus: 'AUTO' | 'MANUAL_BLOCK' | 'MANUAL_UNBLOCK'
+    lockingReason?: string
+  }
 ) {
   const session = await auth()
   const userRole = session?.user?.role?.toLowerCase() || ''
 
-  // Verificăm dacă rolul este inclus în lista de super admini
   if (!SUPER_ADMIN_ROLES.includes(userRole)) {
-    return {
-      success: false,
-      message: 'Acces neautorizat. Doar administratorii pot seta plafoane.',
-    }
+    return { success: false, message: 'Acces neautorizat.' }
   }
-
-  if (!clientId || !clientSlug) {
-    return { success: false, message: 'ID Client sau Slug Client lipsă.' }
-  }
-
-  const newLimit = limit !== null && limit > 0 ? limit : 0
 
   try {
     await connectToDatabase()
-    const objectId = new mongoose.Types.ObjectId(clientId)
 
-    const summary = await ClientSummary.findOne<IClientSummary>({
-      clientId: objectId,
-    })
-
-    if (summary) {
-      summary.creditLimit = newLimit
-      await summary.save()
-    } else {
-      await ClientSummary.create({
-        clientId: objectId,
-        creditLimit: newLimit,
+    // 1. Găsim sau creăm sumarul
+    let summary = await ClientSummary.findOne({ clientId })
+    if (!summary) {
+      // Logica de creare dacă nu există (copiată din findOrCreate)
+      summary = await ClientSummary.create({
+        clientId,
+        creditLimit: 0,
+        availableCredit: 0,
+        lockingStatus: 'AUTO',
       })
     }
 
-    const recalculateResult = await recalculateClientSummary(
-      clientId,
-      clientSlug
-    )
+    // 2. AICI SE SETEAZĂ PLAFONUL + STATUSUL
+    // Setăm plafonul (exact ce făcea funcția veche)
+    summary.creditLimit = data.limit !== null && data.limit > 0 ? data.limit : 0
 
-    if (!recalculateResult.success) {
-      throw new Error(recalculateResult.message)
-    }
+    // Setăm noile câmpuri
+    summary.lockingStatus = data.lockingStatus
+    summary.lockingReason = data.lockingReason || ''
 
-    return {
-      success: true,
-      message: 'Plafonul de credit a fost actualizat.',
-      data: recalculateResult.data,
-    }
+    await summary.save()
+
+    // 3. Recalculăm ca să vedem dacă e blocked sau nu pe baza noilor setări
+    return await recalculateClientSummary(clientId, clientSlug)
   } catch (error: unknown) {
-    let errorMessage = 'Eroare la setarea plafonului de credit.'
+    let errorMessage = 'Eroare la actualizare setări.'
+
     if (error instanceof Error) {
-      errorMessage = `Eroare la setarea plafonului: ${error.message}`
+      errorMessage = error.message
     }
-    console.error(`[SET_CLIENT_CREDIT_LIMIT] EROARE:`, error)
+
+    console.error(`Eroare la update settings:`, error)
     return {
       success: false,
       message: errorMessage,
@@ -423,7 +414,19 @@ export async function getClientLedger(
     const currentLimit = Number(summaryToSave.creditLimit || 0)
     const currentBalance = Number(summaryToSave.outstandingBalance || 0)
 
-    summaryToSave.isBlocked = currentLimit > 0 && currentBalance > currentLimit
+    const limitExceeded = currentLimit > 0 && currentBalance > currentLimit
+
+    // Verificăm statusul (folosim string-uri direct ca să nu importăm constante dacă nu vrei)
+    const status = summaryToSave.lockingStatus || 'AUTO'
+
+    if (status === 'MANUAL_BLOCK') {
+      summaryToSave.isBlocked = true
+    } else if (status === 'MANUAL_UNBLOCK') {
+      summaryToSave.isBlocked = false
+    } else {
+      // Cazul AUTO
+      summaryToSave.isBlocked = limitExceeded
+    }
 
     await summaryToSave.save()
 

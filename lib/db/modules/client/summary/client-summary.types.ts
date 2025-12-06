@@ -1,21 +1,19 @@
-import { Types } from 'mongoose'
-
 export type TreasuryStaticStats = {
   totalDeIncasat: number
   totalDePlatit: number
 }
 
 export type OverdueInvoiceDetail = {
-  _id: Types.ObjectId
+  _id: string
   seriesName: string
   invoiceNumber: string
-  dueDate: Date
+  dueDate: string
   remainingAmount: number
   daysOverdue: number
 }
 
 export type OverdueClientSummary = {
-  _id: Types.ObjectId
+  _id: string
   clientName: string
   totalOverdue: number
   overdueInvoices: OverdueInvoiceDetail[]

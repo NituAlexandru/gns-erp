@@ -23,6 +23,8 @@ export interface BlockedClientSummary {
   outstandingBalance: number // Soldul actual
   creditLimit: number // Limita
   excessAmount: number // Depășirea (Sold - Limită)
+  lockingStatus: 'AUTO' | 'MANUAL_BLOCK' | 'MANUAL_UNBLOCK'
+  lockingReason?: string
 }
 export interface FinancialDashboardData {
   stats: DashboardStats

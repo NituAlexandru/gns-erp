@@ -4,9 +4,10 @@ import { useState } from 'react'
 import { IClientSummary } from '@/lib/db/modules/client/summary/client-summary.model'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Edit2 } from 'lucide-react'
+import { AlertTriangle, Edit2, Lock, Unlock } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { SetCreditLimitModal } from './[id]/[slug]/SetCreditLimitModal'
+import { LOCKING_STATUS } from '@/lib/db/modules/client/summary/client-summary.constants'
 
 interface ClientSummaryCardProps {
   summary: IClientSummary
@@ -31,9 +32,31 @@ export default function ClientSummaryCard({
     ? `Scadent depășit: ${formatCurrency(summary.overdueBalance)}`
     : `Credit disponibil ca avans`
 
-  // --- Logica pentru Cardul 3 (Status) ---
-  const statusTitle = summary.isBlocked ? 'Blocat' : 'Activ'
-  const statusColor = summary.isBlocked ? 'text-red-500' : 'text-green-600'
+  // --- Logica Card 3 (Status) ---
+  let statusTitle = summary.isBlocked ? 'Blocat' : 'Activ'
+  let statusColor = summary.isBlocked ? 'text-red-600' : 'text-green-600'
+  let statusIcon = summary.isBlocked ? (
+    <Lock className='h-4 w-4 inline mr-1' />
+  ) : (
+    <Unlock className='h-4 w-4 inline mr-1' />
+  )
+  let statusSubtitle = summary.isBlocked ? 'Livrare oprită' : 'Livrare activă'
+
+  // LOGICA NOUĂ: Suprascriere pentru Status Manual + Motiv
+  if (summary.lockingStatus === LOCKING_STATUS.MANUAL_BLOCK) {
+    statusTitle = 'Blocat (Setat Manual)'
+    statusColor = 'text-red-600'
+    statusSubtitle = summary.lockingReason
+      ? `Motiv: ${summary.lockingReason}`
+      : 'Fără motiv specificat'
+  } else if (summary.lockingStatus === LOCKING_STATUS.MANUAL_UNBLOCK) {
+    statusTitle = 'Activ (Setat Manual)'
+    statusColor = 'text-amber-600'
+    statusIcon = <AlertTriangle className='h-4 w-4 inline mr-1' />
+    statusSubtitle = summary.lockingReason
+      ? `Motiv: ${summary.lockingReason}`
+      : 'Excepție manuală'
+  }
 
   return (
     <>
@@ -75,16 +98,29 @@ export default function ClientSummaryCard({
           </Card>
 
           {/* 3. Status Client (Refactorizat) */}
-          <Card>
+          <Card
+            className={
+              summary.lockingStatus !== LOCKING_STATUS.AUTO
+                ? 'border-amber-200 bg-amber-50/10'
+                : ''
+            }
+          >
             <CardHeader>
-              <CardTitle className='text-sm font-medium'>Status</CardTitle>
+              <CardTitle className='text-sm font-medium'>
+                Status Livrare
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${statusColor}`}>
-                {statusTitle}
+              <div
+                className={`text-2xl font-bold ${statusColor} flex items-center`}
+              >
+                {statusIcon} {statusTitle}
               </div>
-              <p className='text-xs text-muted-foreground mt-1'>
-                {summary.isBlocked ? 'Livrare oprită' : 'Livrare activă'}
+              <p
+                className='text-xs font-medium text-muted-foreground mt-1 line-clamp-3'
+                title={statusSubtitle}
+              >
+                {statusSubtitle}
               </p>
             </CardContent>
           </Card>
@@ -127,6 +163,8 @@ export default function ClientSummaryCard({
           clientId={clientId}
           clientSlug={clientSlug}
           currentLimit={summary.creditLimit}
+          currentStatus={summary.lockingStatus}
+          currentReason={summary.lockingReason}
         />
       )}
     </>

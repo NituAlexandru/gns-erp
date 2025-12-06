@@ -1,5 +1,6 @@
 import mongoose, { Document, Schema } from 'mongoose'
 import { IClientDoc } from '../types'
+import { LOCKING_STATUS, LockingStatusType } from './client-summary.constants'
 
 // Interfața TypeScript pentru a beneficia de type-checking
 export interface IClientSummary extends Document {
@@ -15,6 +16,8 @@ export interface IClientSummary extends Document {
   creditLimit: number
   availableCredit: number
   isBlocked: boolean
+  lockingStatus: LockingStatusType
+  lockingReason?: string
   returnablePackaging: Map<string, number>
   totalSalesValue: number
   lastOrderDate?: Date
@@ -55,6 +58,12 @@ const ClientSummarySchema = new Schema<IClientSummary>(
     totalSalesValue: { type: Number, default: 0 },
     // Data ultimei comenzi plasate
     lastOrderDate: { type: Date },
+    lockingStatus: {
+      type: String,
+      enum: Object.values(LOCKING_STATUS),
+      default: LOCKING_STATUS.AUTO,
+    },
+    lockingReason: { type: String },
   },
   {
     timestamps: true, // Adaugă automat createdAt și updatedAt

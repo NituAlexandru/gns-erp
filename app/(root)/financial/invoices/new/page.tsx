@@ -17,14 +17,18 @@ export default async function NewInvoicePage() {
     )
   }
 
-  const invoiceSeries = (await getActiveSeriesForDocumentType(
+  const invoiceSeries = JSON.parse(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    'Factura' as any
-  )) as SeriesDTO[]
+    JSON.stringify(await getActiveSeriesForDocumentType('Factura' as any))
+  ) as SeriesDTO[]
 
   const vatRatesResult = await getVatRates()
-  const vatRates = vatRatesResult.data || []
-  const servicesResult = await getActiveServices('Serviciu')
+  const vatRates = JSON.parse(
+    JSON.stringify(vatRatesResult.data || [])
+  ) as typeof vatRatesResult.data
+  const servicesResult = JSON.parse(
+    JSON.stringify(await getActiveServices('Serviciu'))
+  )
 
   return (
     <div className='flex flex-col gap-2'>

@@ -31,6 +31,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useEffect, useState } from 'react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { ClientWithSummary } from '@/lib/db/modules/client/summary/client-summary.model'
+import { LOCKING_STATUS } from '@/lib/db/modules/client/summary/client-summary.constants'
 
 interface ClientSelectorProps {
   onClientSelect: (client: IClientDoc | null) => void
@@ -198,16 +199,62 @@ export function ClientSelector({
             {/* Status Livrare */}
             <div className='flex justify-between items-center p-0'>
               <span className='text-muted-foreground'>Status Livrare:</span>
-              {selectedClient.summary?.isBlocked ? (
-                <span className='font-bold text-destructive flex items-center gap-1  rounded'>
-                  <Ban className='h-3 w-3' /> Livrări Sistate
-                </span>
-              ) : (
-                <span className='font-bold text-green-500 flex items-center gap-1  rounded'>
-                  <CheckCircle className='h-3 w-3 text-green-500' /> Livrări
-                  Permise
-                </span>
-              )}
+              {(() => {
+                const clientSummary = selectedClient.summary
+
+                // 1. Blocat Manual
+                if (
+                  clientSummary?.lockingStatus === LOCKING_STATUS.MANUAL_BLOCK
+                ) {
+                  return (
+                    <div className='flex flex-col items-end'>
+                      <span className='font-bold text-red-600 flex items-center gap-1 rounded'>
+                        <Ban className='h-3 w-3' /> Blocat (Setat Manual)
+                      </span>
+                      {clientSummary.lockingReason && (
+                        <span className='text-xs text-muted-foreground max-w-[180px] text-right break-words mt-1'>
+                          Motiv: {clientSummary.lockingReason}
+                        </span>
+                      )}
+                    </div>
+                  )
+                }
+
+                // 2. Deblocat Manual (Excepție)
+                if (
+                  clientSummary?.lockingStatus === LOCKING_STATUS.MANUAL_UNBLOCK
+                ) {
+                  return (
+                    <div className='flex flex-col items-end'>
+                      <span className='font-bold text-amber-600 flex items-center gap-1 rounded'>
+                        <AlertCircle className='h-3 w-3' /> Activ (Setat Manual)
+                      </span>
+                      {clientSummary.lockingReason && (
+                        <span className='text-xs text-muted-foreground max-w-[180px] text-right break-words mt-1'>
+                          Motiv: {clientSummary.lockingReason}
+                        </span>
+                      )}
+                    </div>
+                  )
+                }
+
+                // 3. Auto Blocat (Caz clasic)
+                if (clientSummary?.isBlocked) {
+                  return (
+                    <span className='font-bold text-destructive flex items-center gap-1 rounded'>
+                      <Ban className='h-3 w-3' /> Livrări Sistate
+                    </span>
+                  )
+                }
+
+                // 4. Auto Activ
+                return (
+                  <span className='font-bold text-green-600 flex items-center gap-1 rounded'>
+                    <CheckCircle className='h-3 w-3 text-green-600' /> Livrări
+                    Permise
+                  </span>
+                )
+              })()}
             </div>
           </div>
 

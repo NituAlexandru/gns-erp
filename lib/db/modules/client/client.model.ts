@@ -77,7 +77,6 @@ const clientSchema = new Schema<IClientDoc>(
 
     bankAccountLei: { type: bankAccountSchema },
     bankAccountEuro: { type: bankAccountSchema },
-
     mentions: { type: String },
     paymentTerm: { type: Number, default: 0 },
     createdBy: {

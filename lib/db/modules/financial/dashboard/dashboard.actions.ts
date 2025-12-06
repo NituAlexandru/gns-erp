@@ -13,6 +13,8 @@ import {
   BlockedClientSummary,
 } from './dashboard.types'
 import { OverdueClientSummary } from '../treasury/summary/summary.types'
+import '../../client/client.model'
+import '@/lib/db/modules/client/summary/client-summary.model'
 
 interface LeanDoc {
   _id: unknown
@@ -46,6 +48,8 @@ interface LeanClientSummary {
   outstandingBalance: number
   creditLimit: number
   isBlocked: boolean
+  lockingStatus?: 'AUTO' | 'MANUAL_BLOCK' | 'MANUAL_UNBLOCK'
+  lockingReason?: string
 }
 
 export async function getFinancialDashboardData(
@@ -150,7 +154,9 @@ export async function getFinancialDashboardData(
 
     ClientSummary.find({ isBlocked: true })
       .populate('clientId', 'name')
-      .select('clientId outstandingBalance creditLimit isBlocked')
+      .select(
+        'clientId outstandingBalance creditLimit isBlocked lockingStatus lockingReason'
+      )
       .lean(),
   ])
 
@@ -171,14 +177,14 @@ export async function getFinancialDashboardData(
 
   const rawOverdueData = yearlyOverdueRaw as unknown as RawOverdueClientResult[]
   const overdueClients: OverdueClientSummary[] = rawOverdueData.map((c) => ({
-    _id: c._id,
+    _id: c._id.toString(),
     clientName: c.clientName,
     totalOverdue: c.totalOverdue,
     overdueInvoices: c.overdueInvoices.map((inv) => ({
-      _id: inv._id,
+      _id: inv._id.toString(),
       seriesName: inv.seriesName,
       invoiceNumber: inv.invoiceNumber,
-      dueDate: inv.dueDate,
+      dueDate: inv.dueDate.toISOString(),
       remainingAmount: inv.remainingAmount,
       daysOverdue: inv.daysOverdue,
     })),
@@ -192,11 +198,14 @@ export async function getFinancialDashboardData(
     const excess = balance > limit ? balance - limit : 0
 
     return {
+      // Converim _id la string (în caz că e ObjectId nativ)
       id: String(doc._id),
       clientName: doc.clientId?.name || 'Client Necunoscut',
       outstandingBalance: balance,
       creditLimit: limit,
       excessAmount: excess,
+      lockingStatus: doc.lockingStatus || 'AUTO',
+      lockingReason: doc.lockingReason || '',
     }
   })
 

@@ -46,17 +46,17 @@ export type BudgetPaymentSummary = {
 
 // Detaliul pentru o singură factură restantă
 export type OverdueInvoiceDetail = {
-  _id: Types.ObjectId
+  _id: string
   seriesName: string
   invoiceNumber: string
-  dueDate: Date
+  dueDate: string
   remainingAmount: number
   daysOverdue: number
 }
 
 // Structura pentru un client (capul de acordeon)
 export type OverdueClientSummary = {
-  _id: Types.ObjectId // Client ID
+  _id: string
   clientName: string
   totalOverdue: number // Suma totală restantă a clientului
   overdueInvoices: OverdueInvoiceDetail[] // Lista de facturi
