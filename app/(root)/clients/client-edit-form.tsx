@@ -759,6 +759,20 @@ export default function ClientEditForm({ initialValues }: Props) {
                     </FormControl>
                   </FormItem>
                   <FormItem>
+                    <FormLabel>Alte detalii</FormLabel>
+                    <FormControl>
+                      <Input
+                        value={currentDeliveryAddress.alteDetalii || ''}
+                        onChange={(e) =>
+                          setCurrentDeliveryAddress({
+                            ...currentDeliveryAddress,
+                            alteDetalii: e.target.value,
+                          })
+                        }
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <FormItem>
                     <FormLabel>Cod Poștal</FormLabel>
                     <FormControl>
                       <Input
@@ -810,21 +824,6 @@ export default function ClientEditForm({ initialValues }: Props) {
                           setCurrentDeliveryAddress({
                             ...currentDeliveryAddress,
                             telefonContact: e.target.value,
-                          })
-                        }
-                      />
-                    </FormControl>
-                  </FormItem>
-
-                  <FormItem>
-                    <FormLabel>Alte detalii</FormLabel>
-                    <FormControl>
-                      <Input
-                        value={currentDeliveryAddress.alteDetalii || ''}
-                        onChange={(e) =>
-                          setCurrentDeliveryAddress({
-                            ...currentDeliveryAddress,
-                            alteDetalii: e.target.value,
                           })
                         }
                       />

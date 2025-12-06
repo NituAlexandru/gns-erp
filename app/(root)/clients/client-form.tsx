@@ -567,19 +567,6 @@ export default function ClientForm() {
             />
             <FormField
               control={control}
-              name='address.codPostal'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cod Poștal</FormLabel>
-                  <FormControl>
-                    <Input placeholder='Ex: 010071' {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={control}
               name='address.alteDetalii'
               render={({ field }) => (
                 <FormItem>
@@ -591,6 +578,20 @@ export default function ClientForm() {
                 </FormItem>
               )}
             />
+            <FormField
+              control={control}
+              name='address.codPostal'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Cod Poștal</FormLabel>
+                  <FormControl>
+                    <Input placeholder='Ex: 010071' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={control}
               name='address.tara'
