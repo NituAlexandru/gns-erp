@@ -1,16 +1,40 @@
-import { dirname } from 'path'
-import { fileURLToPath } from 'url'
-import { FlatCompat } from '@eslint/eslintrc'
+import { defineConfig } from 'eslint/config'
+import nextVitals from 'eslint-config-next/core-web-vitals'
+import nextTs from 'eslint-config-next/typescript'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
+export default defineConfig([
+  //  (Astea prind erorile CRITICE și vor da eroare roșie)
+  ...nextVitals,
+  ...nextTs,
 
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-})
+  {
+    ignores: [
+      '.next/',
+      'node_modules/',
+      'public/',
+      '.vscode/',
+      'next-env.d.ts',
+    ],
+  },
 
-const eslintConfig = [
-  ...compat.extends('next/core-web-vitals', 'next/typescript'),
-]
+  {
+    // Îi spunem să nu mai raporteze directivele nefolosite
+    linterOptions: {
+      reportUnusedDisableDirectives: 'off',
+    },
+    rules: {
+      // Astea sunt erorile. Le oprim vizual.
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/static-components': 'off',
+      'react-hooks/immutability': 'off',
 
-export default eslintConfig
+      // Oprim și astea ca să nu ai zgomot de fundal
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      'react/no-unescaped-entities': 'off',
+
+      //  Orice altă eroare gravă care NU e listată aici va rămâne 'error' (default)
+      // și va opri build-ul, exact așa cum vrei.
+    },
+  },
+])

@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "npm run lint && next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.9.1",
@@ -76,6 +78,7 @@
     "zustand": "^5.0.5"
   },
   "devDependencies": {
+    "@eslint/compat": "^2.0.0",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/adm-zip": "^0.5.7",
@@ -87,7 +90,7 @@
     "@types/recharts": "^1.8.29",
     "@types/uuid": "^10.0.0",
     "eslint": "^9",
-    "eslint-config-next": "15.3.3",
+    "eslint-config-next": "^16.0.7",
     "react-email": "^4.0.16",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
