@@ -12,7 +12,55 @@ import {
 } from './types'
 import { packagingUpdateZod, packagingZod } from './validator'
 import { getGlobalHighestCostInStock } from '../inventory/pricing'
+import { ClientSession, Types } from 'mongoose'
 
+export async function addOrUpdateSupplierForPackaging(
+  packagingId: string,
+  supplierId: string,
+  price: number,
+  supplierProductCode: string | undefined,
+  session: ClientSession
+) {
+  if (!packagingId || !supplierId) return
+
+  // Căutăm ambalajul folosind sesiunea curentă
+  const packaging = await PackagingModel.findById(packagingId).session(session)
+
+  if (!packaging) {
+    throw new Error(
+      `Ambalajul cu ID ${packagingId} nu a fost găsit pentru actualizarea furnizorului.`
+    )
+  }
+
+  const supplierObjectId = new Types.ObjectId(supplierId)
+
+  // Căutăm dacă furnizorul există deja
+  const existingSupplierIndex = packaging.suppliers.findIndex(
+    (s) => s.supplier.toString() === supplierId
+  )
+
+  if (existingSupplierIndex > -1) {
+    // UPDATE: Furnizor existent
+    packaging.suppliers[existingSupplierIndex].lastPurchasePrice = price
+    packaging.suppliers[existingSupplierIndex].updatedAt = new Date()
+
+    if (supplierProductCode && supplierProductCode.trim() !== '') {
+      packaging.suppliers[existingSupplierIndex].supplierProductCode =
+        supplierProductCode
+    }
+  } else {
+    // INSERT: Furnizor nou
+    packaging.suppliers.push({
+      supplier: supplierObjectId,
+      lastPurchasePrice: price,
+      supplierProductCode: supplierProductCode || '',
+      isMain: packaging.suppliers.length === 0, // Primul devine main
+      updatedAt: new Date(),
+    })
+  }
+
+  await packaging.save({ session })
+}
 // Funcție helper similară cu cea de la Produse
 async function checkForDuplicateCodes(payload: {
   productCode: string
@@ -72,7 +120,9 @@ export async function updatePackaging(data: IPackagingUpdate) {
 // GET ONE BY ID
 export async function getPackagingById(id: string): Promise<IPackagingDoc> {
   await connectToDatabase()
-  const doc = await PackagingModel.findById(id).lean()
+  const doc = await PackagingModel.findById(id)
+    .populate('suppliers.supplier')
+    .lean()
   if (!doc) throw new Error('Packaging not found')
   return JSON.parse(JSON.stringify(doc)) as IPackagingDoc
 }

@@ -1,5 +1,14 @@
 import { UNITS } from '@/lib/constants'
+import { MongoId } from '@/lib/validator'
 import { z } from 'zod'
+
+const ProductSupplierSchema = z.object({
+  supplier: MongoId,
+  supplierProductCode: z.string().optional(),
+  lastPurchasePrice: z.number().optional(),
+  isMain: z.boolean().optional(),
+  updatedAt: z.coerce.date().optional(),
+})
 
 export const ProductInputSchema = z
   .object({
@@ -20,10 +29,7 @@ export const ProductInputSchema = z
       .array(z.string())
       .min(1, 'Produsul trebuie să aibă cel puțin o imagine'),
     description: z.string().min(20, 'Descrierea este obligatorie'),
-    mainSupplier: z
-      .string()
-      .regex(/^[0-9a-fA-F]{24}$/, 'ID furnizor invalid')
-      .optional(),
+    suppliers: z.array(ProductSupplierSchema).default([]),
     brand: z.string().optional(),
 
     // marje comerciale
@@ -84,8 +90,8 @@ export const ProductInputSchema = z
   .strict()
 
 export const ProductUpdateSchema = ProductInputSchema.omit({
-  defaultMarkups: true, // Omitem markup-urile la update
-  clientMarkups: true, // Omitem și markup-urile de client
+  defaultMarkups: true,
+  clientMarkups: true,
 }).extend({
   _id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'ID produs invalid'),
 })

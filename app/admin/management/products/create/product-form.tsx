@@ -62,7 +62,6 @@ const productDefaultValues: IProductInput =
         category: '',
         images: [],
         brand: 'Sample Brand',
-        mainSupplier: '',
         description: '',
         isPublished: false,
         barCode: '',
@@ -79,16 +78,15 @@ const productDefaultValues: IProductInput =
         specifications: [],
         itemsPerPallet: 0,
         palletTypeId: '',
-
         defaultMarkups: zeroMarkups,
         clientMarkups: [],
+        suppliers: [],
       }
     : {
         name: '',
         slug: '',
         images: [],
         brand: '',
-        mainSupplier: '',
         description: '',
         isPublished: false,
         productCode: '',
@@ -108,6 +106,7 @@ const productDefaultValues: IProductInput =
         palletTypeId: '',
         defaultMarkups: zeroMarkups,
         clientMarkups: [],
+        suppliers: [],
       }
 
 // extrage ID-ul în mod sigur
@@ -137,9 +136,6 @@ const ProductForm = ({
   productId?: string
 }) => {
   const router = useRouter()
-  const [supplierQuery, setSupplierQuery] = useState('')
-  const [supplierOptions, setSupplierOptions] = useState<ISupplierDoc[]>([])
-  const [supplierOpen, setSupplierOpen] = useState(false)
   const [mainCategories, setMainCategories] = useState<ICategoryDoc[]>([])
   const [allSubCategories, setAllSubCategories] = useState<ICategoryDoc[]>([])
   const [subCategories, setSubCategories] = useState<ICategoryDoc[]>([])
@@ -193,7 +189,6 @@ const ProductForm = ({
             itemsPerPallet: product.itemsPerPallet,
             defaultMarkups: product.defaultMarkups,
             clientMarkups: product.clientMarkups,
-            mainSupplier: getIdFromStringOrObject(product.mainSupplier),
             mainCategory: getIdFromStringOrObject(product.mainCategory),
             category: getIdFromStringOrObject(product.category),
             palletTypeId: product.palletTypeId ?? NO_PALLET,
@@ -220,22 +215,6 @@ const ProductForm = ({
       setValue('volume', vol, { shouldValidate: true })
     }
   }, [length, width, height, setValue])
-
-  useEffect(() => {
-    if (supplierQuery.length < 2) {
-      setSupplierOptions([])
-      return
-    }
-    const t = setTimeout(() => {
-      fetch(
-        `/api/admin/management/suppliers/search?q=${encodeURIComponent(supplierQuery)}`
-      )
-        .then((r) => r.json())
-        .then(setSupplierOptions)
-        .catch(console.error)
-    }, 300)
-    return () => clearTimeout(t)
-  }, [supplierQuery])
 
   // Fetch main categories once:
   useEffect(() => {
@@ -283,23 +262,6 @@ const ProductForm = ({
       setValue('slug', '')
     }
   }, [nameValue, setValue])
-
-  useEffect(() => {
-    // Acest efect rulează doar în modul 'Update' pentru a seta numele furnizorului
-    if (type === 'Update' && product?.mainSupplier) {
-      if (
-        typeof product.mainSupplier === 'object' &&
-        product.mainSupplier !== null &&
-        'name' in product.mainSupplier
-      ) {
-        const supplierName = (product.mainSupplier as ISupplierDoc).name
-
-        if (typeof supplierName === 'string') {
-          setSupplierQuery(supplierName)
-        }
-      }
-    }
-  }, [product, type])
 
   const { toast } = useToast()
 
@@ -491,80 +453,6 @@ const ProductForm = ({
                 <FormMessage />
               </FormItem>
             )}
-          />
-          {/* Furnizor */}
-          <FormField
-            control={form.control}
-            name='mainSupplier'
-            render={({ field }) => {
-              const displayName =
-                supplierOptions.find((s) => s._id === field.value)?.name ??
-                supplierQuery
-
-              return (
-                <FormItem className='w-full relative'>
-                  <FormLabel>
-                    Furnizor<span className='text-red-500'>*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <div className='relative'>
-                      <Input
-                        value={displayName}
-                        onChange={(e) => {
-                          setSupplierQuery(e.target.value)
-                          setSupplierOpen(true)
-                        }}
-                        onFocus={() => setSupplierOpen(true)}
-                        onBlur={() => {
-                          // close on blur
-                          setTimeout(() => setSupplierOpen(false), 0)
-                        }}
-                        placeholder='Caută după nume sau CUI…'
-                      />
-                      {(displayName || supplierQuery) && (
-                        <Button
-                          variant='default'
-                          size='sm'
-                          aria-label='Clear supplier'
-                          className='absolute right-[2px] top-1/2 -translate-y-1/2'
-                          onClick={() => {
-                            field.onChange('') // clear the form value
-                            setSupplierQuery('') // clear the query text
-                            setSupplierOpen(false) // close dropdown
-                          }}
-                        >
-                          ×
-                        </Button>
-                      )}
-                    </div>
-                  </FormControl>
-                  <FormMessage />
-
-                  {supplierOpen && supplierOptions.length > 0 && (
-                    <ul
-                      className='absolute z-10 mt-1 w-full max-h-[200px] overflow-auto rounded border bg-popover top-14'
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                      }}
-                    >
-                      {supplierOptions.map((s) => (
-                        <li
-                          key={s._id}
-                          className='px-3 py-1 cursor-pointer hover:bg-accent'
-                          onClick={() => {
-                            field.onChange(s._id)
-                            setSupplierQuery(s.name)
-                            setSupplierOpen(false)
-                          }}
-                        >
-                          {s.name}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </FormItem>
-              )
-            }}
           />
           <FormField
             control={form.control}

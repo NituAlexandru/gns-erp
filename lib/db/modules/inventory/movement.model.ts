@@ -1,5 +1,20 @@
 import { Schema, model, models, Document, Model, Types } from 'mongoose'
 import { ICostBreakdownBatch } from './types'
+import { IQualityDetails } from './inventory.model'
+
+const QualityDetailsSchema = new Schema(
+  {
+    // Aici sunt ȘARJELE (ce scrie pe produs/etichetă de la fabrică)
+    lotNumbers: { type: [String], default: [] },
+    // Aici sunt NUMERELE DE CERTIFICAT (hârtiile de la furnizor)
+    certificateNumbers: { type: [String], default: [] },
+    // Aici sunt RAPOARTELE DE ÎNCERCĂRI (dacă există, ex: la betoane/fier)
+    testReports: { type: [String], default: [] },
+    // Aici sunt MENȚIUNI SUPLIMENTARE (orice altceva scris de gestionar)
+    additionalNotes: { type: String },
+  },
+  { _id: false }
+)
 
 export interface IStockMovementDoc extends Document {
   stockableItem: Types.ObjectId
@@ -20,6 +35,10 @@ export interface IStockMovementDoc extends Document {
   unitCost?: number // Costul unitar (pt INTRARI) sau Costul Mediu FIFO (pt IESIRI)
   lineCost?: number // Costul total al mișcării
   costBreakdown?: ICostBreakdownBatch[] // Detalierea loturilor (doar pt IESIRI)
+  supplierId?: Types.ObjectId
+  clientId?: Types.ObjectId
+  documentNumber?: string
+  qualityDetails?: IQualityDetails
   createdAt: Date
   updatedAt: Date
 }
@@ -40,6 +59,8 @@ export const CostBreakdownBatchSchema = new Schema<ICostBreakdownBatch>(
       required: true,
       default: 'REAL',
     },
+    supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+    qualityDetails: { type: QualityDetailsSchema },
   },
   { _id: false }
 )
@@ -86,6 +107,10 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     unitCost: { type: Number, required: false },
     lineCost: { type: Number, required: false },
     costBreakdown: { type: [CostBreakdownBatchSchema], required: false },
+    supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+    clientId: { type: Schema.Types.ObjectId, ref: 'Client', required: false },
+    documentNumber: { type: String, required: false },
+    qualityDetails: { type: QualityDetailsSchema },
   },
   { timestamps: true }
 )

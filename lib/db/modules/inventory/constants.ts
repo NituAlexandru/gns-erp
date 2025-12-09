@@ -21,16 +21,24 @@ export const LOCATION_NAMES_MAP: Record<InventoryLocation, string> = {
 }
 
 export const STOCK_MOVEMENT_TYPES = [
+  // Operațiuni Interne / Ajustări
   'BON_DE_CONSUM',
-  'VANZARE_DIRECTA',
-  'VANZARE_DEPOZIT',
   'RETUR_FURNIZOR',
   'PIERDERE',
   'ANULARE_RECEPTIE',
   'DETERIORARE',
+  'PLUS_INVENTAR',
+  // Intrări
   'RECEPTIE',
   'RETUR_CLIENT',
-  'PLUS_INVENTAR',
+
+  // Ieșiri (Vânzări - Sincronizate cu Order Delivery Methods)
+  'DIRECT_SALE', // Vânzare Directă
+  'DELIVERY_FULL_TRUCK', // Livrare Depozit (TIR Complet)
+  'DELIVERY_CRANE', // Livrare Depozit (Macara)
+  'DELIVERY_SMALL_VEHICLE_PJ', // Livrare Depozit (Vehicul Mic PJ)
+  'RETAIL_SALE_PF', // Vânzare Retail (PF)
+  'PICK_UP_SALE', // Ridicare Comanda de Client
 ] as const
 
 export type StockMovementType = (typeof STOCK_MOVEMENT_TYPES)[number]
@@ -44,26 +52,38 @@ export const MOVEMENT_TYPE_DETAILS_MAP: Record<
   RETUR_CLIENT: { name: 'Retur de la Client', variant: 'default' },
   PLUS_INVENTAR: { name: 'Plus la Inventar', variant: 'default' },
 
-  // Ieșiri
+  // Operațiuni Negative (dar nu vânzări standard)
   BON_DE_CONSUM: { name: 'Bon de Consum', variant: 'destructive' },
-  VANZARE_DIRECTA: { name: 'Vânzare Directă', variant: 'destructive' },
-  VANZARE_DEPOZIT: { name: 'Vânzare din Depozit', variant: 'destructive' },
   RETUR_FURNIZOR: { name: 'Retur la Furnizor', variant: 'destructive' },
   PIERDERE: { name: 'Pierdere', variant: 'destructive' },
   DETERIORARE: { name: 'Deteriorare', variant: 'destructive' },
-
-  // Neutre sau speciale
   ANULARE_RECEPTIE: { name: 'Anulare Recepție', variant: 'secondary' },
+
+  // --- Ieșiri (Vânzări) ---
+  DIRECT_SALE: { name: 'Vânzare Directă', variant: 'destructive' },
+  DELIVERY_FULL_TRUCK: { name: 'Vânzare (TIR)', variant: 'destructive' },
+  DELIVERY_CRANE: { name: 'Vânzare (Macara)', variant: 'destructive' },
+  DELIVERY_SMALL_VEHICLE_PJ: {
+    name: 'Vânzare (Auto Mic)',
+    variant: 'destructive',
+  },
+  RETAIL_SALE_PF: { name: 'Vânzare Retail', variant: 'destructive' },
+  PICK_UP_SALE: { name: 'Ridicare din Depozit', variant: 'destructive' },
 }
 
 export const OUT_TYPES = new Set<StockMovementType>([
   'BON_DE_CONSUM',
-  'VANZARE_DIRECTA',
-  'VANZARE_DEPOZIT',
   'RETUR_FURNIZOR',
   'PIERDERE',
   'DETERIORARE',
   'ANULARE_RECEPTIE',
+  // Vânzările noi
+  'DIRECT_SALE',
+  'DELIVERY_FULL_TRUCK',
+  'DELIVERY_CRANE',
+  'DELIVERY_SMALL_VEHICLE_PJ',
+  'RETAIL_SALE_PF',
+  'PICK_UP_SALE',
 ])
 
 export const IN_TYPES = new Set<StockMovementType>([

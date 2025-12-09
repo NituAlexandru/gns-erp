@@ -1,10 +1,33 @@
 import { Schema, model, models, Document, Model, Types } from 'mongoose'
 
+const QualityDetailsSchema = new Schema(
+  {
+    // Aici sunt ȘARJELE (ce scrie pe produs/etichetă de la fabrică)
+    lotNumbers: { type: [String], default: [] }, // Ex: ["S100", "S101"]
+    // Aici sunt NUMERELE DE CERTIFICAT (hârtiile de la furnizor)
+    certificateNumbers: { type: [String], default: [] }, // Ex: ["CERT-01 / 20.10.2024"]
+    // Aici sunt RAPOARTELE DE ÎNCERCĂRI (dacă există, ex: la betoane/fier)
+    testReports: { type: [String], default: [] }, // Ex: ["RAPORT-55"]
+    // Aici sunt MENȚIUNI SUPLIMENTARE (orice altceva scris de gestionar)
+    additionalNotes: { type: String },
+  },
+  { _id: false }
+)
+
+export interface IQualityDetails {
+  lotNumbers?: string[]
+  certificateNumbers?: string[]
+  testReports?: string[]
+  additionalNotes?: string
+}
+
 export interface IInventoryBatch {
   quantity: number
   unitCost: number
   entryDate: Date
   movementId: Types.ObjectId
+  supplierId?: Types.ObjectId
+  qualityDetails?: IQualityDetails
 }
 
 export interface IInventoryItemDoc extends Document {
@@ -33,6 +56,8 @@ const InventoryBatchSchema = new Schema<IInventoryBatch>(
       ref: 'StockMovement',
       required: true,
     },
+    supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+    qualityDetails: { type: QualityDetailsSchema, default: {} },
   },
   { _id: false }
 )

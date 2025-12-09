@@ -3,11 +3,19 @@ import {
   ETransportStatusKey,
 } from './delivery-note.constants'
 
+export interface QualityDetailsDTO {
+  lotNumbers?: string[]
+  certificateNumbers?: string[]
+  testReports?: string[]
+  additionalNotes?: string
+}
+
 export interface CostBreakdownDTO {
   movementId: string
   entryDate: string
   quantity: number
   unitCost: number
+  qualityDetails?: QualityDetailsDTO
 }
 
 export interface DeliveryNoteLineDTO {

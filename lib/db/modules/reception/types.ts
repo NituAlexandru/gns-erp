@@ -8,6 +8,13 @@ import {
   InvoiceSchema,
 } from './validator'
 
+export interface IQualityDetails {
+  lotNumbers?: string[]
+  certificateNumbers?: string[]
+  testReports?: string[]
+  additionalNotes?: string
+}
+
 export type ReceptionProductInput = z.infer<typeof ReceptionProductSchema>
 export type ReceptionCreateInput = z.infer<typeof ReceptionCreateSchema>
 export type ReceptionUpdateInput = z.infer<typeof ReceptionUpdateSchema>
@@ -29,6 +36,7 @@ export type PopulatedReceptionProduct = Omit<
   totalDistributedTransportCost?: number
   landedCostPerUnit?: number
   vatValuePerUnit?: number
+  qualityDetails?: IQualityDetails
 }
 
 export type PopulatedReceptionPackaging = Omit<
@@ -37,11 +45,12 @@ export type PopulatedReceptionPackaging = Omit<
 > & {
   packaging: PopulatedPackagingDetails
   packagingName?: string
-  packagingCode?: string
+  productCode?: string
   distributedTransportCostPerUnit?: number
   totalDistributedTransportCost?: number
   landedCostPerUnit?: number
   vatValuePerUnit?: number
+  qualityDetails?: IQualityDetails
 }
 
 export type PopulatedReception = Omit<
@@ -62,7 +71,7 @@ export type PopulatedReception = Omit<
 export interface ReceptionFilters {
   q?: string // text liber
   status?: string // "DRAFT", "CONFIRMAT" etc.
-  createdBy?: string 
+  createdBy?: string
   page: number
   pageSize: number
 }

@@ -2,18 +2,41 @@ import { Document, Model, model, models, Schema, Types } from 'mongoose'
 import { UNITS } from '@/lib/constants'
 import type { IPackagingInput } from './types'
 
-export interface IPackagingDoc extends Document, IPackagingInput {
+export interface IPackagingSupplierInfo {
+  supplier: Types.ObjectId
+  supplierProductCode?: string
+  lastPurchasePrice?: number
+  isMain?: boolean
+  updatedAt: Date
+}
+
+// Omit supplier din interfata veche
+export interface IPackagingDoc
+  extends Document,
+    Omit<IPackagingInput, 'suppliers'> {
   _id: string
+  suppliers: IPackagingSupplierInfo[]
   createdAt: Date
   updatedAt: Date
 }
+
+const PackagingSupplierInfoSchema = new Schema(
+  {
+    supplier: { type: Schema.Types.ObjectId, ref: 'Supplier', required: true },
+    supplierProductCode: { type: String },
+    lastPurchasePrice: { type: Number },
+    isMain: { type: Boolean, default: false },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+)
 
 const packagingSchema = new Schema(
   {
     slug: { type: String, required: true, unique: true },
     name: { type: String, required: true },
     description: { type: String },
-    supplier: { type: Types.ObjectId, ref: 'Supplier', required: true },
+    suppliers: { type: [PackagingSupplierInfoSchema], default: [] },
     category: { type: Types.ObjectId, ref: 'Category', required: false },
     mainCategory: { type: Types.ObjectId, ref: 'Category', default: null },
     images: { type: [String], default: [] },

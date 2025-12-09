@@ -91,6 +91,7 @@ export function ReceptionForm({
       ? {
           createdBy: initialData.createdBy._id,
           supplier: initialData.supplier?._id || '',
+          orderRef: initialData.orderRef?.toString(),
           receptionDate: new Date(initialData.receptionDate),
           destinationLocation: initialData.destinationLocation,
           destinationType: initialData.destinationType,
@@ -102,6 +103,12 @@ export function ReceptionForm({
               unitMeasure: p.unitMeasure,
               invoicePricePerUnit: p.invoicePricePerUnit,
               vatRate: p.vatRate,
+              qualityDetails: p.qualityDetails || {
+                lotNumbers: [],
+                certificateNumbers: [],
+                testReports: [],
+                additionalNotes: '',
+              },
             })) || [],
           packagingItems:
             initialData.packagingItems?.map((p) => ({
@@ -110,6 +117,12 @@ export function ReceptionForm({
               unitMeasure: p.unitMeasure,
               invoicePricePerUnit: p.invoicePricePerUnit,
               vatRate: p.vatRate,
+              qualityDetails: p.qualityDetails || {
+                lotNumbers: [],
+                certificateNumbers: [],
+                testReports: [],
+                additionalNotes: '',
+              },
             })) || [],
           deliveries:
             initialData.deliveries?.map((d) => ({
@@ -127,6 +140,7 @@ export function ReceptionForm({
         {
           createdBy: currentUserId,
           supplier: '',
+          orderRef: undefined,
           receptionDate: new Date(),
           destinationLocation: 'DEPOZIT',
           destinationType: 'DEPOZIT',
@@ -219,8 +233,8 @@ export function ReceptionForm({
     const isBalanced =
       Math.round((invoicesNoVatRON + Number.EPSILON) * 100) ===
       Math.round((expectedNoVatRON + Number.EPSILON) * 100)
-    // 6) distribuția transportului 
-  
+    // 6) distribuția transportului
+
     // Pas 1: Pregătim listele separat, adăugând metadatele necesare
 
     const productsToProcess = (watchedData.products || []).map((p, i) => ({
@@ -265,7 +279,7 @@ export function ReceptionForm({
       invoicesVatTotal: localInvoicesVatTotal,
       invoicesGrandTotal: localInvoicesGrandTotal, // TOTAL General (cu TVA)
       invoicesTotalNoVatRON: invoicesNoVatRON,
-      isBalancedNoVat: isBalanced, // <-- pentru culoare
+      isBalancedNoVat: isBalanced, 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedValues])
@@ -378,6 +392,31 @@ export function ReceptionForm({
               </CardHeader>
               <CardContent className='space-y-4'>
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                  <FormField
+                    name='orderRef'
+                    control={form.control}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Comandă Furnizor (Opțional)</FormLabel>
+                        <FormControl>
+                          {/* Momentan un input simplu text NU va merge cu backend-ul (cere ObjectId).
+                              Aici ar trebui sa fie AutocompleteSearch type='supplier-order'.
+                              Daca nu ai implementat cautarea de comenzi, lasa-l disabled sau ascuns.
+                          */}
+                          <div className='text-sm text-muted-foreground border rounded-md p-2 bg-muted/20'>
+                            Selecție comandă (neimplementat UI încă)
+                          </div>
+                          {/* <AutocompleteSearch 
+                              searchType="supplierOrder" 
+                              value={field.value} 
+                              onChange={(id) => field.onChange(id)} 
+                           /> 
+                          */}
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   {/* Furnizor */}
                   <FormField
                     name='supplier'
@@ -415,7 +454,7 @@ export function ReceptionForm({
                         <FormLabel>
                           Data Recepției{' '}
                           <span>
-                            * <span className='text-red-500'>*</span>
+                            * <span className='text-red-600'>*</span>
                           </span>
                         </FormLabel>
                         <Popover>
@@ -658,6 +697,12 @@ export function ReceptionForm({
                       unitMeasure: 'bucata',
                       invoicePricePerUnit: null,
                       vatRate: defaultVat,
+                      qualityDetails: {
+                        lotNumbers: [],
+                        certificateNumbers: [],
+                        testReports: [],
+                        additionalNotes: '',
+                      },
                     })
                   }
                 >
@@ -696,6 +741,12 @@ export function ReceptionForm({
                       unitMeasure: 'bucata',
                       invoicePricePerUnit: null,
                       vatRate: defaultVat,
+                      qualityDetails: {
+                        lotNumbers: [],
+                        certificateNumbers: [],
+                        testReports: [],
+                        additionalNotes: '',
+                      },
                     })
                   }
                 >

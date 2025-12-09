@@ -2,8 +2,20 @@ import { z } from 'zod'
 import { ProductInputSchema, ProductUpdateSchema } from './validator'
 import { IERPProductDoc } from './product.model'
 
+export interface PopulatedProductSupplier {
+  supplier: {
+    _id: string
+    name: string
+  }
+  supplierProductCode?: string
+  lastPurchasePrice?: number
+  isMain?: boolean
+  updatedAt: Date
+}
+
 export type IProductInput = z.infer<typeof ProductInputSchema>
 export type IProductUpdate = z.infer<typeof ProductUpdateSchema>
+
 export type IProductDoc = IProductInput & {
   _id: string
   createdAt: Date
@@ -12,10 +24,12 @@ export type IProductDoc = IProductInput & {
   mainCategory: string | IPopulatedCategory
   isPublished: boolean
 }
-export type PopulatedProduct = IERPProductDoc & {
+export type PopulatedProduct = Omit<IERPProductDoc, 'suppliers'> & {
   category: IPopulatedCategory
   mainCategory: IPopulatedCategory
+  suppliers: PopulatedProductSupplier[]
 }
+
 export type AdminProductDoc = IProductDoc & {
   defaultMarkups: {
     markupDirectDeliveryPrice: number
@@ -81,8 +95,6 @@ export type ProductForOrderLine = ProductBaseType & {
     baseUnitEquivalent: number
   }[]
 }
-
-// for orders
 export type DefaultMarkups = {
   markupDirectDeliveryPrice?: number
   markupFullTruckPrice?: number

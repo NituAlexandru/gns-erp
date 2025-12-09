@@ -33,6 +33,7 @@ import { auth } from '@/auth'
 import Service from '../../setting/services/service.model'
 import { round2 } from '@/lib/utils'
 import { PAGE_SIZE } from '@/lib/constants'
+import { DELIVERY_METHODS } from '../../order/constants'
 
 // -------------------------------------------------------------
 // CREATE DELIVERY NOTE
@@ -277,7 +278,7 @@ export async function confirmDeliveryNote({
       const noteItemOrderLineIds = note.items.map((item) =>
         item.orderLineItemId?.toString()
       )
-      // 🔽 --- CORECȚIE (pt. eroarea 'any') --- 🔽
+
       const orderLinesToUnreserve = order.lineItems.filter(
         (
           ol: IOrderLineItem // <-- Tipăm 'ol'
@@ -288,9 +289,33 @@ export async function confirmDeliveryNote({
         await unreserveStock(orderLinesToUnreserve, session)
       }
 
+      // --- DATE PENTRU AFISARE (Client / Doc) ---
+      const methodObj = DELIVERY_METHODS.find(
+        (m) => m.key === note.deliveryType
+      )
+      const friendlyDeliveryName = methodObj
+        ? methodObj.label
+        : note.deliveryType
+
       // 3. Consumă Stocul (FIFO) și salvează Costul
       for (const item of note.items) {
-        // --- CAZ 1: Este Produs Stocabil (Logica ta existentă) ---
+        // --- LOGICĂ NOUĂ: Mapare Tip și Locație ---
+        // Folosim tipul de livrare din aviz ca tip de mișcare stoc (sunt aliniate acum)
+        // TS Cast necesar pentru siguranță
+        const movementType = note.deliveryType as unknown as
+          | 'DIRECT_SALE'
+          | 'DELIVERY_FULL_TRUCK'
+          | 'DELIVERY_CRANE'
+          | 'DELIVERY_SMALL_VEHICLE_PJ'
+          | 'RETAIL_SALE_PF'
+          | 'PICK_UP_SALE'
+        // Determinăm locația sursă
+        let locationFrom = 'DEPOZIT'
+        if (movementType === 'DIRECT_SALE') {
+          locationFrom = 'LIVRARE_DIRECTA' // Vânzările directe nu pleacă din Depozit
+        }
+
+        // --- CAZ 1: Este Produs Stocabil ---
         if (
           item.productId &&
           item.stockableItemType &&
@@ -300,13 +325,17 @@ export async function confirmDeliveryNote({
             {
               stockableItem: item.productId.toString(),
               stockableItemType: item.stockableItemType,
-              movementType: 'VANZARE_DEPOZIT',
+
+              // Folosim valorile calculate dinamic
+              movementType: movementType,
+              locationFrom: locationFrom,
+
               quantity: item.quantityInBaseUnit,
               unitMeasure: item.baseUnit || item.unitOfMeasure,
-              locationFrom: 'DEPOZIT',
               referenceId: note._id.toString(),
               responsibleUser: userId,
-              note: `Livrare conf. Aviz Seria ${note.seriesName} nr. ${note.noteNumber}`,
+              clientId: note.clientId.toString(),
+              note: `Livrare (${friendlyDeliveryName}) conf. Aviz Seria ${note.seriesName} nr. ${note.noteNumber}`,
               timestamp: new Date(),
             },
             session
@@ -641,6 +670,7 @@ export async function getDeliveryNotes(
     // Construim query-ul
     const query: FilterQuery<IDeliveryNoteDoc> = {}
 
+    //eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (filters?.status && filters.status !== ('ALL' as any)) {
       query.status = filters.status
     }

@@ -25,7 +25,10 @@ export async function getStockableItemDetails(
     doc = await ERPProductModel.findById(id).lean()
   } else {
     const packagingDoc = await PackagingModel.findById(id).lean()
-    doc = { ...packagingDoc, unit: 'buc' }
+    doc = {
+      ...packagingDoc,
+      unit: packagingDoc?.packagingUnit,
+    }
   }
 
   if (!doc) {

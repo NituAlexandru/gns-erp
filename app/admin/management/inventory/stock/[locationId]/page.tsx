@@ -33,7 +33,8 @@ export default async function StockByLocationPage({
 
   const validLocationId = locationId as InventoryLocation
   const locationName = LOCATION_NAMES_MAP[validLocationId] || validLocationId
-  const initialStockData = await getStockByLocation(validLocationId)
+  const response = await getStockByLocation(validLocationId, '', 1)
+  const initialStockData = response.data
 
   return (
     <StockByLocationTable

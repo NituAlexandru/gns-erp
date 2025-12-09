@@ -1,4 +1,4 @@
-import mongoose from 'mongoose'
+import mongoose, { Types } from 'mongoose'
 import ReceptionModel, { IInvoice } from './reception.model'
 import {
   recordStockMovement,
@@ -28,6 +28,8 @@ import { ISupplierDoc } from '../suppliers/types'
 import ERPProductModel, { IERPProductDoc } from '../product/product.model'
 import { IPackagingDoc } from '../packaging-products/types'
 import PackagingModel from '../packaging-products/packaging.model'
+import { addOrUpdateSupplierForProduct } from '../product/product.actions'
+import { addOrUpdateSupplierForPackaging } from '../packaging-products/packaging.actions'
 
 export type ActionResultWithData<T> =
   | { success: true; data: T; message?: string }
@@ -98,10 +100,10 @@ export async function createReception(
       createdByName: creator.name,
       supplierSnapshot: {
         name: supplier.name,
-        cui: supplier.fiscalCode || undefined, 
-        regCom: supplier.regComNumber || undefined, 
-        address: supplier.address, 
-        iban: supplier.bankAccountLei?.iban || undefined, 
+        cui: supplier.fiscalCode || undefined,
+        regCom: supplier.regComNumber || undefined,
+        address: supplier.address,
+        iban: supplier.bankAccountLei?.iban || undefined,
       },
       products: (payload.products || []).map((item) => {
         const productDoc = productsMap.get(item.product)
@@ -110,7 +112,7 @@ export async function createReception(
         return {
           ...item,
           productName: productDoc.name,
-          productCode: productDoc.productCode || 'N/A', 
+          productCode: productDoc.productCode || 'N/A',
         }
       }),
       packagingItems: (payload.packagingItems || []).map((item) => {
@@ -120,7 +122,7 @@ export async function createReception(
         return {
           ...item,
           packagingName: packagingDoc.name,
-          packagingCode: packagingDoc.productCode || 'N/A', // (Te rog verifică 'code' în modelul Packaging)
+          productCode: packagingDoc.productCode || 'N/A',
         }
       }),
     }
@@ -168,12 +170,12 @@ export async function updateReception(
       Supplier.findById(updateData.supplier).lean<ISupplierDoc>(), // Folosim 'Supplier'
       ERPProductModel.find({
         _id: { $in: (updateData.products || []).map((item) => item.product) },
-      }).lean<IERPProductDoc[]>(), 
+      }).lean<IERPProductDoc[]>(),
       PackagingModel.find({
         _id: {
           $in: (updateData.packagingItems || []).map((item) => item.packaging),
         },
-      }).lean<IPackagingDoc[]>(), 
+      }).lean<IPackagingDoc[]>(),
     ])
 
     if (!creator) throw new Error('Utilizatorul creator nu a fost găsit.')
@@ -191,8 +193,8 @@ export async function updateReception(
       createdByName: creator.name,
       supplierSnapshot: {
         name: supplier.name,
-        cui: supplier.fiscalCode || undefined, 
-        regCom: supplier.regComNumber || undefined, 
+        cui: supplier.fiscalCode || undefined,
+        regCom: supplier.regComNumber || undefined,
       },
       products: (updateData.products || []).map((item) => {
         const productDoc = productsMap.get(item.product)
@@ -211,7 +213,7 @@ export async function updateReception(
         return {
           ...item,
           packagingName: packagingDoc.name,
-          packagingCode: packagingDoc.productCode || 'N/A', 
+          packagingCode: packagingDoc.productCode || 'N/A',
         }
       }),
     }
@@ -220,7 +222,7 @@ export async function updateReception(
     // Folosim payload-ul îmbogățit
     const updatedReception = await ReceptionModel.findByIdAndUpdate(
       _id,
-      updateDataWithSnapshots, 
+      updateDataWithSnapshots,
       { new: true }
     )
     if (!updatedReception) {
@@ -268,7 +270,9 @@ export async function confirmReception({
   try {
     const result = await session.withTransaction(async (session) => {
       const reception = await ReceptionModel.findById(receptionId)
-        .populate<{ supplier: { name: string } }>('supplier', 'name')
+        .populate<{
+          supplier: { _id: Types.ObjectId; name: string }
+        }>('supplier', 'name')
         .session(session)
 
       if (!reception) {
@@ -278,7 +282,12 @@ export async function confirmReception({
         throw new Error('Recepția este deja confirmată.')
       }
 
+     
+      const supplierIdStr = (reception.supplier as any)._id.toString()
+      const supplierName = (reception.supplier as any).name
+
       let targetLocation: string
+
       if (reception.destinationType === 'PROIECT' && reception.destinationId) {
         targetLocation = reception.destinationId.toString()
       } else {
@@ -288,9 +297,7 @@ export async function confirmReception({
       const totalTransportCost = reception.deliveries.reduce(
         (sum, delivery) => sum + (delivery.transportCost || 0),
         0
-      ) // --- START MODIFICARE ---
-      // Pas 1: Izolăm produsele, care sunt singurele ce vor suporta costul de transport.
-
+      )
       const productsToProcess = reception.products || [] // Pas 2: Distribuim costul total de transport PONDERAT doar pe lista de produse.
 
       const productsWithTransportCost = distributeTransportCost(
@@ -467,6 +474,29 @@ export async function confirmReception({
         item.landedCostPerUnit = landedCostPerUnit
         item.vatValuePerUnit = vatValuePerUnit
 
+        // --- NOU: 4. Actualizăm Furnizorul Produsului (Auto-Discovery) ---
+        if (itemType === 'ERPProduct') {
+          const productItem = item as (typeof reception.products)[0]
+
+          await addOrUpdateSupplierForProduct(
+            itemId.toString(),
+            supplierIdStr,
+            item.landedCostPerUnit,
+            productItem.productCode, // Aici folosim productCode
+            session
+          )
+        } else {
+          // Aici item este un ambalaj
+          const packagingItem = item as (typeof reception.packagingItems)[0]
+
+          await addOrUpdateSupplierForPackaging(
+            itemId.toString(),
+            supplierIdStr,
+            item.landedCostPerUnit,
+            packagingItem.productCode,
+            session
+          )
+        }
         // 4. Trimitem datele CURATE și STANDARDIZATE la inventar
         await recordStockMovement(
           {
@@ -477,9 +507,11 @@ export async function confirmReception({
             unitMeasure: item.unitMeasure,
             locationTo: targetLocation,
             referenceId: reception._id.toString(),
-            note: `Recepție ${details.name} de la furnizor ${reception.supplier.name}`,
+            note: `Recepție ${details.name} de la furnizor ${supplierName}`,
             unitCost: item.landedCostPerUnit,
             responsibleUser: userId,
+            supplierId: supplierIdStr,
+            qualityDetails: item.qualityDetails,
             timestamp: new Date(),
           },
           session

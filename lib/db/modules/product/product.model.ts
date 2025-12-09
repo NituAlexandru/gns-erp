@@ -2,11 +2,33 @@ import { Document, Model, model, models, Schema, Types } from 'mongoose'
 import { UNITS } from '@/lib/constants'
 import { IProductInput } from './types'
 
-export interface IERPProductDoc extends Document, IProductInput {
+export interface IProductSupplierInfo {
+  supplier: Types.ObjectId
+  supplierProductCode?: string
+  lastPurchasePrice?: number
+  isMain?: boolean
+  updatedAt: Date
+}
+
+export interface IERPProductDoc
+  extends Document,
+    Omit<IProductInput, 'suppliers'> {
   _id: string
+  suppliers: IProductSupplierInfo[]
   createdAt: Date
   updatedAt: Date
 }
+
+const ProductSupplierInfoSchema = new Schema(
+  {
+    supplier: { type: Schema.Types.ObjectId, ref: 'Supplier', required: true },
+    supplierProductCode: { type: String },
+    lastPurchasePrice: { type: Number },
+    isMain: { type: Boolean, default: false },
+    updatedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+)
 
 const erpProductSchema = new Schema(
   {
@@ -18,7 +40,7 @@ const erpProductSchema = new Schema(
     productCode: { type: String, required: true },
     images: [String],
     description: { type: String },
-    mainSupplier: { type: Types.ObjectId, ref: 'Supplier', required: false },
+    suppliers: { type: [ProductSupplierInfoSchema], default: [] },
     brand: { type: String },
     defaultMarkups: {
       markupDirectDeliveryPrice: { type: Number, required: false, default: 0 },
@@ -59,7 +81,6 @@ const erpProductSchema = new Schema(
 )
 
 erpProductSchema.index({ barCode: 1 })
-erpProductSchema.index({ mainSupplier: 1 })
 erpProductSchema.index({ category: 1 })
 
 const ERPProductModel: Model<IERPProductDoc> =

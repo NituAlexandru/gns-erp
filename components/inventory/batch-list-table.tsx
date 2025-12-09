@@ -15,8 +15,16 @@ import { Label } from '@/components/ui/label'
 import { formatCurrency } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
-import { ProductStockDetails } from '@/lib/db/modules/inventory/types'
-import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants' // 👈 Importăm mapa de locații
+import {
+  ProductStockDetails,
+  PopulatedBatch,
+  StockLocationEntry,
+} from '@/lib/db/modules/inventory/types'
+import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
+import { Button } from '@/components/ui/button'
+import { ClipboardCheck, FileText } from 'lucide-react'
+import { BatchEditDialog } from './batch-edit-dialog'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '../ui/hover-card'
 
 type Locations = ProductStockDetails['locations']
 type PackagingOptions = ProductStockDetails['packagingOptions']
@@ -39,78 +47,250 @@ export function BatchListTable({
 
   const [selectedUnit, setSelectedUnit] = useState(baseUnit)
 
+  // Aici definim strict starea pentru editare
+  const [editingBatch, setEditingBatch] = useState<{
+    batch: PopulatedBatch
+    inventoryItemId: string
+  } | null>(null)
+
   const selectedConversion = allUnits.find((u) => u.unitName === selectedUnit)
   const conversionFactor = selectedConversion?.baseUnitEquivalent ?? 1
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Detalii Loturi pe Locații</CardTitle>
-        <div className='flex items-center space-x-4 pt-4'>
-          <Label>Afișează cantitățile în:</Label>
-          <RadioGroup
-            defaultValue={baseUnit}
-            onValueChange={setSelectedUnit}
-            className='flex'
-          >
-            {allUnits.map((unit) => (
-              <div key={unit.unitName} className='flex items-center space-x-2'>
-                <RadioGroupItem value={unit.unitName} id={unit.unitName} />
-                <Label htmlFor={unit.unitName}>{unit.unitName}</Label>
-              </div>
-            ))}
-          </RadioGroup>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Locație</TableHead>
-              <TableHead className='text-right'>Cantitate</TableHead>
-              <TableHead className='text-right'>{`Cost Unitar (pe ${selectedUnit})`}</TableHead>
-              <TableHead>Data Intrării</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {locations.length === 0 ? (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Detalii Loturi pe Locații</CardTitle>
+          <div className='flex items-center space-x-4 pt-4'>
+            <Label>Afișează cantitățile în:</Label>
+            <RadioGroup
+              defaultValue={baseUnit}
+              onValueChange={setSelectedUnit}
+              className='flex'
+            >
+              {allUnits.map((unit) => (
+                <div
+                  key={unit.unitName}
+                  className='flex items-center space-x-2'
+                >
+                  <RadioGroupItem value={unit.unitName} id={unit.unitName} />
+                  <Label htmlFor={unit.unitName}>{unit.unitName}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={4} className='h-24 text-center'>
-                  Acest produs nu are stoc în nicio locație.
-                </TableCell>
+                <TableHead>Locație</TableHead>
+                <TableHead>Furnizor</TableHead>
+                <TableHead className='text-right'>Cantitate</TableHead>
+                <TableHead className='text-right'>{`Cost Unitar (pe ${selectedUnit})`}</TableHead>
+                <TableHead>Data Intrării</TableHead>
+                <TableHead>Info Calitate</TableHead>
+                <TableHead className='text-center'>Acțiuni</TableHead>
               </TableRow>
-            ) : (
-              locations.flatMap((location) =>
-                location.batches.map((batch) => {
-                  const convertedQuantity = batch.quantity / conversionFactor
+            </TableHeader>
+            <TableBody>
+              {locations.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className='h-24 text-center'>
+                    Acest produs nu are stoc în nicio locație.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                locations.flatMap((location: StockLocationEntry) =>
+                  location.batches.map((batch: PopulatedBatch) => {
+                    const convertedQuantity = batch.quantity / conversionFactor
+                    const convertedUnitCost = batch.unitCost * conversionFactor
+                    const q = batch.qualityDetails
+                    const hasNotes =
+                      q &&
+                      ((q.lotNumbers && q.lotNumbers.length > 0) ||
+                        (q.certificateNumbers &&
+                          q.certificateNumbers.length > 0) ||
+                        (q.testReports && q.testReports.length > 0) ||
+                        (q.additionalNotes &&
+                          q.additionalNotes.trim().length > 0))
+                    return (
+                      <TableRow key={batch.movementId}>
+                        <TableCell className='font-medium'>
+                          {LOCATION_NAMES_MAP[location.location] ||
+                            location.location}
+                        </TableCell>
 
-                  const convertedUnitCost = batch.unitCost * conversionFactor
+                        <TableCell>{batch.supplierId?.name || '-'}</TableCell>
+                        <TableCell className='text-right font-bold'>
+                          {`${convertedQuantity.toFixed(2)} ${selectedUnit}`}
+                        </TableCell>
 
-                  return (
-                    <TableRow key={batch.movementId}>
-                      <TableCell className='font-medium'>
-                        {LOCATION_NAMES_MAP[location.location] ||
-                          location.location}
-                      </TableCell>
-                      <TableCell className='text-right font-bold'>
-                        {`${convertedQuantity.toFixed(2)} ${selectedUnit}`}
-                      </TableCell>
-                      <TableCell className='text-right'>
-                        {formatCurrency(convertedUnitCost)}
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(batch.entryDate), 'dd/MM/yyyy HH:mm', {
-                          locale: ro,
-                        })}
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+                        <TableCell className='text-right'>
+                          {formatCurrency(convertedUnitCost)}
+                        </TableCell>
+
+                        <TableCell>
+                          {format(
+                            new Date(batch.entryDate),
+                            'dd/MM/yyyy HH:mm',
+                            {
+                              locale: ro,
+                            }
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {hasNotes ? (
+                            <HoverCard>
+                              <HoverCardTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='h-8 w-8'
+                                >
+                                  <FileText className='h-4 w-4' />
+                                </Button>
+                              </HoverCardTrigger>
+
+                              <HoverCardContent
+                                className='w-[500px] bg-popover p-4 shadow-2xl border-border z-50 text-left text-popover-foreground'
+                                align='end'
+                              >
+                                <div className='space-y-4'>
+                                  <h4 className='text-sm font-semibold tracking-tight mb-2'>
+                                    Detalii Note Calitate Lot
+                                  </h4>
+
+                                  {/* GRID 2x2 EXACT CA IN MODAL */}
+                                  <div className='grid grid-cols-2 gap-3'>
+                                    {/* 1. CERTIFICATE (Stânga-Sus) */}
+                                    <div className='rounded-md border bg-muted/30 p-3 flex flex-col gap-2 min-h-[80px]'>
+                                      <span className='text-xs font-medium text-muted-foreground'>
+                                        Certificate Conformitate / Calitate:
+                                      </span>
+                                      {q?.certificateNumbers &&
+                                      q.certificateNumbers.length > 0 ? (
+                                        <div className='flex flex-wrap gap-1.5'>
+                                          {q.certificateNumbers.map(
+                                            (num: string, i: number) => (
+                                              <span key={i} className='text-xs'>
+                                                {num}
+                                              </span>
+                                            )
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className='text-xs text-muted-foreground/50 italic'>
+                                          -
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* 2. LOTURI (Dreapta-Sus) */}
+                                    <div className='rounded-md border bg-muted/30 p-3 flex flex-col gap-2 min-h-[80px]'>
+                                      <span className='text-xs font-medium text-muted-foreground'>
+                                        Șarje / Loturi Producție:
+                                      </span>
+                                      {q?.lotNumbers &&
+                                      q.lotNumbers.length > 0 ? (
+                                        <div className='flex flex-wrap gap-1.5'>
+                                          {q.lotNumbers.map(
+                                            (num: string, i: number) => (
+                                              <span key={i} className='text-xs'>
+                                                {num}
+                                              </span>
+                                            )
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className='text-xs text-muted-foreground/50 italic'>
+                                          -
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* 3. RAPOARTE (Stânga-Jos) - ASTA LIPSEA */}
+                                    <div className='rounded-md border bg-muted/30 p-3 flex flex-col gap-2 min-h-[80px]'>
+                                      <span className='text-xs font-medium text-muted-foreground'>
+                                        Declaratii / Rapoarte Încercări:
+                                      </span>
+                                      {q?.testReports &&
+                                      q.testReports.length > 0 ? (
+                                        <div className='flex flex-wrap gap-1.5'>
+                                          {q.testReports.map(
+                                            (rep: string, i: number) => (
+                                              <span key={i} className='text-xs'>
+                                                {rep}
+                                              </span>
+                                            )
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className='text-xs text-muted-foreground/50 italic'>
+                                          -
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* 4. NOTE ADIȚIONALE (Dreapta-Jos) */}
+                                    <div className='rounded-md border bg-muted/30 p-3 flex flex-col gap-2 min-h-[80px]'>
+                                      <span className='text-xs font-medium text-muted-foreground'>
+                                        Note Adiționale:
+                                      </span>
+                                      {q?.additionalNotes ? (
+                                        <div className='text-xs  whitespace-pre-wrap'>
+                                          {q.additionalNotes}
+                                        </div>
+                                      ) : (
+                                        <span className='text-xs text-muted-foreground/50 italic'>
+                                          -
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </HoverCardContent>
+                            </HoverCard>
+                          ) : (
+                            <span className='text-muted-foreground opacity-20'>
+                              -
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className='text-center'>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            className='gap-2 text-xs'
+                            onClick={() => {
+                              setEditingBatch({
+                                batch: batch,
+                                inventoryItemId: location._id,
+                              })
+                            }}
+                          >
+                            <ClipboardCheck className='h-3 w-3' />
+                            Note Conformitate
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                )
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {editingBatch && (
+        <BatchEditDialog
+          open={!!editingBatch}
+          onOpenChange={(open) => !open && setEditingBatch(null)}
+          batch={editingBatch.batch}
+          inventoryItemId={editingBatch.inventoryItemId}
+        />
+      )}
+    </>
   )
 }

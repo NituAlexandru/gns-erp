@@ -62,3 +62,22 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - Unele produse au furnizori multiplii. La receptie e ok, se selecteaza furnizorul in receptie. La comanda .... trebuie ales? catalog produse trebuie afisate ambele... sau?
 
 - verifica advanceScope
+
+# Produse admin
+
+- bug la search - de verificat APIUL nu aduce toat einfo
+
+# Pag produs - generala
+
+- de verificat btn de edit / sterge sa fie conditionate doar pt admin.
+- de facut pagina de produs
+- in pagina de produs sa afisez istoric preturi vanzare / + preturi cumparare pt admini
+
+# ArchivedBatch
+
+- bug QuantityOriginal - este gresit - adauga ultima cantitate (cea care a mai ramas din tot lotul) atunci cand se termina. Ex. lot 100 buc, comandat 20,30,40, ramas 10, cand se va scade ult 10 buc, doar acel 10 se va adauga in arhiva.
+- nu are un scurt history pentru trasabilitate rapida
+
+# Inventar
+
+- de ajustat pagina inventory/movements/movementID (page-ul) - dupa ce refac reception si creez NIR

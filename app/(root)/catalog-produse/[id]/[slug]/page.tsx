@@ -24,7 +24,7 @@ export default async function ProductDetails({
     console.log('[DBG] Fetching product slug=', JSON.stringify(slug))
     erp = (await getProductBySlug(slug, {
       includeUnpublished: true,
-    })) as PopulatedProduct
+    })) as unknown as PopulatedProduct
     console.log('[DBG] Found product _id=', erp._id)
   } catch {
     erp = null

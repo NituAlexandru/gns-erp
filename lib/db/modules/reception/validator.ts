@@ -8,7 +8,14 @@ export const TertiaryTransporterSchema = z.object({
   regCom: z.string().optional(),
   address: z.string().optional(),
 })
-
+const QualityDetailsZod = z
+  .object({
+    lotNumbers: z.array(z.string()).optional(),
+    certificateNumbers: z.array(z.string()).optional(),
+    testReports: z.array(z.string()).optional(),
+    additionalNotes: z.string().optional(),
+  })
+  .optional()
 export const ReceptionProductSchema = z.object({
   product: MongoId,
   quantity: z.number().positive('Cantitatea trebuie să fie mai mare ca 0.'),
@@ -16,6 +23,7 @@ export const ReceptionProductSchema = z.object({
   invoicePricePerUnit: z.number().nonnegative().nullable().optional(),
   unitMeasureCode: z.string().optional(),
   vatRate: z.coerce.number().nonnegative().default(0),
+  qualityDetails: QualityDetailsZod,
 })
 
 export const ReceptionPackagingSchema = z.object({
@@ -25,6 +33,7 @@ export const ReceptionPackagingSchema = z.object({
   unitMeasureCode: z.string().optional(),
   invoicePricePerUnit: z.number().nonnegative().nullable().optional(),
   vatRate: z.coerce.number().nonnegative().default(0),
+  qualityDetails: QualityDetailsZod,
 })
 
 export const DeliverySchema = z.object({
@@ -69,6 +78,7 @@ const BaseReceptionSchema = z.object({
   // Placeholder-ele pentru Proiecte
   destinationType: z.enum(['DEPOZIT', 'PROIECT']).optional().default('DEPOZIT'),
   destinationId: MongoId.optional(),
+  orderRef: MongoId.optional(),
 })
 
 export const ReceptionCreateSchema = BaseReceptionSchema.refine(

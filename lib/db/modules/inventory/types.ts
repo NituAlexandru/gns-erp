@@ -4,6 +4,13 @@ import { INVENTORY_LOCATIONS, StockMovementType } from './constants'
 import { IInventoryItemDoc } from './inventory.model'
 import { IStockMovementDoc } from './movement.model'
 
+export interface QualityDetails {
+  lotNumbers?: string[]
+  certificateNumbers?: string[]
+  testReports?: string[]
+  additionalNotes?: string
+}
+
 // Tipul pentru un lot de cost (folosit în Aviz și Mișcare Stoc)
 export interface ICostBreakdownBatch {
   movementId?: Types.ObjectId // ID-ul mișcării de INTRARE
@@ -11,6 +18,8 @@ export interface ICostBreakdownBatch {
   quantity: number
   unitCost: number
   type: 'REAL' | 'PROVISIONAL'
+  supplierId?: Types.ObjectId
+  qualityDetails?: QualityDetails
 }
 
 // Tipul pentru returnul funcției FIFO
@@ -75,6 +84,32 @@ export type PopulatedStockMovement = {
     name: string
   } | null
   note?: string
+  supplier?: {
+    _id: string
+    name: string
+  } | null
+  clientId?: {
+    _id: string
+    name: string
+  } | null
+  documentNumber?: string
+  qualityDetails?: QualityDetails | null
+  // Detalii Costuri & Trasabilitate
+  costBreakdown?: {
+    entryDate?: string | Date
+    quantity: number
+    unitCost: number
+    batchSnapshot?: {
+      supplierName?: string
+      qualityDetails?: QualityDetails
+    }
+  }[]
+
+  unitCost?: number
+  lineCost?: number
+
+  createdAt?: string | Date
+  updatedAt?: string | Date
 }
 export interface PackagingOption {
   unitName: string
@@ -86,11 +121,25 @@ export interface Batch {
   unitCost: number
   entryDate: string | Date
   movementId: string
+  supplierId?: string | { _id: string; name: string } | null
+  qualityDetails?: QualityDetails
+}
+// 2. Tipul STRICT pentru Batch-ul care ajunge în Frontend (Populat)
+export interface PopulatedBatch
+  extends Omit<Batch, 'supplierId' | 'movementId'> {
+  movementId: string
+  supplierId?: {
+    _id: string
+    name: string
+  } | null
 }
 
 export interface StockLocationEntry {
+  _id: string
   location: InventoryLocation
-  batches: Batch[]
+  batches: PopulatedBatch[]
+  totalStock: number
+  quantityReserved: number
 }
 
 export interface ProductStockDetails {

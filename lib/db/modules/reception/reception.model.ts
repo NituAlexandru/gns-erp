@@ -57,6 +57,13 @@ export interface IReceptionItemCost {
   vatValuePerUnit: number //  Valoarea TVA per unitate de bază
 }
 
+export interface IQualityDetails {
+  lotNumbers?: string[]
+  certificateNumbers?: string[]
+  testReports?: string[]
+  additionalNotes?: string
+}
+
 export interface IReceptionDoc extends Document {
   _id: Types.ObjectId
   createdBy: Types.ObjectId
@@ -72,6 +79,7 @@ export interface IReceptionDoc extends Document {
   // Câmpul `location` din modelul de Inventar va trebui să stocheze
   // acest identificator compozit sau să aibă câmpuri separate.
   destinationLocation: string
+  orderRef?: Types.ObjectId
   products: ({
     _id: Types.ObjectId
     product: Types.ObjectId
@@ -83,18 +91,20 @@ export interface IReceptionDoc extends Document {
     originalQuantity?: number
     originalUnitMeasure?: string
     originalInvoicePricePerUnit?: number
+    qualityDetails?: IQualityDetails
   } & IReceptionItemCost)[]
   packagingItems: ({
     _id: Types.ObjectId
     packaging: Types.ObjectId
     packagingName: string
-    packagingCode?: string
+    productCode?: string
     quantity: number
     unitMeasure: string
     unitMeasureCode?: string
     originalQuantity?: number
     originalUnitMeasure?: string
     originalInvoicePricePerUnit?: number
+    qualityDetails?: IQualityDetails
   } & IReceptionItemCost)[]
   receptionDate: Date
   status: 'DRAFT' | 'CONFIRMAT'
@@ -176,6 +186,20 @@ const supplierSnapshotSchema = new Schema(
   { _id: false }
 )
 
+const QualityDetailsSchema = new Schema(
+  {
+    // Aici sunt ȘARJELE (ce scrie pe produs/etichetă de la fabrică)
+    lotNumbers: { type: [String], default: [] },
+    // Aici sunt NUMERELE DE CERTIFICAT (hârtiile de la furnizor)
+    certificateNumbers: { type: [String], default: [] },
+    // Aici sunt RAPOARTELE DE ÎNCERCĂRI (dacă există, ex: la betoane/fier)
+    testReports: { type: [String], default: [] },
+    // Aici sunt MENȚIUNI SUPLIMENTARE (orice altceva scris de gestionar)
+    additionalNotes: { type: String },
+  },
+  { _id: false }
+)
+
 // --- Schema Principală ---
 const receptionSchema = new Schema<IReceptionDoc>(
   {
@@ -191,6 +215,11 @@ const receptionSchema = new Schema<IReceptionDoc>(
       required: true,
     },
     supplierSnapshot: { type: supplierSnapshotSchema, required: true },
+    orderRef: {
+      type: Schema.Types.ObjectId,
+      ref: 'SupplierOrder',
+      required: false,
+    },
     destinationType: {
       type: String,
       enum: ['DEPOZIT', 'PROIECT'],
@@ -215,6 +244,7 @@ const receptionSchema = new Schema<IReceptionDoc>(
         originalQuantity: { type: Number, required: false },
         originalUnitMeasure: { type: String, required: false },
         originalInvoicePricePerUnit: { type: Number, required: false },
+        qualityDetails: { type: QualityDetailsSchema, required: false },
         ...receptionItemCostSchema,
       },
     ],
@@ -223,13 +253,14 @@ const receptionSchema = new Schema<IReceptionDoc>(
         _id: false,
         packaging: { type: Schema.Types.ObjectId, ref: 'Packaging' },
         packagingName: { type: String, required: true },
-        packagingCode: { type: String },
+        productCode: { type: String },
         quantity: { type: Number, required: true },
         unitMeasure: { type: String, required: true },
         unitMeasureCode: { type: String, required: false },
         originalQuantity: { type: Number, required: false },
         originalUnitMeasure: { type: String, required: false },
         originalInvoicePricePerUnit: { type: Number, required: false },
+        qualityDetails: { type: QualityDetailsSchema, required: false },
         ...receptionItemCostSchema,
       },
     ],

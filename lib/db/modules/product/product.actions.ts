@@ -7,7 +7,7 @@ import { ProductInputSchema, ProductUpdateSchema } from './validator'
 import { formatError } from '@/lib/utils'
 import { CategoryModel } from '../category'
 import '@/lib/db/modules/suppliers/supplier.model'
-import { FilterQuery, Types } from 'mongoose'
+import { ClientSession, FilterQuery, Types } from 'mongoose'
 import { PRODUCT_PAGE_SIZE } from './constants'
 import { getGlobalHighestCostInStock } from '../inventory/pricing'
 import {
@@ -52,6 +52,58 @@ async function checkForDuplicateCodes(payload: {
 
   return null
 }
+/**
+ * Adaugă sau actualizează un furnizor în lista de furnizori a unui produs.
+ * Folosită automat la confirmarea unei recepții (Auto-Discovery).
+ */
+export async function addOrUpdateSupplierForProduct(
+  productId: string,
+  supplierId: string,
+  price: number,
+  supplierProductCode: string | undefined,
+  session: ClientSession
+) {
+  if (!productId || !supplierId) return
+
+  const product = await ERPProductModel.findById(productId).session(session)
+
+  if (!product) {
+    throw new Error(
+      `Produsul cu ID ${productId} nu a fost găsit pentru actualizarea furnizorului.`
+    )
+  }
+
+  const supplierObjectId = new Types.ObjectId(supplierId)
+
+  // Căutăm dacă furnizorul există deja
+  const existingSupplierIndex = product.suppliers.findIndex(
+    (s) => s.supplier.toString() === supplierId
+  )
+
+  if (existingSupplierIndex > -1) {
+    // UPDATE: Furnizor existent -> actualizăm prețul și data
+    product.suppliers[existingSupplierIndex].lastPurchasePrice = price
+    product.suppliers[existingSupplierIndex].updatedAt = new Date()
+
+    // Actualizăm codul doar dacă a fost furnizat unul nou (diferit de null/undefined/gol)
+    if (supplierProductCode && supplierProductCode.trim() !== '') {
+      product.suppliers[existingSupplierIndex].supplierProductCode =
+        supplierProductCode
+    }
+  } else {
+    // INSERT: Furnizor nou -> îl adăugăm în listă
+    product.suppliers.push({
+      supplier: supplierObjectId,
+      lastPurchasePrice: price,
+      supplierProductCode: supplierProductCode || '',
+      isMain: product.suppliers.length === 0, // Dacă e primul, îl punem main implicit
+      updatedAt: new Date(),
+    })
+  }
+
+  await product.save({ session })
+}
+
 // CREATE
 export async function createProduct(data: IProductInput) {
   try {
@@ -95,7 +147,7 @@ export async function getProductById(id: string): Promise<IProductDoc> {
   const doc = await ERPProductModel.findById(id)
     .populate('category')
     .populate('mainCategory')
-    .populate('mainSupplier')
+    .populate('suppliers.supplier')
     .lean()
   if (!doc) throw new Error('Product not found')
   return JSON.parse(JSON.stringify(doc)) as IProductDoc
@@ -145,7 +197,7 @@ export async function getProductBySlug(
   const doc = await ERPProductModel.findOne(filter)
     .populate('category')
     .populate('mainCategory')
-    .populate('mainSupplier')
+    .populate('suppliers.supplier')
     .populate({
       path: 'clientMarkups',
       populate: { path: 'clientId' },

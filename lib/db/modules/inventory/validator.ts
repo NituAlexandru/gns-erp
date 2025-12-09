@@ -3,12 +3,10 @@ import { INVENTORY_LOCATIONS, STOCK_MOVEMENT_TYPES } from './constants'
 import { MongoId } from '@/lib/validator'
 
 export const InventoryLocationSchema = z.enum(INVENTORY_LOCATIONS)
-
 export const LocationOrProjectIdSchema = z.union([
   InventoryLocationSchema,
   MongoId,
 ])
-
 export const InventoryItemAdjustSchema = z.object({
   stockableItem: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid item ID'),
   stockableItemType: z.enum(['ERPProduct', 'Packaging']),
@@ -16,6 +14,14 @@ export const InventoryItemAdjustSchema = z.object({
   quantityOnHandDelta: z.number(),
   quantityReservedDelta: z.number(),
 })
+const QualityDetailsZod = z
+  .object({
+    lotNumbers: z.array(z.string()).optional(),
+    certificateNumbers: z.array(z.string()).optional(),
+    testReports: z.array(z.string()).optional(),
+    additionalNotes: z.string().optional(),
+  })
+  .optional()
 
 export const StockMovementSchema = z.object({
   stockableItem: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid item ID'),
@@ -37,6 +43,13 @@ export const StockMovementSchema = z.object({
     .date()
     .optional()
     .default(() => new Date()),
+  supplierId: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/, 'Invalid supplier ID')
+    .optional(),
+  clientId: z.string().optional(),
+  documentNumber: z.string().optional(),
+  qualityDetails: QualityDetailsZod,
 })
 
 export type InventoryItemAdjustInput = z.infer<typeof InventoryItemAdjustSchema>

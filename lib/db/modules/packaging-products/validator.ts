@@ -1,11 +1,19 @@
 import { UNITS } from '@/lib/constants'
 import { z } from 'zod'
 
+const PackagingSupplierSchema = z.object({
+  supplier: z.string().length(24),
+  supplierProductCode: z.string().optional(),
+  lastPurchasePrice: z.number().optional(),
+  isMain: z.boolean().optional(),
+  updatedAt: z.coerce.date().optional(),
+})
+
 export const packagingZod = z.object({
   slug: z.string().nonempty(),
   name: z.string().nonempty(),
   description: z.string().optional(),
-  supplier: z.string().length(24), // ObjectId ca hex
+  suppliers: z.array(PackagingSupplierSchema).default([]),
   mainCategory: z.string().length(24).nullable().optional(),
   countInStock: z.number().min(0).optional(),
   images: z.array(z.string().url()).optional(),

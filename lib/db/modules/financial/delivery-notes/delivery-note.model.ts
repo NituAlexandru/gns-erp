@@ -28,6 +28,13 @@ export interface ICompanySnapshot {
   currency: string // Default (ex: "RON")
 }
 
+interface IQualityDetails {
+  lotNumbers?: string[]
+  certificateNumbers?: string[]
+  testReports?: string[]
+  additionalNotes?: string
+}
+
 // --- Interfața pentru detaliile loturilor (pt. audit FIFO) ---
 export interface ICostBreakdown {
   movementId?: Types.ObjectId // ID-ul mișcării de INTRARE
@@ -35,6 +42,7 @@ export interface ICostBreakdown {
   quantity: number // Cât s-a consumat din acest lot
   unitCost: number // Costul lotului respectiv
   type: 'REAL' | 'PROVISIONAL'
+  qualityDetails?: IQualityDetails
 }
 
 export interface IDeliveryNoteLine {
@@ -157,6 +165,16 @@ export interface IDeliveryNoteDoc extends Document {
 // -------------------------------------------------------------
 // Schemas
 // -------------------------------------------------------------
+const QualityDetailsSchema = new Schema(
+  {
+    lotNumbers: { type: [String], default: [] },
+    certificateNumbers: { type: [String], default: [] },
+    testReports: { type: [String], default: [] },
+    additionalNotes: { type: String },
+  },
+  { _id: false }
+)
+
 const CostBreakdownSchema = new Schema<ICostBreakdown>(
   {
     movementId: {
@@ -173,6 +191,7 @@ const CostBreakdownSchema = new Schema<ICostBreakdown>(
       required: true,
       default: 'REAL',
     },
+    qualityDetails: { type: QualityDetailsSchema, default: {} },
   },
   { _id: false }
 )

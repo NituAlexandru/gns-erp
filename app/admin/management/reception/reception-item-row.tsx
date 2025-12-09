@@ -2,7 +2,7 @@
 
 import { type UseFormReturn } from 'react-hook-form'
 import { useState, useEffect, useMemo } from 'react'
-import { Trash2 } from 'lucide-react'
+import { Trash2, ChevronDown, ChevronUp, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   FormControl,
@@ -12,6 +12,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectTrigger,
@@ -19,10 +20,16 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { cn, formatCurrency } from '@/lib/utils'
 import { ReceptionCreateInput } from '@/lib/db/modules/reception/types'
 import { AutocompleteSearch, type SearchResult } from './autocomplete-search'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
+import { MultiStringInput } from './multi-string-input' // <--- Import Componenta Nouă
 
 type ReceptionItemRowProps = {
   form: UseFormReturn<ReceptionCreateInput>
@@ -46,25 +53,15 @@ function convertBasePriceToDisplay(
 ): number {
   const { unit, packagingUnit, packagingQuantity, itemsPerPallet } = itemDetails
 
-  // Dacă UM selectat este unitatea de bază, returnăm prețul de bază
-  if (unitMeasure === unit) {
-    return basePrice
-  }
-
-  // Dacă UM selectat este ambalajul și avem factor de conversie, calculăm
-  if (unitMeasure === packagingUnit && packagingQuantity) {
+  if (unitMeasure === unit) return basePrice
+  if (unitMeasure === packagingUnit && packagingQuantity)
     return basePrice * packagingQuantity
-  }
-
-  // Dacă UM selectat este paletul, calculăm prețul total pe palet
   if (unitMeasure === 'palet' && itemsPerPallet) {
     const totalBaseUnitsPerPallet = packagingQuantity
       ? itemsPerPallet * packagingQuantity
       : itemsPerPallet
     return basePrice * totalBaseUnitsPerPallet
   }
-
-  // Fallback: returnăm prețul de bază dacă nu știm cum să convertim
   return basePrice
 }
 
@@ -80,6 +77,9 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
     isVatPayer,
   } = props
 
+  // State pentru acordeon
+  const [isQualityOpen, setIsQualityOpen] = useState(false)
+
   const {
     itemName,
     itemNamePath,
@@ -87,6 +87,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
     unitMeasurePath,
     pricePath,
     vatRatePath,
+    qualityPath, // Calea către qualityDetails
   } =
     itemType === 'products'
       ? {
@@ -96,6 +97,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           unitMeasurePath: `products.${index}.unitMeasure` as const,
           pricePath: `products.${index}.invoicePricePerUnit` as const,
           vatRatePath: `products.${index}.vatRate` as const,
+          qualityPath: `products.${index}.qualityDetails` as const,
         }
       : {
           itemName: 'packaging' as const,
@@ -104,6 +106,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           unitMeasurePath: `packagingItems.${index}.unitMeasure` as const,
           pricePath: `packagingItems.${index}.invoicePricePerUnit` as const,
           vatRatePath: `packagingItems.${index}.vatRate` as const,
+          qualityPath: `packagingItems.${index}.qualityDetails` as const,
         }
 
   const selectedItemId = form.watch(itemNamePath)
@@ -111,6 +114,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
   const quantity = form.watch(quantityPath)
   const selectedUM = form.watch(unitMeasurePath)
 
+  // ... (Logica de lastPrice și calcule rămâne identică, o păstrăm) ...
   const [lastPrice, setLastPrice] = useState<number | null>(null)
   const [isLoadingPrice, setIsLoadingPrice] = useState(false)
   const [priceNotFound, setPriceNotFound] = useState(false)
@@ -124,12 +128,9 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
 
   useEffect(() => {
     if (!selectedItemId) return
-
     setIsLoadingPrice(true)
     setLastPrice(null)
     setPriceNotFound(false)
-
-    // Alege ruta în funcție de itemType
     const url =
       itemType === 'products'
         ? `/api/admin/management/receptions/last-price/${selectedItemId}`
@@ -156,7 +157,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
 
   const priceDifferencePercentage = useMemo(() => {
     if (
-      lastPrice === null || // lastPrice este garantat a fi prețul de bază
+      lastPrice === null ||
       lastPrice === 0 ||
       typeof invoicePrice !== 'number' ||
       !itemDetails ||
@@ -164,11 +165,8 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
     ) {
       return null
     }
-
     const { unit, packagingUnit, packagingQuantity, itemsPerPallet } =
       itemDetails
-
-    // Calculăm prețul de bază pentru prețul curent introdus
     let currentPricePerBaseUnit = 0
     switch (selectedUM) {
       case unit:
@@ -179,25 +177,18 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
         currentPricePerBaseUnit = invoicePrice / packagingQuantity
         break
       case 'palet':
-        if (!itemsPerPallet || itemsPerPallet <= 0) {
-          return null
-        }
-
-        const totalBaseUnits = (packagingQuantity ?? 1) * itemsPerPallet
-        if (totalBaseUnits === 0) return null
-        currentPricePerBaseUnit = invoicePrice / totalBaseUnits
+        if (!itemsPerPallet || itemsPerPallet <= 0) return null
+        const total = (packagingQuantity ?? 1) * itemsPerPallet
+        if (total === 0) return null
+        currentPricePerBaseUnit = invoicePrice / total
         break
       default:
         return null
     }
-
-    if (isNaN(currentPricePerBaseUnit) || !isFinite(currentPricePerBaseUnit)) {
+    if (isNaN(currentPricePerBaseUnit) || !isFinite(currentPricePerBaseUnit))
       return null
-    }
-
-    const difference = ((currentPricePerBaseUnit - lastPrice) / lastPrice) * 100
-
-    return Math.abs(difference) < 0.01 ? null : difference
+    const diff = ((currentPricePerBaseUnit - lastPrice) / lastPrice) * 100
+    return Math.abs(diff) < 0.01 ? null : diff
   }, [invoicePrice, lastPrice, selectedUM, itemDetails])
 
   const calculatedValues = useMemo(() => {
@@ -206,10 +197,8 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
       !quantity ||
       !selectedUM ||
       typeof invoicePrice !== 'number'
-    ) {
+    )
       return null
-    }
-
     const { unit, packagingUnit, packagingQuantity, itemsPerPallet } =
       itemDetails
     const totalBaseUnitsPerPallet =
@@ -218,7 +207,6 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           ? itemsPerPallet * packagingQuantity
           : itemsPerPallet
         : 0
-
     let baseQuantity = 0
     let invoicePricePerBaseUnit = 0
 
@@ -245,9 +233,8 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
       isNaN(invoicePricePerBaseUnit) ||
       !isFinite(invoicePricePerBaseUnit) ||
       baseQuantity === 0
-    ) {
+    )
       return null
-    }
 
     const invoicePricePerPackagingUnit = packagingQuantity
       ? invoicePricePerBaseUnit * packagingQuantity
@@ -257,7 +244,6 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
         ? invoicePricePerBaseUnit * totalBaseUnitsPerPallet
         : null
     const invoiceTotalPrice = quantity * invoicePrice
-
     const transportCostPerBaseUnit = distributedTransportCost / baseQuantity
     const landedCostPerBaseUnit =
       invoicePricePerBaseUnit + transportCostPerBaseUnit
@@ -269,7 +255,6 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
         ? landedCostPerBaseUnit * totalBaseUnitsPerPallet
         : null
     const landedTotalPrice = invoiceTotalPrice + distributedTransportCost
-
     const totalPackagingUnit = packagingQuantity
       ? baseQuantity / packagingQuantity
       : null
@@ -310,7 +295,15 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
   }, [itemDetails])
 
   return (
-    <div className='flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 mb-3'>
+    <Collapsible
+      open={isQualityOpen}
+      onOpenChange={setIsQualityOpen}
+      className={cn(
+        'flex flex-col gap-3 rounded-lg border p-3 mb-3 transition-colors',
+        isQualityOpen ? 'bg-accent/5 border-primary/20' : 'bg-muted/20'
+      )}
+    >
+      {/* Rândul Principal (Produs) */}
       <div className='w-full'>
         <FormField
           name={itemNamePath}
@@ -323,41 +316,39 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                 </div>
                 <div className='text-right text-xs'>
                   {isLoadingPrice ? (
-                    <p className='mt-1 text-muted-foreground animate-pulse'>
+                    <span className='text-muted-foreground animate-pulse'>
                       Se verifică...
-                    </p>
+                    </span>
                   ) : priceNotFound ? (
-                    <p className='mt-1 text-amber-600 font-medium'>
-                      Nu există recepții anterioare pentru acest articol
-                    </p>
+                    <span className='text-amber-600 font-medium'>
+                      Nu există recepții anterioare
+                    </span>
                   ) : lastPrice !== null && itemDetails && selectedUM ? (
-                    <>
-                      <div className=' text-muted-foreground flex justify-center align-middle gap-2'>
-                        Ultimul preț:{' '}
-                        {formatCurrency(
-                          convertBasePriceToDisplay(lastPrice, selectedUM, {
-                            unit: itemDetails.unit!,
-                            packagingUnit: itemDetails.packagingUnit,
-                            packagingQuantity: itemDetails.packagingQuantity,
-                            itemsPerPallet: itemDetails.itemsPerPallet,
-                          })
-                        )}{' '}
-                        / {selectedUM}{' '}
-                        {priceDifferencePercentage != null && (
-                          <div
-                            className={cn(
-                              ' font-semibold',
-                              priceDifferencePercentage > 0
-                                ? 'text-red-500'
-                                : 'text-green-600'
-                            )}
-                          >
-                            {priceDifferencePercentage > 0 ? '+' : ''}
-                            {priceDifferencePercentage.toFixed(2)}%
-                          </div>
-                        )}
-                      </div>
-                    </>
+                    <span className='text-muted-foreground'>
+                      Ultimul preț:{' '}
+                      {formatCurrency(
+                        convertBasePriceToDisplay(lastPrice, selectedUM, {
+                          unit: itemDetails.unit!,
+                          packagingUnit: itemDetails.packagingUnit,
+                          packagingQuantity: itemDetails.packagingQuantity,
+                          itemsPerPallet: itemDetails.itemsPerPallet,
+                        })
+                      )}{' '}
+                      / {selectedUM}{' '}
+                      {priceDifferencePercentage != null && (
+                        <span
+                          className={cn(
+                            'font-semibold',
+                            priceDifferencePercentage > 0
+                              ? 'text-red-600'
+                              : 'text-green-600'
+                          )}
+                        >
+                          {priceDifferencePercentage > 0 ? '+' : ''}
+                          {priceDifferencePercentage.toFixed(2)}%
+                        </span>
+                      )}
+                    </span>
                   ) : null}
                 </div>
               </FormLabel>
@@ -367,11 +358,10 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                 initialSelectedItem={initialItemData}
                 onChange={(id, item) => {
                   form.setValue(itemNamePath, id, { shouldValidate: true })
-                  if (item?.unit) {
+                  if (item?.unit)
                     form.setValue(unitMeasurePath, item.unit, {
                       shouldValidate: true,
                     })
-                  }
                   setItemDetails(item || null)
                 }}
               />
@@ -381,15 +371,14 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
         />
       </div>
 
+      {/* Rândul Secundar: Cantitate, UM, Preț + Butoane */}
       <div className='flex items-end gap-2'>
         <FormField
           name={quantityPath}
           control={form.control}
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                Cantitate <span>*</span>
-              </FormLabel>
+            <FormItem className='flex-1'>
+              <FormLabel>Cantitate *</FormLabel>
               <FormControl>
                 <Input
                   type='number'
@@ -411,10 +400,8 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           name={unitMeasurePath}
           control={form.control}
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                UM <span>*</span>
-              </FormLabel>
+            <FormItem className='w-24'>
+              <FormLabel>UM *</FormLabel>
               <Select
                 onValueChange={field.onChange}
                 value={field.value}
@@ -422,18 +409,17 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
               >
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder='Alege UM' />
+                    <SelectValue placeholder='-' />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  {uniqueUmOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
+                  {uniqueUmOptions.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <FormMessage />
             </FormItem>
           )}
         />
@@ -442,10 +428,8 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           name={pricePath}
           control={form.control}
           render={({ field }) => (
-            <FormItem>
-              <FormLabel>
-                Preț intrare (fără TVA) <span>*</span>
-              </FormLabel>
+            <FormItem className='flex-1'>
+              <FormLabel>Preț (fără TVA) *</FormLabel>
               <FormControl>
                 <Input
                   type='number'
@@ -463,12 +447,13 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
             </FormItem>
           )}
         />
+
         {isVatPayer && (
           <FormField
             name={vatRatePath}
             control={form.control}
             render={({ field }) => (
-              <FormItem>
+              <FormItem className='w-20'>
                 <FormLabel>TVA</FormLabel>
                 <Select
                   onValueChange={(val) => field.onChange(Number(val))}
@@ -476,7 +461,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder='TVA...' />
+                      <SelectValue placeholder='%' />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -498,14 +483,100 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           variant='ghost'
           onClick={onRemove}
           className='flex-shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10'
+          title='Șterge rândul'
         >
           <Trash2 className='h-4 w-4' />
         </Button>
       </div>
 
+      {/* --- RÂNDUL 3: Buton Nota Conformitate --- */}
+      <div className='flex justify-start border-t border-dashed pt-2 mt-1'>
+        <CollapsibleTrigger asChild>
+          <Button
+            variant='ghost'
+            size='sm'
+            className={cn(
+              'text-xs gap-2 px-2 h-7',
+              isQualityOpen
+                ? 'text-primary bg-primary/10'
+                : 'text-muted-foreground'
+            )}
+          >
+            <FileText className='h-3.5 w-3.5' />
+            {isQualityOpen
+              ? 'Ascunde Detalii Calitate'
+              : 'Adaugă Nota Conformitate (Loturi, Certificate)'}
+            {isQualityOpen ? (
+              <ChevronUp className='h-3 w-3' />
+            ) : (
+              <ChevronDown className='h-3 w-3' />
+            )}
+          </Button>
+        </CollapsibleTrigger>
+      </div>
+
+      {/* --- SECȚIUNEA EXPANDABILĂ: DETALII CALITATE --- */}
+      <CollapsibleContent className='pt-2'>
+        <div className='bg-background rounded-md border p-3 shadow-sm space-y-4'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+            {/* 1. Certificate */}
+            <div className='bg-muted/30 p-2 rounded border border-dashed'>
+              <MultiStringInput
+                control={form.control}
+                name={`${qualityPath}.certificateNumbers`}
+                label='Certificate Conformitate / Calitate'
+                placeholder='Ex: CE-1029 (Enter)'
+              />
+            </div>
+
+            {/* 2. Loturi */}
+            <div className='bg-muted/30 p-2 rounded border border-dashed'>
+              <MultiStringInput
+                control={form.control}
+                name={`${qualityPath}.lotNumbers`}
+                label='Șarje / Loturi Producție'
+                placeholder='Ex: A55, B-2024 (Enter)'
+              />
+            </div>
+
+            {/* 3. Rapoarte */}
+            <div className='bg-muted/30 p-2 rounded border border-dashed'>
+              <MultiStringInput
+                control={form.control}
+                name={`${qualityPath}.testReports`}
+                label='Declaratie / Rapoarte Încercări'
+                placeholder='Ex: Raport Lab 55 (Enter)'
+              />
+            </div>
+
+            {/* 4. Note */}
+            <div className='bg-muted/30 p-2 rounded border border-dashed'>
+              <FormField
+                name={`${qualityPath}.additionalNotes`}
+                control={form.control}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className='text-xs font-semibold text-muted-foreground'>
+                      Note Adiționale Calitate
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        className='h-[76px] resize-none text-sm'
+                        placeholder='Alte detalii relevante...'
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+        </div>
+      </CollapsibleContent>
+
+      {/* --- Totaluri Calculate (Rămân la final) --- */}
       {calculatedValues && itemDetails && (
         <div className='mt-2 space-y-3 border-t pt-2 text-xs'>
-          {/* Cantități totale */}
           <div>
             <div className='font-semibold text-foreground mb-1 flex justify-between'>
               <span>Cantități Totale:</span>
@@ -516,7 +587,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                     {itemDetails.packagingQuantity} {itemDetails.unit})
                   </span>
                 )}
-                {itemDetails.itemsPerPallet && (
+                {(itemDetails.itemsPerPallet || 0) > 0 && (
                   <span>
                     (1 palet = {itemDetails.itemsPerPallet}{' '}
                     {itemDetails.packagingUnit || itemDetails.unit})
@@ -552,7 +623,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
             </div>
           </div>
 
-          {/* Prețuri & costuri */}
+          {/* Prețuri */}
           <div>
             <div className='font-semibold text-foreground mb-1 flex justify-between'>
               <span>Prețuri & Costuri:</span>
@@ -562,10 +633,10 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                   <span className='font-medium'>
                     {formatCurrency(calculatedValues.invoiceTotalPrice)}
                   </span>
-                </div>{' '}
+                </div>
                 {itemType === 'products' ? (
                   <div className='font-bold text-lg text-primary'>
-                    Valoare cu Transport:
+                    Valoare cu Transport:{' '}
                     {formatCurrency(calculatedValues.landedTotalPrice)}
                   </div>
                 ) : (
@@ -576,7 +647,6 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
               </div>
             </div>
             <div className='grid grid-cols-3 gap-2 text-center'>
-              {/* Bază */}
               <div className='space-y-1'>
                 <div className='rounded bg-background p-1'>
                   <div className='text-muted-foreground'>
@@ -593,8 +663,6 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                   </div>
                 </div>
               </div>
-
-              {/* Ambalaj */}
               {itemDetails.packagingUnit && (
                 <div className='space-y-1'>
                   <div className='rounded bg-background p-1'>
@@ -619,9 +687,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                   </div>
                 </div>
               )}
-
-              {/* Palet */}
-              {itemDetails.itemsPerPallet && (
+              {(itemDetails.itemsPerPallet || 0) > 0 && (
                 <div className='space-y-1'>
                   <div className='rounded bg-background p-1'>
                     <div className='text-muted-foreground'>Preț / palet</div>
@@ -641,6 +707,6 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           </div>
         </div>
       )}
-    </div>
+    </Collapsible>
   )
 }

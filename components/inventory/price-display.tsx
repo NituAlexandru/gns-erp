@@ -1,9 +1,7 @@
-// src/components/inventory/price-display.tsx
-
 'use client'
 
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/utils' // Importăm formatCurrency
+import { formatCurrency } from '@/lib/utils'
 
 interface PackagingOption {
   unitName: string

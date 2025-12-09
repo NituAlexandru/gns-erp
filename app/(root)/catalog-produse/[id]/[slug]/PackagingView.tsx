@@ -105,7 +105,7 @@ export default function PackagingView({
                 <p>_id: {packaging._id}</p>
                 <p>slug: {packaging.slug}</p>
                 <p>name: {packaging.name}</p>
-                <p>supplier: {String(packaging.supplier)}</p>
+                <p>supplier: {String(packaging.suppliers)}</p>
                 <p>mainCategory: {String(packaging.mainCategory)}</p>
                 <p>countInStock: {packaging.countInStock}</p>
                 <p>
