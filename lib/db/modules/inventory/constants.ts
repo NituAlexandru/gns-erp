@@ -21,16 +21,21 @@ export const LOCATION_NAMES_MAP: Record<InventoryLocation, string> = {
 }
 
 export const STOCK_MOVEMENT_TYPES = [
-  // Operațiuni Interne / Ajustări
-  'BON_DE_CONSUM',
-  'RETUR_FURNIZOR',
-  'PIERDERE',
-  'ANULARE_RECEPTIE',
-  'DETERIORARE',
-  'PLUS_INVENTAR',
   // Intrări
   'RECEPTIE',
   'RETUR_CLIENT',
+  'PLUS_INVENTAR',
+  'TRANSFER_IN',
+
+  // --- Ieșiri Operaționale (Negative) ---
+  'BON_DE_CONSUM',
+  'RETUR_FURNIZOR',
+  'PIERDERE',
+  'DETERIORARE',
+  'ANULARE_RECEPTIE',
+  'MINUS_INVENTAR', // Pentru lipsuri la numărătoare
+  'CORECTIE_OPERARE', // Pentru greșeli de tastare
+  'TRANSFER_OUT', // Pentru mutare între gestiuni
 
   // Ieșiri (Vânzări - Sincronizate cu Order Delivery Methods)
   'DIRECT_SALE', // Vânzare Directă
@@ -58,6 +63,10 @@ export const MOVEMENT_TYPE_DETAILS_MAP: Record<
   PIERDERE: { name: 'Pierdere', variant: 'destructive' },
   DETERIORARE: { name: 'Deteriorare', variant: 'destructive' },
   ANULARE_RECEPTIE: { name: 'Anulare Recepție', variant: 'secondary' },
+  TRANSFER_IN: { name: 'Transfer intrare din gestiune', variant: 'outline' },
+  TRANSFER_OUT: { name: 'Transfer iesire din gestiune', variant: 'outline' },
+  MINUS_INVENTAR: { name: 'Lipsă la Inventar', variant: 'destructive' },
+  CORECTIE_OPERARE: { name: 'Corecție Operare', variant: 'secondary' },
 
   // --- Ieșiri (Vânzări) ---
   DIRECT_SALE: { name: 'Vânzare Directă', variant: 'destructive' },
@@ -84,12 +93,16 @@ export const OUT_TYPES = new Set<StockMovementType>([
   'DELIVERY_SMALL_VEHICLE_PJ',
   'RETAIL_SALE_PF',
   'PICK_UP_SALE',
+  'MINUS_INVENTAR',
+  'CORECTIE_OPERARE',
+  'TRANSFER_OUT',
 ])
 
 export const IN_TYPES = new Set<StockMovementType>([
   'RECEPTIE',
   'RETUR_CLIENT',
   'PLUS_INVENTAR',
+  'TRANSFER_IN',
 ])
 
 export const TRANSPORT_TYPE_MAP = {
@@ -97,3 +110,13 @@ export const TRANSPORT_TYPE_MAP = {
   EXTERN_FURNIZOR: 'Transport Extern (Furnizor)',
   TERT: 'Transport Terț',
 } as const
+
+export const MANUAL_ADJUSTMENT_TYPES = [
+  'BON_DE_CONSUM',
+  'PIERDERE',
+  'DETERIORARE',
+  'MINUS_INVENTAR',
+  'PLUS_INVENTAR',
+  'RETUR_FURNIZOR',
+  'CORECTIE_OPERARE',
+] as const

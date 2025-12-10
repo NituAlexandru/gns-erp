@@ -2,17 +2,17 @@
 
 import { startSession, Types, ClientSession } from 'mongoose'
 import { auth } from '@/auth'
-import { connectToDatabase } from '@/lib/db' 
+import { connectToDatabase } from '@/lib/db'
 import { generateNextDocumentNumber } from '../../numbering/numbering.actions'
 import ReturnNoteModel from './return-note.model'
 import {
   CreateReturnNoteInput,
   ReturnNoteActionResult,
   ReturnNoteDTO,
-} from './return-note.types' 
-import { CreateReturnNoteSchema } from './return-note.validator' 
+} from './return-note.types'
+import { CreateReturnNoteSchema } from './return-note.validator'
 import { formatError } from '@/lib/utils'
-import { recordStockMovement } from '../../inventory/inventory.actions'
+import { recordStockMovement } from '../../inventory/inventory.actions.core'
 
 export async function createReturnNote(
   data: CreateReturnNoteInput,
@@ -83,7 +83,7 @@ export async function createReturnNote(
             stockableItem: item.productId.toString(),
             stockableItemType: item.stockableItemType,
             movementType: 'RETUR_CLIENT', // Tip de INTRARE
-            quantity: item.quantityInBaseUnit, 
+            quantity: item.quantityInBaseUnit,
             unitMeasure: item.baseUnit,
             locationTo: validatedData.locationTo,
             referenceId: newReturnNote._id.toString(), // Legătura cu această Notă de Retur

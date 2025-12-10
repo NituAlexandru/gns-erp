@@ -22,6 +22,7 @@ export interface IQualityDetails {
 }
 
 export interface IInventoryBatch {
+  _id: Types.ObjectId
   quantity: number
   unitCost: number
   entryDate: Date
@@ -46,21 +47,18 @@ export interface IInventoryItemDoc extends Document {
   updatedAt: Date
 }
 
-const InventoryBatchSchema = new Schema<IInventoryBatch>(
-  {
-    quantity: { type: Number, required: true },
-    unitCost: { type: Number, required: true },
-    entryDate: { type: Date, required: true },
-    movementId: {
-      type: Schema.Types.ObjectId,
-      ref: 'StockMovement',
-      required: true,
-    },
-    supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
-    qualityDetails: { type: QualityDetailsSchema, default: {} },
+const InventoryBatchSchema = new Schema<IInventoryBatch>({
+  quantity: { type: Number, required: true },
+  unitCost: { type: Number, required: true },
+  entryDate: { type: Date, required: true },
+  movementId: {
+    type: Schema.Types.ObjectId,
+    ref: 'StockMovement',
+    required: true,
   },
-  { _id: false }
-)
+  supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+  qualityDetails: { type: QualityDetailsSchema, default: {} },
+})
 
 const InventoryItemSchema = new Schema<IInventoryItemDoc>(
   {

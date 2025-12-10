@@ -1,4 +1,4 @@
-import { getProductStockDetails } from '@/lib/db/modules/inventory/inventory.actions'
+import { getProductStockDetails } from '@/lib/db/modules/inventory/inventory.actions.read'
 import {
   Card,
   CardHeader,
@@ -64,6 +64,7 @@ export default async function ProductStockDetailsPage({
         baseUnit={baseUnit}
         locations={productDetails.locations}
         packagingOptions={productDetails.packagingOptions}
+        stockableItemName={productDetails.name}
       />
     </div>
   )

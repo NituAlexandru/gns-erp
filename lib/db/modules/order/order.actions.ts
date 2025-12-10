@@ -7,7 +7,10 @@ import { CreateOrderInput, PopulatedOrder } from './types'
 import { connectToDatabase } from '../..'
 import mongoose, { startSession, Types } from 'mongoose'
 import { formatError, round2 } from '@/lib/utils'
-import { reserveStock, unreserveStock } from '../inventory/inventory.actions'
+import {
+  reserveStock,
+  unreserveStock,
+} from '../inventory/inventory.actions.reservation'
 import { generateOrderNumber } from '../numbering/numbering.actions'
 import { auth } from '@/auth'
 import z from 'zod'
@@ -53,7 +56,6 @@ export async function calculateShippingCost(
     return 0
   }
 }
-// Funcție ajutătoare care centralizează TOATĂ logica de calcul
 
 function getInitialOrderTotals() {
   return {

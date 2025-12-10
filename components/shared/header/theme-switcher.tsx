@@ -1,6 +1,5 @@
 'use client'
 
-import * as React from 'react'
 import { useTheme } from 'next-themes'
 import { ChevronDownIcon, Moon, Sun } from 'lucide-react'
 import {
@@ -13,7 +12,6 @@ import {
   DropdownMenuRadioItem,
 } from '@/components/ui/dropdown-menu'
 import useIsMounted from '@/hooks/use-is-mounted'
-// import useIsMounted from '@/hooks/use-is-mounted'
 
 export default function ThemeSwitcher() {
   const { theme, setTheme } = useTheme()
@@ -37,13 +35,19 @@ export default function ThemeSwitcher() {
         )}
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent className='w-44'>
+      <DropdownMenuContent className='w-44 bg-accent cursor-pointer'>
         <DropdownMenuLabel>Tema</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={theme} onValueChange={handleChange}>
-          <DropdownMenuRadioItem value='light'>
+          <DropdownMenuRadioItem
+            className='cursor-pointer hover:bg-accent-foreground hover:text-accent'
+            value='light'
+          >
             <Sun className='h-4 w-4 mr-1' /> Light
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value='dark'>
+          <DropdownMenuRadioItem
+            className='cursor-pointer hover:bg-accent-foreground hover:text-accent'
+            value='dark'
+          >
             <Moon className='h-4 w-4 mr-1' /> Dark
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

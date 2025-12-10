@@ -13,10 +13,7 @@ import DeliveryModel, {
   IDelivery,
   IDeliveryLineItem,
 } from '../../deliveries/delivery.model'
-import {
-  recordStockMovement,
-  unreserveStock,
-} from '../../inventory/inventory.actions'
+import { unreserveStock } from '../../inventory/inventory.actions.reservation'
 import {
   CreateDeliveryNoteResult,
   DeliveryNoteDTO,
@@ -34,6 +31,7 @@ import Service from '../../setting/services/service.model'
 import { round2 } from '@/lib/utils'
 import { PAGE_SIZE } from '@/lib/constants'
 import { DELIVERY_METHODS } from '../../order/constants'
+import { recordStockMovement } from '../../inventory/inventory.actions.core'
 
 // -------------------------------------------------------------
 // CREATE DELIVERY NOTE

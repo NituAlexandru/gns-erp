@@ -11,7 +11,7 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button' // Adaugat pentru paginare
-import { getAggregatedStockStatus } from '@/lib/db/modules/inventory/inventory.actions'
+import { getAggregatedStockStatus } from '@/lib/db/modules/inventory/inventory.actions.read'
 import { AggregatedStockItem } from '@/lib/db/modules/inventory/types'
 import { formatCurrency } from '@/lib/utils'
 import { StockSearchFilter } from '@/components/inventory/stock-search-filter'

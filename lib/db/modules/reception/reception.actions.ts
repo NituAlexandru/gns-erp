@@ -1,9 +1,6 @@
 import mongoose, { Types } from 'mongoose'
 import ReceptionModel, { IInvoice } from './reception.model'
-import {
-  recordStockMovement,
-  reverseStockMovementsByReference,
-} from '../inventory/inventory.actions'
+import { reverseStockMovementsByReference } from '../inventory/inventory.actions.core'
 import { getStockableItemDetails } from './utils'
 import { ReceptionCreateSchema, ReceptionUpdateSchema } from './validator'
 import {
@@ -30,6 +27,7 @@ import { IPackagingDoc } from '../packaging-products/types'
 import PackagingModel from '../packaging-products/packaging.model'
 import { addOrUpdateSupplierForProduct } from '../product/product.actions'
 import { addOrUpdateSupplierForPackaging } from '../packaging-products/packaging.actions'
+import { recordStockMovement } from '../inventory/inventory.actions.core'
 
 export type ActionResultWithData<T> =
   | { success: true; data: T; message?: string }
@@ -281,8 +279,6 @@ export async function confirmReception({
       if (reception.status === 'CONFIRMAT') {
         throw new Error('Recepția este deja confirmată.')
       }
-
-     
       const supplierIdStr = (reception.supplier as any)._id.toString()
       const supplierName = (reception.supplier as any).name
 

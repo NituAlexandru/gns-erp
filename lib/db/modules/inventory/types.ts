@@ -84,6 +84,7 @@ export type PopulatedStockMovement = {
     name: string
   } | null
   note?: string
+  referenceId?: string
   supplier?: {
     _id: string
     name: string
@@ -117,6 +118,7 @@ export interface PackagingOption {
 }
 
 export interface Batch {
+  _id: string
   quantity: number
   unitCost: number
   entryDate: string | Date

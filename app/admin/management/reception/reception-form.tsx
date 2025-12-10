@@ -279,7 +279,7 @@ export function ReceptionForm({
       invoicesVatTotal: localInvoicesVatTotal,
       invoicesGrandTotal: localInvoicesGrandTotal, // TOTAL General (cu TVA)
       invoicesTotalNoVatRON: invoicesNoVatRON,
-      isBalancedNoVat: isBalanced, 
+      isBalancedNoVat: isBalanced,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedValues])
@@ -392,31 +392,6 @@ export function ReceptionForm({
               </CardHeader>
               <CardContent className='space-y-4'>
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                  <FormField
-                    name='orderRef'
-                    control={form.control}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Comandă Furnizor (Opțional)</FormLabel>
-                        <FormControl>
-                          {/* Momentan un input simplu text NU va merge cu backend-ul (cere ObjectId).
-                              Aici ar trebui sa fie AutocompleteSearch type='supplier-order'.
-                              Daca nu ai implementat cautarea de comenzi, lasa-l disabled sau ascuns.
-                          */}
-                          <div className='text-sm text-muted-foreground border rounded-md p-2 bg-muted/20'>
-                            Selecție comandă (neimplementat UI încă)
-                          </div>
-                          {/* <AutocompleteSearch 
-                              searchType="supplierOrder" 
-                              value={field.value} 
-                              onChange={(id) => field.onChange(id)} 
-                           /> 
-                          */}
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   {/* Furnizor */}
                   <FormField
                     name='supplier'
@@ -485,6 +460,31 @@ export function ReceptionForm({
                             />
                           </PopoverContent>
                         </Popover>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    name='orderRef'
+                    control={form.control}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Comandă Furnizor (Opțional)</FormLabel>
+                        <FormControl>
+                          {/* Momentan un input simplu text NU va merge cu backend-ul (cere ObjectId).
+                              Aici ar trebui sa fie AutocompleteSearch type='supplier-order'.
+                              Daca nu ai implementat cautarea de comenzi, lasa-l disabled sau ascuns.
+                          */}
+                          <div className='text-sm text-muted-foreground border rounded-md p-2 bg-muted/20'>
+                            Selecție comandă (neimplementat UI încă)
+                          </div>
+                          {/* <AutocompleteSearch 
+                              searchType="supplierOrder" 
+                              value={field.value} 
+                              onChange={(id) => field.onChange(id)} 
+                           /> 
+                          */}
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}

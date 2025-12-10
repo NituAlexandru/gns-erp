@@ -1,5 +1,9 @@
 import { z } from 'zod'
-import { INVENTORY_LOCATIONS, STOCK_MOVEMENT_TYPES } from './constants'
+import {
+  INVENTORY_LOCATIONS,
+  MANUAL_ADJUSTMENT_TYPES,
+  STOCK_MOVEMENT_TYPES,
+} from './constants'
 import { MongoId } from '@/lib/validator'
 
 export const InventoryLocationSchema = z.enum(INVENTORY_LOCATIONS)
@@ -50,7 +54,33 @@ export const StockMovementSchema = z.object({
   clientId: z.string().optional(),
   documentNumber: z.string().optional(),
   qualityDetails: QualityDetailsZod,
+  specificBatchId: z.string().optional(),
+})
+
+export const adjustStockSchema = z.object({
+  inventoryItemId: z.string().min(1, 'ID-ul stocului este necesar'), 
+  batchId: z.string().optional(),
+  adjustmentType: z.enum(MANUAL_ADJUSTMENT_TYPES, {
+    errorMap: () => ({ message: 'Tipul ajustării de stoc este invalid' }),
+  }),
+  quantity: z.coerce 
+    .number()
+    .positive('Cantitatea trebuie să fie pozitivă'),
+  unitCost: z.coerce.number().nonnegative().optional(),
+  reason: z.string().min(3, 'Motivul/Nota este obligatorie pentru ajustări'),
+})
+
+// Folosită când gestionarul apasă "Transferă" pe un lot
+export const transferStockSchema = z.object({
+  sourceInventoryItemId: z.string().min(1, 'Sursa este necesară'),
+  batchId: z.string().min(1, 'Lotul este necesar'),
+  targetLocation: z.enum(INVENTORY_LOCATIONS, {
+    errorMap: () => ({ message: 'Locația de destinație este invalidă' }),
+  }),
+  quantity: z.coerce.number().positive('Cantitatea trebuie să fie pozitivă'),
 })
 
 export type InventoryItemAdjustInput = z.infer<typeof InventoryItemAdjustSchema>
 export type StockMovementInput = z.infer<typeof StockMovementSchema>
+export type AdjustStockInput = z.infer<typeof adjustStockSchema>
+export type TransferStockInput = z.infer<typeof transferStockSchema>

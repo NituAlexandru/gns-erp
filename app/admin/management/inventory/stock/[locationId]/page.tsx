@@ -1,4 +1,4 @@
-import { getStockByLocation } from '@/lib/db/modules/inventory/inventory.actions'
+import { getStockByLocation } from '@/lib/db/modules/inventory/inventory.actions.read'
 import {
   INVENTORY_LOCATIONS,
   LOCATION_NAMES_MAP,

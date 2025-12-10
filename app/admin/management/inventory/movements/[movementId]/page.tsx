@@ -1,4 +1,4 @@
-import { getStockMovementDetails } from '@/lib/db/modules/inventory/inventory.actions'
+import { getStockMovementDetails } from '@/lib/db/modules/inventory/inventory.actions.read'
 import {
   Card,
   CardHeader,
@@ -26,13 +26,33 @@ import { formatCurrency, cn } from '@/lib/utils'
 import { BackButton } from './back-button'
 import { UnitDisplay } from '@/components/inventory/unit-display'
 import { PriceDisplay } from '@/components/inventory/price-display'
-
-// --- HELPERE PENTRU MAPAREA DATELOR DIN LOG-URILE TALE ---
+import StockMovementModel from '@/lib/db/modules/inventory/movement.model'
+import Link from 'next/link'
+import { ExternalLink } from 'lucide-react'
 
 // 1. Extrage Numărul Documentului (din seriesName + noteNumber sau invoiceNumber)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getDocumentNumber = (movement: any, reference: any) => {
   if (movement.documentNumber) return movement.documentNumber
+
+  if (
+    [
+      'TRANSFER_IN',
+      'TRANSFER_OUT',
+      'BON_DE_CONSUM',
+      'PIERDERE',
+      'PLUS_INVENTAR',
+      'MINUS_INVENTAR',
+      'CORECTIE_OPERARE',
+      'DETERIORARE',
+    ].includes(movement.movementType)
+  ) {
+    // Afișăm ID-ul tranzacției interne (referenceId) pe post de "Bon Intern"
+    return movement.referenceId
+      ? `Transfer Intern #${movement.referenceId.toString()}`
+      : 'Intern'
+  }
+
   if (!reference) return '-'
 
   // Logica pentru Avize (GNS-A 00087) și Facturi
@@ -44,28 +64,38 @@ const getDocumentNumber = (movement: any, reference: any) => {
   return reference.orderNumberSnapshot || '-'
 }
 
-// 2. Extrage Detaliile Produsului din Snapshot (Mapat pe log-ul tău: productName, unitOfMeasure)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const getSnapshotItemDetails = (item: any) => {
-  // LOG CONFIRMAT: productName este la rădăcină
-  const name = item.productName || item.product?.name || 'Produs necunoscut'
-
-  // LOG CONFIRMAT: unitOfMeasure este la rădăcină
-  const unit =
-    item.unitOfMeasure || item.unitMeasure || item.product?.unitMeasure || 'buc'
-
-  // LOG CONFIRMAT: priceAtTimeOfOrder pentru avize, unitPrice pentru facturi
-  const price = item.priceAtTimeOfOrder ?? item.unitPrice ?? item.price ?? 0
-
-  // LOG CONFIRMAT: packagingOptions există direct pe item
-  const options = item.packagingOptions || []
-
-  return { name, unit, price, options }
-}
-
 // 3. Extrage Nume Partener (Furnizor sau Client)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getPartnerName = (movement: any) => {
+  // CAZ SPECIAL: Transferuri (Partenerul este Locația Opusă)
+  if (movement.movementType === 'TRANSFER_IN') {
+    return movement.locationFrom
+      ? LOCATION_NAMES_MAP[
+          movement.locationFrom as keyof typeof LOCATION_NAMES_MAP
+        ] || movement.locationFrom
+      : 'Intern'
+  }
+  if (movement.movementType === 'TRANSFER_OUT') {
+    return movement.locationTo
+      ? LOCATION_NAMES_MAP[
+          movement.locationTo as keyof typeof LOCATION_NAMES_MAP
+        ] || movement.locationTo
+      : 'Intern'
+  }
+
+  // CAZ SPECIAL: Ajustări Interne (Nu există partener extern)
+  if (
+    [
+      'BON_DE_CONSUM',
+      'PIERDERE',
+      'PLUS_INVENTAR',
+      'MINUS_INVENTAR',
+      'CORECTIE_OPERARE',
+      'DETERIORARE',
+    ].includes(movement.movementType)
+  ) {
+    return 'Intern (GNS)'
+  }
   if (IN_TYPES.has(movement.movementType)) {
     return movement.supplier?.name || '-'
   }
@@ -129,9 +159,36 @@ export default async function MovementDetailsPage({
   const locationName = locationKey ? LOCATION_NAMES_MAP[locationKey] : '-'
 
   // Partener
-  const partnerLabel = IN_TYPES.has(movement.movementType)
-    ? 'Furnizor'
-    : 'Client'
+  let relatedMovementId = null
+  if (
+    (movement.movementType === 'TRANSFER_IN' ||
+      movement.movementType === 'TRANSFER_OUT') &&
+    movement.referenceId
+  ) {
+    const related = await StockMovementModel.findOne({
+      referenceId: movement.referenceId,
+      _id: { $ne: movement._id },
+    })
+      .select('_id')
+      .lean()
+    if (related) relatedMovementId = related._id.toString()
+  }
+
+  // 2. Calculăm Label-ul corect
+  let partnerLabel = 'Partener'
+  if (movement.movementType === 'TRANSFER_IN')
+    partnerLabel = 'Sursă (Din Gestiunea)'
+  else if (movement.movementType === 'TRANSFER_OUT')
+    partnerLabel = 'Destinație (Către)'
+  else if (
+    ['BON_DE_CONSUM', 'PIERDERE', 'MINUS_INVENTAR'].includes(
+      movement.movementType
+    )
+  )
+    partnerLabel = 'Responsabil'
+  else if (IN_TYPES.has(movement.movementType)) partnerLabel = 'Furnizor'
+  else partnerLabel = 'Client'
+
   const partnerName = getPartnerName(movement)
 
   // Document & Produs
@@ -182,11 +239,22 @@ export default async function MovementDetailsPage({
                 <DetailRow
                   label='Document Referință'
                   value={
-                    <span className='font-semibold text-primary'>
-                      {displayDocNumber}
-                    </span>
+                    relatedMovementId ? (
+                      <Link
+                        href={`/admin/management/inventory/movements/${relatedMovementId}`}
+                        className='font-semibold text-blue-500 hover:text-blue-700 hover:underline flex items-center justify-end gap-1'
+                      >
+                        {displayDocNumber}
+                        <ExternalLink className='h-5 w-5' />
+                      </Link>
+                    ) : (
+                      <span className='font-semibold text-primary'>
+                        {displayDocNumber}
+                      </span>
+                    )
                   }
                 />
+
                 <DetailRow label={partnerLabel} value={partnerName} />
                 <DetailRow
                   label='Produs'
@@ -315,36 +383,60 @@ export default async function MovementDetailsPage({
             </Card>
           )}
 
-          {/* Card 3: Calitate */}
+          {/* Card 3: Calitate - STILIZAT CA ÎN MODAL */}
           {movement.qualityDetails && (
             <Card>
-              <CardHeader className='pb-3'>
-                <CardTitle>Calitate</CardTitle>
+              <CardHeader className='pb-2'>
+                <CardTitle>Detalii Note Calitate Lot</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className='flex gap-2 flex-wrap'>
-                  {movement.qualityDetails.lotNumbers?.map((l: string) => (
-                    <Badge key={l} variant='outline'>
-                      {l}
-                    </Badge>
-                  ))}
-                  {movement.qualityDetails.certificateNumbers?.map(
-                    (c: string) => (
-                      <Badge
-                        key={c}
-                        variant='secondary'
-                        className='border-blue-200 text-blue-700'
-                      >
-                        {c}
-                      </Badge>
-                    )
-                  )}
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-2'>
+                  {/* 1. Certificate */}
+                  <div className='rounded-md border bg-muted/30 p-4 flex flex-col gap-1.5'>
+                    <span className='text-sm font-medium text-muted-foreground'>
+                      Certificate Conformitate / Calitate:
+                    </span>
+                    <span className='font-semibold text-sm'>
+                      {movement.qualityDetails.certificateNumbers?.length
+                        ? movement.qualityDetails.certificateNumbers.join(', ')
+                        : '-'}
+                    </span>
+                  </div>
+
+                  {/* 2. Loturi */}
+                  <div className='rounded-md border bg-muted/30 p-4 flex flex-col gap-1.5'>
+                    <span className='text-sm font-medium text-muted-foreground'>
+                      Șarje / Loturi Producție:
+                    </span>
+                    <span className='font-semibold text-sm'>
+                      {movement.qualityDetails.lotNumbers?.length
+                        ? movement.qualityDetails.lotNumbers.join(', ')
+                        : '-'}
+                    </span>
+                  </div>
+
+                  {/* 3. Rapoarte */}
+                  <div className='rounded-md border bg-muted/30 p-4 flex flex-col gap-1.5'>
+                    <span className='text-sm font-medium text-muted-foreground'>
+                      Declarații / Rapoarte Încercări:
+                    </span>
+                    <span className='font-semibold text-sm'>
+                      {movement.qualityDetails.testReports?.length
+                        ? movement.qualityDetails.testReports.join(', ')
+                        : '-'}
+                    </span>
+                  </div>
+
+                  {/* 4. Note Adiționale */}
+                  <div className='rounded-md border bg-muted/30 p-4 flex flex-col gap-1.5'>
+                    <span className='text-sm font-medium text-muted-foreground'>
+                      Note Adiționale:
+                    </span>
+                    <span className='font-semibold text-sm whitespace-pre-wrap'>
+                      {movement.qualityDetails.additionalNotes || '-'}
+                    </span>
+                  </div>
                 </div>
-                {movement.qualityDetails.additionalNotes && (
-                  <p className='mt-2 text-sm text-muted-foreground'>
-                    {movement.qualityDetails.additionalNotes}
-                  </p>
-                )}
               </CardContent>
             </Card>
           )}

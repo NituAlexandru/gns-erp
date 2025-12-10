@@ -12,9 +12,9 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { updateBatchDetails } from '@/lib/db/modules/inventory/inventory.actions'
+import { updateBatchDetails } from '@/lib/db/modules/inventory/inventory.actions.core'
 import { toast } from 'sonner'
-import { PopulatedBatch } from '@/lib/db/modules/inventory/types' // Importul corect
+import { PopulatedBatch } from '@/lib/db/modules/inventory/types'
 import {
   Form,
   FormControl,
@@ -106,7 +106,7 @@ export function BatchEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-[800px]'>
+      <DialogContent className='sm:max-w-[800px] bg-background text-foreground border border-border'>
         <DialogHeader>
           <DialogTitle>Adauga / Editeaza Detalii Note Calitate Lot</DialogTitle>
           <DialogDescription>

@@ -11,7 +11,7 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button' // Paginare
-import { getStockByLocation } from '@/lib/db/modules/inventory/inventory.actions'
+import { getStockByLocation } from '@/lib/db/modules/inventory/inventory.actions.read'
 import {
   AggregatedStockItem,
   InventoryLocation,

@@ -8,7 +8,7 @@ import {
   TableBody,
   TableCell,
 } from '@/components/ui/table'
-import { getStockMovements } from '@/lib/db/modules/inventory/inventory.actions'
+import { getStockMovements } from '@/lib/db/modules/inventory/inventory.actions.read'
 import { format, subDays } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { PopulatedStockMovement } from '@/lib/db/modules/inventory/types'
