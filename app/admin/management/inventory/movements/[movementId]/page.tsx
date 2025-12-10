@@ -35,6 +35,12 @@ import { ExternalLink } from 'lucide-react'
 const getDocumentNumber = (movement: any, reference: any) => {
   if (movement.documentNumber) return movement.documentNumber
 
+  if (movement.movementType === 'STOC_INITIAL') {
+    return `Adaugare Stoc Initial #${movement.referenceId.toString()}`
+  }
+  if (movement.movementType === 'PLUS_INVENTAR') {
+    return `Ajustare Inventar (Plus) #${movement.referenceId.toString()}`
+  }
   if (
     [
       'TRANSFER_IN',
@@ -96,8 +102,14 @@ const getPartnerName = (movement: any) => {
   ) {
     return 'Intern (GNS)'
   }
-  if (IN_TYPES.has(movement.movementType)) {
-    return movement.supplier?.name || '-'
+
+  if (
+    IN_TYPES.has(movement.movementType) ||
+    movement.movementType === 'STOC_INITIAL' ||
+    movement.movementType === 'PLUS_INVENTAR'
+  ) {
+    // Câmpul populat se numește movement.supplierId (conform modelului tău)
+    return movement.supplierId?.name || 'N/A'
   }
 
   // Pentru ieșiri (Avize), partenerul este clientul

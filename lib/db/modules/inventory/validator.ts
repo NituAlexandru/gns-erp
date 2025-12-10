@@ -58,14 +58,12 @@ export const StockMovementSchema = z.object({
 })
 
 export const adjustStockSchema = z.object({
-  inventoryItemId: z.string().min(1, 'ID-ul stocului este necesar'), 
+  inventoryItemId: z.string().min(1, 'ID-ul stocului este necesar'),
   batchId: z.string().optional(),
   adjustmentType: z.enum(MANUAL_ADJUSTMENT_TYPES, {
     errorMap: () => ({ message: 'Tipul ajustării de stoc este invalid' }),
   }),
-  quantity: z.coerce 
-    .number()
-    .positive('Cantitatea trebuie să fie pozitivă'),
+  quantity: z.coerce.number().positive('Cantitatea trebuie să fie pozitivă'),
   unitCost: z.coerce.number().nonnegative().optional(),
   reason: z.string().min(3, 'Motivul/Nota este obligatorie pentru ajustări'),
 })
@@ -80,6 +78,31 @@ export const transferStockSchema = z.object({
   quantity: z.coerce.number().positive('Cantitatea trebuie să fie pozitivă'),
 })
 
+export const addInitialStockSchema = z.object({
+  stockableItemId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Produs invalid'),
+  stockableItemType: z.enum(['ERPProduct', 'Packaging']),
+  location: InventoryLocationSchema,
+  quantity: z.coerce.number().positive('Cantitatea trebuie să fie pozitivă'),
+  unitMeasure: z.string().min(1, 'Unitatea de măsură este obligatorie'),
+  unitCost: z.coerce.number().min(0, 'Costul unitar nu poate fi negativ'),
+  supplierId: z
+    .string()
+    .regex(/^[0-9a-fA-F]{24}$/, 'Furnizor invalid')
+    .optional()
+    .or(z.literal('')),
+
+  qualityDetails: z
+    .object({
+      lotNumbers: z.array(z.string()).optional(),
+      certificateNumbers: z.array(z.string()).optional(),
+      testReports: z.array(z.string()).optional(),
+      additionalNotes: z.string().optional(),
+    })
+    .optional(),
+  reason: z.string().optional().default('Import Stoc Inițial'),
+})
+
+export type AddInitialStockInput = z.infer<typeof addInitialStockSchema>
 export type InventoryItemAdjustInput = z.infer<typeof InventoryItemAdjustSchema>
 export type StockMovementInput = z.infer<typeof StockMovementSchema>
 export type AdjustStockInput = z.infer<typeof adjustStockSchema>

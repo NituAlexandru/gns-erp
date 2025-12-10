@@ -2,6 +2,8 @@
 
 import { startSession, Types } from 'mongoose'
 import {
+  AddInitialStockInput,
+  addInitialStockSchema,
   AdjustStockInput,
   adjustStockSchema,
   TransferStockInput,
@@ -15,6 +17,8 @@ import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
 import { recalculateInventorySummary } from './inventory.actions.core'
 import { auth } from '@/auth'
+import PackagingModel from '../packaging-products/packaging.model'
+import ERPProductModel from '../product/product.model'
 
 /**
  * Transferă o cantitate dintr-un lot specific dintr-o locație în alta.
@@ -125,7 +129,7 @@ export async function transferStock(input: TransferStockInput) {
           locationFrom: sourceItem.location,
           locationTo: payload.targetLocation,
           quantity: payload.quantity,
-          unitMeasure: unitMeasure, 
+          unitMeasure: unitMeasure,
           responsibleUser: userSession.user.id,
           responsibleUserName: userSession.user.name,
           unitCost: batchSnapshot.unitCost, // Iese cu prețul de intrare
@@ -164,7 +168,7 @@ export async function transferStock(input: TransferStockInput) {
 
     // Adăugăm lotul în destinație (copie identică a datelor, doar cantitatea e cea transferată)
     destItem.batches.push({
-      _id: new Types.ObjectId(), 
+      _id: new Types.ObjectId(),
       quantity: payload.quantity,
       unitCost: batchSnapshot.unitCost,
       entryDate: batchSnapshot.entryDate, // Păstrăm vechimea lotului!
@@ -406,6 +410,138 @@ export async function adjustStock(input: AdjustStockInput) {
     return {
       success: false,
       error: error.message || 'Ajustarea a eșuat.',
+    }
+  } finally {
+    session.endSession()
+  }
+}
+
+/**
+ * Adaugă Stoc Inițial pentru un produs într-o locație.
+ * Dacă InventoryItem nu există, îl creează automat.
+ */
+export async function addInitialStock(input: AddInitialStockInput) {
+  const session = await startSession()
+  session.startTransaction()
+
+  try {
+    await connectToDatabase()
+    const payload = addInitialStockSchema.parse(input)
+
+    const userSession = await auth()
+    if (!userSession?.user) {
+      throw new Error('Utilizatorul nu este autentificat.')
+    }
+
+    // 1. Identificăm Produsul/Ambalajul pentru date (UM, Nume)
+    let productDoc = null
+    if (payload.stockableItemType === 'ERPProduct') {
+      productDoc = await ERPProductModel.findById(
+        payload.stockableItemId
+      ).session(session)
+    } else {
+      productDoc = await PackagingModel.findById(
+        payload.stockableItemId
+      ).session(session)
+    }
+
+    if (!productDoc) {
+      throw new Error('Produsul selectat nu a fost găsit în baza de date.')
+    }
+
+    // --- LOGICA ROBUSTĂ PENTRU UM (fixul discutat anterior) ---
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const itemData = productDoc as any
+    const unitMeasure = itemData?.unit || itemData?.packagingUnit || '-'
+
+    // 2. Căutăm sau Creăm InventoryItem
+    let inventoryItem = await InventoryItemModel.findOne({
+      stockableItem: payload.stockableItemId,
+      stockableItemType: payload.stockableItemType,
+      location: payload.location,
+    }).session(session)
+
+    if (!inventoryItem) {
+      // Nu există stoc în această locație -> Creăm documentul
+      inventoryItem = new InventoryItemModel({
+        stockableItem: payload.stockableItemId,
+        stockableItemType: payload.stockableItemType,
+        location: payload.location,
+        batches: [],
+        totalStock: 0,
+        quantityReserved: 0,
+        // Setăm prețurile inițiale
+        lastPurchasePrice: payload.unitCost,
+        averageCost: payload.unitCost,
+        minPurchasePrice: payload.unitCost,
+        maxPurchasePrice: payload.unitCost,
+      })
+    }
+
+    // 3. Creăm Lotul Nou
+    const newBatchId = new Types.ObjectId()
+    const movementId = new Types.ObjectId() // ID-ul mișcării curente
+    const importOperationId = new Types.ObjectId()
+
+    // Pregătim supplierId dacă există
+    const supplierId = payload.supplierId
+      ? new Types.ObjectId(payload.supplierId)
+      : undefined
+
+    inventoryItem.batches.push({
+      _id: newBatchId,
+      quantity: payload.quantity,
+      unitCost: payload.unitCost,
+      entryDate: new Date(), // Stocul intră acum
+      movementId: movementId,
+      supplierId: supplierId,
+      qualityDetails: payload.qualityDetails || {},
+    })
+
+    // Actualizăm ultimul preț de achiziție
+    inventoryItem.lastPurchasePrice = payload.unitCost
+
+    // Recalculăm totalurile
+    await recalculateInventorySummary(inventoryItem)
+    await inventoryItem.save({ session })
+
+    // 4. Creăm Mișcarea de Stoc (Log)
+    const movement = new StockMovementModel({
+      _id: movementId,
+      stockableItem: payload.stockableItemId,
+      stockableItemType: payload.stockableItemType,
+      movementType: 'STOC_INITIAL',
+      locationTo: payload.location, // Doar locationTo la intrări
+      quantity: payload.quantity,
+      unitMeasure: unitMeasure,
+      responsibleUser: userSession.user.id,
+      responsibleUserName: userSession.user.name,
+      unitCost: payload.unitCost,
+      lineCost: payload.quantity * payload.unitCost,
+      balanceBefore: inventoryItem.totalStock - payload.quantity,
+      balanceAfter: inventoryItem.totalStock,
+      note: payload.reason,
+      referenceId: importOperationId,
+      supplierId: supplierId,
+      qualityDetails: payload.qualityDetails,
+      timestamp: new Date(),
+      status: 'ACTIVE',
+    })
+
+    await movement.save({ session })
+
+    await session.commitTransaction()
+
+    // Revalidăm calea (ajustează calea dacă e diferită în aplicația ta)
+    revalidatePath(`/admin/management/inventory/stock/${payload.location}`)
+
+    return { success: true }
+  } catch (error: any) {
+    await session.abortTransaction()
+    console.error('Eroare la adăugare stoc inițial:', error)
+    return {
+      success: false,
+      error: error.message || 'Adăugarea stocului a eșuat.',
     }
   } finally {
     session.endSession()

@@ -25,7 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { ChevronLeft, ChevronRight } from 'lucide-react' // Paginare
+import { ChevronLeft, ChevronRight, Truck } from 'lucide-react' // Paginare
+import { AddInitialStockDialog } from '../add-initial-stock-dialog'
 
 interface StockByLocationTableProps {
   initialStockData: AggregatedStockItem[]
@@ -105,8 +106,16 @@ export function StockByLocationTable({
             </span>
           )}
         </div>
-        <div className='w-[400px]'>
-          <StockSearchFilter onSearchChange={handleSearchChange} />
+        <div className='flex gap-2'>
+          <AddInitialStockDialog onSuccess={fetchStock}>
+            <Button variant='outline'>
+              <Truck className='mr-2 h-4 w-4' />
+              Adaugă Stoc Inițial
+            </Button>
+          </AddInitialStockDialog>
+          <div className='w-[400px]'>
+            <StockSearchFilter onSearchChange={handleSearchChange} />
+          </div>
         </div>
       </div>
 

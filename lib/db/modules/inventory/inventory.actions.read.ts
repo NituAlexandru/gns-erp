@@ -799,10 +799,14 @@ export async function getStockMovementDetails(
     await connectToDatabase()
 
     const movement = await StockMovementModel.findById(movementId)
-      .populate({ path: 'stockableItem', select: 'name productCode' })
+      .populate({
+        path: 'stockableItem',
+        select:
+          'name productCode unit packagingUnit packagingQuantity itemsPerPallet',
+      })
       .populate({ path: 'responsibleUser', select: 'name' })
-      .populate('supplierId')
-      .populate('clientId')
+      .populate('supplierId', 'name')
+      .populate('clientId', 'name')
       .lean()
 
     if (!movement) {
