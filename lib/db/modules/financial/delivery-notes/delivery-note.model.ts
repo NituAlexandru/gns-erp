@@ -42,6 +42,8 @@ export interface ICostBreakdown {
   quantity: number // Cât s-a consumat din acest lot
   unitCost: number // Costul lotului respectiv
   type: 'REAL' | 'PROVISIONAL'
+  supplierId?: Types.ObjectId
+  supplierName?: string
   qualityDetails?: IQualityDetails
 }
 
@@ -192,6 +194,15 @@ const CostBreakdownSchema = new Schema<ICostBreakdown>(
       default: 'REAL',
     },
     qualityDetails: { type: QualityDetailsSchema, default: {} },
+    supplierId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Supplier',
+      required: false,
+    },
+    supplierName: {
+      type: String,
+      required: false,
+    },
   },
   { _id: false }
 )

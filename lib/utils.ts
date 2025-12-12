@@ -65,6 +65,12 @@ export function formatNumber(number: number) {
 export const round2 = (num: number) =>
   Math.round((num + Number.EPSILON) * 100) / 100
 
+export const round4 = (num: number) =>
+  Math.round((num + Number.EPSILON) * 10000) / 10000
+
+export const round6 = (num: number) =>
+  Math.round((num + Number.EPSILON) * 1000000) / 1000000
+
 export const generateId = () =>
   Array.from({ length: 24 }, () => Math.floor(Math.random() * 10)).join('')
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

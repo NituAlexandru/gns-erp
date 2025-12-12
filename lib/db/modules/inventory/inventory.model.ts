@@ -28,12 +28,16 @@ export interface IInventoryBatch {
   entryDate: Date
   movementId: Types.ObjectId
   supplierId?: Types.ObjectId
+  supplierName?: string
   qualityDetails?: IQualityDetails
 }
 
 export interface IInventoryItemDoc extends Document {
   stockableItem: Types.ObjectId
   stockableItemType: 'ERPProduct' | 'Packaging'
+  searchableName: string
+  searchableCode: string
+  unitMeasure: string
   location: string
   clientId?: Types.ObjectId
   batches: IInventoryBatch[]
@@ -57,6 +61,7 @@ const InventoryBatchSchema = new Schema<IInventoryBatch>({
     required: true,
   },
   supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+  supplierName: { type: String },
   qualityDetails: { type: QualityDetailsSchema, default: {} },
 })
 
@@ -72,6 +77,9 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
       required: true,
       refPath: 'stockableItemType',
     },
+    searchableName: { type: String, required: false, index: true },
+    searchableCode: { type: String, required: false, index: true },
+    unitMeasure: { type: String, required: false },
     location: { type: String, required: true, index: true },
     clientId: { type: Schema.Types.ObjectId, ref: 'Client', sparse: true },
     batches: [InventoryBatchSchema],
@@ -84,6 +92,9 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
   },
   { timestamps: true }
 )
+
+InventoryItemSchema.index({ location: 1, searchableName: 1 })
+InventoryItemSchema.index({ location: 1, searchableCode: 1 })
 
 const InventoryItemModel: Model<IInventoryItemDoc> =
   (models.InventoryItem as Model<IInventoryItemDoc>) ||

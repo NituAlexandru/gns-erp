@@ -36,6 +36,7 @@ export interface IStockMovementDoc extends Document {
   lineCost?: number // Costul total al mișcării
   costBreakdown?: ICostBreakdownBatch[] // Detalierea loturilor (doar pt IESIRI)
   supplierId?: Types.ObjectId
+  supplierName?: string
   clientId?: Types.ObjectId
   documentNumber?: string
   qualityDetails?: IQualityDetails
@@ -60,6 +61,7 @@ export const CostBreakdownBatchSchema = new Schema<ICostBreakdownBatch>(
       default: 'REAL',
     },
     supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+    supplierName: { type: String },
     qualityDetails: { type: QualityDetailsSchema },
   },
   { _id: false }
@@ -108,6 +110,7 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     lineCost: { type: Number, required: false },
     costBreakdown: { type: [CostBreakdownBatchSchema], required: false },
     supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
+    supplierName: { type: String },
     clientId: { type: Schema.Types.ObjectId, ref: 'Client', required: false },
     documentNumber: { type: String, required: false },
     qualityDetails: { type: QualityDetailsSchema },

@@ -12,8 +12,10 @@ import InventoryItemModel, {
 import User from '../user/user.model'
 import ArchivedBatchModel from './archived-batch.model'
 import { revalidatePath } from 'next/cache'
-import ReceptionModel from '../reception/reception.model'
 import { connectToDatabase } from '../..'
+import ReceptionModel from '../reception/reception.model'
+import ERPProductModel from '../product/product.model'
+import PackagingModel from '../packaging-products/packaging.model'
 
 /**
  * Înregistrează o mișcare de stoc (IN/OUT) conform logicii FIFO.
@@ -34,6 +36,36 @@ export async function recordStockMovement(
   const payload = StockMovementSchema.parse(input)
 
   const executeLogic = async (session: ClientSession) => {
+    //  Pregătire date denormalizate (Cache) ---
+    let finalItemName = payload.itemName || ''
+    let finalItemCode = payload.itemCode || ''
+    let finalUnitMeasure = payload.unitMeasure || '-'
+
+    // Dacă nu au fost trimise prin payload, le căutăm noi acum (Safety Check)
+    if (!finalItemName && session) {
+      if (payload.stockableItemType === 'ERPProduct') {
+        const prod = await ERPProductModel.findById(payload.stockableItem)
+          .select('name productCode unit')
+          .session(session)
+        if (prod) {
+          finalItemName = prod.name
+          finalItemCode = prod.productCode || ''
+          if (finalUnitMeasure === '-' || !finalUnitMeasure)
+            finalUnitMeasure = prod.unit
+        }
+      } else {
+        const pkg = await PackagingModel.findById(payload.stockableItem)
+          .select('name productCode packagingUnit')
+          .session(session)
+        if (pkg) {
+          finalItemName = pkg.name
+          finalItemCode = pkg.productCode || ''
+          if (finalUnitMeasure === '-' || !finalUnitMeasure)
+            finalUnitMeasure = pkg.packagingUnit
+        }
+      }
+    }
+
     let isInput: boolean
     if (IN_TYPES.has(payload.movementType)) {
       isInput = true
@@ -59,12 +91,21 @@ export async function recordStockMovement(
     if (!inventoryItem) {
       inventoryItem = new InventoryItemModel({
         stockableItem: payload.stockableItem,
+        searchableName: finalItemName,
+        searchableCode: finalItemCode,
+        unitMeasure: finalUnitMeasure,
         stockableItemType: payload.stockableItemType,
         location: auditLocation,
         batches: [],
         totalStock: 0,
         quantityReserved: 0,
       })
+    } else {
+      // Dacă există, facem update "lazy" dacă lipsesc datele sau s-au schimbat
+      // (Suprascriem mereu pentru a ține cache-ul proaspăt)
+      inventoryItem.searchableName = finalItemName
+      inventoryItem.searchableCode = finalItemCode
+      inventoryItem.unitMeasure = finalUnitMeasure
     }
 
     const balanceBefore = inventoryItem.totalStock || 0
@@ -90,6 +131,7 @@ export async function recordStockMovement(
       supplierId: payload.supplierId
         ? new Types.ObjectId(payload.supplierId)
         : undefined,
+      supplierName: payload.supplierName,
       clientId: payload.clientId
         ? new Types.ObjectId(payload.clientId)
         : undefined,
@@ -117,6 +159,7 @@ export async function recordStockMovement(
         entryDate: payload.timestamp ?? new Date(),
         movementId: movement._id as Types.ObjectId,
         supplierId: supplierIdObj,
+        supplierName: payload.supplierName,
         qualityDetails: payload.qualityDetails,
       })
 
@@ -153,6 +196,7 @@ export async function recordStockMovement(
           unitCost: batch.unitCost,
           type: 'REAL',
           supplierId: batch.supplierId,
+          supplierName: batch.supplierName,
           qualityDetails: batch.qualityDetails,
         })
 
@@ -256,7 +300,6 @@ export async function recordStockMovement(
     }
   }
 }
-
 export async function reverseStockMovementsByReference(
   referenceId: string,
   session: ClientSession
@@ -283,46 +326,45 @@ export async function reverseStockMovementsByReference(
       location: movement.locationTo,
     }).session(session)
 
-    let balanceBeforeReversal = 0
-    let balanceAfterReversal = 0
-
-    // Dacă inventarul nu mai există la locația respectivă (ex: consumat complet),
-    // înregistrăm doar mișcarea de anulare ca audit și trecem mai departe.
-    if (inventoryItem) {
-      balanceBeforeReversal = inventoryItem.batches.reduce(
-        (sum, b) => sum + b.quantity,
-        0
-      )
-
-      const initialBatchCount = inventoryItem.batches.length
-
-      // Încercăm să ștergem lotul corespunzător
-      inventoryItem.batches = inventoryItem.batches.filter(
-        (batch) => String(batch.movementId) !== movementIdStr
-      )
-
-      const removed = inventoryItem.batches.length < initialBatchCount
-
-      if (removed) {
-        await recalculateInventorySummary(inventoryItem)
-        await inventoryItem.save({ session })
-      } else {
-        console.warn(
-          `[REVOC] Lotul pentru mișcarea ${movementIdStr} nu a fost găsit în stoc (probabil consumat sau deja anulat).`
-        )
-      }
-
-      balanceAfterReversal = inventoryItem.batches.reduce(
-        (sum, b) => sum + b.quantity,
-        0
-      )
-    } else {
-      console.info(
-        `[REVOC] Articolul de inventar pentru mișcarea ${movementIdStr} nu a fost găsit. Se înregistrează doar audit.`
+    if (!inventoryItem) {
+      // Caz critic: Itemul de inventar a dispărut cu totul.
+      throw new Error(
+        `Nu se poate anula recepția. Articolul de inventar pentru ${movement.stockableItem} nu mai există (stocul a fost epuizat).`
       )
     }
 
-    // Creăm mișcarea de audit de tip "ANULARE_RECEPTIE" pentru istoric
+    // 1. Căutăm lotul specific creat de această mișcare
+    const batchIndex = inventoryItem.batches.findIndex(
+      (b) => String(b.movementId) === movementIdStr
+    )
+
+    // Caz A: Lotul nu mai există deloc (a fost consumat complet și arhivat)
+    if (batchIndex === -1) {
+      throw new Error(
+        `Nu se poate anula recepția. Lotul pentru articolul ${movement.stockableItem} a fost deja epuizat complet.`
+      )
+    }
+
+    const batch = inventoryItem.batches[batchIndex]
+
+    // Caz B: Lotul există, dar cantitatea este mai mică (s-a consumat parțial)
+    // Folosim o mică toleranță pentru float numbers, dar logic trebuie să fie egale
+    if (batch.quantity < movement.quantity) {
+      throw new Error(
+        `Nu se poate anula recepția. Din articolul ${movement.stockableItem} s-au vândut deja produse. ` +
+          `(Stoc Rămas: ${batch.quantity}, Stoc Inițial: ${movement.quantity}). ` +
+          `Trebuie să faceți retur la vânzări înainte de a anula recepția.`
+      )
+    }
+
+    // 2. Dacă am trecut de verificări, e safe să ștergem lotul
+    inventoryItem.batches.splice(batchIndex, 1)
+
+    // 3. Recalculăm și salvăm
+    await recalculateInventorySummary(inventoryItem)
+    await inventoryItem.save({ session })
+
+    // 4. Creăm mișcarea de audit de tip "ANULARE_RECEPTIE"
     const reversalMovement = new StockMovementModel({
       stockableItem: movement.stockableItem,
       stockableItemType: movement.stockableItemType,
@@ -334,14 +376,16 @@ export async function reverseStockMovementsByReference(
       referenceId,
       note: `Anulare mișcare recepție originală ${movementIdStr}`,
       timestamp: new Date(),
-      balanceBefore: balanceBeforeReversal,
-      balanceAfter: balanceAfterReversal,
+      // Soldurile se iau din inventoryItem DUPĂ recalculare (care a scăzut stocul)
+      balanceBefore: inventoryItem.totalStock + movement.quantity,
+      balanceAfter: inventoryItem.totalStock,
       supplierId: movement.supplierId,
+      supplierName: movement.supplierName,
       qualityDetails: movement.qualityDetails,
     })
     await reversalMovement.save({ session })
 
-    // PASUL 2: În loc să ștergem, ACTUALIZĂM statusul mișcării originale
+    // 5. Marcăm mișcarea originală ca anulată
     movement.status = 'CANCELLED'
     await movement.save({ session })
   }
@@ -352,22 +396,29 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
   // Păstrat codul tău de sortare:
   item.batches.sort((a, b) => a.entryDate.getTime() - b.entryDate.getTime())
 
-  // --- START MODIFICARE STRICTĂ ---
-  // ÎN LOC DE: const totalStock = item.totalStock
-  // Calculăm suma din batches ca să fim siguri că e corectă (autovindecare)
-  const totalStock = item.batches.reduce(
+  // Calculăm suma loturilor fizice existente
+  const batchesSum = item.batches.reduce(
     (sum, batch) => sum + batch.quantity,
     0
   )
 
-  // Setăm valoarea înapoi pe obiect ca să se salveze în bază
-  item.totalStock = totalStock
-  // --- FINAL MODIFICARE STRICTĂ ---
+  // --- MODIFICARE PENTRU A PERMITE STOC NEGATIV ---
 
-  // De aici în jos este EXACT logica ta originală, caracter cu caracter:
+  // 1. Dacă avem loturi fizice, stocul total se aliniază cu ele.
+  if (batchesSum > 0) {
+    item.totalStock = batchesSum
+  }
+  // 2. Dacă NU avem loturi (suma e 0), dar stocul figurează POZITIV, îl punem pe 0 (corecție).
+  else if (batchesSum === 0 && item.totalStock > 0) {
+    item.totalStock = 0
+  }
+  // 3. IMPORTANT: Dacă item.totalStock < 0 (NEGATIV), NU facem nimic.
+  // Îl lăsăm așa cum a fost calculat (ex: -5), nu îl suprascriem cu batchesSum (0).
 
-  // Actualizăm prețurile DOAR dacă există stoc POZITIV.
-  if (totalStock > 0 && item.batches.length > 0) {
+  // ------------------------------------------------
+
+  // Actualizăm prețurile DOAR dacă există stoc POZITIV și loturi.
+  if (item.totalStock > 0 && item.batches.length > 0) {
     let totalValue = 0
     let maxPrice = 0
     let minPrice = Infinity
@@ -378,21 +429,19 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
       if (batch.unitCost < minPrice) minPrice = batch.unitCost
     }
 
-    item.averageCost = totalValue / totalStock
+    item.averageCost = totalValue / item.totalStock
     item.maxPurchasePrice = maxPrice
     item.minPurchasePrice = minPrice === Infinity ? 0 : minPrice
 
     // Setăm lastPurchasePrice DOAR dacă avem loturi.
     item.lastPurchasePrice = item.batches[item.batches.length - 1].unitCost
-  } else if (totalStock <= 0) {
+  } else if (item.totalStock <= 0) {
     // Stocul e 0 sau negativ. Resetăm DOAR costurile de medie.
     item.averageCost = 0
     item.maxPurchasePrice = 0
     item.minPurchasePrice = 0
     // NU ATINGEM item.lastPurchasePrice. Acesta trebuie să persiste.
   }
-  // Dacă stocul e > 0 dar 'batches' e gol (caz imposibil dacă logica e corectă),
-  // pur și simplu nu facem nimic, păstrând valorile vechi.
 }
 export async function updateBatchDetails(
   inventoryItemId: string,

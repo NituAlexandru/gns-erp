@@ -1,5 +1,5 @@
-import { roundToTwoDecimals } from '@/lib/finance/money'
 import { IInvoice } from './reception.model'
+import { round2 } from '@/lib/utils'
 
 interface DistributableItem {
   quantity: number
@@ -23,10 +23,7 @@ export function distributeTransportCost<T extends DistributableItem>(
     return sum + unitNet * qty
   }, 0)
 
-  if (
-    roundToTwoDecimals(totalTransportCost) === 0 ||
-    roundToTwoDecimals(totalItemsNetValue) === 0
-  ) {
+  if (round2(totalTransportCost) === 0 || round2(totalItemsNetValue) === 0) {
     return items.map((item) => ({
       ...item,
       totalDistributedTransportCost: 0,
@@ -39,23 +36,21 @@ export function distributeTransportCost<T extends DistributableItem>(
     const itemNetValue = unitNet * qty
     const weightShare = itemNetValue / totalItemsNetValue
     const rawAllocation = totalTransportCost * weightShare
-    return roundToTwoDecimals(rawAllocation)
+    return round2(rawAllocation)
   })
 
   const allocatedSum = allocatedTransportCosts.reduce(
-    (s, v) => roundToTwoDecimals(s + v),
+    (s, v) => round2(s + v),
     0
   )
-  const allocationDifference = roundToTwoDecimals(
-    roundToTwoDecimals(totalTransportCost) - allocatedSum
-  )
+  const allocationDifference = round2(round2(totalTransportCost) - allocatedSum)
 
   if (
     Math.abs(allocationDifference) > 0 &&
     allocatedTransportCosts.length > 0
   ) {
     const lastIdx = allocatedTransportCosts.length - 1
-    allocatedTransportCosts[lastIdx] = roundToTwoDecimals(
+    allocatedTransportCosts[lastIdx] = round2(
       allocatedTransportCosts[lastIdx] + allocationDifference
     )
   }
@@ -71,8 +66,8 @@ export function calculateInvoiceTotals(invoices: IInvoice[]): IInvoice[] {
     const amount = invoice.amount ?? 0
     const vatRate = invoice.vatRate ?? 0
 
-    const vatValue = roundToTwoDecimals(amount * (vatRate / 100))
-    const totalWithVat = roundToTwoDecimals(amount + vatValue)
+    const vatValue = round2(amount * (vatRate / 100))
+    const totalWithVat = round2(amount + vatValue)
 
     // Returnăm un obiect nou pentru a evita mutațiile directe
     return {

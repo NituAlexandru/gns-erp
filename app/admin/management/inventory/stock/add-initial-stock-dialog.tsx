@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Package, Box, Info } from 'lucide-react'
 import { toast } from 'sonner'
-
 import {
   Dialog,
   DialogContent,
@@ -22,7 +21,6 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from '@/components/ui/form'
 import {
   Select,
@@ -36,7 +34,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Label } from '@/components/ui/label'
-
 import { addInitialStock } from '@/lib/db/modules/inventory/inventory.actions.operations'
 import {
   INVENTORY_LOCATIONS,

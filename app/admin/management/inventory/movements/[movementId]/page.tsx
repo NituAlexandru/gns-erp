@@ -25,13 +25,19 @@ import {
 import { formatCurrency, cn } from '@/lib/utils'
 import { BackButton } from './back-button'
 import { UnitDisplay } from '@/components/inventory/unit-display'
-import { PriceDisplay } from '@/components/inventory/price-display'
 import StockMovementModel from '@/lib/db/modules/inventory/movement.model'
 import Link from 'next/link'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, FileText } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 // 1. Extrage Numărul Documentului (din seriesName + noteNumber sau invoiceNumber)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getDocumentNumber = (movement: any, reference: any) => {
   if (movement.documentNumber) return movement.documentNumber
 
@@ -71,7 +77,6 @@ const getDocumentNumber = (movement: any, reference: any) => {
 }
 
 // 3. Extrage Nume Partener (Furnizor sau Client)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getPartnerName = (movement: any) => {
   // CAZ SPECIAL: Transferuri (Partenerul este Locația Opusă)
   if (movement.movementType === 'TRANSFER_IN') {
@@ -125,7 +130,6 @@ const getPartnerName = (movement: any) => {
 }
 
 // 4. Construiește opțiunile pentru produsul principal (header)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const buildMainItemOptions = (stockItem: any) => {
   if (!stockItem) return []
   const options = []
@@ -269,8 +273,23 @@ export default async function MovementDetailsPage({
 
                 <DetailRow label={partnerLabel} value={partnerName} />
                 <DetailRow
-                  label='Produs'
-                  value={movement.stockableItem?.name || 'N/A'}
+                  label='Produs (Fișă Stoc)'
+                  value={
+                    movement.stockableItem?._id ? (
+                      <Link
+                        href={`/admin/management/inventory/stock/details/${movement.stockableItem._id}`}
+                        className='flex items-center justify-end gap-1 text-primary hover:text-primary/80 hover:underline transition-colors'
+                        title='Mergi la Fișa de Stoc a produsului'
+                      >
+                        <span className='font-semibold text-right truncate max-w-[300px]'>
+                          {movement.stockableItem.name}
+                        </span>
+                        <ExternalLink className='h-4 w-4 shrink-0' />
+                      </Link>
+                    ) : (
+                      movement.stockableItem?.name || 'N/A'
+                    )
+                  }
                 />
                 <DetailRow
                   label='Cantitate'
@@ -308,13 +327,13 @@ export default async function MovementDetailsPage({
             </CardContent>
           </Card>
 
-          {/* Card 2: Trasabilitate (Cost Breakdown) */}
+          {/* Card 2: Trasabilitate (Apare DOAR dacă avem loturi fizice - ex: Produse) */}
           {movement.costBreakdown && movement.costBreakdown.length > 0 && (
             <Card>
               <CardHeader className='pb-3'>
                 <CardTitle>Trasabilitate & Loturi Sursă</CardTitle>
                 <CardDescription>
-                  Loturile din care s-a consumat cantitatea.
+                  Loturile din care s-a consumat/format cantitatea.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -322,69 +341,154 @@ export default async function MovementDetailsPage({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Data Intrare</TableHead>
-                      <TableHead>Furnizor Origine</TableHead>
+                      <TableHead>Furnizor</TableHead>
                       <TableHead>Detalii Calitate</TableHead>
                       <TableHead className='text-right'>Cantitate</TableHead>
-                      <TableHead className='text-right'>Cost FIFO</TableHead>
+                      <TableHead className='text-right'>Cost Unitar</TableHead>
+                      <TableHead className='text-right'>Valoare Lot</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                     {movement.costBreakdown.map((item: any, index: number) => {
-                      const lotQuality =
+                      // 1. Extragem datele de calitate SPECIFICE acestui rând (item)
+                      const q =
                         item.qualityDetails ||
-                        item.batchSnapshot?.qualityDetails
-                      // Încercăm să luăm numele furnizorului. Dacă e undefined în DB, afișăm '-'
-                      const lotSupplier =
+                        item.batchSnapshot?.qualityDetails ||
+                        {}
+
+                      // 2. Verificăm dacă avem date de afișat
+                      const hasQualityDetails =
+                        (q.lotNumbers && q.lotNumbers.length > 0) ||
+                        (q.certificateNumbers &&
+                          q.certificateNumbers.length > 0) ||
+                        (q.testReports && q.testReports.length > 0) ||
+                        q.additionalNotes
+
+                      // 3. Logica pentru Nume Furnizor
+                      const supplierName =
                         item.supplierName ||
+                        item.supplierId?.name ||
                         item.supplier?.name ||
-                        item.batchSnapshot?.supplierName ||
-                        '-'
+                        (item.supplierId ? 'Fără Nume (Doar ID)' : '-')
 
                       return (
                         <TableRow key={index}>
+                          {/* Coloana 1: Data Intrare */}
                           <TableCell>
                             {item.entryDate
-                              ? format(new Date(item.entryDate), 'dd/MM/yyyy', {
-                                  locale: ro,
-                                })
+                              ? format(new Date(item.entryDate), 'dd/MM/yyyy')
                               : '-'}
                           </TableCell>
-                          <TableCell>{lotSupplier}</TableCell>
-                          <TableCell className='text-xs text-muted-foreground'>
-                            {lotQuality ? (
-                              <div className='space-y-1'>
-                                {lotQuality.lotNumbers?.length > 0 && (
-                                  <div>
-                                    Lot: {lotQuality.lotNumbers.join(', ')}
-                                  </div>
-                                )}
-                                {lotQuality.certificateNumbers?.length > 0 && (
-                                  <div>
-                                    Cert:{' '}
-                                    {lotQuality.certificateNumbers.join(', ')}
-                                  </div>
-                                )}
-                              </div>
+
+                          {/* Coloana 2: Furnizor */}
+                          <TableCell className='font-medium text-muted-foreground '>
+                            {supplierName === 'Fără Nume (Doar ID)' ? (
+                              <span className='text-xs text-muted-foreground italic'>
+                                Furnizor Neidentificat
+                              </span>
                             ) : (
-                              '-'
+                              supplierName
                             )}
                           </TableCell>
+
+                          {/* Înlocuiește vechiul TableCell cu acesta: */}
+                          <TableCell className='text-center'>
+                            {hasQualityDetails ? (
+                              <Dialog>
+                                {/* Butonul care deschide modalul */}
+                                <DialogTrigger asChild>
+                                  <Button
+                                    variant='ghost'
+                                    size='sm'
+                                    className='h-8 w-8 p-0 hover:bg-blue-50'
+                                  >
+                                    <FileText className='h-4 w-4 ' />
+                                  </Button>
+                                </DialogTrigger>
+
+                                {/* Fereastra Modală cu Detaliile */}
+                                <DialogContent className='max-w-3xl'>
+                                  <DialogHeader>
+                                    <DialogTitle>
+                                      Detalii Calitate Lot Sursă
+                                    </DialogTitle>
+                                  </DialogHeader>
+
+                                  {/* Cardul stilizat (copiat din exemplul tău) */}
+                                  <div className='grid grid-cols-1 md:grid-cols-2 gap-2 mt-2'>
+                                    {/* 1. Certificate */}
+                                    <div className='rounded-md border bg-muted/30 p-4 flex flex-col gap-1.5'>
+                                      <span className='text-sm font-medium text-muted-foreground'>
+                                        Certificate Conformitate / Calitate:
+                                      </span>
+                                      <span className='font-semibold text-sm'>
+                                        {q.certificateNumbers?.length
+                                          ? q.certificateNumbers.join(', ')
+                                          : '-'}
+                                      </span>
+                                    </div>
+
+                                    {/* 2. Loturi */}
+                                    <div className='rounded-md border bg-muted/30 p-4 flex flex-col gap-1.5'>
+                                      <span className='text-sm font-medium text-muted-foreground'>
+                                        Șarje / Loturi Producție:
+                                      </span>
+                                      <span className='font-semibold text-sm'>
+                                        {q.lotNumbers?.length
+                                          ? q.lotNumbers.join(', ')
+                                          : '-'}
+                                      </span>
+                                    </div>
+
+                                    {/* 3. Rapoarte */}
+                                    <div className='rounded-md border bg-muted/30 p-4 flex flex-col gap-1.5'>
+                                      <span className='text-sm font-medium text-muted-foreground'>
+                                        Declarații / Rapoarte Încercări:
+                                      </span>
+                                      <span className='font-semibold text-sm'>
+                                        {q.testReports?.length
+                                          ? q.testReports.join(', ')
+                                          : '-'}
+                                      </span>
+                                    </div>
+
+                                    {/* 4. Note Adiționale */}
+                                    <div className='rounded-md border bg-muted/30 p-4 flex flex-col gap-1.5'>
+                                      <span className='text-sm font-medium text-muted-foreground'>
+                                        Note Adiționale:
+                                      </span>
+                                      <span className='font-semibold text-sm whitespace-pre-wrap'>
+                                        {q.additionalNotes || '-'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            ) : (
+                              <span className='text-muted-foreground'>-</span>
+                            )}
+                          </TableCell>
+                          {/* Coloana 4: Cantitate */}
                           <TableCell className='text-right'>
                             <UnitDisplay
                               baseQuantity={item.quantity}
                               baseUnit={movement.unitMeasure || ''}
-                              options={mainItemOptions}
+                              options={mainItemOptions || []}
                               className='font-medium'
                             />
                           </TableCell>
+
+                          {/* Coloana 5: Cost Unitar */}
                           <TableCell className='text-right'>
-                            <PriceDisplay
-                              baseCost={item.unitCost}
-                              baseUnit={movement.unitMeasure || ''}
-                              options={mainItemOptions}
-                              className='text-sm'
-                            />
+                            {formatCurrency(item.unitCost || 0)}
+                          </TableCell>
+
+                          {/* Coloana 6: Valoare Lot */}
+                          <TableCell className='text-right font-bold'>
+                            {formatCurrency(
+                              (Number(item.quantity) || 0) *
+                                (Number(item.unitCost) || 0)
+                            )}
                           </TableCell>
                         </TableRow>
                       )
@@ -395,6 +499,31 @@ export default async function MovementDetailsPage({
             </Card>
           )}
 
+          {/* Card Alternativ: Apare DOAR dacă NU avem loturi (ex: Servicii) */}
+          {(!movement.costBreakdown || movement.costBreakdown.length === 0) && (
+            <Card>
+              <CardHeader className='pb-3'>
+                <CardTitle>Detalii Cost Serviciu / Ajustare</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className='bg-muted/20 p-4 rounded-md border border-dashed flex flex-col gap-2'>
+                  <p className='text-sm text-muted-foreground'>
+                    Această mișcare nu are trasabilitate fizică (nu are loturi),
+                    fiind probabil un serviciu, transport sau o ajustare
+                    directă.
+                  </p>
+                  <div className='flex items-center justify-between mt-2'>
+                    <span className='font-semibold'>Cost Înregistrat:</span>
+                    <Badge variant='outline' className='text-base px-3 py-1'>
+                      {movement.lineCost && movement.lineCost > 0
+                        ? formatCurrency(movement.lineCost)
+                        : 'Fără Cost (0.00 RON)'}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {/* Card 3: Calitate - STILIZAT CA ÎN MODAL */}
           {movement.qualityDetails && (
             <Card>
@@ -461,13 +590,20 @@ export default async function MovementDetailsPage({
               <CardTitle>Balanță Stoc</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className='flex justify-between py-2 border-b'>
+              {/* 1. Rândul ÎNAINTE - Acum folosește UnitDisplay */}
+              <div className='flex justify-between items-center py-2 border-b'>
                 <span className='text-muted-foreground'>Înainte</span>
-                <span className='font-mono'>
-                  {movement.balanceBefore.toFixed(2)}
-                </span>
+                <div className='font-mono text-right'>
+                  <UnitDisplay
+                    baseQuantity={movement.balanceBefore}
+                    baseUnit={movement.unitMeasure || ''}
+                    options={mainItemOptions}
+                  />
+                </div>
               </div>
-              <div className='flex justify-between py-2 border-b bg-muted/20 px-2 -mx-2'>
+
+              {/* 2. Rândul MIȘCARE (Neschimbat, doar logica ta existentă) */}
+              <div className='flex justify-between items-center py-2 border-b bg-muted/20 px-2 -mx-2'>
                 <span className='font-semibold'>Mișcare</span>
                 <div className='flex gap-1 font-bold'>
                   <span
@@ -491,52 +627,234 @@ export default async function MovementDetailsPage({
                   />
                 </div>
               </div>
-              <div className='flex justify-between py-2 pt-3'>
+
+              {/* 3. Rândul DUPĂ - Acum folosește UnitDisplay */}
+              <div className='flex justify-between items-center py-2 pt-3'>
                 <span className='text-muted-foreground font-semibold'>
                   După
                 </span>
-                <span className='font-mono font-bold text-lg'>
-                  {movement.balanceAfter.toFixed(2)}
+                <div className='font-mono font-bold text-lg text-right'>
+                  <UnitDisplay
+                    baseQuantity={movement.balanceAfter}
+                    baseUnit={movement.unitMeasure || ''}
+                    options={mainItemOptions}
+                  />
+                </div>
+              </div>
+
+              {/* 4. Preț Unitar (FIFO la ieșiri) */}
+              <div className='flex justify-between py-2 border-b border-dashed'>
+                <span className='text-muted-foreground text-sm'>
+                  {/* Schimbăm eticheta dinamic dacă e ieșire */}
+                  {!IN_TYPES.has(movement.movementType)
+                    ? 'Preț Unitar (FIFO)'
+                    : 'Preț Unitar'}
+                </span>
+                <span className='font-mono text-sm'>
+                  {movement.unitCost
+                    ? formatCurrency(movement.unitCost)
+                    : '0.00 RON'}
+                </span>
+              </div>
+
+              {/* 5. Valoare Totală */}
+              <div className='flex justify-between py-2 border-b border-dashed'>
+                <span className='text-muted-foreground text-sm font-medium'>
+                  Valoare Totală
+                </span>
+                <span className='font-mono text-sm font-bold'>
+                  {movement.lineCost
+                    ? formatCurrency(movement.lineCost)
+                    : '0.00 RON'}
                 </span>
               </div>
             </CardContent>
           </Card>
 
           {/* Facturile asociate */}
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
           {(
             (reference as any)?.invoices ||
             (reference as any)?.relatedInvoices ||
             []
           ).length > 0 && (
             <Card>
-              <CardHeader className='pb-2'>
+              <CardHeader className='pb-0'>
                 <CardTitle>Facturi Asociate</CardTitle>
               </CardHeader>
-              <CardContent className='space-y-4'>
-                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              <CardContent className='space-y-3'>
                 {(
                   (reference as any)?.invoices ||
                   (reference as any)?.relatedInvoices
                 ).map((inv: any, idx: number) => (
                   <div
                     key={idx}
-                    className='bg-muted/30 p-3 rounded-md border text-sm'
+                    className='bg-muted/30 p-3 rounded-md border text-sm flex flex-col gap-2'
                   >
-                    <div className='flex justify-between font-semibold'>
-                      <span>
-                        {inv.series} {inv.number}
-                      </span>
-                      <span>{formatCurrency(inv.totalWithVat)}</span>
+                    {/* 1. Header: Serie + Date */}
+                    <div className='flex justify-between items-start'>
+                      <div className='flex flex-col'>
+                        <span className='font-semibold text-primary'>
+                          Seria {inv.series || 'Fără Serie'} nr.{' '}
+                          {inv.number || '-'}
+                        </span>
+                        <span className='text-xs text-muted-foreground'>
+                          {inv.date
+                            ? format(new Date(inv.date), 'dd/MM/yyyy')
+                            : '-'}
+                        </span>
+                      </div>
+                      <div className='text-xs text-right'>
+                        <span className='text-muted-foreground block'>
+                          Scadență:
+                        </span>
+                        <span
+                          className={
+                            new Date(inv.dueDate) < new Date()
+                              ? 'text-red-600 font-medium'
+                              : ''
+                          }
+                        >
+                          {inv.dueDate
+                            ? format(new Date(inv.dueDate), 'dd/MM/yyyy')
+                            : '-'}
+                        </span>
+                      </div>
                     </div>
-                    <div className='text-xs text-muted-foreground mt-1'>
-                      Data:{' '}
-                      {inv.date
-                        ? format(new Date(inv.date), 'dd/MM/yyyy')
-                        : '-'}
+
+                    {/* Separator subtil */}
+                    <div className='border-t border-dashed my-1 opacity-50'></div>
+
+                    {/* 2. Detalii Financiare (Grid) */}
+                    <div className='grid grid-cols-2 gap-y-1 text-xs'>
+                      <div className='text-muted-foreground'>Net (Bază):</div>
+                      <div className='text-right font-medium'>
+                        {formatCurrency(inv.amount || 0)}
+                      </div>
+
+                      <div className='text-muted-foreground'>
+                        TVA {inv.vatRate ? `(${inv.vatRate}%)` : ''}:
+                      </div>
+                      <div className='text-right font-medium'>
+                        {formatCurrency(inv.vatValue || 0)}
+                      </div>
+                    </div>
+
+                    {/* 3. Total General */}
+                    <div className='flex justify-between items-center bg-background/50 p-2 rounded border border-input/50 mt-1'>
+                      <span className='font-semibold text-muted-foreground text-xs uppercase tracking-tight'>
+                        Total Factură
+                      </span>
+                      <span className='font-bold text-base text-primary'>
+                        {formatCurrency(inv.totalWithVat || 0)}
+                      </span>
                     </div>
                   </div>
                 ))}
+              </CardContent>
+            </Card>
+          )}
+          {/* Bloc Deliveries (Avize) - Se afișează doar dacă există date */}
+          {/* Avize de Expediție (Deliveries) - Stil Identic Facturi */}
+          {((data?.reference as any)?.deliveries || []).length > 0 && (
+            <Card>
+              <CardHeader className='pb-0'>
+                <CardTitle>Avize de Expediție</CardTitle>
+              </CardHeader>
+              <CardContent className='space-y-1'>
+                {(data.reference as any).deliveries.map(
+                  (del: any, idx: number) => {
+                    // Logică extragere dată (Mongo object sau string)
+                    const rawDate =
+                      del.dispatchNoteDate?.$date || del.dispatchNoteDate
+                    const dateObj = rawDate ? new Date(rawDate) : null
+
+                    return (
+                      <div
+                        key={idx}
+                        className='bg-muted/30 p-3 rounded-md border text-sm flex flex-col gap-2'
+                      >
+                        {/* 1. Header: Serie + Data */}
+                        <div className='flex justify-between items-start'>
+                          <div className='flex flex-col'>
+                            <span className='font-semibold text-primary'>
+                              Seria {del.dispatchNoteSeries || '-'} nr.{' '}
+                              {del.dispatchNoteNumber || '-'}
+                            </span>
+                            <span className='text-xs text-muted-foreground'>
+                              {dateObj ? format(dateObj, 'dd/MM/yyyy') : '-'}
+                            </span>
+                          </div>
+                          <div className='text-xs text-right'></div>
+                        </div>
+
+                        {/* Separator subtil */}
+                        <div className='border-t border-dashed my-1 opacity-50'></div>
+
+                        {/* 2. Detalii Logistice (Grid - echivalent Net/TVA) */}
+                        <div className='grid grid-cols-2 gap-y-1 text-xs'>
+                          <div className='text-muted-foreground'>Sofer:</div>
+                          <div className='text-right font-medium'>
+                            {del.driverName || '-'}
+                          </div>
+
+                          {/* Randul 1: Auto */}
+                          <div className='text-muted-foreground'>Nr. Auto:</div>
+                          <div className='text-right font-medium'>
+                            {del.carNumber || '-'}
+                          </div>
+
+                          {/* Randul 2: Tip */}
+                          <div className='text-muted-foreground'>Tip:</div>
+                          <div className='text-right font-medium'>
+                            {del.transportType === 'EXTERN_FURNIZOR'
+                              ? 'Furnizor'
+                              : del.transportType === 'INTERN'
+                                ? 'Genesis'
+                                : del.transportType === 'TERT'
+                                  ? 'Terț'
+                                  : del.transportType}
+                          </div>
+
+                          {/* Randul 3 (Condiționat): Nume Terț */}
+                          {/* Apare DOAR daca e TERT și avem un nume */}
+                          {del.transportType === 'TERT' &&
+                            del.tertiaryTransporterDetails?.name && (
+                              <>
+                                <div className='text-muted-foreground'>
+                                  Transportator:
+                                </div>
+                                <div className='text-right font-medium '>
+                                  {del.tertiaryTransporterDetails.name}
+                                  {del.tertiaryTransporterDetails.cui}
+                                  {del.tertiaryTransporterDetails.regCom}
+                                </div>
+                              </>
+                            )}
+                        </div>
+
+                        {/* 3. Total General (Cost Transport - echivalent Total Factură) */}
+                        <div className='flex justify-between items-center bg-background/50 p-2 rounded border border-input/50'>
+                          <span className='font-semibold text-muted-foreground text-xs uppercase tracking-tight'>
+                            Cost Transport
+                          </span>
+                          <span className='font-bold text-base text-primary'>
+                            {/* Asumând că ai funcția formatCurrency, altfel pui `${del.transportCost} RON` */}
+                            {typeof formatCurrency === 'function'
+                              ? formatCurrency(del.transportCost || 0)
+                              : `${del.transportCost || 0} RON`}
+                          </span>
+                        </div>
+
+                        {/* 4. Note (Opțional - apare doar dacă există) */}
+                        {del.notes && (
+                          <div className='text-xs text-muted-foreground italic mt-1 border-t pt-1 border-dashed opacity-75'>
+                            Note: {del.notes}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+                )}
               </CardContent>
             </Card>
           )}

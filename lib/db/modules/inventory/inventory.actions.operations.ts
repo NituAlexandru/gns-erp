@@ -19,7 +19,7 @@ import { recalculateInventorySummary } from './inventory.actions.core'
 import { auth } from '@/auth'
 import PackagingModel from '../packaging-products/packaging.model'
 import ERPProductModel from '../product/product.model'
-
+import SupplierModel from '../suppliers/supplier.model'
 /**
  * Transferă o cantitate dintr-un lot specific dintr-o locație în alta.
  * Operațiunea este atomică (folosește tranzacție).
@@ -81,6 +81,7 @@ export async function transferStock(input: TransferStockInput) {
     const batchSnapshot = {
       unitCost: targetBatch.unitCost,
       supplierId: targetBatch.supplierId,
+      supplierName: targetBatch.supplierName,
       qualityDetails: targetBatch.qualityDetails,
       entryDate: targetBatch.entryDate,
       movementId: targetBatch.movementId, // Păstrăm trasabilitatea intrării originale
@@ -139,6 +140,7 @@ export async function transferStock(input: TransferStockInput) {
           note: `Transfer ieșire din gestiune - ${LOCATION_NAMES_MAP[sourceItem.location as keyof typeof LOCATION_NAMES_MAP] || sourceItem.location}`,
           referenceId: transferGroupId,
           supplierId: batchSnapshot.supplierId,
+          supplierName: batchSnapshot.supplierName,
           qualityDetails: batchSnapshot.qualityDetails,
           timestamp: new Date(),
         },
@@ -159,11 +161,18 @@ export async function transferStock(input: TransferStockInput) {
       destItem = new InventoryItemModel({
         stockableItem: sourceItem.stockableItem,
         stockableItemType: sourceItem.stockableItemType,
+        searchableName: sourceItem.searchableName,
+        searchableCode: sourceItem.searchableCode,
+        unitMeasure: sourceItem.unitMeasure,
         location: payload.targetLocation,
         batches: [],
         totalStock: 0,
         quantityReserved: 0,
       })
+    } else {
+      destItem.searchableName = sourceItem.searchableName
+      destItem.searchableCode = sourceItem.searchableCode
+      destItem.unitMeasure = sourceItem.unitMeasure
     }
 
     // Adăugăm lotul în destinație (copie identică a datelor, doar cantitatea e cea transferată)
@@ -174,6 +183,7 @@ export async function transferStock(input: TransferStockInput) {
       entryDate: batchSnapshot.entryDate, // Păstrăm vechimea lotului!
       movementId: batchSnapshot.movementId, // Păstrăm legătura cu intrarea originală
       supplierId: batchSnapshot.supplierId,
+      supplierName: batchSnapshot.supplierName,
       qualityDetails: batchSnapshot.qualityDetails,
     })
 
@@ -200,6 +210,7 @@ export async function transferStock(input: TransferStockInput) {
           note: `Transfer intrare din gestiune - ${LOCATION_NAMES_MAP[sourceItem.location as keyof typeof LOCATION_NAMES_MAP] || sourceItem.location}`,
           referenceId: transferGroupId,
           supplierId: batchSnapshot.supplierId,
+          supplierName: batchSnapshot.supplierName,
           qualityDetails: batchSnapshot.qualityDetails,
           timestamp: new Date(),
         },
@@ -235,7 +246,6 @@ export async function adjustStock(input: AdjustStockInput) {
   try {
     await connectToDatabase()
     const payload = adjustStockSchema.parse(input)
-
     const adjustmentId = new Types.ObjectId()
 
     const userSession = await auth()
@@ -243,18 +253,28 @@ export async function adjustStock(input: AdjustStockInput) {
       throw new Error('Utilizatorul nu este autentificat.')
     }
 
-    const item = await InventoryItemModel.findById(payload.inventoryItemId)
+    // 1. Găsim InventoryItem
+    const inventoryItem = await InventoryItemModel.findById(
+      payload.inventoryItemId
+    )
       .populate('stockableItem')
       .session(session)
 
-    if (!item) throw new Error('Articolul nu a fost găsit.')
+    if (!inventoryItem) throw new Error('Articolul nu a fost găsit.')
 
+    // 2. Populare date denormalizate (dacă lipsesc)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const itemData = item.stockableItem as any
-    const unitMeasure =
-      itemData?.unit || // ERPProduct
-      itemData?.packagingUnit || // Packaging
-      '-'
+    const itemData = inventoryItem.stockableItem as any
+    const itemName = itemData?.name || ''
+    const itemCode = itemData?.productCode || ''
+    const unitMeasure = itemData?.unit || itemData?.packagingUnit || '-'
+
+    if (!inventoryItem.searchableName || !inventoryItem.unitMeasure) {
+      inventoryItem.searchableName = itemName
+      inventoryItem.searchableCode = itemCode
+      inventoryItem.unitMeasure = unitMeasure
+    }
+
     const isIn = IN_TYPES.has(payload.adjustmentType)
     const isOut = OUT_TYPES.has(payload.adjustmentType)
 
@@ -262,35 +282,40 @@ export async function adjustStock(input: AdjustStockInput) {
       throw new Error('Tipul ajustării este invalid.')
     }
 
-    // Stabilim costul: Manual (din input) SAU Automat (ultimul preț) SAU 0
-    let unitCost = payload.unitCost ?? (item.lastPurchasePrice || 0)
+    // --- LOGICA DE PREȚ (MODIFICATĂ) ---
+    // Prioritate: 1. Input Manual, 2. Ultimul preț de achiziție, 3. Zero
+    // Acest cost va fi folosit pentru înregistrarea Mișcării (StockMovement)
+    let movementUnitCost =
+      payload.unitCost ?? (inventoryItem.lastPurchasePrice || 0)
 
-    const balanceBefore = item.totalStock
+    const balanceBefore = inventoryItem.totalStock
     let balanceAfter = 0
-    let supplierId = undefined
-    let qualityDetails = undefined
 
-    // Generăm ID-ul mișcării de acum, ca să îl putem lega de lotul nou (dacă e cazul)
+    // Inițializăm variabilele pentru a fi vizibile în ambele blocuri (if/else)
+    let supplierId: Types.ObjectId | undefined = undefined
+    let supplierName: string | undefined = undefined
+    let qualityDetails: any = undefined
+
     const movementId = new Types.ObjectId()
 
-    // --- LOGICA DE IEȘIRE (SCĂDERE) ---
+    // =========================================================
+    //  SCENARIUL 1: IEȘIRE (SCĂDERE STOC)
+    // =========================================================
     if (isOut) {
-      // La ieșire, batchId este OBLIGATORIU (trebuie să știm de unde scădem)
       if (!payload.batchId) {
         throw new Error(
           'Pentru scădere stoc, selectarea lotului este obligatorie.'
         )
       }
 
-      const batchIndex = item.batches.findIndex(
+      const batchIndex = inventoryItem.batches.findIndex(
         (b: any) => b._id.toString() === payload.batchId
       )
 
-      if (batchIndex === -1) {
+      if (batchIndex === -1)
         throw new Error('Lotul specificat nu a fost găsit.')
-      }
 
-      const targetBatch = item.batches[batchIndex]
+      const targetBatch = inventoryItem.batches[batchIndex]
 
       if (targetBatch.quantity < payload.quantity) {
         throw new Error(
@@ -298,23 +323,28 @@ export async function adjustStock(input: AdjustStockInput) {
         )
       }
 
-      // Luăm datele reale ale lotului pentru istoric
-      unitCost = targetBatch.unitCost // La ieșire, costul este cel al lotului, nu cel manual!
+      // Luăm datele de trasabilitate din lotul real
       supplierId = targetBatch.supplierId
+      supplierName = targetBatch.supplierName
       qualityDetails = targetBatch.qualityDetails
+
+      // ATENȚIE: La ieșire, prețul pentru 'Arhivă' (Valoarea contabilă reală care iese)
+      // trebuie să fie costul lotului, altfel stricăm media ponderată a stocului rămas.
+      // Dar movementUnitCost rămâne cel ales de user (dacă vrea să raporteze altceva).
+      const realBatchCost = targetBatch.unitCost
 
       // Scădere efectivă
       if (targetBatch.quantity === payload.quantity) {
-        // Arhivare
+        // Se consumă tot -> Arhivăm
         await ArchivedBatchModel.create(
           [
             {
-              originalItemId: item._id,
-              stockableItem: item.stockableItem,
-              stockableItemType: item.stockableItemType,
-              location: item.location,
+              originalItemId: inventoryItem._id,
+              stockableItem: inventoryItem.stockableItem,
+              stockableItemType: inventoryItem.stockableItemType,
+              location: inventoryItem.location,
               quantityOriginal: targetBatch.quantity,
-              unitCost: targetBatch.unitCost,
+              unitCost: realBatchCost, // Arhivăm cu costul REAL de achiziție
               entryDate: targetBatch.entryDate,
               movementId: targetBatch.movementId,
               supplierId: targetBatch.supplierId,
@@ -325,76 +355,96 @@ export async function adjustStock(input: AdjustStockInput) {
           ],
           { session }
         )
-        item.batches.splice(batchIndex, 1)
+        inventoryItem.batches.splice(batchIndex, 1)
       } else {
         targetBatch.quantity -= payload.quantity
       }
 
-      await recalculateInventorySummary(item)
-      balanceAfter = item.totalStock
+      await recalculateInventorySummary(inventoryItem)
+      balanceAfter = inventoryItem.totalStock
     }
 
-    // --- LOGICA DE INTRARE (CREȘTERE) ---
+    // =========================================================
+    //  SCENARIUL 2: INTRARE (CREȘTERE STOC)
+    // =========================================================
     else if (isIn) {
-      // CAZUL A: Adăugăm peste un lot existent (Corecție numărătoare)
+      let targetBatch = null
+
+      // Încercăm să găsim un lot compatibil pentru MERGE
       if (payload.batchId) {
-        const batchIndex = item.batches.findIndex(
+        const batchIndex = inventoryItem.batches.findIndex(
           (b: any) => b._id.toString() === payload.batchId
         )
 
-        if (batchIndex === -1) {
-          throw new Error('Lotul destinație nu mai există.')
+        if (batchIndex !== -1) {
+          const candidateBatch = inventoryItem.batches[batchIndex]
+
+          // --- LOGICA CRITICĂ DE MERGE ---
+          // Unim cu lotul existent DOAR DACĂ:
+          // 1. Nu s-a specificat un cost manual (folosim automat costul lotului)
+          // 2. SAU Costul manual este IDENTIC cu costul lotului.
+          if (
+            payload.unitCost === undefined ||
+            payload.unitCost === candidateBatch.unitCost
+          ) {
+            targetBatch = candidateBatch
+          }
+          // Dacă userul a pus preț diferit, 'targetBatch' rămâne null => se va crea lot nou mai jos.
         }
+      }
 
-        const targetBatch = item.batches[batchIndex]
-
-        // Creștem cantitatea
+      // CAZUL A: Merge (Preț identic)
+      if (targetBatch) {
         targetBatch.quantity += payload.quantity
 
-        // La adăugare pe lot existent, păstrăm costul și detaliile originale ale lotului
-        unitCost = targetBatch.unitCost
+        // Dacă facem merge, costul mișcării este costul lotului existent
+        movementUnitCost = targetBatch.unitCost
+
         supplierId = targetBatch.supplierId
+        supplierName = targetBatch.supplierName
         qualityDetails = targetBatch.qualityDetails
       }
-      // CAZUL B: Lot Nou (Marfă găsită, fără identitate clară)
+      // CAZUL B: Lot Nou (Preț diferit sau lot neselectat)
       else {
-        item.batches.push({
-          _id: new Types.ObjectId(), // Generăm ID lot
+        // Aici movementUnitCost este exact ce a introdus userul (sau lastPrice)
+        inventoryItem.batches.push({
+          _id: new Types.ObjectId(),
           quantity: payload.quantity,
-          unitCost: unitCost, // Costul decis (manual sau lastPrice)
-          entryDate: new Date(), // Intră azi
-          movementId: movementId, // Legăm de mișcarea curentă de ajustare
-          supplierId: undefined, // Nu știm furnizorul
+          unitCost: movementUnitCost,
+          entryDate: new Date(),
+          movementId: movementId,
+          supplierId: undefined,
+          supplierName: undefined,
           qualityDetails: { additionalNotes: payload.reason },
         })
       }
 
-      await recalculateInventorySummary(item)
-      balanceAfter = item.totalStock
+      await recalculateInventorySummary(inventoryItem)
+      balanceAfter = inventoryItem.totalStock
     }
 
-    await item.save({ session })
+    await inventoryItem.save({ session })
 
     // --- LOG (StockMovement) ---
-    // Folosim ID-ul generat mai sus (movementId)
     const movement = new StockMovementModel({
       _id: movementId,
-      stockableItem: item.stockableItem,
-      stockableItemType: item.stockableItemType,
+      stockableItem: inventoryItem.stockableItem,
+      stockableItemType: inventoryItem.stockableItemType,
       movementType: payload.adjustmentType,
-      locationFrom: isOut ? item.location : undefined,
-      locationTo: isIn ? item.location : undefined,
+      locationFrom: isOut ? inventoryItem.location : undefined,
+      locationTo: isIn ? inventoryItem.location : undefined,
       quantity: payload.quantity,
       unitMeasure: unitMeasure,
       responsibleUser: userSession.user.id,
       responsibleUserName: userSession.user.name,
-      unitCost: unitCost,
-      lineCost: payload.quantity * unitCost,
+      unitCost: movementUnitCost,
+      lineCost: payload.quantity * movementUnitCost,
       balanceBefore: balanceBefore,
       balanceAfter: balanceAfter,
       note: payload.reason,
       referenceId: adjustmentId,
       supplierId: supplierId,
+      supplierName: supplierName,
       qualityDetails: qualityDetails,
       timestamp: new Date(),
     })
@@ -435,14 +485,25 @@ export async function addInitialStock(input: AddInitialStockInput) {
 
     // 1. Identificăm Produsul/Ambalajul pentru date (UM, Nume)
     let productDoc = null
+    let itemName = ''
+    let itemCode = ''
+
     if (payload.stockableItemType === 'ERPProduct') {
       productDoc = await ERPProductModel.findById(
         payload.stockableItemId
       ).session(session)
+      if (productDoc) {
+        itemName = productDoc.name
+        itemCode = productDoc.productCode || ''
+      }
     } else {
       productDoc = await PackagingModel.findById(
         payload.stockableItemId
       ).session(session)
+      if (productDoc) {
+        itemName = productDoc.name
+        itemCode = productDoc.productCode || ''
+      }
     }
 
     if (!productDoc) {
@@ -453,6 +514,16 @@ export async function addInitialStock(input: AddInitialStockInput) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const itemData = productDoc as any
     const unitMeasure = itemData?.unit || itemData?.packagingUnit || '-'
+
+    let supplierNameSnapshot = undefined
+    if (payload.supplierId) {
+      const supplier = await SupplierModel.findById(payload.supplierId).session(
+        session
+      )
+      if (supplier) {
+        supplierNameSnapshot = supplier.name
+      }
+    }
 
     // 2. Căutăm sau Creăm InventoryItem
     let inventoryItem = await InventoryItemModel.findOne({
@@ -466,6 +537,9 @@ export async function addInitialStock(input: AddInitialStockInput) {
       inventoryItem = new InventoryItemModel({
         stockableItem: payload.stockableItemId,
         stockableItemType: payload.stockableItemType,
+        searchableName: itemName,
+        searchableCode: itemCode,
+        unitMeasure: unitMeasure,
         location: payload.location,
         batches: [],
         totalStock: 0,
@@ -476,6 +550,10 @@ export async function addInitialStock(input: AddInitialStockInput) {
         minPurchasePrice: payload.unitCost,
         maxPurchasePrice: payload.unitCost,
       })
+    } else {
+      inventoryItem.searchableName = itemName
+      inventoryItem.searchableCode = itemCode
+      inventoryItem.unitMeasure = unitMeasure
     }
 
     // 3. Creăm Lotul Nou
@@ -495,6 +573,7 @@ export async function addInitialStock(input: AddInitialStockInput) {
       entryDate: new Date(), // Stocul intră acum
       movementId: movementId,
       supplierId: supplierId,
+      supplierName: supplierNameSnapshot,
       qualityDetails: payload.qualityDetails || {},
     })
 
@@ -523,6 +602,7 @@ export async function addInitialStock(input: AddInitialStockInput) {
       note: payload.reason,
       referenceId: importOperationId,
       supplierId: supplierId,
+      supplierName: supplierNameSnapshot,
       qualityDetails: payload.qualityDetails,
       timestamp: new Date(),
       status: 'ACTIVE',

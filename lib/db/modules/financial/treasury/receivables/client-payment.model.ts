@@ -2,7 +2,7 @@ import mongoose, { Schema, models, Model } from 'mongoose'
 import { PAYMENT_METHODS } from '../payment.constants'
 import { IClientPaymentDoc } from './client-payment.types'
 import { CLIENT_PAYMENT_STATUSES } from './client-payment.constants'
-import { round2 } from '@/lib/utils' // Asigură-te că round2 este importat
+import { round2 } from '@/lib/utils' 
 
 // --- Schema Mongoose ---
 const ClientPaymentSchema = new Schema<IClientPaymentDoc>(

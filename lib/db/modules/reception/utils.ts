@@ -7,6 +7,7 @@ export interface StockableItemDetails {
   packagingUnit: string | null
   packagingQuantity: number | null
   itemsPerPallet: number | null
+  productCode: string | null
 }
 /**
  * Preia detaliile de conversie pentru un produs sau ambalaj.
@@ -43,5 +44,6 @@ export async function getStockableItemDetails(
     packagingUnit: doc.packagingUnit || null,
     packagingQuantity: doc.packagingQuantity || null,
     itemsPerPallet: doc.itemsPerPallet || null,
+    productCode: doc.productCode || null,
   }
 }

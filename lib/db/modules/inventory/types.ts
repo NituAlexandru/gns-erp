@@ -19,6 +19,7 @@ export interface ICostBreakdownBatch {
   unitCost: number
   type: 'REAL' | 'PROVISIONAL'
   supplierId?: Types.ObjectId
+  supplierName?: string
   qualityDetails?: QualityDetails
 }
 

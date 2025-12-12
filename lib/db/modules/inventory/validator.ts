@@ -29,6 +29,9 @@ const QualityDetailsZod = z
 
 export const StockMovementSchema = z.object({
   stockableItem: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid item ID'),
+  itemName: z.string().optional(),
+  itemCode: z.string().optional(),
+  supplierName: z.string().optional(),
   stockableItemType: z.enum(['ERPProduct', 'Packaging']),
   movementType: z.enum(STOCK_MOVEMENT_TYPES, {
     errorMap: () => ({ message: 'Unknown movement type' }),

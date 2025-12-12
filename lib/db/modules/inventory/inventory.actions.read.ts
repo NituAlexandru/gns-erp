@@ -28,16 +28,37 @@ import '../suppliers/supplier.model'
 
 export async function getInventoryLedger(
   stockableItemId: string,
-  location?: string
+  location?: string,
+  page: number = 1
 ) {
   await connectToDatabase()
+  const limit = 50 // Afișăm 50 de rânduri pe pagină în fișa de magazie
+  const skip = (page - 1) * limit
+
   const filter: FilterQuery<IStockMovementDoc> = {
     stockableItem: stockableItemId,
   }
+
   if (location) {
+    // Mișcări care au plecat DIN sau au ajuns ÎN locația respectivă
     filter.$or = [{ locationFrom: location }, { locationTo: location }]
   }
-  return StockMovementModel.find(filter).sort({ timestamp: 1 }).lean()
+
+  // Executăm query-ul și numărătoarea în paralel
+  const [data, total] = await Promise.all([
+    StockMovementModel.find(filter)
+      .sort({ timestamp: -1 }) // Cele mai noi primele
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    StockMovementModel.countDocuments(filter),
+  ])
+
+  return {
+    data: JSON.parse(JSON.stringify(data)),
+    totalPages: Math.ceil(total / limit),
+    totalDocs: total,
+  }
 }
 
 export async function getCurrentStock(
@@ -143,69 +164,6 @@ const getPackagingOptionsPipeline = (): mongoose.PipelineStage[] => [
     },
   },
 ]
-const createPackagingOptionsPipelineForPackaging =
-  (): mongoose.PipelineStage[] => {
-    return [
-      {
-        $lookup: {
-          from: 'packagings',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'packagingDetails',
-        },
-      },
-      { $unwind: '$packagingDetails' },
-      {
-        $lookup: {
-          from: 'packagings',
-          localField: 'packagingDetails.palletTypeId',
-          foreignField: '_id',
-          as: 'palletTypeDetails',
-        },
-      },
-      {
-        $unwind: {
-          path: '$palletTypeDetails',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          packagingOptions: {
-            $let: {
-              vars: {
-                palletUnitName: {
-                  $ifNull: ['$palletTypeDetails.name', 'Palet'],
-                },
-              },
-              in: {
-                $cond: {
-                  if: {
-                    $and: [
-                      '$packagingDetails.itemsPerPallet',
-                      {
-                        $ne: [
-                          '$packagingDetails.packagingUnit',
-                          '$$palletUnitName',
-                        ],
-                      },
-                    ],
-                  },
-                  then: [
-                    {
-                      unitName: '$$palletUnitName',
-                      baseUnitEquivalent: '$packagingDetails.itemsPerPallet',
-                    },
-                  ],
-                  else: [],
-                },
-              },
-            },
-          },
-        },
-      },
-    ]
-  }
 
 export async function getAggregatedStockStatus(
   query: string = '',
@@ -220,204 +178,200 @@ export async function getAggregatedStockStatus(
 
     const skip = (page - 1) * MOVEMENTS_PAGE_SIZE
 
+    // 1. FILTRARE PRELIMINARĂ (Folosind indexii rapizi)
+    // Căutăm direct în InventoryItems înainte de a grupa, pentru viteză maximă.
+    const matchStage: mongoose.FilterQuery<IInventoryItemDoc> = {}
+
+    if (query && query.trim() !== '') {
+      const regex = new RegExp(query, 'i')
+      matchStage.$or = [{ searchableName: regex }, { searchableCode: regex }]
+    }
+
     const pipeline: mongoose.PipelineStage[] = [
+      { $match: matchStage },
+
+      // 2. GRUPARE (Agregare pe Articol - SUMA TUTUROR LOCAȚIILOR)
       {
         $group: {
-          _id: '$stockableItem',
+          _id: '$stockableItem', // ID-ul produsului
+
+          // Calculăm totalurile din câmpurile deja calculate pe fiecare locație
           totalStock: { $sum: '$totalStock' },
           totalReserved: { $sum: '$quantityReserved' },
+
+          // Luăm detaliile statice din primul document găsit (sunt identice peste tot)
+          // Folosim câmpurile denormalizate pentru a evita lookup-ul prematur
+          name: { $first: '$searchableName' },
+          productCode: { $first: '$searchableCode' },
+          unit: { $first: '$unitMeasure' },
+          itemType: { $first: '$stockableItemType' },
+
+          // Pentru prețuri, facem o medie simplă a mediilor (sau min/max global)
           averageCost: { $avg: '$averageCost' },
           minPrice: { $min: '$minPurchasePrice' },
           maxPrice: { $max: '$maxPurchasePrice' },
-          lastPrice: { $last: '$lastPurchasePrice' },
+          lastPrice: { $last: '$lastPurchasePrice' }, // Aproximativ ultimul preț
         },
       },
+
+      // 3. SORTARE (După numele agregat)
+      { $sort: { name: 1 } },
+
+      // 4. PAGINARE & LOOKUPS (Facet - doar pentru pagina curentă)
       {
-        $lookup: {
-          from: 'erpproducts',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'productDetails',
-        },
-      },
-      {
-        $lookup: {
-          from: 'packagings',
-          localField: '_id',
-          foreignField: '_id',
-          as: 'packagingDetails',
-        },
-      },
-      {
-        $unwind: { path: '$productDetails', preserveNullAndEmptyArrays: true },
-      },
-      {
-        $unwind: {
-          path: '$packagingDetails',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      // Lookup Pallet Type
-      {
-        $lookup: {
-          from: 'packagings',
-          localField: 'productDetails.palletTypeId',
-          foreignField: '_id',
-          as: 'palletTypeDetails',
-        },
-      },
-      {
-        $unwind: {
-          path: '$palletTypeDetails',
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          // Logica complexă pentru packagingOptions
-          packagingOptions: {
-            $concatArrays: [
-              {
-                $cond: {
-                  if: {
-                    $and: [
-                      '$productDetails.packagingUnit',
-                      '$productDetails.packagingQuantity',
-                      { $gt: ['$productDetails.packagingQuantity', 0] },
-                    ],
-                  },
-                  then: [
-                    {
-                      unitName: '$productDetails.packagingUnit',
-                      baseUnitEquivalent: '$productDetails.packagingQuantity',
-                    },
-                  ],
-                  else: [],
-                },
+        $facet: {
+          metadata: [{ $count: 'total' }],
+          data: [
+            { $skip: skip },
+            { $limit: MOVEMENTS_PAGE_SIZE },
+
+            // --- LOOKUPS (Doar pentru cele 10 rezultate finale) ---
+            // Necesar pentru packagingOptions
+
+            // Lookup Produs
+            {
+              $lookup: {
+                from: 'erpproducts',
+                localField: '_id', // _id este stockableItem
+                foreignField: '_id',
+                as: 'productDetails',
               },
-              {
-                $cond: {
-                  if: {
-                    $and: [
-                      '$productDetails.itemsPerPallet',
-                      { $gt: ['$productDetails.itemsPerPallet', 0] },
-                    ],
+            },
+            {
+              $unwind: {
+                path: '$productDetails',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+
+            // Lookup Ambalaj
+            {
+              $lookup: {
+                from: 'packagings',
+                localField: '_id',
+                foreignField: '_id',
+                as: 'packagingDetails',
+              },
+            },
+            {
+              $unwind: {
+                path: '$packagingDetails',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+
+            // Lookup Palet (pentru calcul conversie)
+            {
+              $lookup: {
+                from: 'packagings',
+                localField: 'productDetails.palletTypeId',
+                foreignField: '_id',
+                as: 'palletTypeDetails',
+              },
+            },
+            {
+              $unwind: {
+                path: '$palletTypeDetails',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+
+            // --- PROIECTARE FINALĂ ---
+            {
+              $project: {
+                _id: 1, // ID produs
+
+                // Date din grupare (rapide)
+                name: { $ifNull: ['$name', 'Necunoscut'] },
+                productCode: { $ifNull: ['$productCode', ''] },
+                unit: { $ifNull: ['$unit', '-'] },
+
+                totalStock: 1,
+                totalReserved: 1,
+                availableStock: {
+                  $subtract: ['$totalStock', '$totalReserved'],
+                },
+
+                averageCost: 1,
+                minPrice: 1,
+                maxPrice: 1,
+                lastPrice: 1,
+
+                // Normalizare itemType pentru frontend ('Produs' / 'Ambalaj')
+                itemType: {
+                  $cond: {
+                    if: { $eq: ['$itemType', 'ERPProduct'] },
+                    then: 'Produs',
+                    else: 'Ambalaj',
                   },
-                  then: [
-                    {
-                      unitName: {
-                        $ifNull: ['$palletTypeDetails.name', 'Palet'],
-                      },
-                      baseUnitEquivalent: {
-                        $cond: {
-                          if: {
-                            $and: [
-                              '$productDetails.packagingQuantity',
-                              {
+                },
+
+                // Reconstrucția logicii pentru packagingOptions
+                packagingOptions: {
+                  $cond: {
+                    if: { $eq: ['$itemType', 'ERPProduct'] },
+                    then: {
+                      $filter: {
+                        input: [
+                          // Opțiunea 1: Bax
+                          {
+                            $cond: {
+                              if: {
                                 $gt: ['$productDetails.packagingQuantity', 0],
                               },
-                            ],
+                              then: {
+                                unitName: '$productDetails.packagingUnit',
+                                baseUnitEquivalent:
+                                  '$productDetails.packagingQuantity',
+                              },
+                              else: null,
+                            },
                           },
-                          then: {
-                            $multiply: [
-                              '$productDetails.itemsPerPallet',
-                              '$productDetails.packagingQuantity',
-                            ],
+                          // Opțiunea 2: Palet
+                          {
+                            $cond: {
+                              if: {
+                                $gt: ['$productDetails.itemsPerPallet', 0],
+                              },
+                              then: {
+                                unitName: {
+                                  $ifNull: ['$palletTypeDetails.name', 'Palet'],
+                                },
+                                baseUnitEquivalent: {
+                                  $cond: {
+                                    if: {
+                                      $gt: [
+                                        '$productDetails.packagingQuantity',
+                                        0,
+                                      ],
+                                    },
+                                    then: {
+                                      $multiply: [
+                                        '$productDetails.itemsPerPallet',
+                                        '$productDetails.packagingQuantity',
+                                      ],
+                                    },
+                                    else: '$productDetails.itemsPerPallet',
+                                  },
+                                },
+                              },
+                              else: null,
+                            },
                           },
-                          else: '$productDetails.itemsPerPallet',
-                        },
+                        ],
+                        as: 'opt',
+                        cond: { $ne: ['$$opt', null] },
                       },
                     },
-                  ],
-                  else: [],
-                },
-              },
-              {
-                $cond: {
-                  if: {
-                    $and: [
-                      '$packagingDetails.itemsPerPallet',
-                      { $gt: ['$packagingDetails.itemsPerPallet', 0] },
-                    ],
+                    else: [],
                   },
-                  then: [
-                    {
-                      unitName: {
-                        $ifNull: ['$palletTypeDetails.name', 'Palet'],
-                      },
-                      baseUnitEquivalent: '$packagingDetails.itemsPerPallet',
-                    },
-                  ],
-                  else: [],
                 },
               },
-            ],
-          },
-        },
-      },
-      // Proiectare finală
-      {
-        $project: {
-          _id: 1,
-          totalStock: { $ifNull: ['$totalStock', 0] },
-          totalReserved: { $ifNull: ['$totalReserved', 0] },
-          availableStock: {
-            $subtract: [
-              { $ifNull: ['$totalStock', 0] },
-              { $ifNull: ['$totalReserved', 0] },
-            ],
-          },
-          averageCost: { $ifNull: ['$averageCost', 0] },
-          minPrice: { $ifNull: ['$minPrice', 0] },
-          maxPrice: { $ifNull: ['$maxPrice', 0] },
-          lastPrice: { $ifNull: ['$lastPrice', 0] },
-          name: {
-            $ifNull: ['$productDetails.name', '$packagingDetails.name'],
-          },
-          unit: {
-            $ifNull: [
-              '$productDetails.unit',
-              '$packagingDetails.packagingUnit',
-            ],
-          },
-          productCode: {
-            $ifNull: [
-              '$productDetails.productCode',
-              '$packagingDetails.productCode',
-            ],
-          },
-          itemType: {
-            $cond: {
-              if: '$productDetails.name',
-              then: 'Produs',
-              else: 'Ambalaj',
             },
-          },
-          packagingOptions: 1,
+          ],
         },
       },
     ]
-
-    // --- FILTRARE ---
-    if (query && query.trim() !== '') {
-      const regex = new RegExp(query, 'i')
-      pipeline.push({
-        $match: {
-          $or: [{ name: regex }, { productCode: regex }],
-        },
-      })
-    }
-
-    // --- SORTARE ---
-    pipeline.push({ $sort: { name: 1 } })
-
-    // --- PAGINARE CU FACET ---
-    pipeline.push({
-      $facet: {
-        metadata: [{ $count: 'total' }],
-        data: [{ $skip: skip }, { $limit: MOVEMENTS_PAGE_SIZE }],
-      },
-    })
 
     const result = await InventoryItemModel.aggregate(pipeline)
 
@@ -448,166 +402,199 @@ export async function getStockByLocation(
   try {
     await connectToDatabase()
 
-    // ---------- PIPELINE pentru PRODUSE ----------
-    const productPipeline: mongoose.PipelineStage[] = [
-      //  Găsim intrările PENTRU locația specificată
-      { $match: { location: locationId, stockableItemType: 'ERPProduct' } },
+    const skip = (page - 1) * MOVEMENTS_PAGE_SIZE
 
-      //  Adăugăm quantityReserved specific locației (nu e nevoie de unwind pt asta)
-      // Acest pas asigură că avem câmpul quantityReserved disponibil mai târziu
-      { $addFields: { _quantityReserved: '$quantityReserved' } },
-
-      //  Unwind și sortare pe loturi
-      { $unwind: '$batches' },
-      { $sort: { 'batches.entryDate': 1 } },
-
-      //  Grupăm pe articol PENTRU a calcula sumele din loturi
-      {
-        $group: {
-          _id: '$stockableItem',
-          totalStock: { $sum: '$batches.quantity' }, // Calculat din loturi
-          totalValue: {
-            $sum: { $multiply: ['$batches.quantity', '$batches.unitCost'] },
-          },
-          minPrice: { $min: '$batches.unitCost' },
-          maxPrice: { $max: '$batches.unitCost' },
-          lastPrice: { $last: '$batches.unitCost' },
-          // ⭐ Păstrăm quantityReserved folosind $first (va fi aceeași valoare pentru toate loturile aceluiași item/locație)
-          totalReservedForLocation: { $first: '$_quantityReserved' },
-        },
-      },
-      // Pas 4: Lookup pentru detalii produs și packagingOptions (rămân la fel)
-      ...getPackagingOptionsPipeline(),
-      // Proiectăm câmpurile finale
-      {
-        $project: {
-          _id: 1,
-          totalStock: { $ifNull: ['$totalStock', 0] },
-          totalReserved: { $ifNull: ['$totalReservedForLocation', 0] },
-          availableStock: {
-            $subtract: [
-              { $ifNull: ['$totalStock', 0] },
-              { $ifNull: ['$totalReservedForLocation', 0] },
-            ],
-          },
-          minPrice: { $ifNull: ['$minPrice', 0] },
-          maxPrice: { $ifNull: ['$maxPrice', 0] },
-          lastPrice: { $ifNull: ['$lastPrice', 0] },
-          averageCost: {
-            $cond: {
-              if: { $gt: ['$totalStock', 0] },
-              then: { $divide: ['$totalValue', '$totalStock'] },
-              else: 0,
-            },
-          },
-          name: '$productDetails.name',
-          unit: '$productDetails.unit',
-          productCode: '$productDetails.productCode',
-          itemType: 'Produs',
-          packagingOptions: 1,
-        },
-      },
-    ]
-
-    // ---------- PIPELINE pentru AMBALAJE ----------
-    const packagingPipeline: mongoose.PipelineStage[] = [
-      //  Găsim intrările PENTRU locația specificată
-      { $match: { location: locationId, stockableItemType: 'Packaging' } },
-
-      //  Adăugăm quantityReserved specific locației
-      { $addFields: { _quantityReserved: '$quantityReserved' } },
-
-      //  Unwind și sortare pe loturi
-      { $unwind: '$batches' },
-      { $sort: { 'batches.entryDate': 1 } },
-
-      // Grupăm pe articol PENTRU a calcula sumele din loturi
-      {
-        $group: {
-          _id: '$stockableItem',
-          totalStock: { $sum: '$batches.quantity' },
-          totalValue: {
-            $sum: { $multiply: ['$batches.quantity', '$batches.unitCost'] },
-          },
-          minPrice: { $min: '$batches.unitCost' },
-          maxPrice: { $max: '$batches.unitCost' },
-          lastPrice: { $last: '$batches.unitCost' },
-          totalReservedForLocation: { $first: '$_quantityReserved' },
-        },
-      },
-      //  Lookup pentru detalii ambalaj și packagingOptions
-      ...createPackagingOptionsPipelineForPackaging(),
-      //  Proiectăm câmpurile finale
-      {
-        $project: {
-          _id: 1,
-          totalStock: { $ifNull: ['$totalStock', 0] },
-          totalReserved: { $ifNull: ['$totalReservedForLocation', 0] },
-          availableStock: {
-            $subtract: [
-              { $ifNull: ['$totalStock', 0] },
-              { $ifNull: ['$totalReservedForLocation', 0] },
-            ],
-          },
-          minPrice: { $ifNull: ['$minPrice', 0] },
-          maxPrice: { $ifNull: ['$maxPrice', 0] },
-          lastPrice: { $ifNull: ['$lastPrice', 0] },
-          averageCost: {
-            $cond: {
-              if: { $gt: ['$totalStock', 0] },
-              then: { $divide: ['$totalValue', '$totalStock'] },
-              else: 0,
-            },
-          },
-          name: '$packagingDetails.name',
-          unit: '$packagingDetails.packagingUnit',
-          productCode: '$packagingDetails.productCode',
-          itemType: 'Ambalaj',
-          packagingOptions: 1,
-        },
-      },
-    ]
-
-    // Executăm ambele pipeline-uri
-    const [productStock, packagingStock] = await Promise.all([
-      InventoryItemModel.aggregate(productPipeline),
-      InventoryItemModel.aggregate(packagingPipeline),
-    ])
-
-    // Combinăm și filtrăm
-    let combined: AggregatedStockItem[] = [...productStock, ...packagingStock]
+    // 1. FILTRARE EFICIENTĂ (Folosind datele denormalizate)
+    // Nu mai facem lookup ca să căutăm numele. Îl avem deja.
+    const matchStage: mongoose.FilterQuery<IInventoryItemDoc> = {
+      location: locationId,
+      // totalStock: { $gt: 0 }, // Decomentează dacă vrei să ascunzi produsele cu stoc 0
+    }
 
     if (query && query.trim() !== '') {
       const regex = new RegExp(query, 'i')
-      combined = combined.filter(
-        (i) =>
-          (i.name && regex.test(i.name)) ||
-          (i.productCode && regex.test(i.productCode))
-      )
+      matchStage.$or = [{ searchableName: regex }, { searchableCode: regex }]
     }
 
-    combined = combined.filter((i) => i.name != null && i.totalStock > 0)
-    combined.sort((a, b) => a.name.localeCompare(b.name))
+    // 2. PIPELINE SIMPLIFICAT
+    const pipeline: mongoose.PipelineStage[] = [
+      { $match: matchStage },
 
-    // --- PAGINARE IN MEMORIE ---
-    const totalDocs = combined.length
+      // Sortare rapidă (avem index pe searchableName)
+      { $sort: { searchableName: 1 } },
+
+      // 3. PAGINARE ÎN BAZA DE DATE (Facet)
+      {
+        $facet: {
+          metadata: [{ $count: 'total' }],
+          data: [
+            { $skip: skip },
+            { $limit: MOVEMENTS_PAGE_SIZE },
+
+            // --- LOOKUPS (Doar pentru cele 10-20 produse de pe pagină) ---
+            // Le facem doar ca să obținem detaliile pentru "packagingOptions" (conversii)
+
+            // Lookup Produs
+            {
+              $lookup: {
+                from: 'erpproducts',
+                localField: 'stockableItem',
+                foreignField: '_id',
+                as: 'productDetails',
+              },
+            },
+            {
+              $unwind: {
+                path: '$productDetails',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+
+            // Lookup Ambalaj
+            {
+              $lookup: {
+                from: 'packagings',
+                localField: 'stockableItem',
+                foreignField: '_id',
+                as: 'packagingDetails',
+              },
+            },
+            {
+              $unwind: {
+                path: '$packagingDetails',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+
+            // Lookup Tip Palet (Pentru calcul conversie palet)
+            {
+              $lookup: {
+                from: 'packagings',
+                localField: 'productDetails.palletTypeId',
+                foreignField: '_id',
+                as: 'palletTypeDetails',
+              },
+            },
+            {
+              $unwind: {
+                path: '$palletTypeDetails',
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+
+            // --- PROIECTARE FINALĂ ---
+            {
+              $project: {
+                _id: '$stockableItem', // Frontend-ul vrea ID-ul produsului aici
+                inventoryItemId: '$_id', // Păstrăm și ID-ul documentului de inventar
+
+                // Date directe (Super rapid)
+                name: { $ifNull: ['$searchableName', 'Produs Necunoscut'] },
+                productCode: { $ifNull: ['$searchableCode', ''] },
+                unit: { $ifNull: ['$unitMeasure', '-'] },
+
+                // Valori pre-calculate (Nu mai facem sume pe batches)
+                totalStock: '$totalStock',
+                totalReserved: '$quantityReserved',
+                availableStock: {
+                  $subtract: ['$totalStock', '$quantityReserved'],
+                },
+
+                // Prețuri pre-calculate
+                averageCost: '$averageCost',
+                minPrice: '$minPurchasePrice',
+                maxPrice: '$maxPurchasePrice',
+                lastPrice: '$lastPurchasePrice',
+
+                itemType: {
+                  $cond: {
+                    if: { $eq: ['$stockableItemType', 'ERPProduct'] },
+                    then: 'Produs',
+                    else: 'Ambalaj',
+                  },
+                },
+
+                // Reconstruim logica ta pentru Dropdown-uri de unități (Palet/Bax)
+                // Aceasta se bazează pe datele din Lookup-urile de mai sus
+                packagingOptions: {
+                  $cond: {
+                    if: { $eq: ['$stockableItemType', 'ERPProduct'] },
+                    then: {
+                      $filter: {
+                        input: [
+                          // Opțiunea 1: Bax/Ambalaj Secundar
+                          {
+                            $cond: {
+                              if: {
+                                $gt: ['$productDetails.packagingQuantity', 0],
+                              },
+                              then: {
+                                unitName: '$productDetails.packagingUnit',
+                                baseUnitEquivalent:
+                                  '$productDetails.packagingQuantity',
+                              },
+                              else: null,
+                            },
+                          },
+                          // Opțiunea 2: Palet
+                          {
+                            $cond: {
+                              if: {
+                                $gt: ['$productDetails.itemsPerPallet', 0],
+                              },
+                              then: {
+                                unitName: {
+                                  $ifNull: ['$palletTypeDetails.name', 'Palet'],
+                                },
+                                baseUnitEquivalent: {
+                                  $cond: {
+                                    if: {
+                                      $gt: [
+                                        '$productDetails.packagingQuantity',
+                                        0,
+                                      ],
+                                    },
+                                    then: {
+                                      $multiply: [
+                                        '$productDetails.itemsPerPallet',
+                                        '$productDetails.packagingQuantity',
+                                      ],
+                                    },
+                                    else: '$productDetails.itemsPerPallet',
+                                  },
+                                },
+                              },
+                              else: null,
+                            },
+                          },
+                        ],
+                        as: 'opt',
+                        cond: { $ne: ['$$opt', null] },
+                      },
+                    },
+                    else: [], // Ambalajele nu au opțiuni de conversie
+                  },
+                },
+              },
+            },
+          ],
+        },
+      },
+    ]
+
+    const result = await InventoryItemModel.aggregate(pipeline)
+
+    const data = result[0].data || []
+    const totalDocs = result[0].metadata[0]?.total || 0
     const totalPages = Math.ceil(totalDocs / MOVEMENTS_PAGE_SIZE)
-    const startIndex = (page - 1) * MOVEMENTS_PAGE_SIZE
-    const paginatedData = combined.slice(
-      startIndex,
-      startIndex + MOVEMENTS_PAGE_SIZE
-    )
 
     return {
-      data: JSON.parse(JSON.stringify(paginatedData)),
+      data: JSON.parse(JSON.stringify(data)),
       totalPages,
       totalDocs,
     }
   } catch (error) {
-    console.error(
-      `Eroare la agregarea stocului pentru locația ${locationId}:`,
-      error
-    )
+    console.error(`Eroare la getStockByLocation (${locationId}):`, error)
     return { data: [], totalPages: 0, totalDocs: 0 }
   }
 }
@@ -617,11 +604,47 @@ export async function getStockMovements(
 ) {
   try {
     await connectToDatabase()
-
     const skip = (page - 1) * MOVEMENTS_PAGE_SIZE
+
     const pipeline: mongoose.PipelineStage[] = []
 
-    // 1. LOOKUPS
+    // --- OPTIMIZARE: Filtre "Ușoare" (Indexate) ---
+    // Construim filtrul inițial pentru a reduce drastic setul de date
+    const initialMatch: mongoose.FilterQuery<IStockMovementDoc> = {}
+
+    if (filters.dateRange?.from) {
+      initialMatch.timestamp = {
+        $gte: filters.dateRange.from,
+        ...(filters.dateRange.to && { $lte: filters.dateRange.to }),
+      }
+    }
+    if (filters.location && filters.location !== 'ALL') {
+      initialMatch.$or = [
+        { locationFrom: filters.location },
+        { locationTo: filters.location },
+      ]
+    }
+    if (filters.type && filters.type !== 'ALL') {
+      initialMatch.movementType = filters.type
+    }
+
+    // Aplicăm filtrul ușor la începutul pipeline-ului
+    if (Object.keys(initialMatch).length > 0) {
+      pipeline.push({ $match: initialMatch })
+    }
+
+    // Verificăm dacă avem căutare text (care necesită Join-uri scumpe)
+    const hasSearchQuery = filters.q && filters.q.trim() !== ''
+
+    // Dacă NU avem search text, sortăm acum (foarte rapid)
+    if (!hasSearchQuery) {
+      pipeline.push({ $sort: { timestamp: -1 } })
+    }
+
+    // --- LOOKUPS (Join-uri) ---
+    // Le facem acum. Dacă nu avem search text, pipeline-ul are deja puține documente (filtrate).
+    // Dacă avem search text, din păcate trebuie să le facem pe toate.
+
     pipeline.push({
       $lookup: {
         from: 'erpproducts',
@@ -670,6 +693,10 @@ export async function getStockMovements(
       },
     })
     pipeline.push({
+      $unwind: { path: '$supplierDetails', preserveNullAndEmptyArrays: true },
+    })
+
+    pipeline.push({
       $lookup: {
         from: 'clients',
         localField: 'clientId',
@@ -678,55 +705,29 @@ export async function getStockMovements(
       },
     })
     pipeline.push({
-      $unwind: {
-        path: '$supplierDetails',
-        preserveNullAndEmptyArrays: true,
-      },
+      $unwind: { path: '$clientDetails', preserveNullAndEmptyArrays: true },
     })
 
-    // 2. FILTRE (Aceleași ca înainte)
-    const matchConditions: mongoose.FilterQuery<IStockMovementDoc>[] = []
-
-    if (filters.dateRange?.from) {
-      matchConditions.push({
-        timestamp: {
-          $gte: filters.dateRange.from,
-          ...(filters.dateRange.to && { $lte: filters.dateRange.to }),
+    // --- FILTRARE TEXT (SEARCH) ---
+    // Se aplică DOAR dacă userul a scris ceva în search
+    if (hasSearchQuery) {
+      const regex = new RegExp(filters.q!, 'i')
+      pipeline.push({
+        $match: {
+          $or: [
+            { 'erpProductDetails.name': regex },
+            { 'packagingDetails.name': regex },
+            { 'supplierDetails.name': regex },
+            { responsibleUserName: regex },
+            { note: regex },
+          ],
         },
       })
+      // Sortăm după filtrare
+      pipeline.push({ $sort: { timestamp: -1 } })
     }
 
-    if (filters.q && filters.q.trim() !== '') {
-      const regex = new RegExp(filters.q, 'i')
-      matchConditions.push({
-        $or: [
-          { 'erpProductDetails.name': regex },
-          { 'packagingDetails.name': regex },
-          { 'supplierDetails.name': regex },
-          { note: regex },
-        ],
-      })
-    }
-    if (filters.location && filters.location !== 'ALL') {
-      matchConditions.push({
-        $or: [
-          { locationFrom: filters.location },
-          { locationTo: filters.location },
-        ],
-      })
-    }
-    if (filters.type && filters.type !== 'ALL') {
-      matchConditions.push({ movementType: filters.type })
-    }
-    if (matchConditions.length > 0) {
-      pipeline.push({ $match: { $and: matchConditions } })
-    }
-
-    // 3. SORTARE
-    pipeline.push({ $sort: { timestamp: -1 } })
-
-    // 4. PAGINARE CU FACET
-    // Folosim $facet pentru a obține și datele și numărul total într-un singur query
+    // --- PAGINARE FINALĂ (FACET) ---
     pipeline.push({
       $facet: {
         metadata: [{ $count: 'total' }],
@@ -745,6 +746,8 @@ export async function getStockMovements(
               note: 1,
               balanceBefore: 1,
               balanceAfter: 1,
+              documentNumber: 1,
+              qualityDetails: 1,
               responsibleUser: {
                 _id: '$responsibleUserDetails._id',
                 name: '$responsibleUserDetails.name',
@@ -766,8 +769,6 @@ export async function getStockMovements(
                 _id: '$clientDetails._id',
                 name: '$clientDetails.name',
               },
-              documentNumber: 1,
-              qualityDetails: 1,
             },
           },
         ],
@@ -775,17 +776,11 @@ export async function getStockMovements(
     })
 
     const result = await StockMovementModel.aggregate(pipeline)
-
-    // Extragem rezultatele din facet
     const data = result[0].data || []
     const totalDocs = result[0].metadata[0]?.total || 0
     const totalPages = Math.ceil(totalDocs / MOVEMENTS_PAGE_SIZE)
 
-    return {
-      data: JSON.parse(JSON.stringify(data)),
-      totalPages,
-      totalDocs,
-    }
+    return { data: JSON.parse(JSON.stringify(data)), totalPages, totalDocs }
   } catch (error) {
     console.error('Eroare la preluarea mișcărilor de stoc:', error)
     return { data: [], totalPages: 0, totalDocs: 0 }
@@ -918,10 +913,3 @@ export async function getProductStockDetails(
     return null
   }
 }
-
-// Funcțiile getAggregatedStockStatus și getStockByLocation: Aceste două
-// funcții sunt acum ineficiente. Ele încă fac calculul complex ("numără
-// cutiile manual") la fiecare apel. Acum că avem câmpurile de sumar
-// pre-calculate pe InventoryItem, aceste funcții ar trebui simplificate
-// radical pentru a citi direct acele sumare. Asta ar face pagina principală
-// de inventar la fel de rapidă ca cea de produse.

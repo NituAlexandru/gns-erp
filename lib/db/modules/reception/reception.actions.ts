@@ -16,11 +16,7 @@ import {
   calculateInvoiceTotals,
   distributeTransportCost,
 } from './reception.helpers'
-import {
-  convertAmountToRON,
-  roundToTwoDecimals,
-  sumToTwoDecimals,
-} from '@/lib/finance/money'
+import { convertAmountToRON, sumToTwoDecimals } from '@/lib/finance/money'
 import { ISupplierDoc } from '../suppliers/types'
 import ERPProductModel, { IERPProductDoc } from '../product/product.model'
 import { IPackagingDoc } from '../packaging-products/types'
@@ -28,6 +24,7 @@ import PackagingModel from '../packaging-products/packaging.model'
 import { addOrUpdateSupplierForProduct } from '../product/product.actions'
 import { addOrUpdateSupplierForPackaging } from '../packaging-products/packaging.actions'
 import { recordStockMovement } from '../inventory/inventory.actions.core'
+import { round2, round6 } from '@/lib/utils'
 
 export type ActionResultWithData<T> =
   | { success: true; data: T; message?: string }
@@ -52,8 +49,8 @@ function processReceptionInputData(
           const amount = typeof invoice.amount === 'number' ? invoice.amount : 0
           const vatRate =
             typeof invoice.vatRate === 'number' ? invoice.vatRate : 0
-          const vatValue = roundToTwoDecimals(amount * (vatRate / 100))
-          const totalWithVat = roundToTwoDecimals(amount + vatValue)
+          const vatValue = round2(amount * (vatRate / 100))
+          const totalWithVat = round2(amount + vatValue)
           return { ...invoice, vatValue, totalWithVat }
         }
         return null
@@ -324,7 +321,7 @@ export async function confirmReception({
       reception.invoices = calculateInvoiceTotals(reception.invoices)
 
       // === VALIDARE FINALIZARE (fără TVA, în RON) ===
-      const merchandiseTotalRON = roundToTwoDecimals(
+      const merchandiseTotalRON = round2(
         (reception.products || []).reduce(
           (sum, it) => sum + (it.invoicePricePerUnit ?? 0) * (it.quantity ?? 0),
           0
@@ -336,7 +333,7 @@ export async function confirmReception({
           )
       )
 
-      const transportTotalRON = roundToTwoDecimals(
+      const transportTotalRON = round2(
         (reception.deliveries || []).reduce(
           (sum, d) => sum + (d.transportCost || 0),
           0
@@ -344,7 +341,7 @@ export async function confirmReception({
       )
 
       // total facturi fără TVA în RON (cu curs, dacă e cazul)
-      const invoicesTotalRON = roundToTwoDecimals(
+      const invoicesTotalRON = round2(
         sumToTwoDecimals(
           (reception.invoices || []).map((inv: IInvoice) =>
             convertAmountToRON(
@@ -368,9 +365,7 @@ export async function confirmReception({
         }
       }
 
-      const expectedNoVatRON = roundToTwoDecimals(
-        merchandiseTotalRON + transportTotalRON
-      )
+      const expectedNoVatRON = round2(merchandiseTotalRON + transportTotalRON)
 
       if (invoicesTotalRON !== expectedNoVatRON) {
         throw new Error(
@@ -440,18 +435,20 @@ export async function confirmReception({
         if (baseQuantity === 0) continue
 
         // 2. Calculăm TOATE costurile pe unitatea de BAZĂ
-        const invoicePricePerBaseUnit = roundToTwoDecimals(
+        const invoicePricePerBaseUnit = round6(
           item.invoicePricePerUnit / conversionFactor
         )
         const totalDistributedTransport =
           transportData.totalDistributedTransportCost || 0
-        const distributedTransportCostPerBaseUnit = roundToTwoDecimals(
+
+        const distributedTransportCostPerBaseUnit = round6(
           totalDistributedTransport / baseQuantity
         )
-        const landedCostPerUnit = roundToTwoDecimals(
+
+        const landedCostPerUnit = round6(
           invoicePricePerBaseUnit + distributedTransportCostPerBaseUnit
         )
-        const vatValuePerUnit = roundToTwoDecimals(
+        const vatValuePerUnit = round6(
           invoicePricePerBaseUnit * (item.vatRate / 100)
         )
 
@@ -499,14 +496,17 @@ export async function confirmReception({
             stockableItem: itemId.toString(),
             stockableItemType: itemType,
             movementType: 'RECEPTIE',
-            quantity: item.quantity,
+            itemName: details.name,
+            itemCode: details.productCode || '',
             unitMeasure: item.unitMeasure,
+            quantity: item.quantity,
             locationTo: targetLocation,
             referenceId: reception._id.toString(),
             note: `Recepție ${details.name} de la furnizor ${supplierName}`,
             unitCost: item.landedCostPerUnit,
             responsibleUser: userId,
             supplierId: supplierIdStr,
+            supplierName: supplierName,
             qualityDetails: item.qualityDetails,
             timestamp: new Date(),
           },

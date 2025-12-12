@@ -6,7 +6,7 @@ import { CreateOrderInputSchema } from './validator'
 import { CreateOrderInput, PopulatedOrder } from './types'
 import { connectToDatabase } from '../..'
 import mongoose, { startSession, Types } from 'mongoose'
-import { formatError, round2 } from '@/lib/utils'
+import { formatError, round2, round6 } from '@/lib/utils'
 import {
   reserveStock,
   unreserveStock,
@@ -122,7 +122,7 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
         if (conversionFactor > 0) {
           const rawPrice = item.priceAtTimeOfOrder / conversionFactor
           // Ex: 1000 / 1600 = 0.625. .toFixed(6) îl păstrează 0.625000 (fără erori de rotunjire)
-          priceInBaseUnit = Number(rawPrice.toFixed(6))
+          priceInBaseUnit = round6(rawPrice)
         } else {
           priceInBaseUnit = 0
         }

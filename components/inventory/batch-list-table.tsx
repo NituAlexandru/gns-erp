@@ -22,10 +22,11 @@ import {
 } from '@/lib/db/modules/inventory/types'
 import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
 import { Button } from '@/components/ui/button'
-import { Eye, FileText } from 'lucide-react'
+import { ExternalLink, Eye, FileText } from 'lucide-react'
 import { BatchEditDialog } from './batch-edit-dialog'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../ui/hover-card'
 import { BatchActionsMenu } from '@/app/admin/management/inventory/stock/batch-actions-menu'
+import Link from 'next/link'
 
 type Locations = ProductStockDetails['locations']
 type PackagingOptions = ProductStockDetails['packagingOptions']
@@ -86,6 +87,7 @@ export function BatchListTable({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Ref. Intrare</TableHead>
                 <TableHead>Locație</TableHead>
                 <TableHead>Furnizor</TableHead>
                 <TableHead className='text-right'>Cantitate</TableHead>
@@ -123,6 +125,19 @@ export function BatchListTable({
                           `${location.location}-${batch.movementId}`
                         }
                       >
+                        <TableCell>
+                          <Link
+                            href={`/admin/management/inventory/movements/${batch.movementId}`}
+                            className='flex items-center gap-1.5 text-red-600 hover:text-primary/80 hover:underline group transition-colors'
+                            title='Vezi mișcarea de stoc originală'
+                          >
+                            <span className='text-sm font-medium'>
+                              {/* Afișăm un text generic sau numărul documentului dacă există */}
+                              {(batch as any).documentNumber || 'Vezi Mișcare'}
+                            </span>
+                            <ExternalLink className='h-4 w-4 ' />
+                          </Link>
+                        </TableCell>
                         <TableCell className='font-medium'>
                           {LOCATION_NAMES_MAP[location.location] ||
                             location.location}

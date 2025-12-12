@@ -2,6 +2,8 @@ import { ClientSession, Types } from 'mongoose'
 import InventoryItemModel from './inventory.model'
 import StockReservationModel from './reservation.model'
 import { IOrderLineItem } from '../order/types'
+import ERPProductModel from '../product/product.model'
+import PackagingModel from '../packaging-products/packaging.model'
 
 /**
  * Rezervă stocul pentru o listă de articole dintr-o comandă.
@@ -120,14 +122,51 @@ export async function reserveStock(
 
     // --- Gestionarea Backorder-ului ---
     if (quantityStillToReserve > 0) {
+      // PREGĂTIRE DATE: Căutăm detaliile produsului pentru a le pune pe InventoryItem (dacă trebuie creat)
+      // Vrem să avem Nume, Cod și UM chiar dacă stocul e zero/negativ.
+      let finalName = ''
+      let finalCode = ''
+      let finalUnit = '-'
+
+      if (item.stockableItemType === 'ERPProduct') {
+        const prod = await ERPProductModel.findById(item.productId)
+          .select('name productCode unit')
+          .session(session)
+        if (prod) {
+          finalName = prod.name
+          finalCode = prod.productCode || ''
+          finalUnit = prod.unit || '-'
+        }
+      } else {
+        const pkg = await PackagingModel.findById(item.productId)
+          .select('name productCode packagingUnit')
+          .session(session)
+        if (pkg) {
+          finalName = pkg.name
+          finalCode = pkg.productCode || ''
+          finalUnit = pkg.packagingUnit || '-'
+        }
+      }
+
+      // Facem Update sau Insert (Upsert)
       await InventoryItemModel.findOneAndUpdate(
         { stockableItem: item.productId, location: 'DEPOZIT' },
         {
           $inc: { quantityReserved: quantityStillToReserve },
+          // $setOnInsert se execută DOAR dacă documentul nu există (Backorder pur)
           $setOnInsert: {
             stockableItem: item.productId,
             stockableItemType: item.stockableItemType,
             location: 'DEPOZIT',
+            searchableName: finalName,
+            searchableCode: finalCode,
+            unitMeasure: finalUnit,
+            batches: [],
+            totalStock: 0,
+            averageCost: 0,
+            maxPurchasePrice: 0,
+            minPurchasePrice: 0,
+            lastPurchasePrice: 0,
           },
         },
         { upsert: true, new: true, session }

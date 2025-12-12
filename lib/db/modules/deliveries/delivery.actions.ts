@@ -3,7 +3,7 @@
 import { connectToDatabase } from '@/lib/db'
 import mongoose, { FilterQuery, Types } from 'mongoose'
 import { revalidatePath } from 'next/cache'
-import { formatError, round2 } from '@/lib/utils'
+import { formatError, round2, round6 } from '@/lib/utils'
 import { auth } from '@/auth'
 import DeliveryModel, {
   DeliveryAddress,
@@ -62,7 +62,7 @@ function buildDeliveryLine(
   let correctedPriceInBaseUnit = originalLine.priceInBaseUnit
   if (quantityInBaseUnit > 0 && lineValue > 0) {
     const rawPrice = lineValue / quantityInBaseUnit
-    correctedPriceInBaseUnit = Number(rawPrice.toFixed(6))
+    correctedPriceInBaseUnit = round6(rawPrice)
   }
   const productCodeValue = originalLine.productCode
     ? originalLine.productCode.trim()

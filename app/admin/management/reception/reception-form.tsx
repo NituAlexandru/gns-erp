@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn, formatCurrency } from '@/lib/utils'
+import { cn, formatCurrency, round2 } from '@/lib/utils'
 import {
   PopulatedReception,
   ReceptionCreateInput,
@@ -44,7 +44,6 @@ import { distributeTransportCost } from '@/lib/db/modules/reception/reception.he
 import { ReceptionDeliveries } from './reception-deliveries'
 import { ReceptionInvoices } from './reception-invoices'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
-import { roundToTwoDecimals } from '@/lib/finance/money'
 
 type Project = { _id: string; name: string }
 
@@ -295,7 +294,7 @@ export function ReceptionForm({
       const dataNow = form.getValues()
 
       // 2) Suma facturilor FĂRĂ TVA, în RON (dacă valuta ≠ RON, folosim exchangeRateOnIssueDate)
-      const invoicesTotalNoVatRON = roundToTwoDecimals(
+      const invoicesTotalNoVatRON = round2(
         (dataNow.invoices || []).reduce((sum, inv) => {
           const amount = typeof inv.amount === 'number' ? inv.amount : 0
           // Folosim "extras" ca să evităm any:
@@ -323,9 +322,7 @@ export function ReceptionForm({
       )
 
       // 3) Valoarea mărfii FĂRĂ TVA (produse + ambalaje) + transport (TOT în RON)
-      const expectedNoVatRON = roundToTwoDecimals(
-        summaryTotals.grandTotal + transportTotal
-      )
+      const expectedNoVatRON = round2(summaryTotals.grandTotal + transportTotal)
 
       // 4) Comparație strictă (după rotunjire)
       if (invoicesTotalNoVatRON !== expectedNoVatRON) {

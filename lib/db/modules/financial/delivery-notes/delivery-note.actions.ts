@@ -776,7 +776,6 @@ export async function syncDeliveryNoteWithDelivery(
   existingNote.deliverySlots = delivery.deliverySlots
   existingNote.deliveryNotesSnapshot = delivery.deliveryNotes
   existingNote.orderNotesSnapshot = delivery.orderNotes
-  existingNote.deliveryNotesSnapshot = delivery.deliveryNotes
   existingNote.lastUpdatedBy = new Types.ObjectId(user.id)
   existingNote.lastUpdatedByName = user.name
 
