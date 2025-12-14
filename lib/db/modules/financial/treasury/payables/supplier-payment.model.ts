@@ -30,7 +30,6 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
     paymentMethod: { type: String, enum: PAYMENT_METHODS, required: true },
     totalAmount: { type: Number, required: true },
     unallocatedAmount: { type: Number, required: true },
-
     referenceDocument: {
       type: String,
       index: true,
@@ -38,27 +37,24 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
       sparse: true,
     },
     notes: { type: String },
-
     status: {
       type: String,
       enum: SUPPLIER_PAYMENT_STATUSES,
       default: 'NEALOCATA',
       required: true,
     },
-
     // ---Adăugăm câmpul în schema principală ---
     budgetCategorySnapshot: {
       type: BudgetCategorySnapshotSchema,
       required: false,
     },
-
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
   },
   { timestamps: true }
 )
 
-// Hook-ul 'pre save' (rămâne la fel, setează status și unallocated)
+// Hook-ul 'pre save' ( setează status și unallocated)
 SupplierPaymentSchema.pre('save', function (this: ISupplierPaymentDoc, next) {
   // 1.Dacă statusul este deja ANULATA, IEȘIM imediat.
   if (this.status === 'ANULATA') {

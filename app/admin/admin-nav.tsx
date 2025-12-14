@@ -26,6 +26,10 @@ const links = [
     href: '/admin/management/reception',
   },
   {
+    title: 'Aprovizionare',
+    href: '/admin/management/supplier-orders',
+  },
+  {
     title: 'Incasări si Plăti',
     href: '/admin/management/incasari-si-plati',
   },

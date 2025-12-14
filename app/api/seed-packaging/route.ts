@@ -49,6 +49,7 @@ export async function GET() {
 
         // --- Detalii Tehnice ---
         packagingQuantity: 1,
+        unit: 'bucata',
         packagingUnit: 'bucata',
         productCode: p.slug.toUpperCase(),
         isPublished: true,

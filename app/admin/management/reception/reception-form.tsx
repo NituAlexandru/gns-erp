@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { FormProvider, useFieldArray, useForm } from 'react-hook-form'
 import { useMemo, useState } from 'react'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon, Package, ShoppingCart } from 'lucide-react'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
@@ -47,7 +47,7 @@ import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 
 type Project = { _id: string; name: string }
 
-const locationDisplayMap = {
+export const locationDisplayMap = {
   DEPOZIT: 'Depozit (marfa intră fizic la noi)',
   IN_TRANZIT: 'În Tranzit (a plecat de la furnizor)',
   LIVRARE_DIRECTA: 'Livrare Directă (la client/șantier)',
@@ -643,7 +643,7 @@ export function ReceptionForm({
                   {selectedSupplier?.isVatPayer && (
                     <span
                       className={cn(
-                        'text-base font-semibold border pl-4 ml-2 p-2 rounded-lg', // Am pus 'border' complet pentru consistență vizuală
+                        'text-base font-semibold border pl-4 ml-2 p-2 rounded-lg',
                         isBalancedNoVat
                           ? 'border-emerald-600/40 text-emerald-400 bg-emerald-600/10'
                           : 'border-red-600/40 text-red-400 bg-red-600/10'
@@ -663,7 +663,16 @@ export function ReceptionForm({
             </CardHeader>
             <CardContent className='space-y-6 grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div>
-                <h4 className='text-lg font-medium mb-2'>Produse</h4>
+                <div className='flex items-center gap-2 mb-2'>
+                  <ShoppingCart className='h-5 w-5 text-orange-600' />
+                  <h4 className='flex gap-2 items-center text-lg font-medium'>
+                    Produse
+                  </h4>
+                  <span className='text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium'>
+                    {productFields.length}
+                  </span>
+                </div>
+
                 {productFields.map((field, index) => {
                   const initialProductData =
                     initialData?.products?.[index]?.product
@@ -707,7 +716,14 @@ export function ReceptionForm({
                 </Button>
               </div>
               <div>
-                <h4 className='text-lg font-medium mb-2'>Ambalaje</h4>
+                <div className='flex items-center gap-2 mb-2'>
+                  <Package className='h-5 w-5 text-orange-600' />
+                  <h4 className='text-lg font-medium'>Ambalaje</h4>{' '}
+                  <span className='text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium'>
+                    {packagingFields.length}
+                  </span>
+                </div>
+
                 {packagingFields.map((field, index) => {
                   const initialPackagingData =
                     initialData?.packagingItems?.[index]?.packaging

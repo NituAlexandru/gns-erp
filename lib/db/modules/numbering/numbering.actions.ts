@@ -77,6 +77,44 @@ export async function generateOrderNumber(
   return `${datePrefix}${paddedSequence}`
 }
 
+/**
+ * Helper: Obține următorul număr secvențial pentru Comenzile Furnizor.
+ * Funcționează identic cu getNextOrderSequence, dar pe cheia 'SUPPLIER_ORDER'.
+ */
+async function getNextSupplierOrderSequence(
+  options: { session?: ClientSession } = {}
+): Promise<number> {
+  const currentYear = new Date().getFullYear()
+  const counter = await DocumentCounter.findOneAndUpdate(
+    { seriesName: 'SUPPLIER_ORDER', year: currentYear },
+    { $inc: { currentNumber: 1 } },
+    { new: true, upsert: true, session: options.session }
+  )
+  if (!counter) {
+    throw new Error(
+      'Nu s-a putut genera numărul secvențial pentru comanda furnizor.'
+    )
+  }
+  return counter.currentNumber
+}
+
+/**
+ * Generează numărul intern pentru Comanda Furnizor.
+ * Format: XXXXYYYYMMDD (Secvență + Dată).
+ */
+export async function generateSupplierOrderNumber(
+  options: { session?: ClientSession } = {}
+): Promise<string> {
+  const nextSequence = await getNextSupplierOrderSequence(options)
+  const now = new Date()
+  // Format Data: YYYYMMDD
+  const dateSuffix = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+  // Format Secvență: 0001 (padat la 4)
+  const paddedSequence = String(nextSequence).padStart(4, '0')
+  // Returnăm: Secvența prima, apoi data (invers față de comanda client)
+  return `${paddedSequence}${dateSuffix}`
+}
+
 // --- FUNCȚII PENTRU LIVRĂRI ---
 async function getNextDeliverySequence(
   options: { session?: ClientSession } = {}
