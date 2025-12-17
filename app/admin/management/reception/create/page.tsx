@@ -22,9 +22,9 @@ export default async function CreateReceptionPage() {
     : null
 
   return (
-    <div className='container mx-auto py-10'>
+    <div className='container mx-auto'>
       <div className='flex justify-between'>
-        <h1 className='text-3xl font-bold mb-6'>Notă de Recepție Nouă</h1>
+        <h1 className='text-3xl font-bold '>Notă de Recepție Nouă</h1>
         <div className='text-sm mb-2 text-muted-foreground px-4 py-2 bg-muted/50 rounded-lg flex items-center gap-4'>
           <span className='font-semibold'>
             <span className='text-foreground'>*</span> Obligatoriu pentru

@@ -21,6 +21,9 @@ export interface ICostBreakdownBatch {
   supplierId?: Types.ObjectId
   supplierName?: string
   qualityDetails?: QualityDetails
+  supplierOrderNumber?: string
+  receptionRef?: Types.ObjectId
+  orderRef?: Types.ObjectId
 }
 
 // Tipul pentru returnul funcției FIFO
@@ -86,6 +89,7 @@ export type PopulatedStockMovement = {
   } | null
   note?: string
   referenceId?: string
+  receptionRef?: string | { _id: string } | null
   supplier?: {
     _id: string
     name: string
@@ -126,6 +130,9 @@ export interface Batch {
   movementId: string
   supplierId?: string | { _id: string; name: string } | null
   qualityDetails?: QualityDetails
+  receptionRef?: string | null // ID-ul Recepției
+  orderRef?: string | null // ID-ul Comenzii
+  supplierOrderNumber?: string | null // Referința Furnizor
 }
 // 2. Tipul STRICT pentru Batch-ul care ajunge în Frontend (Populat)
 export interface PopulatedBatch

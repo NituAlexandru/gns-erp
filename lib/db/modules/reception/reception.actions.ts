@@ -25,6 +25,11 @@ import { addOrUpdateSupplierForProduct } from '../product/product.actions'
 import { addOrUpdateSupplierForPackaging } from '../packaging-products/packaging.actions'
 import { recordStockMovement } from '../inventory/inventory.actions.core'
 import { round2, round6 } from '@/lib/utils'
+import SupplierOrderModel from '../supplier-orders/supplier-order.model'
+import {
+  addReceptionToOrder,
+  removeReceptionFromOrder,
+} from '../supplier-orders/supplier-order.actions'
 
 export type ActionResultWithData<T> =
   | { success: true; data: T; message?: string }
@@ -40,7 +45,24 @@ function processReceptionInputData(
   const processedData = { ...data }
 
   processedData.deliveries =
-    data.deliveries?.filter((d) => d.dispatchNoteNumber?.trim() !== '') || []
+    (data.deliveries
+      ?.filter((d) => d.dispatchNoteNumber?.trim() !== '')
+      .map((d) => {
+        // Asigurăm numere
+        const cost = typeof d.transportCost === 'number' ? d.transportCost : 0
+        const rate =
+          typeof d.transportVatRate === 'number' ? d.transportVatRate : 0
+
+        // Calculăm valoarea TVA
+        const vatValue = round2(cost * (rate / 100))
+
+        return {
+          ...d,
+          transportCost: cost,
+          transportVatRate: rate,
+          transportVatValue: vatValue, // Salvăm valoarea calculată
+        }
+      }) as any[]) || []
 
   processedData.invoices =
     (data.invoices
@@ -276,6 +298,15 @@ export async function confirmReception({
       if (reception.status === 'CONFIRMAT') {
         throw new Error('Recepția este deja confirmată.')
       }
+
+      const linkedOrder = reception.orderRef
+        ? await SupplierOrderModel.findById(reception.orderRef)
+            .select('supplierOrderNumber')
+            .session(session)
+        : null
+
+      const supplierOrderNumberFromDb = linkedOrder?.supplierOrderNumber
+
       const supplierIdStr = (reception.supplier as any)._id.toString()
       const supplierName = (reception.supplier as any).name
 
@@ -509,6 +540,11 @@ export async function confirmReception({
             supplierName: supplierName,
             qualityDetails: item.qualityDetails,
             timestamp: new Date(),
+            receptionRef: reception._id.toString(),
+            orderRef: reception.orderRef
+              ? reception.orderRef.toString()
+              : undefined,
+            supplierOrderNumber: supplierOrderNumberFromDb,
           },
           session
         )
@@ -517,6 +553,72 @@ export async function confirmReception({
       reception.status = 'CONFIRMAT'
 
       await reception.save({ session })
+
+      // --- COD NOU PENTRU ACTUALIZARE COMANDĂ ---
+      if (reception.orderRef) {
+        // 1. Calculăm valoarea totală din FACTURI (Preferabil)
+        const invoiceTotalWithVat = (reception.invoices || []).reduce(
+          (sum, inv) => sum + (inv.totalWithVat || 0),
+          0
+        )
+
+        // 2. Calculăm manual valoarea TOTALĂ (Brut: Net + TVA) ca fallback
+
+        // A. Produse
+        const productsTotal = (reception.products || []).reduce((acc, p) => {
+          const val = (p.quantity || 0) * (p.invoicePricePerUnit || 0)
+          const vat = val * ((p.vatRate || 0) / 100)
+          return acc + val + vat
+        }, 0)
+
+        // B. Ambalaje
+        const packagingTotal = (reception.packagingItems || []).reduce(
+          (acc, p) => {
+            const val = (p.quantity || 0) * (p.invoicePricePerUnit || 0)
+            const vat = val * ((p.vatRate || 0) / 100)
+            return acc + val + vat
+          },
+          0
+        )
+
+        // C. Transport (Aici folosim noile câmpuri calculate în processReceptionInputData)
+        const transportTotal = (reception.deliveries || []).reduce((acc, d) => {
+          const cost = d.transportCost || 0
+          // Folosim valoarea TVA salvată (dacă există) sau o recalculăm
+          const vat =
+            d.transportVatValue ?? cost * ((d.transportVatRate || 0) / 100)
+          return acc + cost + vat
+        }, 0)
+
+        const fallbackTotal = productsTotal + packagingTotal + transportTotal
+
+        // Alegem valoarea finală
+        const finalTotalValue =
+          invoiceTotalWithVat > 0 ? invoiceTotalWithVat : fallbackTotal
+
+        // Apelăm funcția importată care face update la comandă
+        await addReceptionToOrder(
+          reception.orderRef.toString(),
+          {
+            _id: reception._id.toString(),
+            receptionNumber:
+              reception.deliveries?.[0]?.dispatchNoteNumber ||
+              'Recepție Sistem',
+            receptionDate: reception.receptionDate,
+            totalValue: finalTotalValue,
+            products: reception.products.map((p) => ({
+              product: p.product.toString(),
+              quantity: p.quantity,
+            })),
+            packagingItems: reception.packagingItems.map((p) => ({
+              packaging: p.packaging.toString(),
+              quantity: p.quantity,
+            })),
+          },
+          session
+        )
+      }
+      // -------------------------------------------
 
       return {
         success: true,
@@ -569,6 +671,31 @@ export async function revokeConfirmation(
           message: 'Doar o recepție confirmată poate fi revocată.',
         }
       }
+
+      // --- INSERT: ACTUALIZARE COMANDĂ (SCĂDERE) ---
+      // IMPORTANT: Facem asta ACUM, cât timp avem cantitățile MARI (convertite) pe recepție
+      if (reception.orderRef) {
+        const itemsToSubtract = {
+          products: reception.products.map((p) => ({
+            // FIX: Luăm ._id pentru că p.product este POPULAT (este obiect întreg)
+            product: (p.product as any)._id.toString(),
+            quantity: p.quantity,
+          })),
+          packagingItems: reception.packagingItems.map((p) => ({
+            // FIX: La fel și aici
+            packaging: (p.packaging as any)._id.toString(),
+            quantity: p.quantity,
+          })),
+        }
+
+        await removeReceptionFromOrder(
+          reception.orderRef.toString(),
+          reception._id.toString(),
+          itemsToSubtract,
+          session
+        )
+      }
+      // ---------------------------------------------
 
       const allItems = [
         ...(reception.products || []),

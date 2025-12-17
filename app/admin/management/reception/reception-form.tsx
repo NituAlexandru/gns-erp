@@ -3,7 +3,15 @@
 import { useRouter } from 'next/navigation'
 import { FormProvider, useFieldArray, useForm } from 'react-hook-form'
 import { useMemo, useState } from 'react'
-import { CalendarIcon, Package, ShoppingCart } from 'lucide-react'
+import {
+  CalendarIcon,
+  Info,
+  MapPin,
+  Package,
+  PlusCircle,
+  ShoppingCart,
+  Truck,
+} from 'lucide-react'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
@@ -44,8 +52,11 @@ import { distributeTransportCost } from '@/lib/db/modules/reception/reception.he
 import { ReceptionDeliveries } from './reception-deliveries'
 import { ReceptionInvoices } from './reception-invoices'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
-
-type Project = { _id: string; name: string }
+import { ISupplierOrderDoc } from '@/lib/db/modules/supplier-orders/supplier-order.types'
+import {
+  getOpenOrdersBySupplier,
+  getOrderDetailsForReception,
+} from '@/lib/db/modules/supplier-orders/supplier-order.actions'
 
 export const locationDisplayMap = {
   DEPOZIT: 'Depozit (marfa intră fizic la noi)',
@@ -77,13 +88,12 @@ export function ReceptionForm({
     initialData?.supplier ? { ...initialData.supplier, isVatPayer: true } : null
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [projects] = useState<Project[]>([
-    { _id: 'proj1', name: 'Proiect Rezidențial Central' },
-    { _id: 'proj2', name: 'Renovare Birouri Corporative' },
-  ])
-
   const isEditMode = !!initialData
   const defaultVat = defaultVatRate?.rate ?? 0
+  const [openOrders, setOpenOrders] = useState<ISupplierOrderDoc[]>([])
+  const [selectedOrderData, setSelectedOrderData] =
+    useState<ISupplierOrderDoc | null>(null)
+  const [isLoadingOrders, setIsLoadingOrders] = useState(false)
 
   const form = useForm<ReceptionCreateInput>({
     defaultValues: initialData
@@ -174,95 +184,141 @@ export function ReceptionForm({
     transportTotal,
     grandLandedTotal,
     costsMap,
-    invoicesVatTotal,
-    invoicesGrandTotal,
+    calculatedVatTotal,
+    calculatedGrandTotal,
     isBalancedNoVat,
+    isBalancedWithVat, // <--- Variabila noua pe care o returnam
   } = useMemo(() => {
     const watchedData = form.getValues()
 
-    // 1) total marfă (fără TVA)
-    const productsTotal = (watchedData.products || []).reduce(
-      (sum, item) =>
-        sum + (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0),
-      0
-    )
-    const packagingTotal = (watchedData.packagingItems || []).reduce(
-      (sum, item) =>
-        sum + (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0),
-      0
-    )
-    const merchandiseTotal = productsTotal + packagingTotal
-    const localSummaryTotals = {
-      productsTotal,
-      packagingTotal,
-      grandTotal: merchandiseTotal,
-    }
-
-    // 2) transport
-    const localTransportTotal = (watchedData.deliveries || []).reduce(
-      (sum, d) => sum + Number(d.transportCost || 0),
-      0
+    // 1) Calculăm Marfa (Net și TVA)
+    const productsReduce = (watchedData.products || []).reduce(
+      (acc, item) => {
+        const net = (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0)
+        const vat = net * ((item.vatRate ?? 0) / 100)
+        return { net: acc.net + net, vat: acc.vat + vat }
+      },
+      { net: 0, vat: 0 }
     )
 
-    // 3) facturi în UI (fără conversii)
-    const localInvoicesTotal = (watchedData.invoices || []).reduce(
-      (sum, inv) => sum + (inv.amount || 0),
+    const packagingReduce = (watchedData.packagingItems || []).reduce(
+      (acc, item) => {
+        const net = (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0)
+        const vat = net * ((item.vatRate ?? 0) / 100)
+        return { net: acc.net + net, vat: acc.vat + vat }
+      },
+      { net: 0, vat: 0 }
+    )
+
+    const merchandiseNet = productsReduce.net + packagingReduce.net
+    const merchandiseVat = productsReduce.vat + packagingReduce.vat
+
+    // 2) Calculăm Transportul (Net și TVA)
+    const transportReduce = (watchedData.deliveries || []).reduce(
+      (acc, delivery) => {
+        const cost = Number(delivery.transportCost || 0)
+        const rate = Number(delivery.transportVatRate || 0)
+        const vat = cost * (rate / 100)
+        return {
+          cost: acc.cost + cost,
+          vat: acc.vat + vat,
+        }
+      },
+      { cost: 0, vat: 0 }
+    )
+
+    const transportNet = transportReduce.cost
+    const transportVat = transportReduce.vat
+
+    // --- TOTALURILE PENTRU CARDUL DE JOS (Ce a intrat in stoc) ---
+    const totalIntrareNet = merchandiseNet + transportNet
+    const totalTvaCalculated = merchandiseVat + transportVat
+    const totalGeneralCalculated = totalIntrareNet + totalTvaCalculated
+
+    // 3) Calculăm Facturile pentru VALIDARE
+
+    // A. Calculăm NET-ul facturilor în RON
+    const calculatedInvoicesNoVatRON = (watchedData.invoices || []).reduce(
+      (sum, invoice) => {
+        const amount = invoice.amount ?? 0
+
+        // Determinam cursul valutar (exchangeRate)
+        const exchangeRate =
+          invoice.currency === 'RON'
+            ? 1
+            : invoice.exchangeRateOnIssueDate &&
+                invoice.exchangeRateOnIssueDate > 0
+              ? invoice.exchangeRateOnIssueDate
+              : 0
+
+        return sum + amount * exchangeRate
+      },
       0
     )
-    const localInvoicesVatTotal = (watchedData.invoices || []).reduce(
-      (sum, inv) => sum + (inv.amount || 0) * ((inv.vatRate || 0) / 100),
+
+    // B. Calculăm BRUT-ul facturilor în RON (Net + TVA)
+    const calculatedInvoicesGrossRON = (watchedData.invoices || []).reduce(
+      (sum, invoice) => {
+        const amount = invoice.amount ?? 0
+        const vatRate = invoice.vatRate ?? 0
+
+        // Calculam valoarea TVA-ului
+        const vatValue = amount * (vatRate / 100)
+
+        // Valoarea totala a facturii (Brut)
+        const grossAmount = amount + vatValue
+
+        // Determinam cursul valutar (exchangeRate)
+        const exchangeRate =
+          invoice.currency === 'RON'
+            ? 1
+            : invoice.exchangeRateOnIssueDate &&
+                invoice.exchangeRateOnIssueDate > 0
+              ? invoice.exchangeRateOnIssueDate
+              : 0
+
+        return sum + grossAmount * exchangeRate
+      },
       0
     )
-    const localInvoicesGrandTotal = localInvoicesTotal + localInvoicesVatTotal
 
-    // 4) Σ facturi fără TVA convertit în RON pentru verificare (include curs)
-    const invoicesNoVatRON = (watchedData.invoices || []).reduce((sum, inv) => {
-      const amt = inv.amount ?? 0
-      const fx =
-        inv.currency === 'RON'
-          ? 1
-          : inv.exchangeRateOnIssueDate && inv.exchangeRateOnIssueDate > 0
-            ? inv.exchangeRateOnIssueDate
-            : 0
-      return sum + amt * fx
-    }, 0)
+    // Validare 1: Net Facturi vs Total Intrare Net (Strict la 2 zecimale)
+    const isBalancedNoVat =
+      Math.round((calculatedInvoicesNoVatRON + Number.EPSILON) * 100) ===
+      Math.round((totalIntrareNet + Number.EPSILON) * 100)
 
-    // 5) comparație corectă: (marfă + transport) vs Σ facturi fără TVA
-    const expectedNoVatRON = merchandiseTotal + localTransportTotal
-    const isBalanced =
-      Math.round((invoicesNoVatRON + Number.EPSILON) * 100) ===
-      Math.round((expectedNoVatRON + Number.EPSILON) * 100)
-    // 6) distribuția transportului
+    // Validare 2: Brut Facturi vs Total General Brut (Strict la 2 zecimale)
+    const isBalancedWithVat =
+      Math.round((calculatedInvoicesGrossRON + Number.EPSILON) * 100) ===
+      Math.round((totalGeneralCalculated + Number.EPSILON) * 100)
 
-    // Pas 1: Pregătim listele separat, adăugând metadatele necesare
-
+    // --- Distribuire cost transport (Logica existenta) ---
     const productsToProcess = (watchedData.products || []).map((p, i) => ({
       ...p,
       originalIndex: i,
-      type: 'product' as const,
+      type: 'product',
     }))
     const packagingsToProcess = (watchedData.packagingItems || []).map(
       (p, i) => ({
         ...p,
         originalIndex: i,
-        type: 'packaging' as const,
+        type: 'packaging',
       })
-    ) // Pas 2: Distribuim costul DOAR pe produse.
-
+    )
+    // Folosim orice in loc de o interfata stricta aici pentru a evita erorile de typescript pe moment
     const productsWithCosts = distributeTransportCost(
-      productsToProcess,
-      localTransportTotal
-    ) // Pas 3: Creăm lista de ambalaje cu cost zero, păstrând structura.
-
+      productsToProcess as any,
+      transportNet
+    )
     const packagingsWithZeroCost = packagingsToProcess.map((p) => ({
       ...p,
       totalDistributedTransportCost: 0,
-    })) // Pas 4: Recombinăm listele. `itemsWithCosts` va avea aceeași structură ca înainte.
+    }))
 
     const itemsWithCosts = [...productsWithCosts, ...packagingsWithZeroCost]
-
     const localCostsMap = new Map<string, number>()
-    itemsWithCosts.forEach((item) => {
+
+    itemsWithCosts.forEach((item: any) => {
       localCostsMap.set(
         `${item.type}_${item.originalIndex}`,
         item.totalDistributedTransportCost
@@ -270,21 +326,62 @@ export function ReceptionForm({
     })
 
     return {
-      summaryTotals: localSummaryTotals,
-      transportTotal: localTransportTotal,
-      grandLandedTotal: merchandiseTotal + localTransportTotal,
+      summaryTotals: { grandTotal: merchandiseNet },
+      transportTotal: transportNet,
+      grandLandedTotal: totalIntrareNet,
+
+      calculatedVatTotal: totalTvaCalculated,
+      calculatedGrandTotal: totalGeneralCalculated,
+
       costsMap: localCostsMap,
-      invoicesTotal: localInvoicesTotal,
-      invoicesVatTotal: localInvoicesVatTotal,
-      invoicesGrandTotal: localInvoicesGrandTotal, // TOTAL General (cu TVA)
-      invoicesTotalNoVatRON: invoicesNoVatRON,
-      isBalancedNoVat: isBalanced,
+
+      // Folosite pentru afisare erori la submit
+      invoicesTotalNoVatRON: calculatedInvoicesNoVatRON,
+
+      // Folosite pentru culori (Verde/Rosu)
+      isBalancedNoVat: isBalancedNoVat,
+      isBalancedWithVat: isBalancedWithVat,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedValues])
 
   // Urmărim valoarea din selectorul de destinație
   const destinationLocation = form.watch('destinationLocation')
+
+  // 1. Când se schimbă furnizorul
+  const handleSupplierChange = async (
+    id: string,
+    item: SearchResult | null
+  ) => {
+    // Logica existentă
+    form.setValue('supplier', id, { shouldValidate: true })
+    setSelectedSupplier(item)
+
+    // Logica nouă: Resetăm comanda și aducem lista
+    form.setValue('orderRef', undefined)
+    setSelectedOrderData(null)
+    setOpenOrders([])
+
+    if (id) {
+      setIsLoadingOrders(true)
+      const orders = await getOpenOrdersBySupplier(id)
+      setOpenOrders(orders)
+      setIsLoadingOrders(false)
+    }
+  }
+
+  // 2. Când se selectează o comandă din dropdown
+  const handleOrderChange = async (orderId: string) => {
+    form.setValue('orderRef', orderId)
+    if (!orderId) {
+      setSelectedOrderData(null)
+      return
+    }
+    const fullOrder = await getOrderDetailsForReception(orderId)
+    if (fullOrder) {
+      setSelectedOrderData(fullOrder)
+    }
+  }
 
   async function onSubmit(values: ReceptionCreateInput, isFinal: boolean) {
     setIsSubmitting(true)
@@ -405,13 +502,9 @@ export function ReceptionForm({
                           searchType='supplier'
                           value={field.value}
                           initialSelectedItem={initialData?.supplier}
-                          onChange={(id, item) => {
-                            form.setValue('supplier', id, {
-                              shouldValidate: true,
-                            })
-
-                            setSelectedSupplier(item)
-                          }}
+                          onChange={(id, item) =>
+                            handleSupplierChange(id, item)
+                          }
                           placeholder='Caută furnizor...'
                         />
                         <FormMessage />
@@ -467,21 +560,57 @@ export function ReceptionForm({
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Comandă Furnizor (Opțional)</FormLabel>
-                        <FormControl>
-                          {/* Momentan un input simplu text NU va merge cu backend-ul (cere ObjectId).
-                              Aici ar trebui sa fie AutocompleteSearch type='supplier-order'.
-                              Daca nu ai implementat cautarea de comenzi, lasa-l disabled sau ascuns.
-                          */}
-                          <div className='text-sm text-muted-foreground border rounded-md p-2 bg-muted/20'>
-                            Selecție comandă (neimplementat UI încă)
-                          </div>
-                          {/* <AutocompleteSearch 
-                              searchType="supplierOrder" 
-                              value={field.value} 
-                              onChange={(id) => field.onChange(id)} 
-                           /> 
-                          */}
-                        </FormControl>
+                        <Select
+                          disabled={
+                            !selectedSupplier ||
+                            isLoadingOrders ||
+                            openOrders.length === 0
+                          }
+                          onValueChange={(val) => handleOrderChange(val)}
+                          value={field.value || ''}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue
+                                placeholder={
+                                  isLoadingOrders
+                                    ? 'Se caută comenzi...'
+                                    : openOrders.length === 0
+                                      ? 'Nicio comandă deschisă'
+                                      : 'Selectează o comandă'
+                                }
+                              />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {openOrders.map((ord) => (
+                              <SelectItem
+                                key={ord._id}
+                                value={ord._id}
+                                textValue={`#${ord.orderNumber} ${ord.supplierOrderNumber ? `(Ref: ${ord.supplierOrderNumber})` : ''} - ${formatCurrency(ord.totalValue)}`}
+                              >
+                                <div className='flex flex-col text-left'>
+                                  {/* Linia 1: Număr intern și dată internă */}
+                                  <span className='font-medium'>
+                                    #{ord.orderNumber} -{' '}
+                                    {new Date(ord.orderDate).toLocaleDateString(
+                                      'ro-RO'
+                                    )}
+                                  </span>
+
+                                  {/* Linia 2: Detalii Furnizor (dacă există) */}
+                                  {ord.supplierOrderNumber && (
+                                    <span className='text-xs text-muted-foreground'>
+                                      Ref. Furnizor: #{ord.supplierOrderNumber}
+                                      {ord.supplierOrderDate &&
+                                        ` din ${new Date(ord.supplierOrderDate).toLocaleDateString('ro-RO')}`}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -546,47 +675,12 @@ export function ReceptionForm({
                       </FormItem>
                     )}
                   />
-
-                  {/* Selectorul de proiecte, afișat condiționat */}
-                  {destinationLocation === PROJECT_OPTION_VALUE && (
-                    <FormField
-                      name='destinationId'
-                      control={form.control}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Selectează Proiectul *</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value ?? ''}
-                          >
-                            <FormControl>
-                              <SelectTrigger className='w-full cursor-pointer'>
-                                <SelectValue placeholder='Alege un proiect...' />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {projects.map((proj) => (
-                                <SelectItem
-                                  key={proj._id}
-                                  value={proj._id}
-                                  className='cursor-pointer'
-                                >
-                                  {proj.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
                 </div>
               </CardContent>
             </Card>
             {/* Livrări Fizice (Aviz, Șofer, Mașină) */}
             <div className='md:col-span-2'>
-              <ReceptionDeliveries />
+              <ReceptionDeliveries vatRates={vatRates} isVatPayer={true} />
             </div>
           </div>
           {/* CARD 2: Pentru Facturi */}
@@ -595,6 +689,416 @@ export function ReceptionForm({
             defaultVatRate={defaultVatRate}
             isVatPayer={selectedSupplier?.isVatPayer ?? false}
           />
+          {/* --- ZONA UI: LISTA DE REFERINȚĂ (READ-ONLY CU CONVERSII COMPLETE) --- */}
+          {selectedOrderData && (
+            <div className='w-full'>
+              <Card className='border-dashed border-primary/20 bg-muted/10 mt-0 mb-0'>
+                <CardHeader className='mt-0 border-b border-border/50 bg-muted/20'>
+                  <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-4'>
+                    {/* Titlu și Info Comandă */}
+                    <div>
+                      <CardTitle className='text-base flex items-center gap-2'>
+                        <ShoppingCart className='h-4 w-4 text-primary' />
+                        Articole de Recepționat
+                        <span className='text-muted-foreground font-normal text-sm ml-1'>
+                          (Comanda #{selectedOrderData.orderNumber}
+                          {selectedOrderData.orderDate &&
+                            ` din ${new Date(selectedOrderData.orderDate).toLocaleDateString('ro-RO')}`}
+                          )
+                        </span>
+                        {selectedOrderData.supplierOrderNumber && (
+                          <span className='text-xs text-primary'>
+                            Ref. Furnizor: #
+                            {selectedOrderData.supplierOrderNumber}
+                            {selectedOrderData.supplierOrderDate &&
+                              ` din ${new Date(selectedOrderData.supplierOrderDate).toLocaleDateString('ro-RO')}`}
+                          </span>
+                        )}
+                      </CardTitle>
+                      {selectedOrderData.notes && (
+                        <div className='text-xs text-muted-foreground mt-1 flex items-center gap-1'>
+                          <Info className='h-3 w-3' /> Note:{' '}
+                          {selectedOrderData.notes}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Detalii Transport (Compact) */}
+                    {selectedOrderData.transportDetails && (
+                      <div className='flex flex-wrap gap-3 text-xs bg-background/80 p-2 rounded border shadow-sm'>
+                        <div
+                          className='flex items-center gap-1.5'
+                          title='Tip Transport'
+                        >
+                          <Truck className='h-3.5 w-3.5' />
+                          <span className='font-medium'>
+                            {selectedOrderData.transportDetails
+                              .transportType === 'EXTERN_FURNIZOR'
+                              ? 'Furnizor'
+                              : selectedOrderData.transportDetails
+                                    .transportType === 'TERT'
+                                ? 'Terț'
+                                : 'Intern'}
+                          </span>
+                        </div>
+
+                        {/* Cost Transport */}
+                        {(selectedOrderData.transportDetails
+                          .totalTransportCost || 0) > 0 && (
+                          <div className='flex items-center gap-1 pl-3 border-l'>
+                            <span className='text-muted-foreground'>
+                              Cost / Cursa:
+                            </span>
+                            <span className='font-medium'>
+                              {formatCurrency(
+                                selectedOrderData.transportDetails.transportCost
+                              )}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Distanță & Timp (dacă există) */}
+                        {(selectedOrderData.transportDetails.distanceInKm ||
+                          0) > 0 && (
+                          <div
+                            className='flex items-center gap-1 pl-3 border-l'
+                            title='Distanță estimată'
+                          >
+                            <MapPin className='h-3 w-3 text-muted-foreground' />
+                            <span>
+                              {selectedOrderData.transportDetails.distanceInKm}{' '}
+                              km
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Număr Curse (dacă e relevant) */}
+                        {(selectedOrderData.transportDetails
+                          .estimatedTransportCount || 0) > 1 && (
+                          <div
+                            className='flex items-center gap-1 pl-3 border-l'
+                            title='Număr estimat de curse/camioane'
+                          >
+                            <span className='font-bold text-orange-600'>
+                              x
+                              {
+                                selectedOrderData.transportDetails
+                                  .estimatedTransportCount
+                              }
+                            </span>
+                            <span className='text-muted-foreground'>Curse</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                    {/* Lista Produse Comandă */}
+                    <div className='space-y-2'>
+                      <h5 className='text-sm font-semibold text-muted-foreground flex items-center gap-2'>
+                        <Package className='h-4 w-4' /> Produse
+                      </h5>
+                      {selectedOrderData.products?.map(
+                        (item: any, idx: number) => {
+                          const remaining = Math.max(
+                            0,
+                            item.quantityOrdered - (item.quantityReceived || 0)
+                          )
+
+                          // --- DEFINIRE VARIABILE (AICI, CA SĂ FIE VIZIBILE PESTE TOT) ---
+                          const prodData = item.product || {}
+                          const pkgQty = prodData.packagingQuantity || 1 // Câte bucăți sunt într-un bax
+                          const itemsPalletRaw = prodData.itemsPerPallet || 0
+                          const baseUnit = item.unitMeasure
+
+                          // Calculăm total bucăți pe palet pentru conversie
+                          // Logica: Dacă avem baxuri, itemsPerPallet sunt adesea "baxuri pe palet" -> înmulțim.
+                          // Dacă nu avem baxuri (pkgQty=1), itemsPerPallet sunt direct bucăți.
+                          const totalUnitsPerPallet =
+                            pkgQty > 1 && itemsPalletRaw > 0
+                              ? itemsPalletRaw * pkgQty
+                              : itemsPalletRaw
+
+                          return (
+                            <div
+                              key={`ord-prod-${idx}`}
+                              className='flex flex-col p-3 bg-card rounded border shadow-sm space-y-3'
+                            >
+                              {/* Header Item */}
+                              <div className='flex justify-between items-start'>
+                                <div className='font-medium text-sm'>
+                                  {item.productName || item.product?.name}
+                                  <div className='text-xs text-muted-foreground font-mono mt-0.5'>
+                                    {item.productCode || 'Cod: -'}
+                                  </div>
+                                </div>
+                                {/* BADGE REST - MODIFICAT SĂ AFIȘEZE TOT */}
+                                <div
+                                  className={cn(
+                                    'text-xs font-bold px-2 py-1 rounded border text-right flex gap-2 justify-center items-center',
+                                    remaining > 0
+                                      ? 'bg-orange-500/10 text-orange-600 border-orange-200'
+                                      : 'bg-green-500/10 text-green-600 border-green-200'
+                                  )}
+                                >
+                                  <span>
+                                    Rest: {remaining} {baseUnit}
+                                  </span>
+
+                                  {/* Conversii secundare (doar dacă există rest) */}
+                                  {remaining > 0 &&
+                                    (pkgQty > 1 || totalUnitsPerPallet > 0) && (
+                                      <span className='text-[10px] font-normal opacity-85'>
+                                        {/* Conversie BAX */}
+                                        {prodData.packagingUnit &&
+                                          pkgQty > 1 && (
+                                            <>
+                                              {(
+                                                remaining / pkgQty
+                                              ).toLocaleString('ro-RO', {
+                                                maximumFractionDigits: 1,
+                                              })}{' '}
+                                              {prodData.packagingUnit}
+                                            </>
+                                          )}
+
+                                        {/* Separator dacă avem ambele */}
+                                        {prodData.packagingUnit &&
+                                          pkgQty > 1 &&
+                                          totalUnitsPerPallet > 0 && (
+                                            <span className='mx-1'>/</span>
+                                          )}
+
+                                        {/* Conversie PALET */}
+                                        {totalUnitsPerPallet > 0 && (
+                                          <>
+                                            {(
+                                              remaining / totalUnitsPerPallet
+                                            ).toLocaleString('ro-RO', {
+                                              maximumFractionDigits: 2,
+                                            })}{' '}
+                                            Palet
+                                          </>
+                                        )}
+                                      </span>
+                                    )}
+                                </div>
+                              </div>
+
+                              {/* Detalii Conversie Preț & Cantitate */}
+                              <div className='grid grid-cols-2 gap-4 text-xs text-muted-foreground bg-muted/40 p-2.5 rounded border border-dashed'>
+                                {/* Coloana 1: Status Cantitate (CONVERSII COMPLETE) */}
+                                <div>
+                                  <div className='font-semibold text-foreground mb-1.5 border-b border-border/50 pb-1'>
+                                    Status Cantitate
+                                  </div>
+
+                                  {/* Rând: COMANDAT */}
+                                  <div className='flex justify-between items-start mb-2'>
+                                    <span className='mt-0.5'>Comandat:</span>
+                                    <div className='text-right flex flex-col'>
+                                      <span className='font-medium text-foreground'>
+                                        {item.quantityOrdered} {baseUnit}
+                                      </span>
+                                      {/* Conversie în BAX */}
+                                      {prodData.packagingUnit && pkgQty > 1 && (
+                                        <span className=' text-muted-foreground leading-tight'>
+                                          (
+                                          {(
+                                            item.quantityOrdered / pkgQty
+                                          ).toLocaleString('ro-RO', {
+                                            maximumFractionDigits: 2,
+                                          })}{' '}
+                                          {prodData.packagingUnit})
+                                        </span>
+                                      )}
+
+                                      {/* Conversie în PALET */}
+                                      {totalUnitsPerPallet > 0 && (
+                                        <span className=' text-muted-foreground leading-tight'>
+                                          (
+                                          {(
+                                            item.quantityOrdered /
+                                            totalUnitsPerPallet
+                                          ).toLocaleString('ro-RO', {
+                                            maximumFractionDigits: 2,
+                                          })}{' '}
+                                          Palet)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Rând: PRIMIT */}
+                                  <div className='flex justify-between items-start'>
+                                    <span className='mt-0.5'>Primit:</span>
+                                    <div className='text-right flex flex-col'>
+                                      <span>
+                                        {item.quantityReceived || 0} {baseUnit}
+                                      </span>
+
+                                      {/* Conversie în BAX */}
+                                      {prodData.packagingUnit && pkgQty > 1 && (
+                                        <span className=' text-muted-foreground leading-tight'>
+                                          (
+                                          {(
+                                            (item.quantityReceived || 0) /
+                                            pkgQty
+                                          ).toLocaleString('ro-RO', {
+                                            maximumFractionDigits: 2,
+                                          })}{' '}
+                                          {prodData.packagingUnit})
+                                        </span>
+                                      )}
+
+                                      {/* Conversie în PALET */}
+                                      {totalUnitsPerPallet > 0 && (
+                                        <span className=' text-muted-foreground leading-tight'>
+                                          (
+                                          {(
+                                            (item.quantityReceived || 0) /
+                                            totalUnitsPerPallet
+                                          ).toLocaleString('ro-RO', {
+                                            maximumFractionDigits: 2,
+                                          })}{' '}
+                                          Palet)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Rest estimat în Paleți */}
+                                  {totalUnitsPerPallet > 0 && remaining > 0 && (
+                                    <div className='mt-2 pt-1 border-t border-border/50 text-orange-600/90 font-medium text-right text-[11px]'>
+                                      Rest de livrat: ≈{' '}
+                                      {(
+                                        remaining / totalUnitsPerPallet
+                                      ).toLocaleString('ro-RO', {
+                                        maximumFractionDigits: 2,
+                                      })}{' '}
+                                      Paleți
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Coloana 2: Info Prețuri (Conversii) */}
+                                <div>
+                                  <div className='font-semibold text-foreground mb-1.5 border-b border-border/50 pb-1'>
+                                    Referință Preț
+                                  </div>
+                                  <div className='flex justify-between'>
+                                    <span>Unitar:</span>
+                                    <span className='font-medium text-foreground'>
+                                      {formatCurrency(item.pricePerUnit)}
+                                    </span>
+                                  </div>
+
+                                  {/* Conversie Preț Bax */}
+                                  {prodData.packagingUnit && pkgQty > 1 && (
+                                    <div className='flex justify-between mt-0.5'>
+                                      <span>/ {prodData.packagingUnit}:</span>
+                                      <span>
+                                        {formatCurrency(
+                                          item.pricePerUnit * pkgQty
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {/* Conversie Preț Palet */}
+                                  {totalUnitsPerPallet > 0 && (
+                                    <div className='flex justify-between mt-0.5 font-medium text-primary'>
+                                      <span>/ Palet:</span>
+                                      <span>
+                                        {formatCurrency(
+                                          item.pricePerUnit *
+                                            totalUnitsPerPallet
+                                        )}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        }
+                      )}
+                      {(!selectedOrderData.products ||
+                        selectedOrderData.products.length === 0) && (
+                        <p className='text-xs text-muted-foreground italic p-2 border border-dashed rounded'>
+                          Niciun produs în această comandă.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Lista Ambalaje Comandă */}
+                    <div className='space-y-2'>
+                      <h5 className='text-sm font-semibold text-muted-foreground flex items-center gap-2'>
+                        <Package className='h-4 w-4' /> Ambalaje
+                      </h5>
+                      {selectedOrderData.packagingItems?.length > 0 ? (
+                        selectedOrderData.packagingItems.map(
+                          (item: any, idx: number) => {
+                            const remaining = Math.max(
+                              0,
+                              item.quantityOrdered -
+                                (item.quantityReceived || 0)
+                            )
+                            return (
+                              <div
+                                key={`ord-pack-${idx}`}
+                                className='flex flex-col p-3 bg-card rounded border shadow-sm space-y-2'
+                              >
+                                <div className='flex justify-between items-start'>
+                                  <div className='font-medium text-sm'>
+                                    {item.packagingName || item.packaging?.name}
+                                  </div>
+                                  <span
+                                    className={cn(
+                                      'text-xs font-bold px-2 py-0.5 rounded border',
+                                      remaining > 0
+                                        ? 'bg-orange-500/10 text-orange-600 border-orange-200'
+                                        : 'bg-green-500/10 text-green-600 border-green-200'
+                                    )}
+                                  >
+                                    Rest: {remaining} {item.unitMeasure}
+                                  </span>
+                                </div>
+                                <div className='text-xs text-muted-foreground bg-muted/40 p-2 rounded border border-dashed'>
+                                  <div className='flex justify-between'>
+                                    <span>Comandat:</span>
+                                    <span className='font-medium'>
+                                      {item.quantityOrdered}
+                                    </span>
+                                  </div>
+                                  <div className='flex justify-between'>
+                                    <span>Primit:</span>
+                                    <span>{item.quantityReceived || 0}</span>
+                                  </div>
+                                  <div className='flex justify-between border-t border-border/50 pt-1 mt-1'>
+                                    <span>Preț:</span>
+                                    <span>
+                                      {formatCurrency(item.pricePerUnit)} /{' '}
+                                      {item.unitMeasure}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+                        )
+                      ) : (
+                        <p className='text-xs text-muted-foreground italic p-2 border border-dashed rounded'>
+                          Niciun ambalaj în această comandă.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
           {/* CARD 3: Pentru Recepții */}
           <Card>
             <CardHeader>
@@ -613,14 +1117,18 @@ export function ReceptionForm({
                       {formatCurrency(transportTotal)}
                     </strong>
                   </span>
+
+                  {/* Afișăm TVA Total (Marfă + Transport) */}
                   {selectedSupplier?.isVatPayer && (
                     <span>
-                      TVA Facturi:{' '}
+                      TVA Total:{' '}
                       <strong className='text-foreground'>
-                        {formatCurrency(invoicesVatTotal)}
+                        {formatCurrency(calculatedVatTotal)}
                       </strong>
                     </span>
                   )}
+
+                  {/* Total Intrare (NET) */}
                   <span
                     className={cn(
                       'text-base font-semibold border pl-4 ml-2 p-2 rounded-lg',
@@ -630,8 +1138,8 @@ export function ReceptionForm({
                     )}
                     title={
                       isBalancedNoVat
-                        ? 'Σ facturi fără TVA = marfă + transport'
-                        : 'Diferență între Σ facturi fără TVA și (marfă + transport)'
+                        ? 'Balanță OK: Facturi vs Marfă+Transport'
+                        : 'Diferență între Facturi și Marfă+Transport'
                     }
                   >
                     TOTAL Intrare:{' '}
@@ -640,22 +1148,19 @@ export function ReceptionForm({
                     </strong>
                   </span>
 
+                  {/* Total General (BRUT) */}
                   {selectedSupplier?.isVatPayer && (
                     <span
                       className={cn(
-                        'text-base font-semibold border pl-4 ml-2 p-2 rounded-lg',
-                        isBalancedNoVat
+                        'text-base font-bold border pl-4 ml-2 p-2 rounded-lg',
+
+                        isBalancedWithVat
                           ? 'border-emerald-600/40 text-emerald-400 bg-emerald-600/10'
                           : 'border-red-600/40 text-red-400 bg-red-600/10'
                       )}
-                      title={
-                        isBalancedNoVat
-                          ? 'Balanța este corectă: Σ facturi fără TVA = marfă + transport'
-                          : 'Atenție: Σ facturi fără TVA este diferită de marfă + transport'
-                      }
                     >
                       TOTAL General:{' '}
-                      <strong>{formatCurrency(invoicesGrandTotal)}</strong>
+                      <strong>{formatCurrency(calculatedGrandTotal)}</strong>
                     </span>
                   )}
                 </div>

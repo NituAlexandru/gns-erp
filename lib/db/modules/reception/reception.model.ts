@@ -31,6 +31,8 @@ export interface IDelivery {
   notes?: string
   transportType: 'INTERN' | 'EXTERN_FURNIZOR' | 'TERT'
   transportCost: number
+  transportVatRate?: number // Ex: 21
+  transportVatValue?: number // Valoarea calculată
   tertiaryTransporterDetails?: ITertiaryTransporter
 }
 
@@ -42,8 +44,8 @@ export interface IInvoice {
   currency: 'RON' | 'EUR' | 'USD'
   amount: number
   vatRate: number
-  vatValue: number
-  totalWithVat: number
+  vatValue?: number
+  totalWithVat?: number
   exchangeRateOnIssueDate?: number
 }
 
@@ -140,6 +142,8 @@ const deliverySchema = new Schema<IDelivery>(
       required: true,
     },
     transportCost: { type: Number, default: 0, required: true },
+    transportVatRate: { type: Number, default: 0 },
+    transportVatValue: { type: Number, default: 0 },
     tertiaryTransporterDetails: {
       type: tertiaryTransporterSchema,
       required: false,

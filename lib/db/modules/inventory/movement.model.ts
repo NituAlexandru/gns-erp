@@ -42,6 +42,9 @@ export interface IStockMovementDoc extends Document {
   qualityDetails?: IQualityDetails
   createdAt: Date
   updatedAt: Date
+  orderRef?: Types.ObjectId
+  supplierOrderNumber?: string
+  receptionRef?: Types.ObjectId | { _id: Types.ObjectId }
 }
 
 export const CostBreakdownBatchSchema = new Schema<ICostBreakdownBatch>(
@@ -114,6 +117,9 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     clientId: { type: Schema.Types.ObjectId, ref: 'Client', required: false },
     documentNumber: { type: String, required: false },
     qualityDetails: { type: QualityDetailsSchema },
+    receptionRef: { type: Schema.Types.ObjectId, ref: 'Reception' },
+    orderRef: { type: Schema.Types.ObjectId, ref: 'SupplierOrder' },
+    supplierOrderNumber: { type: String },
   },
   { timestamps: true }
 )

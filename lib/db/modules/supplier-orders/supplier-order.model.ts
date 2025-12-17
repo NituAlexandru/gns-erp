@@ -68,7 +68,7 @@ const supplierSnapshotSchema = new Schema(
 // Schema Produse
 const orderItemSchema = new Schema<ISupplierOrderItem>(
   {
-    product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
+    product: { type: Schema.Types.ObjectId, ref: 'ERPProduct', required: true },
     productName: { type: String, required: true },
     productCode: { type: String },
     // Valori normalizate (Bază)

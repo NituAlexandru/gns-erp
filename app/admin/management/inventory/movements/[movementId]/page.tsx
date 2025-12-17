@@ -41,6 +41,21 @@ import { Button } from '@/components/ui/button'
 const getDocumentNumber = (movement: any, reference: any) => {
   if (movement.documentNumber) return movement.documentNumber
 
+  if (movement.movementType === 'RECEPTIE') {
+    const receptionNum =
+      reference?.receptionNumber ||
+      reference?.number ||
+      movement.referenceId?.toString().slice(-6) ||
+      'N/A'
+    const receptionDate = reference?.receptionDate || reference?.date
+
+    let label = `Recepție #${receptionNum}`
+    if (receptionDate) {
+      label += ` din ${format(new Date(receptionDate), 'dd.MM.yyyy')}`
+    }
+    return label
+  }
+
   if (movement.movementType === 'STOC_INITIAL') {
     return `Adaugare Stoc Initial #${movement.referenceId.toString()}`
   }
@@ -190,6 +205,22 @@ export default async function MovementDetailsPage({
     if (related) relatedMovementId = related._id.toString()
   }
 
+  let receptionId = null
+  if (movement.movementType === 'RECEPTIE') {
+    const ref = movement.receptionRef
+
+    if (ref && typeof ref === 'object' && '_id' in ref) {
+      receptionId = (ref as { _id: string })._id.toString()
+    } else if (ref) {
+      receptionId = ref.toString()
+    }
+
+    // Fallback la referenceId dacă nu am găsit receptionRef
+    if (!receptionId && movement.referenceId) {
+      receptionId = movement.referenceId.toString()
+    }
+  }
+
   // 2. Calculăm Label-ul corect
   let partnerLabel = 'Partener'
   if (movement.movementType === 'TRANSFER_IN')
@@ -213,7 +244,7 @@ export default async function MovementDetailsPage({
   const mainItemOptions = buildMainItemOptions(movement.stockableItem as any)
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-2'>
       <div className='flex items-center justify-between'>
         <BackButton />
         <h1 className='text-2xl font-semibold tracking-tight'>
@@ -221,9 +252,9 @@ export default async function MovementDetailsPage({
         </h1>
       </div>
 
-      <div className='flex flex-col lg:flex-row gap-6'>
+      <div className='flex flex-col lg:flex-row gap-2'>
         {/* Coloana Stânga */}
-        <div className='lg:w-2/3 flex flex-col gap-6'>
+        <div className='lg:w-2/3 flex flex-col gap-2'>
           {/* Card 1: Informații Generale */}
           <Card>
             <CardHeader className='pb-3'>
@@ -258,10 +289,19 @@ export default async function MovementDetailsPage({
                     relatedMovementId ? (
                       <Link
                         href={`/admin/management/inventory/movements/${relatedMovementId}`}
-                        className='font-semibold text-blue-500 hover:text-blue-700 hover:underline flex items-center justify-end gap-1'
+                        className='font-semibold text-red-500 hover:text-red-700 hover:underline flex items-center justify-end gap-1'
                       >
                         {displayDocNumber}
-                        <ExternalLink className='h-5 w-5' />
+                        <ExternalLink className='h-4 w-4' />
+                      </Link>
+                    ) : receptionId ? (
+                      // AICI este noul link către recepție
+                      <Link
+                        href={`/admin/management/reception/${receptionId}`}
+                        className='font-semibold text-red-500 hover:text-red-700 hover:underline flex items-center justify-end gap-1'
+                      >
+                        {displayDocNumber}
+                        <ExternalLink className='h-4 w-4' />
                       </Link>
                     ) : (
                       <span className='font-semibold text-primary'>
@@ -507,11 +547,6 @@ export default async function MovementDetailsPage({
               </CardHeader>
               <CardContent>
                 <div className='bg-muted/20 p-4 rounded-md border border-dashed flex flex-col gap-2'>
-                  <p className='text-sm text-muted-foreground'>
-                    Această mișcare nu are trasabilitate fizică (nu are loturi),
-                    fiind probabil un serviciu, transport sau o ajustare
-                    directă.
-                  </p>
                   <div className='flex items-center justify-between mt-2'>
                     <span className='font-semibold'>Cost Înregistrat:</span>
                     <Badge variant='outline' className='text-base px-3 py-1'>
@@ -584,7 +619,7 @@ export default async function MovementDetailsPage({
         </div>
 
         {/* Coloana Dreapta (Side Info) */}
-        <div className='lg:w-1/3 space-y-4'>
+        <div className='lg:w-1/3 space-y-2'>
           <Card>
             <CardHeader className='pb-3'>
               <CardTitle>Balanță Stoc</CardTitle>
@@ -681,7 +716,7 @@ export default async function MovementDetailsPage({
               <CardHeader className='pb-0'>
                 <CardTitle>Facturi Asociate</CardTitle>
               </CardHeader>
-              <CardContent className='space-y-3'>
+              <CardContent className='space-y-2'>
                 {(
                   (reference as any)?.invoices ||
                   (reference as any)?.relatedInvoices
@@ -754,7 +789,7 @@ export default async function MovementDetailsPage({
             </Card>
           )}
           {/* Bloc Deliveries (Avize) - Se afișează doar dacă există date */}
-          {/* Avize de Expediție (Deliveries) - Stil Identic Facturi */}
+          {/* Avize de Expediție (Deliveries) */}
           {((data?.reference as any)?.deliveries || []).length > 0 && (
             <Card>
               <CardHeader className='pb-0'>
@@ -833,16 +868,48 @@ export default async function MovementDetailsPage({
                         </div>
 
                         {/* 3. Total General (Cost Transport - echivalent Total Factură) */}
-                        <div className='flex justify-between items-center bg-background/50 p-2 rounded border border-input/50'>
-                          <span className='font-semibold text-muted-foreground text-xs uppercase tracking-tight'>
-                            Cost Transport
-                          </span>
-                          <span className='font-bold text-base text-primary'>
-                            {/* Asumând că ai funcția formatCurrency, altfel pui `${del.transportCost} RON` */}
-                            {typeof formatCurrency === 'function'
-                              ? formatCurrency(del.transportCost || 0)
-                              : `${del.transportCost || 0} RON`}
-                          </span>
+                        <div className='mt-2'>
+                          {(() => {
+                            // 1. Net Amount (Cost Transport)
+                            const net = del.transportCost || 0
+                            // 2. VAT Rate
+                            const rate = del.transportVatRate || 0
+                            // 3. VAT Value (Direct from DB or 0)
+                            const vat = del.transportVatValue || 0
+                            // 4. Total Gross Amount (Net + VAT)
+                            const total = net + vat
+
+                            return (
+                              <>
+                                {/* Grilă Detalii Net / TVA */}
+                                <div className='grid grid-cols-2 gap-y-1 text-xs mb-1'>
+                                  <div className='text-muted-foreground'>
+                                    Cost Transport (Net):
+                                  </div>
+                                  <div className='text-right font-medium'>
+                                    {formatCurrency(net)}
+                                  </div>
+
+                                  <div className='text-muted-foreground'>
+                                    TVA {rate > 0 ? `(${rate}%)` : ''}:
+                                  </div>
+                                  <div className='text-right font-medium'>
+                                    {formatCurrency(vat)}
+                                  </div>
+                                </div>
+
+                                {/* Total General Transport */}
+                                <div className='flex justify-between items-center bg-background/50 p-2 rounded border border-input/50'>
+                                  <span className='font-semibold text-muted-foreground text-xs uppercase tracking-tight'>
+                                    Total Transport
+                                  </span>
+                                  <span className='font-bold text-base text-primary'>
+                                    {formatCurrency(total)}
+                                  </span>
+                                </div>
+                              </>
+                            )
+                          })()}
                         </div>
 
                         {/* 4. Note (Opțional - apare doar dacă există) */}

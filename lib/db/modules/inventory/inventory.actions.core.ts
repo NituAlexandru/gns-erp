@@ -138,6 +138,13 @@ export async function recordStockMovement(
       documentNumber: payload.documentNumber,
       balanceBefore,
       balanceAfter: 0,
+      receptionRef: payload.receptionRef
+        ? new Types.ObjectId(payload.receptionRef)
+        : undefined,
+      orderRef: payload.orderRef
+        ? new Types.ObjectId(payload.orderRef)
+        : undefined,
+      supplierOrderNumber: payload.supplierOrderNumber,
     })
 
     let costInfo: FifoCostInfo | null = null
@@ -161,6 +168,13 @@ export async function recordStockMovement(
         supplierId: supplierIdObj,
         supplierName: payload.supplierName,
         qualityDetails: payload.qualityDetails,
+        receptionRef: payload.receptionRef
+          ? new Types.ObjectId(payload.receptionRef)
+          : undefined,
+        orderRef: payload.orderRef
+          ? new Types.ObjectId(payload.orderRef)
+          : undefined,
+        supplierOrderNumber: payload.supplierOrderNumber,
       })
 
       movement.supplierId = supplierIdObj

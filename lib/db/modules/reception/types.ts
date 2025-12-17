@@ -66,6 +66,12 @@ export type PopulatedReception = Omit<
   deliveries?: z.infer<typeof DeliverySchema>[]
   invoices?: z.infer<typeof InvoiceSchema>[]
   amount: number
+  supplierSnapshot?: {
+    name: string
+    cui?: string
+    regCom?: string
+    address?: string
+  }
 }
 
 export interface ReceptionFilters {

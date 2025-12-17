@@ -85,6 +85,9 @@ export async function transferStock(input: TransferStockInput) {
       qualityDetails: targetBatch.qualityDetails,
       entryDate: targetBatch.entryDate,
       movementId: targetBatch.movementId, // Păstrăm trasabilitatea intrării originale
+      receptionRef: targetBatch.receptionRef,
+      orderRef: targetBatch.orderRef,
+      supplierOrderNumber: targetBatch.supplierOrderNumber,
     }
 
     // Scădem cantitatea
@@ -185,6 +188,9 @@ export async function transferStock(input: TransferStockInput) {
       supplierId: batchSnapshot.supplierId,
       supplierName: batchSnapshot.supplierName,
       qualityDetails: batchSnapshot.qualityDetails,
+      receptionRef: batchSnapshot.receptionRef,
+      orderRef: batchSnapshot.orderRef,
+      supplierOrderNumber: batchSnapshot.supplierOrderNumber,
     })
 
     // Recalculăm totalurile pe destinație

@@ -351,7 +351,8 @@ export default function ReceptionList() {
                       {deliveries.length > 0
                         ? deliveries.map((d, i) => (
                             <div key={i}>
-                              {d.dispatchNoteSeries?.toUpperCase()} –{' '}
+                              {d.dispatchNoteSeries?.toUpperCase()}
+                              {' - '}
                               {d.dispatchNoteNumber} –{' '}
                               {format(
                                 new Date(d.dispatchNoteDate),

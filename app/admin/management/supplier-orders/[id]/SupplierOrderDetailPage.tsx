@@ -505,7 +505,7 @@ export default function SupplierOrderDetailPage({
                     <TableCell className='text-right'>
                       <Button variant='ghost' size='sm' asChild>
                         <Link
-                          href={`/admin/management/receptions/${reception.receptionId}`}
+                          href={`/admin/management/reception/${reception.receptionId}`}
                         >
                           <ExternalLink className='h-4 w-4 mr-1' />
                           Deschide

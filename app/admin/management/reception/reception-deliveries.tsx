@@ -25,19 +25,24 @@ import {
 } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { CalendarIcon, Trash2 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { ReceptionCreateInput } from '@/lib/db/modules/reception/types'
+import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 
-export function ReceptionDeliveries() {
-  // Folosim useFormContext pentru a accesa formularul din componenta părinte
+type ReceptionDeliveriesProps = {
+  vatRates: VatRateDTO[]
+  isVatPayer: boolean
+}
+
+export function ReceptionDeliveries({ vatRates }: ReceptionDeliveriesProps) {
   const form = useFormContext<ReceptionCreateInput>()
-
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: 'deliveries',
   })
+  const defaultRate = vatRates && vatRates.length > 0 ? vatRates[0].rate : 0
 
   return (
     <Card>
@@ -163,7 +168,7 @@ export function ReceptionDeliveries() {
               </div>
 
               {/* --- RÂNDUL 2: Transport & Mențiuni --- */}
-              <div className='grid grid-cols-1 md:grid-cols-3 items-end gap-2 pt-4 border-t'>
+              <div className='grid grid-cols-1 md:grid-cols-4 items-end gap-2 pt-4 border-t'>
                 <FormField
                   control={form.control}
                   name={`deliveries.${index}.transportType`}
@@ -177,7 +182,7 @@ export function ReceptionDeliveries() {
                         value={field.value}
                       >
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className='w-full'>
                             <SelectValue placeholder='Alege tipul...' />
                           </SelectTrigger>
                         </FormControl>
@@ -219,6 +224,52 @@ export function ReceptionDeliveries() {
                     </FormItem>
                   )}
                 />
+                <FormField
+                  control={form.control}
+                  name={`deliveries.${index}.transportVatRate`}
+                  render={({ field }) => {
+                    // 1. Calculăm valoarea pe loc pentru afișare
+                    const currentCost =
+                      form.watch(`deliveries.${index}.transportCost`) || 0
+                    const currentRate = Number(field.value) || 0
+                    const currentVatValue = currentCost * (currentRate / 100)
+
+                    return (
+                      <FormItem>
+                        {/* 2. Label modificat cu Flex pentru a afișa suma în dreapta */}
+                        <FormLabel className='flex justify-between items-center w-full'>
+                          <span>TVA Transport</span>
+                          <span className='text-muted-foreground'>
+                            {formatCurrency(currentVatValue)}
+                          </span>
+                        </FormLabel>
+
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))}
+                          value={field.value?.toString()}
+                        >
+                          <FormControl>
+                            <SelectTrigger className='w-full'>
+                              <SelectValue placeholder='Cota' />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {vatRates.map((rate) => (
+                              <SelectItem
+                                key={rate._id}
+                                value={rate.rate.toString()}
+                              >
+                                {rate.rate}%
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )
+                  }}
+                />
+
                 <FormField
                   name={`deliveries.${index}.notes`}
                   render={({ field }) => (
@@ -300,6 +351,7 @@ export function ReceptionDeliveries() {
               notes: '',
               transportType: 'EXTERN_FURNIZOR',
               transportCost: 0,
+              transportVatRate: defaultRate,
               tertiaryTransporterDetails: { name: '', cui: '', regCom: '' },
             })
           }

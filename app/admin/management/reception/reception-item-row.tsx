@@ -29,7 +29,7 @@ import { cn, formatCurrency } from '@/lib/utils'
 import { ReceptionCreateInput } from '@/lib/db/modules/reception/types'
 import { AutocompleteSearch, type SearchResult } from './autocomplete-search'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
-import { MultiStringInput } from './multi-string-input' // <--- Import Componenta Nouă
+import { MultiStringInput } from './multi-string-input'
 
 type ReceptionItemRowProps = {
   form: UseFormReturn<ReceptionCreateInput>

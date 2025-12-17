@@ -51,6 +51,8 @@ export const DeliverySchema = z.object({
   transportCost: z
     .number()
     .nonnegative('Costul trebuie să fie un număr pozitiv.'),
+  transportVatRate: z.coerce.number().nonnegative().default(0),
+  transportVatValue: z.number().optional(),
   tertiaryTransporterDetails: TertiaryTransporterSchema.optional(),
 })
 
@@ -63,6 +65,8 @@ export const InvoiceSchema = z.object({
   amount: z.number().nonnegative().nullable().optional(),
   vatRate: z.coerce.number().nonnegative().default(0),
   exchangeRateOnIssueDate: z.number().positive().optional(),
+  vatValue: z.number().optional(),
+  totalWithVat: z.number().optional(),
 })
 
 const BaseReceptionSchema = z.object({

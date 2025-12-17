@@ -29,6 +29,9 @@ export interface IInventoryBatch {
   movementId: Types.ObjectId
   supplierId?: Types.ObjectId
   supplierName?: string
+  receptionRef?: Types.ObjectId // Legătură directă cu Recepția
+  orderRef?: Types.ObjectId // Legătură directă cu Comanda GNS
+  supplierOrderNumber?: string
   qualityDetails?: IQualityDetails
 }
 
@@ -62,6 +65,9 @@ const InventoryBatchSchema = new Schema<IInventoryBatch>({
   },
   supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
   supplierName: { type: String },
+  receptionRef: { type: Schema.Types.ObjectId, ref: 'Reception' },
+  orderRef: { type: Schema.Types.ObjectId, ref: 'SupplierOrder' },
+  supplierOrderNumber: { type: String },
   qualityDetails: { type: QualityDetailsSchema, default: {} },
 })
 

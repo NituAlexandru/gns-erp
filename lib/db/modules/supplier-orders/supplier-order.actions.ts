@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth'
 import { connectToDatabase } from '@/lib/db'
-import mongoose from 'mongoose'
+import mongoose, { ClientSession } from 'mongoose'
 import SupplierOrderModel from './supplier-order.model'
 import SupplierModel from '../suppliers/supplier.model'
 import {
@@ -27,6 +27,8 @@ import ProductModel, { IERPProductDoc } from '../product/product.model'
 import PackagingModel from '../packaging-products/packaging.model'
 import { IPackagingDoc } from '../packaging-products/types'
 import { ISupplierDoc } from '../suppliers/types'
+import { Types } from 'mongoose'
+import ReceptionModel from '../reception/reception.model'
 
 function processOrderLines(
   itemsFromUI: any[],
@@ -210,105 +212,25 @@ export async function createSupplierOrder(
       packagingData.map((p) => [p._id.toString(), p])
     )
 
-    let totalOrderNetValue = 0
-    let totalOrderVatValue = 0
+    // 2. Procesăm Produsele folosind Helper-ul (ACELAȘI CA LA UPDATE)
+    const productsResult = processOrderLines(
+      data.products || [],
+      productsMap,
+      [], // Nu avem iteme existente la creare
+      false // isPackaging = false
+    )
 
-    // 2. Procesare Produse
-    const processedProducts = data.products.map((item) => {
-      const dbProduct = productsMap.get(item.product.toString())
-      if (!dbProduct)
-        throw new Error(`Produsul ${item.product} nu a fost găsit.`)
+    // 3. Procesăm Ambalajele folosind Helper-ul
+    const packagingResult = processOrderLines(
+      data.packagingItems || [],
+      packagingMap,
+      [], // Nu avem iteme existente la creare
+      true // isPackaging = true
+    )
 
-      // Convertim explicit la numere pentru a evita erori de calcul
-      const userInputQuantity = Number(item.quantityOrdered) || 0
-      const userInputPrice = Number(item.pricePerUnit) || 0
-      const userInputUM = item.unitMeasure
-
-      let dbQuantity = userInputQuantity
-      let dbPrice = userInputPrice
-      const dbBaseUnit = dbProduct.unit || userInputUM
-
-      // LOGICA DE CONVERSIE
-      if (userInputUM !== dbBaseUnit) {
-        if (userInputUM === 'palet') {
-          // Fallback la 1 dacă packagingQuantity lipsește, dar itemsPerPallet e obligatoriu
-          const itemsPerPallet = dbProduct.itemsPerPallet || 0
-          const packagingQty = dbProduct.packagingQuantity || 1
-
-          if (itemsPerPallet > 0) {
-            const unitsPerPallet = itemsPerPallet * packagingQty
-            dbQuantity = userInputQuantity * unitsPerPallet
-            dbPrice = userInputPrice / unitsPerPallet
-          }
-        } else if (userInputUM === dbProduct.packagingUnit) {
-          const packagingQty = dbProduct.packagingQuantity || 1
-          dbQuantity = userInputQuantity * packagingQty
-          dbPrice = userInputPrice / packagingQty
-        }
-      }
-
-      const pricePerUnitRounded = round6(dbPrice)
-      const lineTotal = round2(dbQuantity * pricePerUnitRounded)
-      const vatValue = round2(lineTotal * (item.vatRate / 100))
-
-      totalOrderNetValue += lineTotal
-      totalOrderVatValue += vatValue
-
-      return {
-        ...item,
-        quantityOrdered: dbQuantity,
-        unitMeasure: dbBaseUnit,
-        pricePerUnit: pricePerUnitRounded,
-
-        // Salvăm valorile originale pentru UI
-        originalQuantity: userInputQuantity,
-        originalUnitMeasure: userInputUM,
-        originalPricePerUnit: userInputPrice,
-
-        lineTotal,
-        vatValue,
-        productName: dbProduct.name,
-        productCode: dbProduct.productCode,
-      }
-    })
-
-    // 3. Procesare Ambalaje
-    const processedPackaging = data.packagingItems.map((item) => {
-      const dbPkg = packagingMap.get(item.packaging.toString())
-      if (!dbPkg)
-        throw new Error(`Ambalajul ${item.packaging} nu a fost găsit.`)
-
-      const userInputQuantity = Number(item.quantityOrdered) || 0
-      const userInputPrice = Number(item.pricePerUnit) || 0
-      const userInputUM = item.unitMeasure
-
-      const dbQuantity = userInputQuantity
-      const dbPrice = userInputPrice
-      const dbBaseUnit = userInputUM
-
-      const pricePerUnitRounded = round6(dbPrice)
-      const lineTotal = round2(dbQuantity * pricePerUnitRounded)
-      const vatValue = round2(lineTotal * (item.vatRate / 100))
-
-      totalOrderNetValue += lineTotal
-      totalOrderVatValue += vatValue
-
-      return {
-        ...item,
-        quantityOrdered: dbQuantity,
-        unitMeasure: dbBaseUnit,
-        pricePerUnit: pricePerUnitRounded,
-
-        originalQuantity: userInputQuantity,
-        originalUnitMeasure: userInputUM,
-        originalPricePerUnit: userInputPrice,
-
-        lineTotal,
-        vatValue,
-        packagingName: dbPkg.name,
-        productCode: dbPkg.productCode,
-      }
-    })
+    // Calculăm totalurile
+    let totalOrderNetValue = productsResult.netTotal + packagingResult.netTotal
+    let totalOrderVatValue = productsResult.vatTotal + packagingResult.vatTotal
 
     // 4. Calcul Transport Complet
     let transportData = { ...data.transportDetails } as any // Clone pentru a modifica
@@ -331,7 +253,7 @@ export async function createSupplierOrder(
         transportCost: Number(data.transportDetails.transportCost) || 0,
         totalTransportCost: transportNet,
         transportVatValue: transportVatVal,
-        transportTotalWithVat: transportGross, 
+        transportTotalWithVat: transportGross,
       }
     } else {
       // Fallback object
@@ -361,9 +283,9 @@ export async function createSupplierOrder(
         contactName: supplierDoc.contactName,
         phone: supplierDoc.phone,
       },
-      products: processedProducts,
-      packagingItems: processedPackaging,
-      transportDetails: transportData, 
+      products: productsResult.processedItems,
+      packagingItems: packagingResult.processedItems,
+      transportDetails: transportData,
       totalValue: round2(totalOrderNetValue),
       totalVat: round2(totalOrderVatValue),
       grandTotal: round2(totalOrderNetValue + totalOrderVatValue),
@@ -578,7 +500,7 @@ export async function getAllSupplierOrders({
   await connectToDatabase()
 
   const skip = (page - 1) * limit
-  const query: any = {} 
+  const query: any = {}
 
   // 1. Filtru Status
   if (status && status !== 'ALL') {
@@ -721,5 +643,220 @@ export async function confirmSupplierOrderAction(
     return { success: false, message: error.message }
   } finally {
     session.endSession()
+  }
+}
+
+/**
+ * Returnează comenzile unui furnizor care NU sunt finalizate sau anulate.
+ * Folosit pentru dropdown-ul din Recepție.
+ */
+export async function getOpenOrdersBySupplier(supplierId: string) {
+  try {
+    await connectToDatabase()
+
+    const orders = await SupplierOrderModel.find({
+      supplier: supplierId,
+      status: {
+        $in: ['CONFIRMED', 'PARTIALLY_DELIVERED', 'SCHEDULED', 'SENT'],
+        // Excludem DRAFT (netrimis), COMPLETED (gata), CANCELLED
+      },
+    })
+      .select(
+        'orderNumber orderDate supplierOrderNumber supplierOrderDate totalValue status products packagingItems currency'
+      )
+      .sort({ orderDate: -1 })
+      .lean()
+
+    return JSON.parse(JSON.stringify(orders))
+  } catch (error) {
+    console.error('Error fetching open orders:', error)
+    return []
+  }
+}
+
+/**
+ * Returnează detaliile complete ale unei comenzi pentru a popula UI-ul de recepție.
+ */
+export async function getOrderDetailsForReception(orderId: string) {
+  try {
+    await connectToDatabase()
+    const order = await SupplierOrderModel.findById(orderId)
+      .populate(
+        'products.product',
+        'name productCode unit packagingUnit packagingQuantity itemsPerPallet'
+      )
+      .populate(
+        'packagingItems.packaging',
+        'name productCode packagingUnit packagingQuantity'
+      )
+      .lean()
+
+    if (!order) return null
+    return JSON.parse(JSON.stringify(order))
+  } catch (error) {
+    console.error('Error fetching order details:', error)
+    return null
+  }
+}
+
+export async function addReceptionToOrder(
+  orderId: string,
+  receptionData: {
+    _id: string
+    receptionNumber: string
+    receptionDate: Date
+    totalValue: number
+    products: { product: string; quantity: number }[]
+    packagingItems: { packaging: string; quantity: number }[]
+  },
+  session: ClientSession
+) {
+  const order = await SupplierOrderModel.findById(orderId).session(session)
+  if (!order) return
+
+  // 1. Adăugăm în istoricul comenzii
+  order.receptions.push({
+    receptionId: new Types.ObjectId(receptionData._id),
+    receptionNumber: receptionData.receptionNumber,
+    receptionDate: receptionData.receptionDate,
+    totalValue: receptionData.totalValue,
+  })
+
+  // 2. Actualizăm incremental cantitățile
+  for (const recItem of receptionData.products) {
+    const orderItem = order.products.find(
+      (p) => p.product.toString() === recItem.product
+    )
+    if (orderItem) {
+      orderItem.quantityReceived =
+        (orderItem.quantityReceived || 0) + recItem.quantity
+    }
+  }
+
+  for (const recItem of receptionData.packagingItems) {
+    if (!order.packagingItems) continue
+    const orderItem = order.packagingItems.find(
+      (p) => p.packaging.toString() === recItem.packaging
+    )
+    if (orderItem) {
+      orderItem.quantityReceived =
+        (orderItem.quantityReceived || 0) + recItem.quantity
+    }
+  }
+
+  // 3. Recalculăm statusul
+  updateOrderStatus(order)
+
+  // 4. FORȚĂM MONGOOSE SĂ VADĂ MODIFICĂRILE
+  order.markModified('products')
+  order.markModified('packagingItems')
+  order.markModified('receptions')
+
+  await order.save({ session })
+}
+
+/**
+ * Scoate o recepție din comandă și RECALCULEAZĂ cantitățile rămase
+ * bazându-se pe celelalte recepții active din baza de date.
+ */
+export async function removeReceptionFromOrder(
+  orderId: string,
+  receptionIdToRemove: string,
+  itemsToSubtract: {
+    products: { product: string; quantity: number }[]
+    packagingItems: { packaging: string; quantity: number }[]
+  },
+  session: ClientSession
+) {
+  const order = await SupplierOrderModel.findById(orderId).session(session)
+  if (!order) {
+    console.error('ERROR: Comanda nu a fost găsită!')
+    throw new Error('Comanda furnizor nu a fost găsită!')
+  }
+
+  // 1. Remove from history
+  const initialReceptionsCount = order.receptions.length
+  order.receptions = order.receptions.filter(
+    (r) => r.receptionId.toString() !== receptionIdToRemove.toString()
+  )
+
+  // 2. Subtract Products
+  for (const itemToRemove of itemsToSubtract.products) {
+    const orderItem = order.products.find(
+      (p) => p.product.toString() === itemToRemove.product.toString()
+    )
+
+    if (orderItem) {
+      const oldQty = orderItem.quantityReceived || 0
+      const newQty = Math.max(0, oldQty - itemToRemove.quantity)
+      console.log(
+        `PRODUCT UPDATE: ${itemToRemove.product} | ${oldQty} -> ${newQty}`
+      )
+      orderItem.quantityReceived = newQty
+    } else {
+      console.warn(
+        `WARNING: Product ${itemToRemove.product} NOT FOUND in order!`
+      )
+    }
+  }
+
+  // 3. Subtract Packaging
+  if (order.packagingItems) {
+    for (const itemToRemove of itemsToSubtract.packagingItems) {
+      const orderItem = order.packagingItems.find(
+        (p) => p.packaging.toString() === itemToRemove.packaging.toString()
+      )
+      if (orderItem) {
+        const oldQty = orderItem.quantityReceived || 0
+        const newQty = Math.max(0, oldQty - itemToRemove.quantity)
+        console.log(
+          `PACKAGING UPDATE: ${itemToRemove.packaging} | ${oldQty} -> ${newQty}`
+        )
+        orderItem.quantityReceived = newQty
+      } else {
+        console.warn(
+          `WARNING: Packaging ${itemToRemove.packaging} NOT FOUND in order!`
+        )
+      }
+    }
+  }
+
+  updateOrderStatus(order)
+  console.log('New Order Status:', order.status)
+
+  order.markModified('products')
+  order.markModified('packagingItems')
+  order.markModified('receptions')
+
+  await order.save({ session })
+}
+
+// Helper intern pentru consistență status
+function updateOrderStatus(order: ISupplierOrderDoc) {
+  // Verificăm dacă produsele sunt livrate complet
+  const allProductsDelivered = order.products.every(
+    (p) => (p.quantityReceived || 0) >= p.quantityOrdered
+  )
+
+  // Verificăm dacă ambalajele sunt livrate complet (safety check dacă e undefined)
+  const allPackagingDelivered = order.packagingItems
+    ? order.packagingItems.every(
+        (p) => (p.quantityReceived || 0) >= p.quantityOrdered
+      )
+    : true
+
+  // Verificăm dacă există ORICE cantitate livrată
+  const anyDelivered =
+    order.products.some((p) => (p.quantityReceived || 0) > 0) ||
+    (order.packagingItems?.some((p) => (p.quantityReceived || 0) > 0) ?? false)
+
+  // Logică status
+  if (allProductsDelivered && allPackagingDelivered && anyDelivered) {
+    order.status = 'DELIVERED'
+  } else if (anyDelivered) {
+    order.status = 'PARTIALLY_DELIVERED'
+  } else {
+    // Dacă am recalculat și am ajuns la 0, revenim la statusul de bază
+    order.status = 'CONFIRMED'
   }
 }

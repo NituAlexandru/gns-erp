@@ -58,6 +58,9 @@ export const StockMovementSchema = z.object({
   documentNumber: z.string().optional(),
   qualityDetails: QualityDetailsZod,
   specificBatchId: z.string().optional(),
+  receptionRef: z.string().optional(),
+  orderRef: z.string().optional(),
+  supplierOrderNumber: z.string().optional(),
 })
 
 export const adjustStockSchema = z.object({

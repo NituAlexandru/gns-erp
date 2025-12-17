@@ -13,10 +13,12 @@ import {
   SetDefaultVatRateSchema,
 } from './validator'
 import User from '../../user/user.model'
+import { connectToDatabase } from '@/lib/db'
 
 //  Returnează toate cotele de TVA, sortate după valoare.
 export async function getVatRates() {
   try {
+    await connectToDatabase()
     const rates = await VatRateModel.find({}).sort({ rate: -1 }).lean()
     return { success: true, data: JSON.parse(JSON.stringify(rates)) }
   } catch (error) {
@@ -28,6 +30,7 @@ export async function getVatRates() {
 // Returnează cota de TVA implicită.
 export async function getDefaultVatRate() {
   try {
+    await connectToDatabase()
     const defaultRate = await VatRateModel.findOne({ isDefault: true }).lean()
     if (!defaultRate) {
       return { success: true, data: null }
@@ -43,6 +46,7 @@ export async function getDefaultVatRate() {
 // Creează o nouă cotă de TVA.
 export async function createVatRate(input: VatRateCreateInput) {
   try {
+    await connectToDatabase()
     const data = VatRateCreateSchema.parse(input)
     const newRate = await VatRateModel.create(data)
     return { success: true, data: JSON.parse(JSON.stringify(newRate)) }
@@ -55,6 +59,7 @@ export async function createVatRate(input: VatRateCreateInput) {
 // Actualizează o cotă de TVA existentă.
 export async function updateVatRate(input: VatRateUpdateInput) {
   try {
+    await connectToDatabase()
     const { _id, ...updateData } = VatRateUpdateSchema.parse(input)
     const updatedRate = await VatRateModel.findByIdAndUpdate(_id, updateData, {
       new: true,
@@ -69,6 +74,7 @@ export async function updateVatRate(input: VatRateUpdateInput) {
 
 // Setează o cotă de TVA ca fiind cea implicită. Operațiune tranzacțională.
 export async function setDefaultVatRate(input: SetDefaultVatRateInput) {
+  await connectToDatabase()
   const session = await startSession()
   try {
     const { rateId, userId } = SetDefaultVatRateSchema.parse(input)
@@ -118,6 +124,7 @@ export async function setDefaultVatRate(input: SetDefaultVatRateInput) {
 
 // Returnează istoricul cotelor de TVA setate ca implicite.
 export async function getDefaultVatHistory() {
+  await connectToDatabase()
   try {
     const history = await DefaultVatHistoryModel.find({})
       .sort({ setAsDefaultAt: -1 })
