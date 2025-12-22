@@ -130,6 +130,7 @@ export async function createReception(
           ...item,
           productName: productDoc.name,
           productCode: productDoc.productCode || 'N/A',
+          documentQuantity: item.documentQuantity ?? item.quantity,
         }
       }),
       packagingItems: (payload.packagingItems || []).map((item) => {
@@ -140,13 +141,12 @@ export async function createReception(
           ...item,
           packagingName: packagingDoc.name,
           productCode: packagingDoc.productCode || 'N/A',
+          documentQuantity: item.documentQuantity ?? item.quantity,
         }
       }),
     }
     // --- Sfârșit logică snapshot-uri ---
 
-    // --- AICI ERA EROAREA MEA ---
-    // Folosim payload-ul îmbogățit, nu cel vechi
     const newReception = await ReceptionModel.create(payloadWithSnapshots)
 
     return {
@@ -221,6 +221,7 @@ export async function updateReception(
           ...item,
           productName: productDoc.name,
           productCode: productDoc.productCode || 'N/A', // (Verifică 'productCode')
+          documentQuantity: item.documentQuantity ?? item.quantity,
         }
       }),
       packagingItems: (updateData.packagingItems || []).map((item) => {
@@ -231,6 +232,7 @@ export async function updateReception(
           ...item,
           packagingName: packagingDoc.name,
           packagingCode: packagingDoc.productCode || 'N/A',
+          documentQuantity: item.documentQuantity ?? item.quantity,
         }
       }),
     }
@@ -647,8 +649,6 @@ export async function revokeConfirmation(
   const session = await mongoose.startSession()
   try {
     const result = await session.withTransaction(async (session) => {
-      await reverseStockMovementsByReference(receptionId, session)
-
       const reception = await ReceptionModel.findById(receptionId)
         .populate({
           path: 'products.product',
@@ -671,6 +671,8 @@ export async function revokeConfirmation(
           message: 'Doar o recepție confirmată poate fi revocată.',
         }
       }
+
+      await reverseStockMovementsByReference(receptionId, session)
 
       // --- INSERT: ACTUALIZARE COMANDĂ (SCĂDERE) ---
       // IMPORTANT: Facem asta ACUM, cât timp avem cantitățile MARI (convertite) pe recepție

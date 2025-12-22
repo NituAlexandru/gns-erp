@@ -17,6 +17,11 @@ export function distributeTransportCost<T extends DistributableItem>(
   items: T[],
   totalTransportCost: number
 ): (T & { totalDistributedTransportCost: number })[] {
+  // Verificare explicită la început. Dacă nu sunt articole, ieșim imediat.
+  if (!items || items.length === 0) {
+    return []
+  }
+
   const totalItemsNetValue = items.reduce((sum, item) => {
     const unitNet = item.invoicePricePerUnit ?? 0
     const qty = item.quantity ?? 0
@@ -43,7 +48,7 @@ export function distributeTransportCost<T extends DistributableItem>(
     (s, v) => round2(s + v),
     0
   )
-  const allocationDifference = round2(round2(totalTransportCost) - allocatedSum)
+  const allocationDifference = round2(totalTransportCost - allocatedSum)
 
   if (
     Math.abs(allocationDifference) > 0 &&

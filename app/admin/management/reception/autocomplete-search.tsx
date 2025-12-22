@@ -10,6 +10,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
+import { useDebounce } from '@/hooks/use-debounce'
 
 export type SearchResult = {
   _id: string
@@ -40,6 +41,7 @@ export function AutocompleteSearch({
   const [query, setQuery] = useState('')
   const [options, setOptions] = useState<SearchResult[]>([])
   const [isOpen, setIsOpen] = useState(false)
+  const debouncedValue = useDebounce(query, 300)
 
   useEffect(() => {
     if (initialSelectedItem?.name) {
@@ -48,24 +50,31 @@ export function AutocompleteSearch({
   }, [initialSelectedItem])
 
   useEffect(() => {
-    if (query.length < 2 || query === initialSelectedItem?.name) {
+    // Verificăm debouncedValue în loc de query
+    if (
+      debouncedValue.length < 2 ||
+      debouncedValue === initialSelectedItem?.name
+    ) {
       setOptions([])
       return
     }
-    const timer = setTimeout(() => {
-      let apiUrl = ''
-      if (searchType === 'supplier') {
-        apiUrl = `/api/admin/management/suppliers/search?q=${query}`
-      } else {
-        apiUrl = `/api/admin/products/search?q=${query}&type=${searchType}`
-      }
-      fetch(apiUrl)
-        .then((res) => res.json())
-        .then((data) => setOptions(data || []))
-        .catch(console.error)
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [query, searchType, initialSelectedItem])
+
+    let apiUrl = ''
+    if (searchType === 'supplier') {
+      // Am pus debouncedValue în URL
+      apiUrl = `/api/admin/management/suppliers/search?q=${debouncedValue}`
+    } else {
+      // Am pus debouncedValue în URL
+      apiUrl = `/api/admin/products/search?q=${debouncedValue}&type=${searchType}`
+    }
+
+    fetch(apiUrl)
+      .then((res) => res.json())
+      .then((data) => setOptions(data || []))
+      .catch(console.error)
+
+    // --- COD VECHI: clearTimeout a fost șters de aici ---
+  }, [debouncedValue, searchType, initialSelectedItem]) // Dependența este acum debouncedValue
 
   const handleSelect = (item: SearchResult) => {
     setQuery(item.name)

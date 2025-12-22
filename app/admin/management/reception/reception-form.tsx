@@ -187,16 +187,18 @@ export function ReceptionForm({
     calculatedVatTotal,
     calculatedGrandTotal,
     isBalancedNoVat,
-    isBalancedWithVat, // <--- Variabila noua pe care o returnam
+    isBalancedWithVat,
   } = useMemo(() => {
     const watchedData = form.getValues()
 
     // 1) Calculăm Marfa (Net și TVA)
     const productsReduce = (watchedData.products || []).reduce(
       (acc, item) => {
-        const net = (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0)
-        const vat = net * ((item.vatRate ?? 0) / 100)
-        return { net: acc.net + net, vat: acc.vat + vat }
+        const net = round2(
+          (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0)
+        )
+        const vat = round2(net * ((item.vatRate ?? 0) / 100))
+        return { net: round2(acc.net + net), vat: round2(acc.vat + vat) }
       },
       { net: 0, vat: 0 }
     )
@@ -210,18 +212,18 @@ export function ReceptionForm({
       { net: 0, vat: 0 }
     )
 
-    const merchandiseNet = productsReduce.net + packagingReduce.net
-    const merchandiseVat = productsReduce.vat + packagingReduce.vat
+    const merchandiseNet = round2(productsReduce.net + packagingReduce.net)
+    const merchandiseVat = round2(productsReduce.vat + packagingReduce.vat)
 
     // 2) Calculăm Transportul (Net și TVA)
     const transportReduce = (watchedData.deliveries || []).reduce(
       (acc, delivery) => {
         const cost = Number(delivery.transportCost || 0)
         const rate = Number(delivery.transportVatRate || 0)
-        const vat = cost * (rate / 100)
+        const vat = round2(cost * (rate / 100))
         return {
-          cost: acc.cost + cost,
-          vat: acc.vat + vat,
+          cost: round2(acc.cost + cost),
+          vat: round2(acc.vat + vat),
         }
       },
       { cost: 0, vat: 0 }
@@ -231,9 +233,9 @@ export function ReceptionForm({
     const transportVat = transportReduce.vat
 
     // --- TOTALURILE PENTRU CARDUL DE JOS (Ce a intrat in stoc) ---
-    const totalIntrareNet = merchandiseNet + transportNet
-    const totalTvaCalculated = merchandiseVat + transportVat
-    const totalGeneralCalculated = totalIntrareNet + totalTvaCalculated
+    const totalIntrareNet = round2(merchandiseNet + transportNet)
+    const totalTvaCalculated = round2(merchandiseVat + transportVat)
+    const totalGeneralCalculated = round2(totalIntrareNet + totalTvaCalculated)
 
     // 3) Calculăm Facturile pentru VALIDARE
 
@@ -251,7 +253,7 @@ export function ReceptionForm({
               ? invoice.exchangeRateOnIssueDate
               : 0
 
-        return sum + amount * exchangeRate
+        return round2(sum + round2(amount * exchangeRate))
       },
       0
     )

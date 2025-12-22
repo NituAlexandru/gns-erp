@@ -84,6 +84,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
     itemName,
     itemNamePath,
     quantityPath,
+    documentQuantityPath,
     unitMeasurePath,
     pricePath,
     vatRatePath,
@@ -94,6 +95,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           itemName: 'product' as const,
           itemNamePath: `products.${index}.product` as const,
           quantityPath: `products.${index}.quantity` as const,
+          documentQuantityPath: `products.${index}.documentQuantity` as const,
           unitMeasurePath: `products.${index}.unitMeasure` as const,
           pricePath: `products.${index}.invoicePricePerUnit` as const,
           vatRatePath: `products.${index}.vatRate` as const,
@@ -103,6 +105,8 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
           itemName: 'packaging' as const,
           itemNamePath: `packagingItems.${index}.packaging` as const,
           quantityPath: `packagingItems.${index}.quantity` as const,
+          documentQuantityPath:
+            `packagingItems.${index}.documentQuantity` as const,
           unitMeasurePath: `packagingItems.${index}.unitMeasure` as const,
           pricePath: `packagingItems.${index}.invoicePricePerUnit` as const,
           vatRatePath: `packagingItems.${index}.vatRate` as const,
@@ -374,11 +378,40 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
       {/* Rândul Secundar: Cantitate, UM, Preț + Butoane */}
       <div className='flex items-end gap-2'>
         <FormField
+          name={documentQuantityPath}
+          control={form.control}
+          render={({ field }) => (
+            <FormItem className='flex-1'>
+              <FormLabel className='text-xs text-muted-foreground whitespace-nowrap'>
+                Cantitate Document
+              </FormLabel>
+              <FormControl>
+                <Input
+                  type='number'
+                  step='0.01'
+                  placeholder='Cantitate Document'
+                  {...field}
+                  value={field.value ?? ''}
+                  onChange={(e) =>
+                    field.onChange(
+                      e.target.value === '' ? '' : parseFloat(e.target.value)
+                    )
+                  }
+                  className='bg-muted/20'
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
           name={quantityPath}
           control={form.control}
           render={({ field }) => (
             <FormItem className='flex-1'>
-              <FormLabel>Cantitate *</FormLabel>
+              <FormLabel className='font-bold text-primary whitespace-nowrap'>
+                Cant. Primită *
+              </FormLabel>
               <FormControl>
                 <Input
                   type='number'
@@ -408,8 +441,8 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                 disabled={!itemDetails}
               >
                 <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder='-' />
+                  <SelectTrigger className='w-full'>
+                    <SelectValue placeholder='UM' />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
