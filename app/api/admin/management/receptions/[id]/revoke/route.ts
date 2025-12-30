@@ -8,11 +8,12 @@ export async function POST(
 ) {
   try {
     const session = await auth()
+
     if (!session?.user?.id) {
       return NextResponse.json({ message: 'Neautorizat' }, { status: 401 })
     }
 
-        const { id } = await params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json(
@@ -21,7 +22,11 @@ export async function POST(
       )
     }
 
-    const result = await revokeConfirmation(id)
+    const result = await revokeConfirmation(
+      id,
+      session.user.id,
+      session.user.name || 'Utilizator Neidentificat'
+    )
 
     if (!result.success) {
       return NextResponse.json({ message: result.message }, { status: 400 })

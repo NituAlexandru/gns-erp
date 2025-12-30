@@ -66,6 +66,9 @@ export type PopulatedReception = Omit<
   deliveries?: z.infer<typeof DeliverySchema>[]
   invoices?: z.infer<typeof InvoiceSchema>[]
   amount: number
+  nirNumber?: string
+  nirDate?: string | Date
+  nirId?: string
   supplierSnapshot?: {
     name: string
     cui?: string

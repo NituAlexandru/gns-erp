@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/utils'
@@ -40,6 +40,9 @@ import { SearchFilters } from '@/components/shared/receptions/search-filters'
 import { PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
 import { useDebounce } from '@/hooks/use-debounce'
+import { generateNirForReceptionAction } from '@/lib/db/modules/financial/nir/nir.actions'
+import { FileText, Printer } from 'lucide-react'
+import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 
 // ——— HELPER: calculează totalurile în RON pentru o recepție ———
 function computeReceptionTotals(rec: PopulatedReception) {
@@ -114,6 +117,9 @@ function computeReceptionTotals(rec: PopulatedReception) {
 type ReceptionRow = PopulatedReception & {
   createdBy?: { _id: string; name: string }
   createdAt?: string
+  nirNumber?: string
+  nirDate?: string | Date
+  nirId?: string
 }
 
 export default function ReceptionList() {
@@ -122,7 +128,6 @@ export default function ReceptionList() {
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-
   const [filters, setFilters] = useState<ReceptionFilters>({
     q: '',
     status: 'ALL',
@@ -130,7 +135,9 @@ export default function ReceptionList() {
     page: 1,
     pageSize: PAGE_SIZE,
   })
-
+  const [nirModalOpen, setNirModalOpen] = useState(false)
+  const [nirTargetRec, setNirTargetRec] = useState<string | null>(null)
+  const [isGeneratingNir, setIsGeneratingNir] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<ReceptionRow | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<ReceptionRow | null>(null)
@@ -263,6 +270,50 @@ export default function ReceptionList() {
     }
   }
 
+  // --- LOGICĂ GENERARE NIR ---
+  async function handleGenerateNIR(receptionId: string, seriesName?: string) {
+    setIsGeneratingNir(true)
+    const toastId = toast.loading('Se generează NIR-ul...')
+
+    try {
+      const res = await generateNirForReceptionAction(receptionId, seriesName)
+
+      if (!res.success) {
+        if ('requireSelection' in res && res.requireSelection) {
+          // Deschidem modalul dacă e nevoie de selecție
+          setNirTargetRec(receptionId)
+          setNirModalOpen(true)
+          toast.dismiss(toastId)
+        } else {
+          toast.error(res.message, { id: toastId })
+        }
+      } else {
+        toast.success('NIR generat cu succes!', { id: toastId })
+        fetchReceptions(filters) // Refresh listă
+        setNirModalOpen(false)
+        setNirTargetRec(null)
+      }
+    } catch (error: any) {
+      toast.error('Eroare: ' + error.message, { id: toastId })
+    } finally {
+      setIsGeneratingNir(false)
+    }
+  }
+
+  // Handler pt modal
+  const onSeriesSelected = (series: string) => {
+    if (nirTargetRec) {
+      handleGenerateNIR(nirTargetRec, series)
+    }
+  }
+
+  // Placeholder pentru printare
+  const handlePrintNirPdf = (nirId: string) => {
+    toast.info('Printarea va fi implementată curând.', {
+      description: `NIR ID: ${nirId}`,
+    })
+  }
+
   return (
     <div className='space-y-4'>
       {/* Header + filtre */}
@@ -306,6 +357,7 @@ export default function ReceptionList() {
         <Table>
           <TableHeader>
             <TableRow className='bg-muted'>
+              <TableHead>NIR</TableHead>
               <TableHead>Furnizor</TableHead>
               <TableHead>Data Recepție</TableHead>
               <TableHead>Avize</TableHead>
@@ -332,13 +384,48 @@ export default function ReceptionList() {
               </TableRow>
             ) : (
               receptions.map((rec) => {
-                // <-- Aici folosim 'receptions'
                 const deliveries = rec.deliveries ?? []
                 const invoices = rec.invoices ?? []
                 const totals = computeReceptionTotals(rec)
 
                 return (
                   <TableRow key={rec._id}>
+                    {/* --- COLOANĂ NIR --- */}
+                    <TableCell className='py-1'>
+                      {rec.nirNumber ? (
+                        <div className='flex items-center gap-1'>
+                          {/* Buton Print (Placeholder) */}
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='h-8 w-8 hover:bg-gray-500'
+                            onClick={() => handlePrintNirPdf(rec.nirId!)}
+                            title='Printează NIR'
+                          >
+                            <FileText className='h-8 w-8' />
+                          </Button>
+
+                          {/* Link către Pagina de Detalii NIR */}
+                          <div className='flex flex-col text-xs'>
+                            <Link
+                              href={`/admin/management/reception/nir/${rec.nirId}`}
+                              className='font-semibold hover:underline'
+                            >
+                              {rec.nirNumber}
+                            </Link>
+                            {rec.nirDate && (
+                              <span className='text-muted-foreground'>
+                                {format(new Date(rec.nirDate), 'dd/MM/yyyy')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className='text-xs text-muted-foreground italic pl-2'>
+                          Ne-generat
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Link href={`/admin/management/reception/${rec._id}`}>
                         {rec.supplier?.name || '–'}
@@ -431,7 +518,38 @@ export default function ReceptionList() {
                           >
                             Revocă Confirmarea
                           </DropdownMenuItem>
+                          {/* --- ACȚIUNI NIR --- */}
+                          {rec.status === 'CONFIRMAT' && !rec.nirNumber && (
+                            <DropdownMenuItem
+                              className='cursor-pointer text-emerald-600 focus:text-emerald-700'
+                              onSelect={() => handleGenerateNIR(rec._id)}
+                              disabled={isGeneratingNir}
+                            >
+                              Generează NIR
+                            </DropdownMenuItem>
+                          )}
 
+                          {rec.nirNumber && (
+                            <>
+                              <DropdownMenuItem
+                                className='cursor-pointer'
+                                onSelect={() =>
+                                  router.push(
+                                    `/admin/management/reception/nir/${rec.nirId}`
+                                  )
+                                }
+                              >
+                                Vezi Detalii NIR
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                className='cursor-pointer'
+                                onSelect={() => handlePrintNirPdf(rec.nirId!)}
+                              >
+                                <Printer className=' h-4 w-4' /> Descarcă PDF
+                              </DropdownMenuItem>
+                            </>
+                          )}
                           <DropdownMenuSeparator />
 
                           <DropdownMenuItem
@@ -533,6 +651,16 @@ export default function ReceptionList() {
             Următor
           </Button>
         </div>
+      )}
+      {nirModalOpen && (
+        <SelectSeriesModal
+          documentType='NIR'
+          onSelect={onSeriesSelected}
+          onCancel={() => {
+            setNirModalOpen(false)
+            setNirTargetRec(null)
+          }}
+        />
       )}
     </div>
   )

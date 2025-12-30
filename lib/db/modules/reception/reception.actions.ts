@@ -30,6 +30,7 @@ import {
   addReceptionToOrder,
   removeReceptionFromOrder,
 } from '../supplier-orders/supplier-order.actions'
+import NirModel from '../financial/nir/nir.model'
 
 export type ActionResultWithData<T> =
   | { success: true; data: T; message?: string }
@@ -644,7 +645,9 @@ export async function confirmReception({
 // TODO (Proiecte): De refactorizat când Proiectele au sub-locații.
 // Logica trebuie să fie identică cu cea de la confirmReception.
 export async function revokeConfirmation(
-  receptionId: string
+  receptionId: string,
+  userId: string,
+  userName: string
 ): Promise<ActionResultWithData<PopulatedReception>> {
   const session = await mongoose.startSession()
   try {
@@ -671,6 +674,29 @@ export async function revokeConfirmation(
           message: 'Doar o recepție confirmată poate fi revocată.',
         }
       }
+
+      // Verificăm dacă există un NIR asociat
+      if (reception.nirId) {
+        // A. Anulăm NIR-ul (Logica din cancelNir mutată aici în tranzacție)
+        await NirModel.findByIdAndUpdate(
+          reception.nirId,
+          {
+            status: 'CANCELLED',
+            cancellationReason: 'Revocare automată (Recepție revocată)',
+            cancelledAt: new Date(),
+            cancelledBy: new Types.ObjectId(userId),
+            cancelledByName: userName,
+          },
+          { session }
+        )
+
+        // B. Rupem legătura din Recepție
+        // Setăm pe undefined ca să dispară din DB și să permită generarea unuia nou
+        reception.nirId = undefined
+        reception.nirNumber = undefined
+        reception.nirDate = undefined
+      }
+      // --------------------------------
 
       await reverseStockMovementsByReference(receptionId, session)
 

@@ -2,13 +2,14 @@
 
 import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { LayoutDashboard, FileCheck, FileText, Receipt } from 'lucide-react'
+import { LayoutDashboard, FileCheck, FileText, Receipt, FileInput } from 'lucide-react'
 
 const NAV_ITEMS = [
   { id: '', label: 'Sumar', icon: <LayoutDashboard size={16} /> },
   { id: 'delivery-notes', label: 'Avize', icon: <FileCheck size={16} /> },
   { id: 'invoices', label: 'Facturi Emise', icon: <FileText size={16} /> },
   { id: 'receipts', label: 'Chitanțe', icon: <Receipt size={16} /> },
+  { id: 'nir', label: 'NIR-uri', icon: <FileInput size={16} /> },
 ]
 
 export default function FinancialNav() {

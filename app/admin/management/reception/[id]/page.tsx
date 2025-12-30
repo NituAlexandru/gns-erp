@@ -81,6 +81,11 @@ export default async function ReceptionDetailPage({ params }: Props) {
     (acc, d) => acc + (d.transportCost || 0),
     0
   )
+  const totalTransportVat = deliveries.reduce(
+    (acc, d) =>
+      acc + (d.transportCost || 0) * ((d.transportVatRate || 0) / 100),
+    0
+  )
   const calculateTotals = (items: any[]) => {
     return items.reduce(
       (acc, item) => {
@@ -91,15 +96,14 @@ export default async function ReceptionDetailPage({ params }: Props) {
       { net: 0, vat: 0 }
     )
   }
-
   const prodTotals = calculateTotals(products)
   const pkgTotals = calculateTotals(packages)
-
   const totalNet = prodTotals.net + pkgTotals.net
   const totalVat = prodTotals.vat + pkgTotals.vat
   // Notă: Adunăm transportul la totalul general.
   // Dacă transportul are și el TVA, ar trebui calculat separat, dar aici îl adunăm brut la final.
-  const grandTotal = totalNet + totalVat + totalTransportCost
+  const grandTotal =
+    totalNet + totalVat + totalTransportCost + totalTransportVat
 
   return (
     <div className='space-y-2 p-2 '>
@@ -117,7 +121,7 @@ export default async function ReceptionDetailPage({ params }: Props) {
             <span>Detalii</span>
           </div>
           <h1 className='text-3xl font-bold tracking-tight flex items-center gap-3'>
-            Recepție #{reception.deliveries?.[0]?.dispatchNoteNumber || 'N/A'}
+            Recepție
             <Badge
               className='text-base px-3 py-1'
               variant={
@@ -231,9 +235,32 @@ export default async function ReceptionDetailPage({ params }: Props) {
                     <span className='uppercase'>{del.carNumber || '-'}</span>
                   </div>
                   {del.transportCost ? (
-                    <div className='flex justify-between items-center font-medium pt-1 border-t'>
-                      <span>Cost Transport:</span>
-                      <span>{formatMoney(del.transportCost)}</span>
+                    <div className='pt-1 border-t space-y-1'>
+                      <div className='flex justify-between items-center font-medium'>
+                        <span>Cost Transport (Net):</span>
+                        <span>{formatMoney(del.transportCost)}</span>
+                      </div>
+                      <div className='flex justify-between items-center text-xs text-muted-foreground'>
+                        <span>
+                          TVA Transport ({del.transportVatRate || 0}%):
+                        </span>
+                        <span>
+                          {formatMoney(
+                            (del.transportCost || 0) *
+                              ((del.transportVatRate || 0) / 100)
+                          )}
+                        </span>
+                      </div>
+                      <div className='flex justify-between items-center  font-semibold text-foreground pt-1'>
+                        <span>Total Transport:</span>
+                        <span>
+                          {formatMoney(
+                            (del.transportCost || 0) +
+                              (del.transportCost || 0) *
+                                ((del.transportVatRate || 0) / 100)
+                          )}
+                        </span>
+                      </div>
                     </div>
                   ) : null}
                 </div>
@@ -464,10 +491,10 @@ export default async function ReceptionDetailPage({ params }: Props) {
                 </TableCell>
                 <TableCell className='text-right font-bold text-slate-300 font-mono py-2'>
                   {/* Total Net */}
-                  {formatMoney(totalNet)} (Net)
+                  {formatMoney(totalNet + totalTransportCost)} (Net)
                 </TableCell>
                 <TableCell className='text-right font-bold text-slate-300 font-mono py-2'>
-                  {formatMoney(totalVat)} (TVA)
+                  {formatMoney(totalVat + totalTransportVat)} (TVA)
                 </TableCell>
               </TableRow>
             </TableBody>

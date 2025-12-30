@@ -112,6 +112,9 @@ export interface IReceptionDoc extends Document {
   status: 'DRAFT' | 'CONFIRMAT'
   deliveries: IDelivery[]
   invoices: IInvoice[]
+  nirNumber?: string
+  nirDate?: Date
+  nirId?: Types.ObjectId
   createdAt: Date
   updatedAt: Date
 }
@@ -281,6 +284,9 @@ const receptionSchema = new Schema<IReceptionDoc>(
     },
     deliveries: [deliverySchema],
     invoices: [invoiceSchema],
+    nirNumber: { type: String },
+    nirDate: { type: Date },
+    nirId: { type: Schema.Types.ObjectId, ref: 'Nir' },
   },
   { timestamps: true }
 )

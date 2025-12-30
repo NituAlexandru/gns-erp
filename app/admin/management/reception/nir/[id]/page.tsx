@@ -1,0 +1,479 @@
+import { format } from 'date-fns'
+import { ro } from 'date-fns/locale'
+import Link from 'next/link'
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from '@/components/ui/card'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import {
+  ArrowLeft,
+  Calendar,
+  FileText,
+  MapPin,
+  User,
+  Printer,
+  XCircle,
+  ExternalLink,
+  CreditCard,
+  Truck,
+} from 'lucide-react'
+import { getNirById } from '@/lib/db/modules/financial/nir/nir.actions'
+import { NIR_STATUS_MAP } from '@/lib/db/modules/financial/nir/nir.constants'
+import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
+interface Props {
+  params: Promise<{ id: string }>
+}
+
+// Helper pentru formatare monetară (Exact ca în exemplul tău)
+const formatMoney = (amount: number | undefined | null, currency = 'RON') => {
+  if (amount == null) return '-'
+  return new Intl.NumberFormat('ro-RO', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+// Helper pentru formatare numere (cantități)
+const formatNumber = (amount: number | undefined | null) => {
+  if (amount == null) return '-'
+  return new Intl.NumberFormat('ro-RO', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amount)
+}
+
+export default async function NirPage({ params }: Props) {
+  const { id } = await params
+  const result = await getNirById(id)
+
+  if (!result.success || !result.data) {
+    return (
+      <div className='p-6'>
+        <Card className='border-destructive/50'>
+          <CardContent className='pt-6 flex flex-col items-center justify-center h-40'>
+            <p className='text-lg font-medium text-muted-foreground'>
+              NIR-ul nu a fost găsit.
+            </p>
+            <Button variant='outline' className='mt-4' asChild>
+              <Link href='/admin/management/reception'>
+                <ArrowLeft className='mr-2 h-4 w-4' /> Înapoi la Recepții
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  const nir = result.data
+  const statusInfo = NIR_STATUS_MAP[nir.status]
+
+  return (
+    <div className='space-y-4 p-2'>
+      {/* --- HEADER --- */}
+      <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-4'>
+        <div>
+          <div className='flex items-center gap-2 text-muted-foreground mb-1'>
+            <Link
+              href='/admin/management/reception'
+              className='hover:text-foreground transition-colors'
+            >
+              Recepții
+            </Link>
+            <span>/</span>
+            <span>NIR Detalii</span>
+          </div>
+          <h1 className='text-3xl font-bold tracking-tight flex items-center gap-3'>
+            NIR #{nir.nirNumber}
+            <Badge variant={statusInfo.variant} className='text-base px-3 py-1'>
+              {statusInfo.name}
+            </Badge>
+          </h1>
+          <p className='text-muted-foreground mt-1 flex items-center gap-2'>
+            <Calendar className='h-4 w-4' />
+            {format(new Date(nir.nirDate), 'dd MMMM yyyy', {
+              locale: ro,
+            })}
+          </p>
+        </div>
+
+        <div className='flex gap-2'>
+          {/* Buton PDF (Placeholder pentru funcționalitatea viitoare) */}
+          <Button variant='outline'>
+            <Printer className='mr-2 h-4 w-4' /> Tipărește PDF
+          </Button>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* --- INFO CARDS --- */}
+      <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+        {/* Card 1: Părți Implicate & Locație */}
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground uppercase tracking-wider'>
+              Informații Părți
+            </CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-3'>
+            {/* Furnizor */}
+            <div className='flex items-start gap-3'>
+              <div className='bg-primary/10 p-2 rounded-full mt-1'>
+                <User className='h-4 w-4 text-primary' />
+              </div>
+              <div>
+                <p className='text-xs text-muted-foreground uppercase'>
+                  Furnizor
+                </p>
+                <p className='font-medium'>{nir.supplierSnapshot.name}</p>
+                <p className='text-xs text-muted-foreground'>
+                  CUI: {nir.supplierSnapshot.cui}
+                </p>
+              </div>
+            </div>
+
+            {/* Unitate / Gestiune */}
+            <div className='flex items-start gap-3'>
+              <div className='bg-orange-100 p-2 rounded-full mt-1'>
+                <MapPin className='h-4 w-4 text-orange-600' />
+              </div>
+              <div>
+                <p className='text-xs text-muted-foreground uppercase'>
+                  Gestiune Destinație
+                </p>
+                <p className='font-medium text-sm'>
+                  {nir.companySnapshot.name}
+                </p>
+                <p className='text-sm font-bold text-foreground'>
+                  Locatie stoc:{' '}
+                  {
+                    LOCATION_NAMES_MAP[
+                      nir.destinationLocation as keyof typeof LOCATION_NAMES_MAP
+                    ]
+                  }
+                </p>
+              </div>
+            </div>
+
+            <div className='flex items-center gap-3 pt-2 border-t'>
+              <span className='text-xs text-muted-foreground'>
+                Recepționat de:
+              </span>
+              <span className='text-sm font-medium'>{nir.receivedBy.name}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Card 2: Documente Suport */}
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground uppercase tracking-wider'>
+              Documente Suport
+            </CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-4'>
+            {/* Link Recepție */}
+            <div className='flex justify-between items-center p-2 rounded bg-muted/20 border'>
+              <div className='flex flex-col'>
+                <span className='text-xs font-semibold text-muted-foreground uppercase'>
+                  Recepția Origine
+                </span>
+                <span className='text-xs text-muted-foreground'>
+                  Click pentru detalii
+                </span>
+              </div>
+              <Button size='sm' variant='ghost' asChild>
+                <Link href={`/admin/management/reception/${nir.receptionId}`}>
+                  <ExternalLink className='h-4 w-4' />
+                </Link>
+              </Button>
+            </div>
+
+            {/* Facturi */}
+            {nir.invoices.map((inv, idx) => (
+              <div
+                key={idx}
+                className='flex justify-between items-center text-sm'
+              >
+                <div className='flex items-center gap-2'>
+                  <CreditCard className='h-4 w-4 text-muted-foreground' />
+                  <span>
+                    Factura:{' '}
+                    <span className='font-medium'>
+                      Serie {inv.series} nr. {inv.number}
+                    </span>
+                  </span>
+                </div>
+                <span className='text-muted-foreground text-xs'>
+                  {format(new Date(inv.date), 'dd.MM.yyyy')}
+                </span>
+              </div>
+            ))}
+
+            {/* Avize */}
+            {nir.deliveries.map((del, idx) => (
+              <div
+                key={idx}
+                className='flex justify-between items-center text-sm'
+              >
+                <div className='flex items-center gap-2'>
+                  <Truck className='h-4 w-4 text-muted-foreground' />
+                  <span>
+                    Aviz:{' '}
+                    <span className='font-medium'>
+                      Serie {del.dispatchNoteSeries} nr.{' '}
+                      {del.dispatchNoteNumber}
+                    </span>
+                  </span>
+                </div>
+                <span className='text-muted-foreground text-xs'>
+                  {format(new Date(del.dispatchNoteDate), 'dd.MM.yyyy')}
+                </span>
+              </div>
+            ))}
+
+            {/* Comanda */}
+            {nir.orderRef && (
+              <div className='pt-2 border-t text-xs text-muted-foreground'>
+                Ref. Comandă ID:{' '}
+                <span className='font-mono'>
+                  {nir.orderRef.toString().slice(-6)}...
+                </span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card 3: Sumar Valoric Rapid */}
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground uppercase tracking-wider'>
+              Sumar Valoric
+            </CardTitle>
+          </CardHeader>
+          <CardContent className='space-y-3'>
+            <div className='flex justify-between text-sm'>
+              <span className='text-muted-foreground'>Total Marfă (Net):</span>
+              <span>{formatMoney(nir.totals.productsSubtotal)}</span>
+            </div>
+            <div className='flex justify-between text-sm'>
+              <span className='text-muted-foreground'>
+                Total Ambalaje (Net):
+              </span>
+              <span>{formatMoney(nir.totals.packagingSubtotal)}</span>
+            </div>
+            <div className='flex justify-between text-sm'>
+              <span className='text-muted-foreground'>
+                Transport Distribuit:
+              </span>
+              <span>{formatMoney(nir.totals.transportSubtotal)}</span>
+            </div>
+            <Separator />
+            <div className='flex justify-between text-sm font-bold'>
+              <span> Valoare Intrare Stoc:</span>
+              <span> {formatMoney(nir.totals.totalEntryValue)}</span>
+            </div>
+            <div className='flex justify-between text-sm font-bold'>
+              <span>Total Factură (Cu TVA):</span>
+              <span>{formatMoney(nir.totals.grandTotal)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* --- ITEMS TABLE --- */}
+      <Card>
+        <CardHeader>
+          <div className='flex items-center justify-between'>
+            <div>
+              <CardTitle className='flex items-center gap-2'>
+                <FileText className='h-5 w-5' /> Detalii Recepție
+              </CardTitle>
+              <CardDescription>
+                Lista articolelor intrate în gestiune și calculul costului de
+                achiziție.
+              </CardDescription>
+            </div>
+            <Badge variant='outline' className='text-sm'>
+              Articole: {nir.items.length}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader className='bg-muted/50'>
+              <TableRow>
+                <TableHead className='w-[40px]'>#</TableHead>
+                <TableHead>Denumire Articol</TableHead>
+                <TableHead className='text-center'>Cantitate</TableHead>
+                <TableHead className='text-right'>Preț Fact.</TableHead>
+                <TableHead className='text-right'>Transp. Distribuit</TableHead>
+                <TableHead className='text-right font-bold'>
+                  Preț Achiziție
+                </TableHead>
+                {/* --- MODIFICARE: Am spart în două coloane --- */}
+                <TableHead className='text-right text-muted-foreground'>
+                  Valoare Netă
+                </TableHead>
+                <TableHead className='text-right'>
+                  Valoare Brută (cu TVA)
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {nir.items.map((item, index) => (
+                <TableRow key={index}>
+                  <TableCell className='font-medium py-0.5 text-xs text-muted-foreground'>
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className='py-0.5'>
+                    <div className='flex flex-col'>
+                      <span className='font-medium'>{item.productName}</span>
+
+                      {/* Container flex pentru a ține totul pe un rând */}
+                      <div className='flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground'>
+                        <span>Cod: {item.productCode}</span>
+
+                        <span>|</span>
+
+                        <span>
+                          {item.stockableItemType === 'Packaging'
+                            ? 'Ambalaj'
+                            : 'Marfă'}
+                        </span>
+
+                        {/* Afișăm diferența doar dacă există */}
+                        {item.quantityDifference !== 0 && (
+                          <>
+                            <span>|</span>
+                            <span
+                              className={`font-bold ${
+                                item.quantityDifference < 0
+                                  ? 'text-red-600'
+                                  : 'text-green-600'
+                              }`}
+                            >
+                              {item.quantityDifference < 0
+                                ? 'Cantitate Receptionata in Minus:'
+                                : 'Cantitate Receptionata in Plus:'}{' '}
+                              {Math.abs(item.quantityDifference)}{' '}
+                              {item.unitMeasure}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className='text-center py-0.5'>
+                    <Badge variant='secondary' className='font-mono'>
+                      {formatNumber(item.quantity)} {item.unitMeasure}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className='text-right font-mono py-0.5'>
+                    {formatMoney(item.invoicePricePerUnit)}
+                  </TableCell>
+                  <TableCell className='text-right font-mono text-muted-foreground py-0.5'>
+                    {item.distributedTransportCostPerUnit > 0
+                      ? `+${formatMoney(item.distributedTransportCostPerUnit)}`
+                      : '-'}
+                  </TableCell>
+                  <TableCell className='text-right font-mono font-bold py-0.5'>
+                    {formatMoney(item.landedCostPerUnit)}
+                  </TableCell>
+                  <TableCell className='text-right font-mono text-muted-foreground py-0.5'>
+                    {formatMoney(item.lineValue)}
+                  </TableCell>
+                  <TableCell className='text-right font-mono font-medium py-0.5'>
+                    {formatMoney(item.lineTotal)}
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              {/* --- FOOTER TABLE - TOTALURI CLARE --- */}
+              {/* --- Rând Transport (Informativ - Inclus în totaluri) --- */}
+              {nir.totals.transportSubtotal > 0 && (
+                <TableRow className=' border-t border-dashed'>
+                  <TableCell
+                    colSpan={6}
+                    className='text-right text-xs text-muted-foreground py-2 italic'
+                  >
+                    Cost Transport:
+                  </TableCell>
+                  {/* Transport Net */}
+                  <TableCell className='text-right text-xs text-muted-foreground font-mono py-2'>
+                    {formatMoney(nir.totals.transportSubtotal)}
+                  </TableCell>
+                  {/* Transport Brut (Net + TVA) */}
+                  <TableCell className='text-right text-xs text-muted-foreground font-mono py-2'>
+                    {formatMoney(
+                      nir.totals.transportSubtotal + nir.totals.transportVat
+                    )}
+                  </TableCell>
+                </TableRow>
+              )}
+              {/* Rând 1: Total NET (Fără TVA) */}
+              <TableRow className=' border-t-1'>
+                <TableCell
+                  colSpan={6}
+                  className='text-right font-medium text-slate-600 py-2'
+                >
+                  Total Net (Fără TVA):
+                </TableCell>
+                <TableCell className='text-right font-bold text-slate-700 font-mono py-2'>
+                  {formatMoney(nir.totals.subtotal)}
+                </TableCell>
+                <TableCell className='py-2'></TableCell>
+              </TableRow>
+
+              {/* Rând 2: Total TVA */}
+              <TableRow className=' border-none'>
+                <TableCell
+                  colSpan={6}
+                  className='text-right font-medium text-slate-600 py-1'
+                >
+                  Total TVA:
+                </TableCell>
+                <TableCell className='text-right font-bold text-slate-700 font-mono py-2'>
+                  {formatMoney(nir.totals.vatTotal)}
+                </TableCell>
+                <TableCell className='py-2'></TableCell>
+              </TableRow>
+
+              {/* Rând 3: Total GENERAL (Cu TVA) - Evidențiat */}
+              <TableRow className='bg-slate-900 hover:bg-slate-900 border-t border-slate-800'>
+                <TableCell
+                  colSpan={6}
+                  className='text-right font-bold text-white py-3'
+                >
+                  TOTAL GENERAL DE PLATĂ (CU TVA):
+                </TableCell>
+                {/* Lăsăm goală celula de Net pentru aliniere */}
+                <TableCell className='py-3'></TableCell>
+                <TableCell className='text-right font-bold text-green-400 text-lg font-mono py-3 pr-4'>
+                  {formatMoney(nir.totals.grandTotal)}
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
