@@ -49,6 +49,7 @@ import { IUser } from '../../user/user.model'
 import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
 import { InvoiceInputSchema } from './invoice.validator'
 import { recalculateClientSummary } from '../../client/summary/client-summary.actions'
+import { CreateOpeningBalanceInput } from '../initial-balance/initial-balance.validator'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -1654,5 +1655,176 @@ export async function updateInvoice(
     await session.endSession()
     console.error('❌ Eroare updateInvoice:', error)
     return { success: false, message: (error as Error).message }
+  }
+}
+
+/**
+ * SOLD INIȚIAL CLIENT (INIT-C)
+ * Creează o factură de deschidere sold pentru client.
+ * - Dacă amount > 0: Datorie Client (STANDARD)
+ * - Dacă amount < 0: Avans primit de la Client (STORNO sau STANDARD Negativ)
+ */
+export async function createClientOpeningBalance(
+  data: CreateOpeningBalanceInput
+): Promise<{ success: boolean; message: string }> {
+  const session = await startSession()
+
+  try {
+    const result = await session.withTransaction(async (session) => {
+      // 1. Auth Check
+      const authSession = await auth()
+      const userId = authSession?.user?.id
+      const userName = authSession?.user?.name || 'System Admin'
+
+      if (!userId) {
+        throw new Error(
+          'Trebuie să fiți autentificat pentru a seta soldul inițial.'
+        )
+      }
+
+      // 2. Date Client
+      const client = (await ClientModel.findById(data.partnerId)
+        .lean()
+        .session(session)) as IClientDoc | null
+
+      if (!client) throw new Error('Clientul nu a fost găsit.')
+
+      const clientSnapshot: ClientSnapshot = {
+        name: client.name,
+        cui: client.vatId || client.cnp || '',
+        regCom: client.nrRegComert || '-',
+        address: {
+          judet: client.address.judet,
+          localitate: client.address.localitate,
+          strada: client.address.strada,
+          numar: client.address.numar || '',
+          codPostal: client.address.codPostal,
+          tara: client.address.tara || 'RO',
+          alteDetalii: client.address.alteDetalii || '',
+        },
+        bank: client.bankAccountLei?.bankName || '',
+        iban: client.bankAccountLei?.iban || '',
+      }
+
+      // 3. Date Companie
+      const companySettings = await getSetting()
+      if (!companySettings)
+        throw new Error('Setările companiei nu sunt configurate.')
+      const companySnapshot = buildCompanySnapshot(companySettings)
+
+      // 4. Delivery Address (Fallback la ID client)
+      const deliveryAddressId = client._id
+      const deliveryAddress = clientSnapshot.address
+
+      // 5. Numerotare
+      const seriesName = 'INIT-C'
+      const nextNumber = await generateNextDocumentNumber(seriesName, {
+        session,
+      })
+      const invoiceNumber = String(nextNumber).padStart(5, '0')
+
+      // 6. Logică Semn
+      const isNegative = data.amount < 0
+      const absoluteAmount = Math.abs(data.amount)
+      const invoiceType = isNegative ? 'STORNO' : 'STANDARD'
+
+      // 7. Linii (Completate pentru a satisface TS)
+      const items: InvoiceLineInput[] = [
+        {
+          productName: isNegative
+            ? 'Preluare Sold Creditor (Avans Primit)'
+            : 'Preluare Sold Datorat (Istoric)',
+          quantity: 1,
+          unitOfMeasure: 'buc',
+          unitPrice: absoluteAmount,
+          lineValue: absoluteAmount,
+          vatRateDetails: { rate: 0, value: 0 },
+          lineTotal: absoluteAmount,
+
+          // Câmpuri Tehnice Obligatorii
+          isManualEntry: true,
+          stockableItemType: 'Service',
+          conversionFactor: 1,
+          packagingOptions: [],
+          costBreakdown: [],
+          stornedQuantity: 0,
+
+          // Profitabilitate 0 (Neutru)
+          lineCostFIFO: 0,
+          lineProfit: 0,
+          lineMargin: 0,
+        },
+      ]
+
+      const totals = calculateInvoiceTotals(items)
+
+      // 8. Creare Factură
+      await InvoiceModel.create(
+        [
+          {
+            sequenceNumber: nextNumber,
+            invoiceNumber: invoiceNumber,
+            seriesName: seriesName,
+            year: data.date.getFullYear(),
+            invoiceDate: data.date,
+            dueDate: data.date,
+
+            clientId: client._id,
+            clientSnapshot,
+            companySnapshot,
+
+            deliveryAddressId: deliveryAddressId,
+            deliveryAddress: deliveryAddress,
+
+            items: items,
+            totals: totals,
+
+            invoiceType: invoiceType,
+            status: 'APPROVED',
+            eFacturaStatus: 'NOT_REQUIRED',
+
+            vatCategory: 'S',
+
+            salesAgentId: new Types.ObjectId(userId),
+            salesAgentSnapshot: { name: userName },
+
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+
+            notes:
+              data.details ||
+              `Sold inițial preluat automat (${seriesName}-${invoiceNumber})`,
+
+            sourceDeliveryNotes: [],
+            relatedOrders: [],
+            relatedDeliveries: [],
+            logisticSnapshots: {
+              orderNumbers: [],
+              deliveryNumbers: [],
+              deliveryNoteNumbers: [],
+            },
+
+            paidAmount: 0,
+            remainingAmount: absoluteAmount,
+          },
+        ],
+        { session }
+      )
+
+      return {
+        success: true,
+        message: 'Sold inițial client înregistrat cu succes.',
+      }
+    })
+
+    // 9. Recalculare
+    await recalculateClientSummary(data.partnerId, 'init-balance', true)
+
+    return result
+  } catch (error) {
+    console.error('Err createClientOpeningBalance:', error)
+    return { success: false, message: (error as Error).message }
+  } finally {
+    await session.endSession()
   }
 }

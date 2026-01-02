@@ -7,6 +7,7 @@ import {
   CreateSupplierInvoiceInput,
   ISupplierInvoiceDoc,
   OurCompanySnapshot,
+  SupplierSnapshot,
 } from './supplier-invoice.types'
 import { CreateSupplierInvoiceSchema } from './supplier-invoice.validator'
 import { revalidatePath } from 'next/cache'
@@ -18,6 +19,8 @@ import { SupplierInvoiceStatus } from './supplier-invoice.constants'
 import { CLIENT_DETAIL_PAGE_SIZE, PAGE_SIZE } from '@/lib/constants'
 import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 import NirModel from '../../nir/nir.model'
+import { generateNextDocumentNumber } from '../../../numbering/numbering.actions'
+import { CreateOpeningBalanceInput } from '../../initial-balance/initial-balance.validator'
 
 type SupplierInvoiceActionResult = {
   success: boolean
@@ -363,5 +366,150 @@ export async function getReceptionsForSupplier(
   } catch (error) {
     console.error('Eroare la getReceptionsForSupplier:', error)
     return { data: [], totalPages: 0, total: 0 }
+  }
+}
+/**
+ * SOLD INIȚIAL FURNIZOR (INIT-F)
+ * Creează o factură de deschidere sold.
+ * - Dacă amount > 0: Datorie (STANDARD)
+ * - Dacă amount < 0: Avans/Credit (STORNO sau STANDARD Negativ)
+ */
+export async function createSupplierOpeningBalance(
+  data: CreateOpeningBalanceInput
+): Promise<{ success: boolean; message: string }> {
+  const session = await startSession()
+
+  try {
+    const result = await session.withTransaction(async (session) => {
+      const authSession = await auth()
+      const userId = authSession?.user?.id
+      const userName = authSession?.user?.name || 'System Admin'
+
+      if (!userId) throw new Error('Trebuie să fiți autentificat.')
+
+      // 1. Date Furnizor
+      const supplier = await Supplier.findById(data.partnerId).session(session)
+      if (!supplier) throw new Error('Furnizorul nu a fost găsit.')
+
+      if (!supplier.address) {
+        throw new Error(
+          `Furnizorul ${supplier.name} nu are adresă configurată.`
+        )
+      }
+
+      // 2. Construim Snapshot-ul (AICI ERA EROAREA - ACUM FOLOSIM CÂMPURILE REALE)
+      const supplierSnapshot: SupplierSnapshot = {
+        name: supplier.name,
+        // Verifică dacă ai 'fiscalCode' sau 'cui' pe modelul Supplier. De obicei e fiscalCode.
+        cui: (supplier as any).fiscalCode || (supplier as any).cui || '-',
+        regCom:
+          (supplier as any).tradeRegister || (supplier as any).regCom || '-',
+
+        // AICI AM CORECTAT MAPAREA CONFORM ERORII TALE:
+        address: {
+          judet: supplier.address.judet,
+          localitate: supplier.address.localitate,
+          strada: supplier.address.strada,
+          numar: supplier.address.numar || '',
+          codPostal: supplier.address.codPostal,
+          tara: supplier.address.tara,
+          alteDetalii: supplier.address.alteDetalii || '',
+        },
+
+        // Banca (presupunând că bankAccountLei există pe model, altfel verifică modelul Supplier)
+        bank: (supplier as any).bankAccountLei?.bankName || '',
+        iban: (supplier as any).bankAccountLei?.iban || '',
+
+        contactName: '',
+        contactEmail: supplier.email || '',
+        contactPhone: supplier.phone || '',
+      }
+
+      // 3. Date Companie
+      const companySettings = await getSetting()
+      if (!companySettings)
+        throw new Error('Setările companiei nu sunt configurate.')
+      const ourCompanySnapshot = buildCompanySnapshot(companySettings)
+
+      // 4. Numerotare
+      const seriesName = 'INIT-F'
+      const nextNumber = await generateNextDocumentNumber(seriesName, {
+        session,
+      })
+      const invoiceNumber = String(nextNumber).padStart(4, '0')
+
+      // 5. Logică Semn
+      const isNegative = data.amount < 0
+      const absoluteAmount = Math.abs(data.amount)
+      const invoiceType = isNegative ? 'STORNO' : 'STANDARD'
+
+      // 6. Creare Factură
+      await SupplierInvoiceModel.create(
+        [
+          {
+            supplierId: new Types.ObjectId(data.partnerId),
+            invoiceSeries: seriesName,
+            invoiceNumber: invoiceNumber,
+            invoiceDate: data.date,
+            dueDate: data.date,
+            invoiceType: invoiceType,
+            status: 'NEPLATITA',
+            supplierSnapshot,
+            ourCompanySnapshot,
+            items: [
+              {
+                productName: isNegative
+                  ? 'Preluare Sold Creditor (Avans/Retur)'
+                  : 'Preluare Sold Datorat',
+                quantity: 1,
+                unitOfMeasure: 'buc',
+                unitPrice: absoluteAmount,
+                lineValue: absoluteAmount,
+                vatRateDetails: { rate: 0, value: 0 },
+                lineTotal: absoluteAmount,
+              },
+            ],
+            totals: {
+              productsSubtotal: absoluteAmount,
+              productsVat: 0,
+              packagingSubtotal: 0,
+              packagingVat: 0,
+              servicesSubtotal: 0,
+              servicesVat: 0,
+              manualSubtotal: 0,
+              manualVat: 0,
+              subtotal: absoluteAmount,
+              vatTotal: 0,
+              grandTotal: absoluteAmount,
+              payableAmount: absoluteAmount,
+            },
+            isManualEntry: true,
+            notes:
+              data.details ||
+              `Sold inițial preluat automat (${seriesName}-${invoiceNumber})`,
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+            paidAmount: 0,
+            remainingAmount: absoluteAmount,
+          },
+        ],
+        { session }
+      )
+    })
+
+    await recalculateSupplierSummary(
+      data.partnerId,
+      'init-balance-update',
+      true
+    )
+    return {
+      success: true,
+      message: 'Sold inițial furnizor înregistrat cu succes.',
+    }
+  } catch (error) {
+    console.error('Err createSupplierOpeningBalance:', error)
+    return { success: false, message: (error as Error).message }
+  } finally {
+    await session.endSession()
   }
 }

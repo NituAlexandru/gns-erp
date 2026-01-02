@@ -27,7 +27,11 @@ export default function SupplierFileView({
     <div className='grid md:grid-cols-5 max-w-full gap-8'>
       <aside className='md:col-span-1'>
         <div className='sticky top-24'>
-          <SupplierNav activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SupplierNav
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            supplierId={supplier._id}
+          />
         </div>
       </aside>
 

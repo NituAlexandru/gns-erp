@@ -68,7 +68,11 @@ export default function ClientFileView({
         {/* Coloana Stânga: Meniul */}
         <aside className='md:col-span-1'>
           <div className='sticky top-24'>
-            <ClientNav activeTab={activeTab} setActiveTab={setActiveTab} />
+            <ClientNav
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              clientId={client._id}
+            />
           </div>
         </aside>
         {/* Coloana Dreapta: Conținutul */}

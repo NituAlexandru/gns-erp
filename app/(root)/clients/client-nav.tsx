@@ -1,15 +1,19 @@
 'use client'
 
+import { OpeningBalanceDialog } from '@/components/shared/modals/OpeningBalanceDialog'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import {
   ClipboardList,
   FileCheck,
   FileText,
   Package,
+  Scale,
   Truck,
   User,
   Wallet,
 } from 'lucide-react'
+import { useState } from 'react'
 
 // Definirea tab-urilor actualizate, în noua ordine
 export const CLIENT_TABS = [
@@ -25,22 +29,47 @@ export const CLIENT_TABS = [
 interface ClientNavProps {
   activeTab: string
   setActiveTab: (tabId: string) => void
+  clientId: string
 }
 
-export function ClientNav({ activeTab, setActiveTab }: ClientNavProps) {
+export function ClientNav({
+  activeTab,
+  setActiveTab,
+  clientId,
+}: ClientNavProps) {
+  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false)
+
   return (
-    <nav className='flex flex-col gap-2'>
-      {CLIENT_TABS.map((tab) => (
+    <>
+      <nav className='flex flex-col gap-2'>
+        {CLIENT_TABS.map((tab) => (
+          <Button
+            key={tab.id}
+            variant={activeTab === tab.id ? 'secondary' : 'ghost'}
+            className='justify-start gap-2'
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.icon}
+            {tab.label}
+          </Button>
+        ))}
+        <Separator className='my-2' />
+
         <Button
-          key={tab.id}
-          variant={activeTab === tab.id ? 'secondary' : 'ghost'}
-          className='justify-start gap-2'
-          onClick={() => setActiveTab(tab.id)}
+          variant='outline'
+          className='justify-start gap-2 border-dashed text-muted-foreground hover:text-foreground'
+          onClick={() => setIsBalanceModalOpen(true)}
         >
-          {tab.icon}
-          {tab.label}
+          <Scale size={16} />
+          Setează Sold Inițial
         </Button>
-      ))}
-    </nav>
+      </nav>
+      <OpeningBalanceDialog
+        open={isBalanceModalOpen}
+        onOpenChange={setIsBalanceModalOpen}
+        partnerId={clientId}
+        type='CLIENT'
+      />
+    </>
   )
 }

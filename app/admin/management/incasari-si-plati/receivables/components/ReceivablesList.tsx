@@ -124,7 +124,7 @@ export function ReceivablesList({
 
                 return (
                   <TableRow key={payment._id}>
-                    <TableCell className='font-medium'>
+                    <TableCell className='font-medium uppercase'>
                       {payment.seriesName || ''} - {payment.paymentNumber}
                     </TableCell>
                     <TableCell>{payment.clientId?.name || 'N/A'}</TableCell>

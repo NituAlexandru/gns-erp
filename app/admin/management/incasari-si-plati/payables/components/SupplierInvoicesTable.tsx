@@ -122,8 +122,8 @@ export function SupplierInvoicesTable({
 
                     <TableCell>
                       <div className='flex items-center gap-2'>
-                        <span className='font-medium'>
-                          {inv.invoiceSeries} {inv.invoiceNumber}
+                        <span className='font-medium uppercase'>
+                          {inv.invoiceSeries} - {inv.invoiceNumber}
                         </span>
                         {showNewBadge && (
                           <Badge

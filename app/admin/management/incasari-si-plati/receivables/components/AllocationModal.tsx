@@ -163,7 +163,7 @@ export function AllocationModal({
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className='sm:max-w-3xl w-full'>
+      <SheetContent className='sm:max-w-3xl w-full flex flex-col h-full'>
         <SheetHeader>
           <SheetTitle>
             Gestionează Alocările: {latestPayment?.paymentNumber}
@@ -174,39 +174,40 @@ export function AllocationModal({
           </SheetDescription>
         </SheetHeader>
 
-        {isLoading ? (
-          <div className='flex h-[80vh] items-center justify-center'>
-            <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
-          </div>
-        ) : (
-          <div
-            className={`grid ${isAdmin ? 'grid-cols-1' : 'grid-cols-1'} gap-6 p-5 py-6`}
-          >
-            {/* Coloana Stângă: Alocări Existente */}
-            <div className='space-y-4'>
-              <h3 className='font-semibold'>Alocări Existente</h3>
-              <AllocationList
-                allocations={allocations}
-                onAllocationDeleted={refreshData}
-                isAdmin={isAdmin}
-              />
+        <div className='flex-1 overflow-y-auto px-1'>
+          {isLoading ? (
+            <div className='flex h-[80vh] items-center justify-center'>
+              <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
             </div>
-
-            {/* Coloana Dreaptă: Facturi Disponibile (doar pt admin) */}
-            {isAdmin && (
+          ) : (
+            <div
+              className={`grid ${isAdmin ? 'grid-cols-1' : 'grid-cols-1'} gap-6 p-5 py-6`}
+            >
+              {/* Coloana Stângă: Alocări Existente */}
               <div className='space-y-4'>
-                <h3 className='font-semibold'>Facturi Disponibile</h3>
-                <UnpaidInvoiceList
-                  key={`${latestPayment?._id}-${latestPayment?.unallocatedAmount}-${invoices.length}`}
-                  invoices={invoices}
-                  payment={latestPayment}
-                  onAllocationCreated={handleAllocationSuccess}
+                <h3 className='font-semibold'>Alocări Existente</h3>
+                <AllocationList
+                  allocations={allocations}
+                  onAllocationDeleted={refreshData}
+                  isAdmin={isAdmin}
                 />
               </div>
-            )}
-          </div>
-        )}
 
+              {/* Coloana Dreaptă: Facturi Disponibile (doar pt admin) */}
+              {isAdmin && (
+                <div className='space-y-4'>
+                  <h3 className='font-semibold'>Facturi Disponibile</h3>
+                  <UnpaidInvoiceList
+                    key={`${latestPayment?._id}-${latestPayment?.unallocatedAmount}-${invoices.length}`}
+                    invoices={invoices}
+                    payment={latestPayment}
+                    onAllocationCreated={handleAllocationSuccess}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
         <SheetFooter>
           <Button variant='outline' onClick={onClose}>
             Închide
