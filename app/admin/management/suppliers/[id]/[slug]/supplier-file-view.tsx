@@ -10,6 +10,7 @@ import { SupplierDetails } from '../../supplier-details'
 import { SupplierProductsList } from './SupplierProductsList'
 import { SupplierInvoicesList } from './SupplierInvoicesList'
 import { SupplierLedgerTable } from '../../components/SupplierLedgerTable'
+import { SupplierReceptionsList } from '../../components/SupplierReceptionsList'
 
 interface SupplierFileViewProps {
   supplier: ISupplierDoc
@@ -40,8 +41,7 @@ export default function SupplierFileView({
 
           {/* TAB: RECEPȚII (NIR) */}
           {activeTab === 'receptions' && (
-            <div></div>
-            // <SupplierReceptionsList supplierId={supplier._id} />
+            <SupplierReceptionsList supplierId={supplier._id} />
           )}
 
           {/* TAB: FACTURI */}

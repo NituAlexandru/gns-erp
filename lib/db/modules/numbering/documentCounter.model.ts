@@ -9,6 +9,7 @@ export type DocumentType =
   | 'BonConsum'
   | 'DispozitiePlata'
   | 'NotaRetur'
+  | 'Chitanta'
 
 export interface IDocumentCounter extends Document {
   seriesName: string

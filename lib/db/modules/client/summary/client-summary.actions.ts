@@ -376,10 +376,11 @@ export async function getClientLedger(
     const overduePipeline: PipelineStage[] = [
       {
         $match: {
-          client: id,
+          clientId: id,
           status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
           dueDate: { $lt: now },
           invoiceType: { $ne: 'AVANS' },
+          remainingAmount: { $gt: 0.01 },
         },
       },
       {

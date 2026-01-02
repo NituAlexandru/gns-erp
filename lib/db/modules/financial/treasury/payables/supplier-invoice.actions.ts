@@ -17,6 +17,7 @@ import Supplier from '../../../suppliers/supplier.model'
 import { SupplierInvoiceStatus } from './supplier-invoice.constants'
 import { CLIENT_DETAIL_PAGE_SIZE, PAGE_SIZE } from '@/lib/constants'
 import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
+import NirModel from '../../nir/nir.model'
 
 type SupplierInvoiceActionResult = {
   success: boolean
@@ -51,6 +52,17 @@ export type SupplierInvoicesPage = {
   total: number
   totalCurrentYear?: number
 }
+
+export interface ReceptionListItem {
+  _id: string
+  series: string
+  number: string
+  date: Date
+  invoiceReference: string
+  warehouseName: string
+  totalValue: number
+}
+
 function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
   const defaultPhone = settings.phones.find((p) => p.isDefault)
@@ -73,7 +85,6 @@ function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
     currency: defaultBank.currency,
   }
 }
-
 /**
  * Creează (înregistrează manual) o factură primită de la un furnizor.
  */
@@ -276,6 +287,81 @@ export async function getInvoicesForSupplier(
     }
   } catch (error) {
     console.error('Eroare la getInvoicesForSupplier:', error)
+    return { data: [], totalPages: 0, total: 0 }
+  }
+}
+
+export async function getReceptionsForSupplier(
+  supplierId: string,
+  page: number = 1
+): Promise<{
+  data: ReceptionListItem[]
+  totalPages: number
+  total: number
+}> {
+  try {
+    await connectToDatabase()
+
+    if (!mongoose.Types.ObjectId.isValid(supplierId)) {
+      console.error('ID Furnizor invalid:', supplierId)
+      return { data: [], totalPages: 0, total: 0 }
+    }
+
+    const objectId = new Types.ObjectId(supplierId)
+    const limit = CLIENT_DETAIL_PAGE_SIZE // Folosim aceeași constantă ca la facturi (10)
+    const skip = (page - 1) * limit
+
+    const queryConditions = {
+      supplierId: objectId,
+    }
+
+    // 1. Numărăm totalul documentelor
+    const total = await NirModel.countDocuments(queryConditions)
+
+    if (total === 0) {
+      return { data: [], totalPages: 0, total: 0 }
+    }
+
+    // 2. Căutăm documentele cu proiecția corectă (select)
+    const receptions = await NirModel.find(queryConditions)
+      .select(
+        'seriesName nirNumber nirDate invoices destinationLocation totals.grandTotal'
+      )
+      .sort({ nirDate: -1 }) // Cele mai recente primele
+      .skip(skip)
+      .limit(limit)
+      .lean()
+
+    // 3. Normalizăm datele pentru frontend
+    const normalizedReceptions: ReceptionListItem[] = receptions.map(
+      (nir: any) => {
+        // Construim referința facturii (ex: "AAA 123, BBB 456")
+        const invoiceRefs =
+          nir.invoices && nir.invoices.length > 0
+            ? nir.invoices
+                .map((inv: any) => `${inv.series || ''} ${inv.number}`.trim())
+                .join(', ')
+            : '-'
+
+        return {
+          _id: nir._id.toString(),
+          series: nir.seriesName, // Din schema: seriesName
+          number: nir.nirNumber, // Din schema: nirNumber
+          date: nir.nirDate, // Din schema: nirDate
+          invoiceReference: invoiceRefs, // Calculat din array-ul invoices
+          warehouseName: nir.destinationLocation, // Din schema: destinationLocation
+          totalValue: nir.totals?.grandTotal || 0, // Din schema: totals.grandTotal
+        }
+      }
+    )
+
+    return {
+      data: normalizedReceptions,
+      totalPages: Math.ceil(total / limit),
+      total: total,
+    }
+  } catch (error) {
+    console.error('Eroare la getReceptionsForSupplier:', error)
     return { data: [], totalPages: 0, total: 0 }
   }
 }
