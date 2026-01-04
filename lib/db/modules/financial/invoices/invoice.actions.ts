@@ -49,7 +49,12 @@ import { IUser } from '../../user/user.model'
 import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
 import { InvoiceInputSchema } from './invoice.validator'
 import { recalculateClientSummary } from '../../client/summary/client-summary.actions'
-import { CreateOpeningBalanceInput } from '../initial-balance/initial-balance.validator'
+import {
+  CreateOpeningBalanceInput,
+  CreatePackagingOpeningBalanceInput,
+  CreatePackagingOpeningBalanceSchema,
+} from '../initial-balance/initial-balance.validator'
+import PackagingModel from '../../packaging-products/packaging.model'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -976,8 +981,10 @@ export async function createStornoInvoice(
             eFacturaStatus: 'PENDING',
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
-            salesAgentId: new Types.ObjectId(validatedData.salesAgentId),
-            salesAgentSnapshot: validatedData.salesAgentSnapshot,
+            salesAgentId: new Types.ObjectId(userId),
+            salesAgentSnapshot: {
+              name: userName,
+            },
           },
         ],
         { session }
@@ -1823,6 +1830,214 @@ export async function createClientOpeningBalance(
     return result
   } catch (error) {
     console.error('Err createClientOpeningBalance:', error)
+    return { success: false, message: (error as Error).message }
+  } finally {
+    await session.endSession()
+  }
+}
+
+export async function createPackagingOpeningBalance(
+  data: CreatePackagingOpeningBalanceInput
+): Promise<{ success: boolean; message: string }> {
+  const session = await startSession()
+
+  try {
+    const result = await session.withTransaction(async (session) => {
+      // 1. Auth
+      const authSession = await auth()
+      const userId = authSession?.user?.id
+      const userName = authSession?.user?.name || 'System Admin'
+      if (!userId) throw new Error('Trebuie să fiți autentificat.')
+
+      // 2. Validare
+      const validatedData = CreatePackagingOpeningBalanceSchema.parse(data)
+
+      // 3. Client
+      const client = await ClientModel.findById(
+        validatedData.partnerId
+      ).session(session)
+      if (!client) throw new Error('Clientul nu a fost găsit.')
+
+      let targetAddressId = client._id
+      let targetAddressSnapshot = {
+        judet: client.address.judet,
+        localitate: client.address.localitate,
+        strada: client.address.strada,
+        numar: client.address.numar || '',
+        codPostal: client.address.codPostal,
+        tara: client.address.tara || 'RO',
+        alteDetalii: client.address.alteDetalii || '',
+      }
+      if (
+        validatedData.deliveryAddressId &&
+        validatedData.deliveryAddressId !== client._id.toString()
+      ) {
+        const foundAddr = client.deliveryAddresses.find(
+          (addr: any) => addr._id.toString() === validatedData.deliveryAddressId
+        )
+
+        if (foundAddr) {
+          targetAddressId = foundAddr._id
+          targetAddressSnapshot = {
+            judet: foundAddr.judet,
+            localitate: foundAddr.localitate,
+            strada: foundAddr.strada,
+            numar: foundAddr.numar || '',
+            codPostal: foundAddr.codPostal,
+            tara: 'RO',
+            alteDetalii: foundAddr.alteDetalii || '',
+          }
+        }
+      }
+      const clientSnapshot: ClientSnapshot = {
+        name: client.name,
+        cui: client.vatId || client.cnp || '',
+        regCom: client.nrRegComert || '-',
+        address: {
+          judet: client.address.judet,
+          localitate: client.address.localitate,
+          strada: client.address.strada,
+          numar: client.address.numar || '',
+          codPostal: client.address.codPostal,
+          tara: client.address.tara || 'RO',
+          alteDetalii: client.address.alteDetalii || '',
+        },
+        bank: client.bankAccountLei?.bankName || '',
+        iban: client.bankAccountLei?.iban || '',
+      }
+
+      // 4. Companie
+      const companySettings = await getSetting()
+      if (!companySettings)
+        throw new Error('Setările companiei nu sunt configurate.')
+      const companySnapshot = buildCompanySnapshot(companySettings)
+
+      // 5. Procesare Ambalaje
+      const invoiceItems: InvoiceLineInput[] = []
+
+      for (const itemInput of validatedData.items) {
+        const packaging = await PackagingModel.findById(
+          itemInput.productId
+        ).session(session)
+
+        if (!packaging) {
+          throw new Error(
+            `Ambalajul cu ID ${itemInput.productId} nu a fost găsit.`
+          )
+        }
+
+        // FOLOSIM TVA-UL TRIMIS DIN FRONTEND
+        const vatRate = itemInput.vatRate
+        const lineValue = round2(itemInput.quantity * itemInput.unitPrice)
+        const vatValue = round2(lineValue * (vatRate / 100))
+        const lineTotal = round2(lineValue + vatValue)
+
+        // Mapare conform schemei PackagingModel 
+        const line: InvoiceLineInput = {
+          productId: packaging._id,
+          stockableItemType: 'Packaging',
+          isManualEntry: false,
+          productName: packaging.name,
+          productCode: packaging.productCode, 
+          productBarcode: '', 
+          quantity: itemInput.quantity,
+          // Mapare unități conform schemei Packaging
+          unitOfMeasure: packaging.packagingUnit, 
+          unitOfMeasureCode: 'H87',
+          baseUnit: packaging.packagingUnit, 
+          conversionFactor: 1,
+          packagingOptions: [],
+          unitPrice: itemInput.unitPrice,
+          lineValue: lineValue,
+          vatRateDetails: {
+            rate: vatRate,
+            value: vatValue,
+          },
+          lineTotal: lineTotal,
+          lineCostFIFO: lineValue,
+          lineProfit: 0,
+          lineMargin: 0,
+          costBreakdown: [
+            {
+              movementId: new Types.ObjectId().toString(),
+              entryDate: new Date('2025-12-31'),
+              quantity: itemInput.quantity,
+              unitCost: itemInput.unitPrice,
+              type: 'REAL',
+            },
+          ],
+          stornedQuantity: 0,
+        }
+
+        invoiceItems.push(line)
+      }
+
+      // 6. Totaluri
+      const totals = calculateInvoiceTotals(invoiceItems)
+      // 7. Numerotare
+      const seriesName = 'INIT-AMB'
+      const nextNumber = await generateNextDocumentNumber(seriesName, {
+        session,
+      })
+      const invoiceNumber = String(nextNumber).padStart(5, '0')
+      // 8. Creare Factură (PAID)
+      const [createdInvoice] = await InvoiceModel.create(
+        [
+          {
+            sequenceNumber: nextNumber,
+            invoiceNumber: invoiceNumber,
+            seriesName: seriesName,
+            year: 2025,
+            invoiceDate: new Date('2025-12-31'),
+            dueDate: new Date('2025-12-31'),
+            clientId: client._id,
+            clientSnapshot,
+            companySnapshot,
+            deliveryAddressId: targetAddressId,
+            deliveryAddress: targetAddressSnapshot,
+            items: invoiceItems,
+            totals: totals,
+            invoiceType: 'STANDARD',
+            status: 'PAID',
+            paidAmount: totals.grandTotal,
+            remainingAmount: 0,
+            eFacturaStatus: 'NOT_REQUIRED',
+            vatCategory: 'S',
+            salesAgentId: new Types.ObjectId(userId),
+            salesAgentSnapshot: { name: userName },
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+            notes: 'Sold Inițial Ambalaje (Istoric Achitat)',
+            logisticSnapshots: {
+              orderNumbers: [],
+              deliveryNumbers: [],
+              deliveryNoteNumbers: [],
+            },
+          },
+        ],
+        { session }
+      )
+
+      // --- Forțăm statusul PAID imediat după creare ---
+      // Asta ocolește hook-ul 'pre-save' care reseta paidAmount la 0
+      await InvoiceModel.updateOne(
+        { _id: createdInvoice._id },
+        {
+          $set: {
+            status: 'PAID',
+            paidAmount: totals.grandTotal,
+            remainingAmount: 0,
+          },
+        },
+        { session }
+      )
+
+      return { success: true, message: 'Sold ambalaje înregistrat cu succes.' }
+    })
+
+    return result
+  } catch (error) {
+    console.error('Err createPackagingOpeningBalance:', error)
     return { success: false, message: (error as Error).message }
   } finally {
     await session.endSession()

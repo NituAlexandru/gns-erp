@@ -27,7 +27,7 @@ import { BackButton } from './back-button'
 import { UnitDisplay } from '@/components/inventory/unit-display'
 import StockMovementModel from '@/lib/db/modules/inventory/movement.model'
 import Link from 'next/link'
-import { ExternalLink, FileText } from 'lucide-react'
+import { CornerDownLeft, ExternalLink, FileText } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -40,7 +40,12 @@ import { Button } from '@/components/ui/button'
 // 1. Extrage Numărul Documentului (din seriesName + noteNumber sau invoiceNumber)
 const getDocumentNumber = (movement: any, reference: any) => {
   if (movement.documentNumber) return movement.documentNumber
-
+  if (movement.returnNoteId) {
+    if (typeof movement.returnNoteId === 'object') {
+      return movement.returnNoteId.returnNoteNumber || 'Nota Retur'
+    }
+    return 'Nota Retur'
+  }
   if (movement.movementType === 'RECEPTIE') {
     const receptionNum =
       reference?.receptionNumber ||
@@ -295,11 +300,23 @@ export default async function MovementDetailsPage({
                         <ExternalLink className='h-4 w-4' />
                       </Link>
                     ) : receptionId ? (
-                      // AICI este noul link către recepție
                       <Link
                         href={`/admin/management/reception/${receptionId}`}
                         className='font-semibold text-red-500 hover:text-red-700 hover:underline flex items-center justify-end gap-1'
                       >
+                        {displayDocNumber}
+                        <ExternalLink className='h-4 w-4' />
+                      </Link>
+                    ) : movement.returnNoteId ? (
+                      <Link
+                        href={`/admin/management/inventory/returns/${
+                          typeof movement.returnNoteId === 'object'
+                            ? movement.returnNoteId._id
+                            : movement.returnNoteId
+                        }`}
+                        className='font-semibold text-orange-600 hover:text-orange-800 hover:underline flex items-center justify-end gap-1'
+                      >
+                        <CornerDownLeft className='h-4 w-4 mr-1' />
                         {displayDocNumber}
                         <ExternalLink className='h-4 w-4' />
                       </Link>

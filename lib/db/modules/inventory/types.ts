@@ -89,6 +89,14 @@ export type PopulatedStockMovement = {
   } | null
   note?: string
   referenceId?: string
+  returnNoteId?:
+    | string
+    | {
+        _id: string
+        returnNoteNumber: string
+        returnNoteDate: string | Date
+      }
+    | null
   receptionRef?: string | { _id: string } | null
   supplier?: {
     _id: string

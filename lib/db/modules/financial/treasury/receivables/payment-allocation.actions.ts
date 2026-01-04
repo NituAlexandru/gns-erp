@@ -303,6 +303,7 @@ export async function getUnpaidInvoicesByClient(clientId: string) {
       clientId: new Types.ObjectId(clientId),
       status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
       remainingAmount: { $ne: 0 },
+      seriesName: { $ne: 'INIT-AMB' },
     })
       .sort({ dueDate: 1 }) // Ordonăm FIFO
       .select(

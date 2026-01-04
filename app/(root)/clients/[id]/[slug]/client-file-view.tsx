@@ -31,13 +31,10 @@ export default function ClientFileView({
   clientSlug,
 }: ClientFileViewProps) {
   const [activeTab, setActiveTab] = useState('details')
-
   const [selectedLedgerEntry, setSelectedLedgerEntry] =
     useState<ClientLedgerEntry | null>(null)
-
   const [selectedPayment, setSelectedPayment] =
     useState<PopulatedClientPayment | null>(null)
-
   const handleInvoiceClick = (entry: ClientLedgerEntry) => {
     setSelectedLedgerEntry(entry)
   }
@@ -72,6 +69,7 @@ export default function ClientFileView({
               activeTab={activeTab}
               setActiveTab={setActiveTab}
               clientId={client._id}
+              isAdmin={isAdmin}
             />
           </div>
         </aside>

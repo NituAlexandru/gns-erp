@@ -82,6 +82,7 @@ export async function createClientPayment(
         clientId: validatedData.clientId,
         status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
         remainingAmount: { $gt: 0 },
+        seriesName: { $ne: 'INIT-AMB' },
       })
         .sort({ dueDate: 1 })
         .session(session)

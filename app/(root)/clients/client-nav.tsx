@@ -1,9 +1,11 @@
 'use client'
 
 import { OpeningBalanceDialog } from '@/components/shared/modals/OpeningBalanceDialog'
+import { PackagingOpeningBalanceModal } from '@/components/shared/modals/PackagingOpeningBalanceModal'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import {
+  Box,
   ClipboardList,
   FileCheck,
   FileText,
@@ -30,14 +32,18 @@ interface ClientNavProps {
   activeTab: string
   setActiveTab: (tabId: string) => void
   clientId: string
+  isAdmin: boolean
 }
 
 export function ClientNav({
   activeTab,
   setActiveTab,
   clientId,
+  isAdmin,
 }: ClientNavProps) {
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false)
+  const [isPackagingModalOpen, setIsPackagingModalOpen] = useState(false)
+  const canManageBalances = isAdmin
 
   return (
     <>
@@ -54,21 +60,40 @@ export function ClientNav({
           </Button>
         ))}
         <Separator className='my-2' />
-
-        <Button
-          variant='outline'
-          className='justify-start gap-2 border-dashed text-muted-foreground hover:text-foreground'
-          onClick={() => setIsBalanceModalOpen(true)}
-        >
-          <Scale size={16} />
-          Setează Sold Inițial
-        </Button>
+        {canManageBalances && (
+          <>
+            <Separator className='my-2' />
+            <div className='flex flex-col gap-1'>
+              <Button
+                variant='outline'
+                className='justify-start gap-2 border-dashed text-muted-foreground hover:text-foreground'
+                onClick={() => setIsBalanceModalOpen(true)}
+              >
+                <Scale size={16} />
+                Setează Sold Financiar Inițial
+              </Button>
+              <Button
+                variant='outline'
+                className='justify-start gap-2 border-dashed text-muted-foreground hover:text-foreground'
+                onClick={() => setIsPackagingModalOpen(true)}
+              >
+                <Box size={16} />
+                Setează Sold Inițial Ambalaje
+              </Button>
+            </div>
+          </>
+        )}
       </nav>
       <OpeningBalanceDialog
         open={isBalanceModalOpen}
         onOpenChange={setIsBalanceModalOpen}
         partnerId={clientId}
         type='CLIENT'
+      />
+      <PackagingOpeningBalanceModal
+        open={isPackagingModalOpen}
+        onOpenChange={setIsPackagingModalOpen}
+        partnerId={clientId}
       />
     </>
   )

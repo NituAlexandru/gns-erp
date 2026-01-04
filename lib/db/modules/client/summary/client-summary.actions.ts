@@ -193,6 +193,7 @@ export async function getClientLedger(
           clientId: id,
           invoiceType: { $in: ['STANDARD', 'STORNO', 'AVANS'] },
           status: { $in: ['APPROVED', 'PAID', 'PARTIAL_PAID'] },
+          seriesName: { $ne: 'INIT-AMB' },
         },
       },
       {
@@ -381,6 +382,7 @@ export async function getClientLedger(
           dueDate: { $lt: now },
           invoiceType: { $ne: 'AVANS' },
           remainingAmount: { $gt: 0.01 },
+          seriesName: { $ne: 'INIT-AMB' },
         },
       },
       {
