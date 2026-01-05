@@ -32,6 +32,7 @@ import {
   Loader2,
   MoreHorizontal,
   RefreshCw,
+  Trash2,
   Upload,
 } from 'lucide-react'
 import { InvoiceStatusBadge } from './InvoiceStatusBadge'
@@ -39,6 +40,7 @@ import { EFacturaStatusBadge } from './EFacturaStatusBadge'
 import { toast } from 'sonner'
 import {
   approveInvoice,
+  cancelInvoice,
   rejectInvoice,
 } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import {
@@ -71,6 +73,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  cancelSplitGroup,
+  getSplitGroupPreview,
+} from '@/lib/db/modules/financial/invoices/split-invoice/split-invoice.actions'
 
 interface InvoicesListProps {
   initialData: {
@@ -100,11 +106,14 @@ export function InvoicesList({
   )
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [isBulkRefreshing, setIsBulkRefreshing] = useState(false)
-  // State pentru Preview XML
   const [previewData, setPreviewData] = useState<ParsedAnafInvoice | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [errorModalOpen, setErrorModalOpen] = useState(false)
   const [currentError, setCurrentError] = useState<string | null>(null)
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [isSplitCancelModalOpen, setIsSplitCancelModalOpen] = useState(false)
+  const [groupInvoicesList, setGroupInvoicesList] = useState<any[]>([])
 
   useEffect(() => {
     setInvoices(initialData.data)
@@ -332,6 +341,97 @@ export function InvoicesList({
     } else {
       toast.error('Eroare previzualizare', { description: result.message })
     }
+  }
+  const handleCancel = () => {
+    if (!invoiceToActOn) return
+
+    startTransition(async () => {
+      const result = await cancelInvoice(
+        invoiceToActOn._id.toString(),
+        cancelReason || 'Anulare manuală din listă'
+      )
+
+      if (result.success) {
+        toast.success(result.message)
+        setInvoices((prev) =>
+          prev.map((inv) =>
+            inv._id === invoiceToActOn._id
+              ? {
+                  ...inv,
+                  status: 'CANCELLED',
+                  eFacturaStatus: 'NOT_REQUIRED',
+                }
+              : inv
+          )
+        )
+      } else {
+        toast.error('Eroare la anulare', { description: result.message })
+      }
+
+      setIsCancelModalOpen(false)
+      setInvoiceToActOn(null)
+      setCancelReason('')
+    })
+  }
+  const handlePrepareCancel = (invoice: PopulatedInvoice) => {
+    // 1. Dacă e factură din SPLIT -> Pregătim modalul de Grup
+    if (invoice.splitGroupId) {
+      startTransition(async () => {
+        toast.loading('Se încarcă detaliile grupului...')
+        const result = await getSplitGroupPreview(
+          invoice.splitGroupId!.toString()
+        )
+        toast.dismiss()
+
+        if (result.success) {
+          setGroupInvoicesList(result.data)
+          setInvoiceToActOn(invoice) // Ținem minte factura curentă (ca referință)
+          setIsSplitCancelModalOpen(true)
+        } else {
+          toast.error('Nu s-au putut încărca detaliile grupului split.')
+        }
+      })
+    }
+    // 2. Dacă e factură NORMALĂ -> Deschidem modalul simplu
+    else {
+      setInvoiceToActOn(invoice)
+      setCancelReason('')
+      setIsCancelModalOpen(true)
+    }
+  }
+  // Handler-ul efectiv pentru Anularea de Grup (din Listă)
+  const handleConfirmSplitCancel = () => {
+    if (!invoiceToActOn?.splitGroupId) return
+
+    startTransition(async () => {
+      const result = await cancelSplitGroup(
+        invoiceToActOn.splitGroupId!.toString()
+      )
+
+      if (result.success) {
+        toast.success(result.message)
+
+        // Actualizăm local TOATE facturile care au fost anulate (ca să nu dăm refresh)
+        // Backend-ul a anulat tot grupul, deci căutăm în lista locală toate facturile cu acel splitGroupId
+        setInvoices((prev) =>
+          prev.map((inv) =>
+            // Dacă au același splitGroupId, le marcăm pe toate ca anulate
+            inv.splitGroupId === invoiceToActOn.splitGroupId
+              ? {
+                  ...inv,
+                  status: 'CANCELLED',
+                  eFacturaStatus: 'NOT_REQUIRED',
+                }
+              : inv
+          )
+        )
+      } else {
+        toast.error('Eroare la anulare grup', { description: result.message })
+      }
+
+      setIsSplitCancelModalOpen(false)
+      setInvoiceToActOn(null)
+    })
   }
 
   return (
@@ -616,8 +716,23 @@ export function InvoicesList({
                         {/* --- SFÂRȘIT BLOC ACȚIUNI ADMIN --- */}
 
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className='text-red-500'>
-                          Anulează
+                        <DropdownMenuItem
+                          className='text-red-600 focus:text-red-700 focus:bg-red-50'
+                          onSelect={() => handlePrepareCancel(invoice)}
+                          disabled={
+                            invoice.status === 'CANCELLED' ||
+                            invoice.status === 'PAID' ||
+                            invoice.status === 'PARTIAL_PAID' ||
+                            invoice.status === 'APPROVED' ||
+                            ['SENT', 'ACCEPTED'].includes(
+                              invoice.eFacturaStatus
+                            )
+                          }
+                        >
+                          {/* Putem schimba textul dinamic dacă vrei */}
+                          {invoice.splitGroupId
+                            ? 'Anulează Grup Split'
+                            : 'Anulează Factura'}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -720,6 +835,124 @@ export function InvoicesList({
           </div>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className='text-destructive'>
+              Anulare Factură
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Ești sigur că vrei să anulezi factura{' '}
+              <strong>
+                {invoiceToActOn?.seriesName}-{invoiceToActOn?.invoiceNumber}
+              </strong>
+              ?
+              <br />
+              <br />
+              <ul className='list-disc list-inside text-sm text-muted-foreground'>
+                <li>
+                  Statusul va deveni <strong>ANULATĂ</strong>.
+                </li>
+                <li>Factura nu va mai fi trimisă la ANAF.</li>
+                <li>
+                  <strong>Avizele asociate vor fi eliberate</strong> (status
+                  Livrat) și pot fi refacturate.
+                </li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className='py-2'>
+            <Input
+              placeholder='Motivul anulării (opțional)...'
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setInvoiceToActOn(null)
+                setCancelReason('')
+              }}
+            >
+              Renunță
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancel}
+              className='bg-destructive hover:bg-destructive/90'
+              disabled={isPending}
+            >
+              {isPending ? 'Se anulează...' : 'Confirmă Anularea'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* --- MODAL ANULARE GRUP SPLIT --- */}
+      <AlertDialog
+        open={isSplitCancelModalOpen}
+        onOpenChange={setIsSplitCancelModalOpen}
+      >
+        <AlertDialogContent className='max-w-md'>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Anulare Grup Facturi Split</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className='text-sm text-muted-foreground'>
+                <p className='mb-3'>
+                  Această factură face parte dintr-un grup. Acțiunea va anula{' '}
+                  <strong>toate facturile</strong> de mai jos:
+                </p>
+
+                {/* LISTA FACTURILOR */}
+                <div className='bg-muted/30 rounded-md border p-3 mb-4 space-y-2 max-h-[200px] overflow-y-auto'>
+                  {groupInvoicesList.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className='flex justify-between items-center text-xs'
+                    >
+                      <div className='flex flex-col'>
+                        <span className='font-semibold text-foreground'>
+                          #{inv.number} / {inv.date}
+                        </span>
+                        <span className='truncate max-w-[200px]'>
+                          {inv.clientName}
+                        </span>
+                      </div>
+                      <div className='font-mono font-medium'>
+                        {formatCurrency(inv.total)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className='flex items-start gap-2 text-amber-600 bg-amber-50 p-2 rounded border border-amber-200'>
+                  <div className='mt-1.5'>
+                    <Trash2 className='h-5 w-5' />
+                  </div>
+                  <p className='text-xs'>
+                    Avizele și Livrările asociate vor reveni la starea{' '}
+                    <strong>NEFACTURAT</strong> (Livrat) și vor putea fi
+                    preluate pe o nouă factură.
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setInvoiceToActOn(null)}>
+              Renunță
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmSplitCancel}
+              className='bg-primary hover:bg-destructive/90'
+              disabled={isPending}
+            >
+              {isPending ? 'Se anulează...' : 'Da, Anulează Tot Grupul'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

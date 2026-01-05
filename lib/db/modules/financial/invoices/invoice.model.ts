@@ -70,6 +70,7 @@ export interface IInvoiceDoc extends Document {
   paidAmount: number
   remainingAmount: number
   advanceScope?: AdvanceScopeKey
+  splitGroupId?: Types.ObjectId
   createdAt: Date
   updatedAt: Date
 }
@@ -293,6 +294,11 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
       type: String,
       enum: ADVANCE_SCOPES,
       default: 'GLOBAL',
+    },
+    splitGroupId: {
+      type: Schema.Types.ObjectId,
+      required: false,
+      index: true,
     },
   },
   { timestamps: true }

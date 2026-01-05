@@ -55,6 +55,7 @@ import {
   CreatePackagingOpeningBalanceSchema,
 } from '../initial-balance/initial-balance.validator'
 import PackagingModel from '../../packaging-products/packaging.model'
+import DeliveryModel from '../../deliveries/delivery.model'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -1932,19 +1933,19 @@ export async function createPackagingOpeningBalance(
         const vatValue = round2(lineValue * (vatRate / 100))
         const lineTotal = round2(lineValue + vatValue)
 
-        // Mapare conform schemei PackagingModel 
+        // Mapare conform schemei PackagingModel
         const line: InvoiceLineInput = {
           productId: packaging._id,
           stockableItemType: 'Packaging',
           isManualEntry: false,
           productName: packaging.name,
-          productCode: packaging.productCode, 
-          productBarcode: '', 
+          productCode: packaging.productCode,
+          productBarcode: '',
           quantity: itemInput.quantity,
           // Mapare unități conform schemei Packaging
-          unitOfMeasure: packaging.packagingUnit, 
+          unitOfMeasure: packaging.packagingUnit,
           unitOfMeasureCode: 'H87',
-          baseUnit: packaging.packagingUnit, 
+          baseUnit: packaging.packagingUnit,
           conversionFactor: 1,
           packagingOptions: [],
           unitPrice: itemInput.unitPrice,
@@ -2041,5 +2042,102 @@ export async function createPackagingOpeningBalance(
     return { success: false, message: (error as Error).message }
   } finally {
     await session.endSession()
+  }
+}
+export async function cancelInvoice(
+  invoiceId: string,
+  reason: string
+): Promise<{ success: boolean; message: string }> {
+  const session = await startSession()
+  try {
+    await connectToDatabase()
+
+    // Auth check...
+    const authSession = await auth()
+    if (!authSession?.user?.id) throw new Error('Utilizator neautentificat.')
+
+    await session.withTransaction(async (session) => {
+      const invoice = await InvoiceModel.findById(invoiceId).session(session)
+      if (!invoice) throw new Error('Factura nu a fost găsită.')
+
+      // 1. Validări
+      if (['APPROVED', 'PAID', 'PARTIAL_PAID'].includes(invoice.status)) {
+        throw new Error(
+          `Nu puteți anula o factură cu statusul ${invoice.status}.`
+        )
+      }
+      if (['SENT', 'ACCEPTED'].includes(invoice.eFacturaStatus)) {
+        throw new Error(
+          'Nu puteți anula o factură transmisă în SPV. Emiteți storno.'
+        )
+      }
+      if (invoice.status === 'CANCELLED') {
+        throw new Error('Factura este deja anulată.')
+      }
+      // Validare Split: Dacă e parte dintr-un grup, nu o anulăm individual pe aici
+      if (invoice.splitGroupId) {
+        throw new Error(
+          'Această factură este parte dintr-un split. Folosiți funcția "Resetează Split" pentru a anula tot grupul.'
+        )
+      }
+
+      // 2. Update Factură
+      invoice.status = 'CANCELLED'
+      invoice.eFacturaStatus = 'NOT_REQUIRED'
+      invoice.notes = invoice.notes
+        ? `${invoice.notes}\n[ANULATĂ]: ${reason}`
+        : `[ANULATĂ]: ${reason}`
+
+      await invoice.save({ session })
+
+      // 3. DECUPLARE DOCUMENTE (ELIBERARE AVIZE)
+      const sourceNoteIds = invoice.sourceDeliveryNotes || []
+      const relatedDeliveryIds = invoice.relatedDeliveries || []
+
+      // A. Update Avize (DeliveryNote)
+      if (sourceNoteIds.length > 0) {
+        await DeliveryNoteModel.updateMany(
+          { _id: { $in: sourceNoteIds } },
+          {
+            $pull: {
+              relatedInvoices: { invoiceId: invoice._id },
+            },
+            $set: {
+              isInvoiced: false,
+              status: 'DELIVERED', // Revine la livrat, gata de refacturare
+            },
+          },
+          { session }
+        )
+      }
+
+      // B. Update Livrări (Delivery)
+      if (relatedDeliveryIds.length > 0) {
+        await DeliveryModel.updateMany(
+          { _id: { $in: relatedDeliveryIds } },
+          {
+            $pull: {
+              relatedInvoices: { invoiceId: invoice._id },
+            },
+            $set: {
+              isInvoiced: false,
+              status: 'DELIVERED',
+            },
+          },
+          { session }
+        )
+      }
+    })
+
+    await session.endSession()
+    revalidatePath('/financial/invoices')
+    return {
+      success: true,
+      message: 'Factura a fost anulată și avizele au fost eliberate.',
+    }
+  } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction()
+    await session.endSession()
+    return { success: false, message: (error as Error).message }
   }
 }

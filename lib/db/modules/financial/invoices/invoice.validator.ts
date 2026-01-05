@@ -175,4 +175,5 @@ export const InvoiceInputSchema = z.object({
   paidAmount: z.number().optional(),
   remainingAmount: z.number().optional(),
   advanceScope: z.enum(ADVANCE_SCOPES).optional(),
+  splitGroupId: MongoId.optional(),
 })

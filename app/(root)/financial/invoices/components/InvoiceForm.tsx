@@ -12,7 +12,7 @@ import { InvoiceInputSchema } from '@/lib/db/modules/financial/invoices/invoice.
 import { ISettingInput } from '@/lib/db/modules/setting/types'
 import { Button } from '@/components/ui/button'
 import { Form } from '@/components/ui/form'
-import { Loader2 } from 'lucide-react'
+import { Loader2, SplitIcon, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { InvoiceFormHeader } from './form-sections/InvoiceFormHeader'
@@ -26,7 +26,7 @@ import {
   IDeliveryNoteDoc,
   IDeliveryNoteLine,
 } from '@/lib/db/modules/financial/delivery-notes/delivery-note.model'
-import { round2 } from '@/lib/utils'
+import { formatCurrency, round2 } from '@/lib/utils'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import {
   createInvoice,
@@ -43,6 +43,23 @@ import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbe
 import { CreateStornoInput } from '@/lib/db/modules/financial/invoices/storno.validator'
 import { SelectStornoProductModal } from './form-sections/SelectStornoProductModal'
 import { VAT_EXEMPTION_REASONS } from '@/lib/db/modules/setting/efactura/outgoing/outgoing.constants'
+import {
+  cancelSplitGroup,
+  createSplitInvoices,
+  getSplitGroupPreview,
+} from '@/lib/db/modules/financial/invoices/split-invoice/split-invoice.actions'
+import { SplitInvoiceModal } from './form-sections/SplitInvoiceModal'
+import { useSession } from 'next-auth/react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface InvoiceFormProps {
   initialData: (Partial<InvoiceInput> & { _id?: string }) | null
@@ -59,6 +76,7 @@ export function InvoiceForm({
   vatRates,
   services,
 }: InvoiceFormProps) {
+  const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
@@ -72,7 +90,11 @@ export function InvoiceForm({
     { id: string; ref: string }[]
   >([])
   const router = useRouter()
-
+  const [showSplitModal, setShowSplitModal] = useState(false)
+  const [showCancelAlert, setShowCancelAlert] = useState(false)
+  // Folosim direct variabila asta existentă
+  const isSplitGroupMember = !!initialData?.splitGroupId
+  const isEditSplitMode = isSplitGroupMember
   const defaultValues: Partial<InvoiceInput> = {
     invoiceDate: new Date(),
     dueDate: new Date(),
@@ -112,6 +134,7 @@ export function InvoiceForm({
     rejectionReason: '',
     seriesName: seriesList && seriesList.length > 0 ? seriesList[0].name : '',
   }
+  const [groupInvoicesList, setGroupInvoicesList] = useState<any[]>([])
 
   const form = useForm<InvoiceInput>({
     resolver: zodResolver(InvoiceInputSchema),
@@ -806,6 +829,122 @@ export function InvoiceForm({
       description: 'Vă rugăm verificați câmpurile marcate cu roșu.',
     })
   }
+  const handleSplitConfirm = async (
+    configs: { clientId: string; percentage: number }[]
+  ) => {
+    // Validare de bază (doar pentru split nou, la editare avem items din groupData)
+    const currentItems = getValues('items')
+    if (!isEditSplitMode && (!currentItems || currentItems.length === 0)) {
+      toast.error('Nu puteți face split pe o factură goală.')
+      return
+    }
+
+    const formValues = getValues()
+    let finalAgentSnapshot = formValues.salesAgentSnapshot
+    let finalAgentId = formValues.salesAgentId
+
+    if (!finalAgentSnapshot?.name) {
+      if (session?.user) {
+        finalAgentId = session.user.id
+        finalAgentSnapshot = {
+          name: session.user.name || 'Utilizator necunoscut',
+        }
+      } else {
+        toast.error('Eroare: Agent neidentificat.')
+        return
+      }
+    }
+
+    // Pregătire Date Comune
+    const {
+      clientId,
+      clientSnapshot,
+      items,
+      totals,
+      salesAgentSnapshot,
+      salesAgentId,
+      ...restData
+    } = formValues
+
+    const commonData = {
+      ...restData,
+      salesAgentId: finalAgentId,
+      salesAgentSnapshot: finalAgentSnapshot,
+    }
+
+    setIsLoading(true)
+    const toastId = toast.loading(
+      isEditSplitMode
+        ? 'Se regenerează grupul de facturi...'
+        : 'Se generează facturile split...'
+    )
+
+    try {
+      const result = await createSplitInvoices({
+        commonData: commonData,
+        originalItems: items,
+        splitConfigs: configs,
+      })
+
+      if (result.success) {
+        toast.success(result.message, { id: toastId })
+        setShowSplitModal(false)
+        router.push('/financial/invoices')
+      } else {
+        toast.error('Eroare:', { id: toastId, description: result.message })
+      }
+    } catch (error) {
+      toast.error('Eroare neașteptată:', {
+        id: toastId,
+        description: (error as Error).message,
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  const handleSplitButtonClick = async () => {
+    if (isSplitGroupMember) {
+      if (initialData?.splitGroupId) {
+        setIsLoading(true)
+        const result = await getSplitGroupPreview(
+          initialData.splitGroupId.toString()
+        )
+        setIsLoading(false)
+
+        if (result.success) {
+          setGroupInvoicesList(result.data)
+          setShowCancelAlert(true)
+        } else {
+          toast.error('Nu s-au putut încărca detaliile grupului.')
+        }
+      }
+    } else {
+      setShowSplitModal(true)
+    }
+  }
+  const handleConfirmCancelSplit = async () => {
+    if (!initialData?.splitGroupId) return
+    setIsLoading(true)
+    const toastId = toast.loading('Se anulează grupul de facturi...')
+
+    try {
+      const result = await cancelSplitGroup(initialData.splitGroupId.toString())
+      if (result.success) {
+        toast.success(result.message, { id: toastId })
+        router.push('/financial/invoices')
+      } else {
+        toast.error(result.message, { id: toastId })
+      }
+    } catch (error) {
+      toast.error('Eroare la anulare.', {
+        id: toastId,
+        description: (error as Error).message,
+      })
+    } finally {
+      setIsLoading(false)
+      setShowCancelAlert(false)
+    }
+  }
 
   return (
     <FormProvider {...form}>
@@ -838,10 +977,38 @@ export function InvoiceForm({
             isVatDisabled={watchedVatCategory !== 'S'}
           />
 
-          <Button type='submit' disabled={isLoading}>
-            {isLoading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            Salvează Factura
-          </Button>
+          <div className='flex gap-2'>
+            <Button type='submit' disabled={isLoading}>
+              {isLoading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+              Salvează Factura
+            </Button>
+            <Button
+              className={`cursor-pointer h-9.5 ${isSplitGroupMember ? 'border-destructive text-destructive hover:bg-destructive/10' : ''}`}
+              type='button'
+              variant={isSplitGroupMember ? 'outline' : 'secondary'}
+              onClick={handleSplitButtonClick}
+              disabled={
+                isLoading || (!isSplitGroupMember && watchedItems?.length === 0)
+              }
+              title={
+                isSplitGroupMember
+                  ? 'Anulează și regenerează split-ul'
+                  : 'Împarte factura la mai mulți clienți'
+              }
+            >
+              {isSplitGroupMember ? (
+                <>
+                  <Trash2 className='mr-2 h-4 w-4' />
+                  Resetează Facturile Split (Anulează Tot)
+                </>
+              ) : (
+                <>
+                  <SplitIcon className='mr-2 h-4 w-4' />
+                  Facturare Multiplă (Split)
+                </>
+              )}
+            </Button>
+          </div>
         </form>
       </Form>
 
@@ -877,6 +1044,77 @@ export function InvoiceForm({
             existingItems={watchedItems || []}
           />
         )}
+      {showSplitModal && selectedClient && (
+        <SplitInvoiceModal
+          isOpen={showSplitModal}
+          onClose={() => setShowSplitModal(false)}
+          onConfirm={handleSplitConfirm}
+          originalClient={selectedClient}
+          grandTotal={getValues('totals.grandTotal') || 0}
+          currency={
+            companySettings.bankAccounts.find((b) => b.isDefault)?.currency ||
+            'RON'
+          }
+          originalItems={getValues('items') || []}
+        />
+      )}
+      <AlertDialog open={showCancelAlert} onOpenChange={setShowCancelAlert}>
+        <AlertDialogContent className='max-w-md'>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Anulare Grup Facturi Split</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className='text-sm text-muted-foreground'>
+                <p className='mb-3'>
+                  Această acțiune va anula <strong>toate facturile</strong> de
+                  mai jos, asociate acestui split:
+                </p>
+
+                {/* LISTA FACTURILOR */}
+                <div className='bg-muted/30 rounded-md border p-3 mb-4 space-y-2 max-h-[200px] overflow-y-auto'>
+                  {groupInvoicesList.map((inv) => (
+                    <div
+                      key={inv.id}
+                      className='flex justify-between items-center text-xs'
+                    >
+                      <div className='flex flex-col'>
+                        <span className='font-semibold text-foreground'>
+                          Factura #{inv.number} / {inv.date}
+                        </span>
+                        <span className='truncate max-w-[250px]'>
+                          {inv.clientName}
+                        </span>
+                      </div>
+                      <div className='font-mono font-medium'>
+                        {formatCurrency(inv.total)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className='flex items-start gap-2 text-amber-600 bg-amber-50 p-2 rounded border border-amber-200'>
+                  <div className='mt-1.5'>
+                    <Trash2 className='h-5 w-5' />
+                  </div>
+                  <p className='text-xs'>
+                    Avizele și Livrările asociate vor reveni la starea{' '}
+                    <strong>NEFACTURAT</strong> (Livrat) și vor putea fi
+                    preluate pe o nouă factură.
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Renunță</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmCancelSplit}
+              className='bg-primary hover:bg-destructive/90'
+            >
+              Da, Anulează Tot
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </FormProvider>
   )
 }

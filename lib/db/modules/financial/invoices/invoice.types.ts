@@ -54,6 +54,7 @@ export interface InvoiceDTO {
   vehicleNumber?: string
   vehicleType?: string
   trailerNumber?: string
+  splitGroupId?: string
   createdAt: string
   updatedAt: string
 }

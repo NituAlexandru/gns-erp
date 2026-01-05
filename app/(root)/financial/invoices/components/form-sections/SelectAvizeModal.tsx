@@ -16,7 +16,7 @@ import { IDeliveryNoteDoc } from '@/lib/db/modules/financial/delivery-notes/deli
 import { Checkbox } from '@/components/ui/checkbox'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency } from '@/lib/utils'
 
 interface SelectAvizeModalProps {
   clientId: string
@@ -128,7 +128,7 @@ export function SelectAvizeModal({
                       {format(new Date(note.createdAt), 'P', { locale: ro })}
                     </div>
                     <div className='text-right font-medium'>
-                      {note.totals.grandTotal.toFixed(2)} RON
+                      {formatCurrency(note.totals.grandTotal)}
                     </div>
                   </div>
                 </div>
