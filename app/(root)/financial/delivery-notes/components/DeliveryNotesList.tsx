@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
-import { MoreHorizontal, Loader2, DollarSign } from 'lucide-react'
+import { MoreHorizontal, Loader2, DollarSign, Printer } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { cn, formatCurrency } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -51,6 +51,11 @@ import { InvoiceActionResult } from '@/lib/db/modules/financial/invoices/invoice
 import { createInvoiceFromSingleNote } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { DocumentType } from '@/lib/db/modules/numbering/documentCounter.model'
+import { PDFDownloadLink } from '@react-pdf/renderer'
+import { DeliveryNoteTemplate } from '@/components/printing/templates/DeliveryNoteTemplate'
+import { mapDeliveryNoteToPdfData } from '@/lib/db/modules/printing/mappers/map-delivery-note'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 
 interface DeliveryNotesListProps {
   initialData: {
@@ -94,6 +99,9 @@ export function DeliveryNotesList({
   const [noteToInvoice, setNoteToInvoice] = useState<DeliveryNoteDTO | null>(
     null
   )
+  const [previewNote, setPreviewNote] = useState<DeliveryNoteDTO | null>(null)
+  const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
   // 1. Efect: Fetch date când se schimbă filtrele sau pagina
   useEffect(() => {
@@ -274,7 +282,26 @@ export function DeliveryNotesList({
       }
     }
   }
+  const handlePrintPreview = async (noteId: string) => {
+    setIsGeneratingPdf(noteId)
+    try {
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(noteId, 'DELIVERY_NOTE')
 
+      if (result.success) {
+        setPrintData(result.data)
+        // Nu mai avem nevoie de isPreviewOpenPdf separat, folosim previewNote pentru a randa modalul
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(null)
+    }
+  }
   return (
     <div className='flex flex-col gap-2'>
       <DeliveryNotesFilters
@@ -375,6 +402,20 @@ export function DeliveryNotesList({
                             }
                           >
                             Vizualizează
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onSelect={() => {
+                              setPreviewNote(note)
+                              handlePrintPreview(note._id)
+                            }}
+                            disabled={!!isGeneratingPdf}
+                          >
+                            <Printer className='mr-2 h-4 w-4' />
+                            Printează
+                            {isGeneratingPdf === note._id && (
+                              <Loader2 className='h-3 w-3 animate-spin ml-2' />
+                            )}
                           </DropdownMenuItem>
 
                           <DropdownMenuSeparator />
@@ -522,6 +563,17 @@ export function DeliveryNotesList({
             setNoteToInvoice(null)
             setActionLoadingId(null)
           }}
+        />
+      )}
+      {previewNote && (
+        <PdfPreviewModal
+          isOpen={!!previewNote}
+          onClose={() => {
+            setPreviewNote(null)
+            setPrintData(null)
+          }}
+          data={printData}
+          isLoading={isGeneratingPdf === previewNote._id}
         />
       )}
     </div>

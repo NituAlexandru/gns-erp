@@ -39,7 +39,7 @@ export function DeliveryNoteItemsTable({ items }: DeliveryNoteItemsTableProps) {
           <TableHeader className='bg-muted/50'>
             {/* Rândul 1: Titluri */}
             <TableRow>
-              <TableHead className='w-[40px]'>#</TableHead>{' '}
+              <TableHead className='w-[40px]'>#</TableHead>
               <TableHead>Cod Produs</TableHead>
               <TableHead>Cod Bare</TableHead>
               <TableHead>Descriere Produs</TableHead>
@@ -92,7 +92,7 @@ export function DeliveryNoteItemsTable({ items }: DeliveryNoteItemsTableProps) {
                       <div className='py-0'>
                         <Barcode
                           text={item.productBarcode}
-                          width={250} 
+                          width={250}
                           height={70}
                           type='code128'
                         />

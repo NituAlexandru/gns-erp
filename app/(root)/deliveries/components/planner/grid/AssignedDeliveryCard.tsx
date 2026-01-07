@@ -22,6 +22,7 @@ import {
   Loader2,
   MapPin,
   Pencil,
+  Printer,
   Truck,
   User,
   XCircle,
@@ -51,6 +52,7 @@ import {
   ABLY_CHANNELS,
   ABLY_EVENTS,
 } from '@/lib/db/modules/ably/constants'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 type DeliveryCardInfo = {
   delivery: IDelivery
@@ -80,6 +82,10 @@ export function AssignedDeliveryCard({
   // Generate Invoice
   const [showInvoiceSeriesModal, setShowInvoiceSeriesModal] = useState(false)
   const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false)
+  // --- Stări noi pentru previzualizare PDF ---
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [printData, setPrintData] = useState<any>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   async function handleGenerateDeliveryNote(seriesName?: string) {
     setIsGenerating(true)
@@ -243,6 +249,30 @@ export function AssignedDeliveryCard({
     setIsGeneratingInvoice(false)
   }
 
+  const handlePrintPreview = async (
+    documentId: string,
+    type: 'INVOICE' | 'DELIVERY_NOTE'
+  ) => {
+    setIsGeneratingPdf(true)
+    try {
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(documentId, type)
+
+      if (result.success) {
+        setPrintData(result.data)
+        setIsPreviewOpen(true)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
+
   return (
     <Tooltip delayDuration={500}>
       <TooltipTrigger asChild>
@@ -301,7 +331,7 @@ export function AssignedDeliveryCard({
             </Badge>
           </div>
 
-          <div className='space-y-2 text-sm border-t pt-3 mt-3'>
+          <div className='space-y-2 text-sm border-t pt-3 mt-3 text-muted-foreground'>
             <div className='flex items-center gap-2'>
               <User className='h-4 w-4 flex-shrink-0' />
               <span className='font-medium text-foreground '>
@@ -314,7 +344,7 @@ export function AssignedDeliveryCard({
             </div>
           </div>
 
-          <div className='space-y-2 text-sm border-t pt-3 mt-3'>
+          <div className='space-y-2 text-sm border-t pt-3 mt-3 text-muted-foreground'>
             <div className='flex items-center gap-2'>
               <Truck className='h-4 w-4 flex-shrink-0' />
               <span className='font-medium text-foreground truncate'>
@@ -330,7 +360,7 @@ export function AssignedDeliveryCard({
             </div>
           </div>
 
-          <div className='border-t pt-3 mt-3 space-y-2 text-sm'>
+          <div className='border-t pt-3 mt-3 space-y-2 text-sm text-muted-foreground'>
             {delivery.deliveryNotes && (
               <p>
                 <strong>Note Logistică:</strong> {delivery.deliveryNotes}
@@ -462,22 +492,33 @@ export function AssignedDeliveryCard({
                     <Link
                       href={`/financial/delivery-notes/${delivery.deliveryNoteId}`}
                     >
-                      <Eye className='mr-2 h-4 w-4' /> Vezi Aviz
+                      <Eye className='mr-2 h-4 w-4 text-muted-foreground' />{' '}
+                      <span className='text-muted-foreground'> Vezi Aviz</span>
                     </Link>
                   </Button>
                   <Button
                     size='sm'
                     variant='outline'
                     className='w-full'
+                    disabled={isGeneratingPdf}
                     onClick={(e) => {
                       e.stopPropagation()
-                      // handlePrintDocument(
-                      //   'delivery-note',
-                      //   delivery.deliveryNoteId?.toString()
-                      // )
+                      if (delivery.deliveryNoteId) {
+                        handlePrintPreview(
+                          delivery.deliveryNoteId.toString(),
+                          'DELIVERY_NOTE'
+                        )
+                      }
                     }}
                   >
-                    <Download className='mr-2 h-4 w-4' /> Descarcă Aviz
+                    {isGeneratingPdf ? (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    ) : (
+                      <Printer className='mr-2 h-4 w-4 text-muted-foreground' />
+                    )}
+                    <span className='text-muted-foreground'>
+                      Printează Aviz
+                    </span>
                   </Button>
                 </>
               )}
@@ -495,9 +536,28 @@ export function AssignedDeliveryCard({
                 {isGeneratingInvoice ? (
                   <Loader2 className='mr-2 h-4 w-4 animate-spin' />
                 ) : (
-                  <DollarSign className='mr-2 h-4 w-4' />
+                  <DollarSign className='mr-2 h-4 w-4 text-muted-foreground' />
                 )}
-                Generează Factură
+                <span className='text-muted-foreground'>Generează Factură</span>
+              </Button>
+            )}
+            {/* --- FACTURARE MULTIPLĂ (SPLIT) --- */}
+            {canGenerateInvoice && (
+              <Button
+                size='sm'
+                variant='outline'
+                className='w-full col-span-3 mt-1 border-blue-200 hover:bg-blue-50'
+                asChild
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Link
+                  href={`/financial/invoices/new?deliveryId=${delivery._id.toString()}`}
+                >
+                  <FilePenLine className='mr-2 h-4 w-4 text-muted-foreground' />
+                  <span className='text-muted-foreground'>
+                    Facturare Multiplă (Split)
+                  </span>
+                </Link>
               </Button>
             )}
             {/* --- STATUS: FACTURATĂ (Vezi & Descarcă Factura) --- */}
@@ -514,22 +574,34 @@ export function AssignedDeliveryCard({
                     <Link
                       href={`/financial/invoices/${delivery.relatedInvoices[0].invoiceId}`}
                     >
-                      <Eye className='mr-2 h-4 w-4' /> Vezi Factura
+                      <Eye className='mr-2 h-4 w-4 text-muted-foreground' />{' '}
+                      <span className='text-muted-foreground'>
+                        Vezi Factura
+                      </span>
                     </Link>
                   </Button>
                   <Button
                     size='sm'
                     variant='outline'
                     className='w-full'
+                    disabled={isGeneratingPdf}
                     onClick={(e) => {
                       e.stopPropagation()
-                      // handlePrintDocument(
-                      //   'invoice',
-                      //   delivery.invoiceId?.toString()
-                      // )
+                      handlePrintPreview(
+                        delivery.relatedInvoices[0].invoiceId.toString(),
+                        'INVOICE'
+                      )
                     }}
                   >
-                    <Download className='mr-2 h-4 w-4' /> Descarcă Factura
+                    {isGeneratingPdf ? (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    ) : (
+                      <Printer className='mr-2 h-4 w-4 text-muted-foreground' />
+                    )}
+                    <span className='text-muted-foreground'>
+                      {' '}
+                      Printează Factura
+                    </span>
                   </Button>
                 </>
               )}
@@ -629,6 +701,12 @@ export function AssignedDeliveryCard({
           onCancel={() => setShowInvoiceSeriesModal(false)}
         />
       )}
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        data={printData}
+        isLoading={false}
+      />
     </Tooltip>
   )
 }

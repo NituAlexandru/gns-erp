@@ -1,3 +1,6 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import Link from 'next/link'
@@ -26,7 +29,7 @@ import {
   MapPin,
   User,
   Printer,
-  XCircle,
+  Loader2,
   ExternalLink,
   CreditCard,
   Truck,
@@ -34,11 +37,15 @@ import {
 import { getNirById } from '@/lib/db/modules/financial/nir/nir.actions'
 import { NIR_STATUS_MAP } from '@/lib/db/modules/financial/nir/nir.constants'
 import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { toast } from 'sonner'
+import { NirDTO } from '@/lib/db/modules/financial/nir/nir.types'
+
 interface Props {
   params: Promise<{ id: string }>
 }
 
-// Helper pentru formatare monetară (Exact ca în exemplul tău)
 const formatMoney = (amount: number | undefined | null, currency = 'RON') => {
   if (amount == null) return '-'
   return new Intl.NumberFormat('ro-RO', {
@@ -49,7 +56,6 @@ const formatMoney = (amount: number | undefined | null, currency = 'RON') => {
   }).format(amount)
 }
 
-// Helper pentru formatare numere (cantități)
 const formatNumber = (amount: number | undefined | null) => {
   if (amount == null) return '-'
   return new Intl.NumberFormat('ro-RO', {
@@ -58,11 +64,58 @@ const formatNumber = (amount: number | undefined | null) => {
   }).format(amount)
 }
 
-export default async function NirPage({ params }: Props) {
-  const { id } = await params
-  const result = await getNirById(id)
+export default function NirPage({ params }: Props) {
+  const [id, setId] = useState<string | null>(null)
+  const [nir, setNir] = useState<NirDTO | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  if (!result.success || !result.data) {
+  // Stări pentru PDF
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+
+  useEffect(() => {
+    params.then((p) => {
+      setId(p.id)
+      getNirById(p.id).then((result) => {
+        setNir(result.success ? (result.data ?? null) : null)
+        setLoading(false)
+      })
+    })
+  }, [params])
+
+  const handlePrintPreview = async () => {
+    if (!id) return
+    setIsGeneratingPdf(true)
+    try {
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(id, 'NIR')
+
+      if (result.success) {
+        setPrintData(result.data)
+        setIsPreviewOpen(true)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className='p-8 flex flex-col items-center justify-center h-64'>
+        <Loader2 className='h-8 w-8 animate-spin text-primary' />
+        <p className='text-sm text-muted-foreground mt-2'>Se încarcă NIR...</p>
+      </div>
+    )
+  }
+
+  if (!nir) {
     return (
       <div className='p-6'>
         <Card className='border-destructive/50'>
@@ -81,8 +134,11 @@ export default async function NirPage({ params }: Props) {
     )
   }
 
-  const nir = result.data
-  const statusInfo = NIR_STATUS_MAP[nir.status]
+  const statusKey = nir.status as keyof typeof NIR_STATUS_MAP
+  const statusInfo = NIR_STATUS_MAP[statusKey] || {
+    name: nir.status,
+    variant: 'outline',
+  }
 
   return (
     <div className='space-y-4 p-2'>
@@ -114,9 +170,17 @@ export default async function NirPage({ params }: Props) {
         </div>
 
         <div className='flex gap-2'>
-          {/* Buton PDF (Placeholder pentru funcționalitatea viitoare) */}
-          <Button variant='outline'>
-            <Printer className='mr-2 h-4 w-4' /> Tipărește PDF
+          <Button
+            variant='outline'
+            onClick={handlePrintPreview}
+            disabled={isGeneratingPdf}
+          >
+            {isGeneratingPdf ? (
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+            ) : (
+              <Printer className='mr-2 h-4 w-4' />
+            )}
+            Printează
           </Button>
         </div>
       </div>
@@ -133,7 +197,6 @@ export default async function NirPage({ params }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent className='space-y-3'>
-            {/* Furnizor */}
             <div className='flex items-start gap-3'>
               <div className='bg-primary/10 p-2 rounded-full mt-1'>
                 <User className='h-4 w-4 text-primary' />
@@ -149,7 +212,6 @@ export default async function NirPage({ params }: Props) {
               </div>
             </div>
 
-            {/* Unitate / Gestiune */}
             <div className='flex items-start gap-3'>
               <div className='bg-orange-100 p-2 rounded-full mt-1'>
                 <MapPin className='h-4 w-4 text-orange-600' />
@@ -189,7 +251,6 @@ export default async function NirPage({ params }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent className='space-y-4'>
-            {/* Link Recepție */}
             <div className='flex justify-between items-center p-2 rounded bg-muted/20 border'>
               <div className='flex flex-col'>
                 <span className='text-xs font-semibold text-muted-foreground uppercase'>
@@ -206,8 +267,7 @@ export default async function NirPage({ params }: Props) {
               </Button>
             </div>
 
-            {/* Facturi */}
-            {nir.invoices.map((inv, idx) => (
+            {nir.invoices.map((inv: any, idx: number) => (
               <div
                 key={idx}
                 className='flex justify-between items-center text-sm'
@@ -227,8 +287,7 @@ export default async function NirPage({ params }: Props) {
               </div>
             ))}
 
-            {/* Avize */}
-            {nir.deliveries.map((del, idx) => (
+            {nir.deliveries.map((del: any, idx: number) => (
               <div
                 key={idx}
                 className='flex justify-between items-center text-sm'
@@ -249,7 +308,6 @@ export default async function NirPage({ params }: Props) {
               </div>
             ))}
 
-            {/* Comanda */}
             {nir.orderRef && (
               <div className='pt-2 border-t text-xs text-muted-foreground'>
                 Ref. Comandă ID:{' '}
@@ -328,7 +386,6 @@ export default async function NirPage({ params }: Props) {
                 <TableHead className='text-right font-bold'>
                   Preț Achiziție
                 </TableHead>
-                {/* --- MODIFICARE: Am spart în două coloane --- */}
                 <TableHead className='text-right text-muted-foreground'>
                   Valoare Netă
                 </TableHead>
@@ -338,7 +395,7 @@ export default async function NirPage({ params }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {nir.items.map((item, index) => (
+              {nir.items.map((item: any, index: number) => (
                 <TableRow key={index}>
                   <TableCell className='font-medium py-0.5 text-xs text-muted-foreground'>
                     {index + 1}
@@ -346,20 +403,14 @@ export default async function NirPage({ params }: Props) {
                   <TableCell className='py-0.5'>
                     <div className='flex flex-col'>
                       <span className='font-medium'>{item.productName}</span>
-
-                      {/* Container flex pentru a ține totul pe un rând */}
                       <div className='flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground'>
                         <span>Cod: {item.productCode}</span>
-
                         <span>|</span>
-
                         <span>
                           {item.stockableItemType === 'Packaging'
                             ? 'Ambalaj'
                             : 'Marfă'}
                         </span>
-
-                        {/* Afișăm diferența doar dacă există */}
                         {item.quantityDifference !== 0 && (
                           <>
                             <span>|</span>
@@ -370,9 +421,7 @@ export default async function NirPage({ params }: Props) {
                                   : 'text-green-600'
                               }`}
                             >
-                              {item.quantityDifference < 0
-                                ? 'Cantitate Receptionata in Minus:'
-                                : 'Cantitate Receptionata in Plus:'}{' '}
+                              {item.quantityDifference < 0 ? 'Minus:' : 'Plus:'}{' '}
                               {Math.abs(item.quantityDifference)}{' '}
                               {item.unitMeasure}
                             </span>
@@ -406,8 +455,7 @@ export default async function NirPage({ params }: Props) {
                 </TableRow>
               ))}
 
-              {/* --- FOOTER TABLE - TOTALURI CLARE --- */}
-              {/* --- Rând Transport (Informativ - Inclus în totaluri) --- */}
+              {/* Rând Transport */}
               {nir.totals.transportSubtotal > 0 && (
                 <TableRow className=' border-t border-dashed'>
                   <TableCell
@@ -416,11 +464,9 @@ export default async function NirPage({ params }: Props) {
                   >
                     Cost Transport:
                   </TableCell>
-                  {/* Transport Net */}
                   <TableCell className='text-right text-xs text-muted-foreground font-mono py-2'>
                     {formatMoney(nir.totals.transportSubtotal)}
                   </TableCell>
-                  {/* Transport Brut (Net + TVA) */}
                   <TableCell className='text-right text-xs text-muted-foreground font-mono py-2'>
                     {formatMoney(
                       nir.totals.transportSubtotal + nir.totals.transportVat
@@ -428,7 +474,8 @@ export default async function NirPage({ params }: Props) {
                   </TableCell>
                 </TableRow>
               )}
-              {/* Rând 1: Total NET (Fără TVA) */}
+
+              {/* Rânduri Totaluri */}
               <TableRow className=' border-t-1'>
                 <TableCell
                   colSpan={6}
@@ -442,7 +489,6 @@ export default async function NirPage({ params }: Props) {
                 <TableCell className='py-2'></TableCell>
               </TableRow>
 
-              {/* Rând 2: Total TVA */}
               <TableRow className=' border-none'>
                 <TableCell
                   colSpan={6}
@@ -456,7 +502,6 @@ export default async function NirPage({ params }: Props) {
                 <TableCell className='py-2'></TableCell>
               </TableRow>
 
-              {/* Rând 3: Total GENERAL (Cu TVA) - Evidențiat */}
               <TableRow className='bg-slate-900 hover:bg-slate-900 border-t border-slate-800'>
                 <TableCell
                   colSpan={6}
@@ -464,7 +509,6 @@ export default async function NirPage({ params }: Props) {
                 >
                   TOTAL GENERAL DE PLATĂ (CU TVA):
                 </TableCell>
-                {/* Lăsăm goală celula de Net pentru aliniere */}
                 <TableCell className='py-3'></TableCell>
                 <TableCell className='text-right font-bold text-green-400 text-lg font-mono py-3 pr-4'>
                   {formatMoney(nir.totals.grandTotal)}
@@ -474,6 +518,14 @@ export default async function NirPage({ params }: Props) {
           </Table>
         </CardContent>
       </Card>
+
+      {/* MODAL PREVIZUALIZARE PDF */}
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        data={printData}
+        isLoading={false}
+      />
     </div>
   )
 }

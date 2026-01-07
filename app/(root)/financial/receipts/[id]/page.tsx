@@ -12,6 +12,7 @@ import { ReceiptStatusBadge } from '../components/ReceiptStatusBadge'
 import { getReceiptById } from '@/lib/db/modules/financial/receipts/receipt.actions'
 import { formatCurrency } from '@/lib/utils'
 import { formatAddress } from '@/lib/db/modules/financial/receipts/receipt.utils'
+import { PrintReceiptButton } from '../components/PrintReceiptButton'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -49,10 +50,12 @@ export default async function ReceiptDetailsPage({ params }: Props) {
         </div>
 
         <div className='flex gap-2'>
-          {/* Buton placeholder pentru viitor */}
           <Button variant='secondary' disabled>
             <Printer className='mr-2 h-4 w-4' /> Printează
           </Button>
+        </div>
+        <div className='flex gap-2'>
+          <PrintReceiptButton receiptId={receipt._id} />
         </div>
       </div>
 

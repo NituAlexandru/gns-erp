@@ -36,6 +36,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface DeliveryNoteDetailsActionsProps {
   note: DeliveryNoteDTO
@@ -55,6 +57,9 @@ export function DeliveryNoteDetailsActions({
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   // HANDLERS
   const handleConfirm = () => {
     startTransition(async () => {
@@ -109,6 +114,27 @@ export function DeliveryNoteDetailsActions({
     })
   }
 
+  const handlePrintPreview = async () => {
+    setIsGeneratingPdf(true)
+    try {
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(note._id.toString(), 'DELIVERY_NOTE')
+
+      if (result.success) {
+        setPrintData(result.data)
+        setIsPreviewOpen(true)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
+
   return (
     <>
       <div className='flex flex-wrap items-center justify-between gap-2 mb-4'>
@@ -134,12 +160,17 @@ export function DeliveryNoteDetailsActions({
 
         {/* Butoane Acțiuni */}
         <div className='flex flex-wrap items-center gap-2'>
-          <Button variant='outline' onClick={() => window.print()}>
-            <Printer className='h-4 w-4 mr-2' /> Printează
-          </Button>
-
-          <Button variant='outline'>
-            <Download className='h-4 w-4 mr-2' /> Export PDF
+          <Button
+            variant='outline'
+            onClick={handlePrintPreview}
+            disabled={isGeneratingPdf}
+          >
+            {isGeneratingPdf ? (
+              <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+            ) : (
+              <Printer className='h-4 w-4 mr-2' />
+            )}
+            Printează
           </Button>
 
           {/* Confirmare - Doar IN_TRANSIT */}
@@ -233,6 +264,12 @@ export function DeliveryNoteDetailsActions({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        data={printData}
+        isLoading={false}
+      />
     </>
   )
 }

@@ -41,8 +41,10 @@ import { PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
 import { useDebounce } from '@/hooks/use-debounce'
 import { generateNirForReceptionAction } from '@/lib/db/modules/financial/nir/nir.actions'
-import { FileText, Printer } from 'lucide-react'
+import { FileText, Loader2, Printer } from 'lucide-react'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 // ——— HELPER: calculează totalurile în RON pentru o recepție ———
 function computeReceptionTotals(rec: PopulatedReception) {
@@ -143,6 +145,9 @@ export default function ReceptionList() {
   const [revokeTarget, setRevokeTarget] = useState<ReceptionRow | null>(null)
   const [isRevoking, setIsRevoking] = useState(false)
   const debouncedFilters = useDebounce(filters, 300)
+  const [previewRec, setPreviewRec] = useState<PopulatedReception | null>(null)
+  const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
   const fetchReceptions = useCallback(
     async (currentFilters: ReceptionFilters) => {
@@ -269,7 +274,6 @@ export default function ReceptionList() {
       setRevokeTarget(null) // Închide dialogul
     }
   }
-
   // --- LOGICĂ GENERARE NIR ---
   async function handleGenerateNIR(receptionId: string, seriesName?: string) {
     setIsGeneratingNir(true)
@@ -299,7 +303,6 @@ export default function ReceptionList() {
       setIsGeneratingNir(false)
     }
   }
-
   // Handler pt modal
   const onSeriesSelected = (series: string) => {
     if (nirTargetRec) {
@@ -312,6 +315,26 @@ export default function ReceptionList() {
     toast.info('Printarea va fi implementată curând.', {
       description: `NIR ID: ${nirId}`,
     })
+  }
+
+  const handlePrintPreview = async (nirId: string) => {
+    setIsGeneratingPdf(nirId)
+    try {
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(nirId, 'NIR')
+
+      if (result.success) {
+        setPrintData(result.data)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(null)
+    }
   }
 
   return (
@@ -398,11 +421,19 @@ export default function ReceptionList() {
                           <Button
                             variant='ghost'
                             size='icon'
-                            className='h-8 w-8 hover:bg-gray-500'
-                            onClick={() => handlePrintNirPdf(rec.nirId!)}
+                            className='h-8 w-8 hover:bg-muted'
+                            onClick={() => {
+                              setPreviewRec(rec)
+                              handlePrintPreview(rec.nirId!)
+                            }}
+                            disabled={!!isGeneratingPdf}
                             title='Printează NIR'
                           >
-                            <FileText className='h-8 w-8' />
+                            {isGeneratingPdf === rec.nirId ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              <Printer className='h-4 w-4' />
+                            )}
                           </Button>
 
                           {/* Link către Pagina de Detalii NIR */}
@@ -531,23 +562,32 @@ export default function ReceptionList() {
 
                           {rec.nirNumber && (
                             <>
-                              <DropdownMenuItem
-                                className='cursor-pointer'
-                                onSelect={() =>
-                                  router.push(
-                                    `/admin/management/reception/nir/${rec.nirId}`
-                                  )
-                                }
-                              >
-                                Vezi Detalii NIR
-                              </DropdownMenuItem>
+                              {rec.nirNumber && (
+                                <>
+                                  <DropdownMenuItem
+                                    className='cursor-pointer'
+                                    onSelect={() =>
+                                      router.push(
+                                        `/admin/management/reception/nir/${rec.nirId}`
+                                      )
+                                    }
+                                  >
+                                    Vezi Detalii NIR
+                                  </DropdownMenuItem>
 
-                              <DropdownMenuItem
-                                className='cursor-pointer'
-                                onSelect={() => handlePrintNirPdf(rec.nirId!)}
-                              >
-                                <Printer className=' h-4 w-4' /> Descarcă PDF
-                              </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className='cursor-pointer'
+                                    onSelect={() => {
+                                      setPreviewRec(rec)
+                                      handlePrintPreview(rec.nirId!)
+                                    }}
+                                    disabled={!!isGeneratingPdf}
+                                  >
+                                    <Printer className='mr-2 h-4 w-4' />{' '}
+                                    Printează NIR
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </>
                           )}
                           <DropdownMenuSeparator />
@@ -660,6 +700,17 @@ export default function ReceptionList() {
             setNirModalOpen(false)
             setNirTargetRec(null)
           }}
+        />
+      )}
+      {previewRec && (
+        <PdfPreviewModal
+          isOpen={!!previewRec}
+          onClose={() => {
+            setPreviewRec(null)
+            setPrintData(null)
+          }}
+          data={printData}
+          isLoading={isGeneratingPdf === previewRec.nirId}
         />
       )}
     </div>

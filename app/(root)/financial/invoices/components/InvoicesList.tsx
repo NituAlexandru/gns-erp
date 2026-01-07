@@ -77,6 +77,7 @@ import {
   cancelSplitGroup,
   getSplitGroupPreview,
 } from '@/lib/db/modules/financial/invoices/split-invoice/split-invoice.actions'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface InvoicesListProps {
   initialData: {
@@ -114,6 +115,9 @@ export function InvoicesList({
   const [cancelReason, setCancelReason] = useState('')
   const [isSplitCancelModalOpen, setIsSplitCancelModalOpen] = useState(false)
   const [groupInvoicesList, setGroupInvoicesList] = useState<any[]>([])
+  const [isPreviewOpenPdf, setIsPreviewOpenPdf] = useState(false)
+  const [printData, setPrintData] = useState<any>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
   useEffect(() => {
     setInvoices(initialData.data)
@@ -434,6 +438,28 @@ export function InvoicesList({
     })
   }
 
+  const handlePrintPreview = async (invoiceId: string) => {
+    setIsGeneratingPdf(invoiceId)
+    try {
+      // Folosim același action ca în pagina de detalii
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(invoiceId, 'INVOICE')
+
+      if (result.success) {
+        setPrintData(result.data)
+        setIsPreviewOpenPdf(true)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(null)
+    }
+  }
+
   return (
     <div className='flex flex-col gap-2'>
       <InvoicesFilters
@@ -652,6 +678,19 @@ export function InvoicesList({
                           }
                         >
                           Vizualizează
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            handlePrintPreview(invoice._id.toString())
+                          }
+                          disabled={!!isGeneratingPdf}
+                        >
+                          <div className='flex items-center justify-between w-full'>
+                            <span>Printează PDF</span>
+                            {isGeneratingPdf === invoice._id.toString() && (
+                              <Loader2 className='h-3 w-3 animate-spin ml-2' />
+                            )}
+                          </div>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onSelect={() =>
@@ -953,6 +992,12 @@ export function InvoicesList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <PdfPreviewModal
+        isOpen={isPreviewOpenPdf}
+        onClose={() => setIsPreviewOpenPdf(false)}
+        data={printData}
+        isLoading={false}
+      />
     </div>
   )
 }

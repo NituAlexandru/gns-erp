@@ -31,13 +31,22 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { MoreHorizontal, FileText, Plus, Ban, Loader2 } from 'lucide-react'
+import {
+  MoreHorizontal,
+  FileText,
+  Plus,
+  Ban,
+  Loader2,
+  Printer,
+} from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { ReceiptDTO } from '@/lib/db/modules/financial/receipts/receipt.types'
 import { ReceiptStatusBadge } from './ReceiptStatusBadge'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { cancelReceipt } from '@/lib/db/modules/financial/receipts/receipt.actions'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface ReceiptsListProps {
   initialData: {
@@ -52,7 +61,6 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
   const [data, setData] = useState<ReceiptDTO[]>(initialData.data)
   const [totalPages] = useState(initialData.totalPages)
   const [page, setPage] = useState(currentPage)
-
   // State pentru Modalul de Anulare
   const [isCancelOpen, setIsCancelOpen] = useState(false)
   const [receiptToCancel, setReceiptToCancel] = useState<ReceiptDTO | null>(
@@ -60,6 +68,9 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
   )
   const [cancelReason, setCancelReason] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [previewReceipt, setPreviewReceipt] = useState<ReceiptDTO | null>(null)
+  const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
   useEffect(() => {
     setData(initialData.data)
@@ -103,7 +114,25 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
       }
     })
   }
+  const handlePrintPreview = async (receiptId: string) => {
+    setIsGeneratingPdf(receiptId)
+    try {
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(receiptId, 'RECEIPT')
 
+      if (result.success) {
+        setPrintData(result.data)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(null)
+    }
+  }
   return (
     <div className='space-y-4'>
       <div className='border rounded-lg overflow-x-auto bg-card'>
@@ -175,7 +204,19 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
                             <FileText className='mr-2 h-4 w-4' /> Vezi Detalii
                           </Link>
                         </DropdownMenuItem>
-
+                        <DropdownMenuItem
+                          className='cursor-pointer'
+                          onSelect={() => {
+                            setPreviewReceipt(receipt)
+                            handlePrintPreview(receipt._id)
+                          }}
+                          disabled={!!isGeneratingPdf}
+                        >
+                          <Printer className='mr-2 h-4 w-4' />
+                          {isGeneratingPdf === receipt._id
+                            ? 'Se generează...'
+                            : 'Printează Chitanța'}
+                        </DropdownMenuItem>
                         {/* 2. ANULEAZĂ - Doar dacă e VALID */}
                         {receipt.status === 'VALID' && (
                           <>
@@ -274,6 +315,17 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {previewReceipt && (
+        <PdfPreviewModal
+          isOpen={!!previewReceipt}
+          onClose={() => {
+            setPreviewReceipt(null)
+            setPrintData(null)
+          }}
+          data={printData}
+          isLoading={isGeneratingPdf === previewReceipt._id}
+        />
+      )}
     </div>
   )
 }

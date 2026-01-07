@@ -1,4 +1,3 @@
-// app/(root)/financial/invoices/components/details/InvoiceDetailsActions.tsx
 'use client'
 
 import { useState, useTransition } from 'react'
@@ -7,8 +6,8 @@ import { PopulatedInvoice } from '@/lib/db/modules/financial/invoices/invoice.ty
 import {
   Check,
   ChevronLeft,
-  Download,
   FilePenLine,
+  Loader2,
   Printer,
   X,
 } from 'lucide-react'
@@ -31,6 +30,9 @@ import {
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { INVOICE_STATUS_MAP } from '@/lib/db/modules/financial/invoices/invoice.constants'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { getPrintData } from '@/lib/db/modules/printing/printing.actions'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface InvoiceDetailsActionsProps {
   invoice: PopulatedInvoice
@@ -45,6 +47,9 @@ export function InvoiceDetailsActions({
   const [isPending, startTransition] = useTransition()
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   const statusInfo =
     INVOICE_STATUS_MAP[invoice.status] || INVOICE_STATUS_MAP.CREATED
@@ -79,6 +84,26 @@ export function InvoiceDetailsActions({
     })
   }
 
+  // Handler pentru "Printează" (Deschide Modal)
+  const handlePrintPreview = async () => {
+    setIsGeneratingPdf(true)
+    try {
+      const result = await getPrintData(invoice._id.toString(), 'INVOICE')
+
+      if (result.success) {
+        setPrintData(result.data)
+        setIsPreviewOpen(true)
+      } else {
+        // Aici suntem pe ramura success: false, deci avem message
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
+
   const canApprove =
     isAdmin && (invoice.status === 'CREATED' || invoice.status === 'REJECTED')
   const canReject = isAdmin && invoice.status === 'CREATED'
@@ -108,15 +133,19 @@ export function InvoiceDetailsActions({
         {/* Partea dreaptă: Acțiuni */}
         <div className='flex flex-wrap items-center gap-2'>
           {/* Buton de Print */}
-          <Button variant='outline'>
-            <Printer className='h-4 w-4 mr-2' />
+          <Button
+            variant='outline'
+            onClick={handlePrintPreview}
+            disabled={isGeneratingPdf}
+          >
+            {isGeneratingPdf ? (
+              <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+            ) : (
+              <Printer className='h-4 w-4 mr-2' />
+            )}
             Printează
           </Button>
-          {/* Buton de Export PDF (așa cum ai cerut) */}
-          <Button variant='outline'>
-            <Download className='h-4 w-4 mr-2' />
-            Export PDF
-          </Button>
+
           {/* Buton de Modifică */}
           <Button
             variant='default'
@@ -178,6 +207,12 @@ export function InvoiceDetailsActions({
           )}
         </div>
       </div>
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        data={printData}
+        isLoading={false}
+      />
     </>
   )
 }

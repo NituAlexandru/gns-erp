@@ -34,6 +34,8 @@ import { NirFilters, NirFiltersState } from './NirFilters'
 import { NirDTO } from '@/lib/db/modules/financial/nir/nir.types'
 import { getNirs } from '@/lib/db/modules/financial/nir/nir.actions'
 import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface NirListProps {
   initialData: {
@@ -51,6 +53,9 @@ export function NirList({ initialData, currentPage }: NirListProps) {
   const [filters, setFilters] = useState<NirFiltersState>({})
   const debouncedFilters = useDebounce(filters, 500)
   const [isPending, startTransition] = useTransition()
+  const [previewNir, setPreviewNir] = useState<NirDTO | null>(null)
+  const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
   // Fetch date la schimbare filtre/pagină
   useEffect(() => {
@@ -77,6 +82,26 @@ export function NirList({ initialData, currentPage }: NirListProps) {
   // Placeholder Print
   const handlePrintPdf = (nirId: string) => {
     toast.info('Funcționalitatea PDF va fi disponibilă în curând.')
+  }
+
+  const handlePrintPreview = async (nirId: string) => {
+    setIsGeneratingPdf(nirId)
+    try {
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(nirId, 'NIR')
+
+      if (result.success) {
+        setPrintData(result.data)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+    } finally {
+      setIsGeneratingPdf(null)
+    }
   }
 
   return (
@@ -118,14 +143,22 @@ export function NirList({ initialData, currentPage }: NirListProps) {
                         variant='ghost'
                         size='icon'
                         className='h-7 w-7'
-                        onClick={() => handlePrintPdf(nir._id)}
+                        onClick={() => {
+                          setPreviewNir(nir)
+                          handlePrintPreview(nir._id)
+                        }}
+                        disabled={!!isGeneratingPdf}
                         title='Printează'
                       >
-                        <FileText className='h-4 w-4' />
+                        {isGeneratingPdf === nir._id ? (
+                          <Loader2 className='h-4 w-4 animate-spin' />
+                        ) : (
+                          <FileText className='h-4 w-4' />
+                        )}
                       </Button>
                       <Link
                         href={`/admin/management/reception/nir/${nir._id}`}
-                        className='hover:underline  underline-offset-4'
+                        className='hover:underline underline-offset-4'
                       >
                         {nir.nirNumber}
                       </Link>
@@ -203,9 +236,13 @@ export function NirList({ initialData, currentPage }: NirListProps) {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className='cursor-pointer'
-                          onSelect={() => handlePrintPdf(nir._id)}
+                          onSelect={() => {
+                            setPreviewNir(nir)
+                            handlePrintPreview(nir._id)
+                          }}
+                          disabled={!!isGeneratingPdf}
                         >
-                          <Printer className='mr-2 h-4 w-4' /> Printează PDF
+                          <Printer className='mr-2 h-4 w-4' /> Printează NIR
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -247,6 +284,17 @@ export function NirList({ initialData, currentPage }: NirListProps) {
             Următor
           </Button>
         </div>
+      )}
+      {previewNir && (
+        <PdfPreviewModal
+          isOpen={!!previewNir}
+          onClose={() => {
+            setPreviewNir(null)
+            setPrintData(null)
+          }}
+          data={printData}
+          isLoading={isGeneratingPdf === previewNir._id}
+        />
       )}
     </div>
   )
