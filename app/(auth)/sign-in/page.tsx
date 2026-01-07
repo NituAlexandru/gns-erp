@@ -7,15 +7,18 @@ import CredentialsSignInForm from './credentials-signin-form'
 import { Button } from '@/components/ui/button'
 import { APP_NAME } from '@/lib/constants'
 import { GoogleSignInForm } from './google-signin-form'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { AlertCircle } from 'lucide-react'
 
 export default async function SignIn(props: {
   searchParams: Promise<{
     callbackUrl: string
+    error: string
   }>
 }) {
   const searchParams = await props.searchParams
 
-  const { callbackUrl = '/' } = searchParams
+  const { callbackUrl = '/', error } = searchParams
 
   const session = await auth()
   if (session) {
@@ -29,6 +32,17 @@ export default async function SignIn(props: {
           <CardTitle className='text-2xl'>Autentifică-te</CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Afișăm notificarea de eroare dacă accesul a fost negat */}
+          {error === 'AccessDenied' && (
+            <Alert variant='destructive' className='mb-4'>
+              <AlertCircle className='h-4 w-4' />
+              <AlertDescription>
+                Nu aveți un cont creat în sistem. Vă rugăm să contactați un
+                administrator pentru a vă configura accesul.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div>
             <CredentialsSignInForm />
           </div>
@@ -38,13 +52,6 @@ export default async function SignIn(props: {
           </div>
         </CardContent>
       </Card>
-      <SeparatorWithOr>Ești nou pe {APP_NAME}?</SeparatorWithOr>
-
-      <Link href={`/sign-up?callbackUrl=${encodeURIComponent(callbackUrl)}`}>
-        <Button className='w-full' variant='outline'>
-          Creează-ți contul {APP_NAME}
-        </Button>
-      </Link>
     </div>
   )
 }

@@ -55,6 +55,7 @@ export const UserSignInSchema = z.object({
 export const UserSignUpSchema = UserSignInSchema.extend({
   name: UserName,
   confirmPassword: Password,
+  role: z.string().optional().default('User'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Parolele nu se potrivesc',
   path: ['confirmPassword'],
@@ -67,6 +68,8 @@ export const UserUpdateSchema = z.object({
   name: UserName,
   email: Email,
   role: UserRole,
+  active: z.boolean().optional().default(true),
+  password: z.string().min(8).optional().or(z.literal('')),
 })
 
 // ─── Scopul: validare câmp email, parola și telefon ───

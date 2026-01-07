@@ -2,13 +2,14 @@
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -27,16 +28,32 @@ import { updateUser } from '@/lib/db/modules/user/user.actions'
 import { USER_ROLES } from '@/lib/constants'
 import { IUser } from '@/lib/db/modules/user/user.model'
 import { UserUpdateSchema } from '@/lib/db/modules/user/validator'
+import { Switch } from '@/components/ui/switch'
+import { useState } from 'react'
 
 const UserEditForm = ({ user }: { user: IUser }) => {
   const router = useRouter()
+  const [showPasswordField, setShowPasswordField] = useState(false)
 
+  // 1. Definim formularul
   const form = useForm<z.infer<typeof UserUpdateSchema>>({
     resolver: zodResolver(UserUpdateSchema),
-    defaultValues: user,
+    defaultValues: {
+      ...user,
+      _id: user._id,
+      active: user.active ?? true,
+      password: '',
+    },
+  })
+
+  // 2. Definim useWatch sub useForm (nu în interiorul lui)
+  const isActive = useWatch({
+    control: form.control,
+    name: 'active',
   })
 
   const { toast } = useToast()
+
   async function onSubmit(values: z.infer<typeof UserUpdateSchema>) {
     try {
       const res = await updateUser({
@@ -53,7 +70,6 @@ const UserEditForm = ({ user }: { user: IUser }) => {
       })
       form.reset()
       router.push(`/admin/users`)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       toast({
         description: error.message,
@@ -74,9 +90,9 @@ const UserEditForm = ({ user }: { user: IUser }) => {
             name='name'
             render={({ field }) => (
               <FormItem className='w-full'>
-                <FormLabel>Name</FormLabel>
+                <FormLabel>Nume</FormLabel>
                 <FormControl>
-                  <Input placeholder='Enter user name' {...field} />
+                  <Input placeholder='Introduceți numele' {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -89,27 +105,28 @@ const UserEditForm = ({ user }: { user: IUser }) => {
               <FormItem className='w-full'>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input placeholder='Enter user email' {...field} />
+                  <Input placeholder='Introduceți email-ul' {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
-        <div>
+
+        <div className='flex flex-col gap-5 md:flex-row items-end'>
           <FormField
             control={form.control}
             name='role'
             render={({ field }) => (
-              <FormItem className='space-x-2 items-center'>
-                <FormLabel>Role</FormLabel>
+              <FormItem className='w-full'>
+                <FormLabel>Rol</FormLabel>
                 <Select
                   onValueChange={field.onChange}
                   value={field.value.toString()}
                 >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder='Select a role' />
+                      <SelectValue placeholder='Selectați un rol' />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
@@ -120,22 +137,71 @@ const UserEditForm = ({ user }: { user: IUser }) => {
                     ))}
                   </SelectContent>
                 </Select>
-
                 <FormMessage />
               </FormItem>
             )}
           />
+
+          <FormField
+            control={form.control}
+            name='active'
+            render={({ field }) => (
+              <FormItem className='w-full flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm'>
+                <div className='space-y-0.5'>
+                  <FormLabel>Status Cont</FormLabel>
+                  <FormDescription className='text-xs'>
+                    Dezactivarea va deloga utilizatorul imediat.
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked)
+                      if (checked && !user.active) setShowPasswordField(true)
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
         </div>
-        <div className='flex-between'>
+
+        {(showPasswordField || !user.active) && isActive && (
+          <FormField
+            control={form.control}
+            name='password'
+            render={({ field }) => (
+              <FormItem className='max-w-md'>
+                <FormLabel className=' font-bold'>
+                  Setați Parolă Nouă (pentru reactivare)
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type='password'
+                    placeholder='Minim 8 caractere'
+                    {...field}
+                    value={typeof field.value === 'string' ? field.value : ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        <div className='flex gap-4'>
           <Button type='submit' disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? 'Submitting...' : `Update User `}
+            {form.formState.isSubmitting
+              ? 'Se salvează...'
+              : `Actualizează Utilizator`}
           </Button>
           <Button
             variant='outline'
             type='button'
             onClick={() => router.push(`/admin/users`)}
           >
-            Back
+            Înapoi
           </Button>
         </div>
       </form>

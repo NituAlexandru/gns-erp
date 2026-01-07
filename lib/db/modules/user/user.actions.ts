@@ -18,6 +18,7 @@ import {
   UserUpdateSchema,
 } from './validator'
 import { IUserName, IUserSignIn, IUserSignUp } from './types'
+import { SUPER_ADMIN_ROLES } from './user-roles'
 
 export async function signInWithCredentials(user: IUserSignIn) {
   return await signIn('credentials', { ...user, redirect: false })
@@ -34,20 +35,28 @@ export const SignInWithGoogle = async () => {
 // CREATE
 export async function registerUser(userSignUp: IUserSignUp) {
   try {
-    const user = await UserSignUpSchema.parseAsync({
-      name: userSignUp.name,
-      email: userSignUp.email,
-      password: userSignUp.password,
-      confirmPassword: userSignUp.confirmPassword,
-    })
+    const session = await auth()
+
+    const isAuthorized =
+      session?.user?.role && SUPER_ADMIN_ROLES.includes(session.user.role)
+
+    if (!isAuthorized) {
+      throw new Error('Neautorizat. Doar administratorii pot crea conturi.')
+    }
+
+    const validatedData = await UserSignUpSchema.parseAsync(userSignUp)
 
     await connectToDatabase()
+
+    // Creăm utilizatorul în baza de date
     const createdUser = await User.create({
-      ...user,
-      password: await bcrypt.hash(user.password, 5),
+      ...validatedData,
+      // Folosim rolul din interfața de creare (venit prin userSignUp)
+      // sau fallback la 'User'
+      role: userSignUp.role || 'User',
+      password: await bcrypt.hash(validatedData.password, 5),
     })
 
-    // trimite-le doar un simplu "Bine ai venit!"
     await sendWelcomeEmail({
       _id: createdUser._id.toString(),
       name: createdUser.name,
@@ -174,16 +183,41 @@ export async function getAllUsers({
     totalPages: Math.ceil(usersCount / limit),
   }
 }
-export async function updateUser(user: z.infer<typeof UserUpdateSchema>) {
+export async function updateUser(
+  user: z.infer<typeof UserUpdateSchema> & { password?: string }
+) {
   try {
     await connectToDatabase()
     const dbUser = await User.findById(user._id)
     if (!dbUser) throw new Error('User not found')
+
     dbUser.name = user.name
     dbUser.email = user.email
     dbUser.role = user.role
+
+    if (typeof user.active !== 'undefined') {
+      const wasInactive = dbUser.active === false
+      dbUser.active = user.active
+
+      // Dacă utilizatorul era inactiv și îl activăm, SAU dacă adminul a completat parola
+      if (user.password && user.password.length >= 8) {
+        dbUser.password = await bcrypt.hash(user.password, 5)
+      }
+      // Dacă îl dezactivăm acum, îi stricăm parola curentă
+      else if (user.active === false) {
+        dbUser.password = await bcrypt.hash(Math.random().toString(36), 10)
+      }
+      // Eroare dacă încercăm să activăm fără să punem o parolă (deoarece cea veche e random)
+      else if (wasInactive && user.active === true && !user.password) {
+        throw new Error(
+          'Trebuie să setați o parolă nouă pentru a reactiva contul.'
+        )
+      }
+    }
+
     const updatedUser = await dbUser.save()
     revalidatePath('/admin/users')
+
     return {
       success: true,
       message: 'User updated successfully',

@@ -12,6 +12,8 @@ export interface IUser extends Document, IUserInput {
   image: string
   emailVerified: boolean
   phone?: string
+  active: boolean
+  lastLogin?: Date
 }
 
 const userSchema = new Schema<IUser>(
@@ -23,6 +25,8 @@ const userSchema = new Schema<IUser>(
     image: { type: String, default: '' },
     emailVerified: { type: Boolean, default: false },
     phone: { type: String, required: false, default: '' },
+    active: { type: Boolean, default: true },
+    lastLogin: { type: Date },
   },
   {
     timestamps: true,

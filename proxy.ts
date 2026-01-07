@@ -6,7 +6,7 @@ import {
 } from './lib/db/modules/user/user-roles'
 
 // Rute care oricum trebuie accesibile fără login:
-const publicPages = ['/sign-in', '/sign-up']
+const publicPages = ['/sign-in']
 
 export async function proxy(req: NextRequest) {
   const { pathname, origin } = req.nextUrl

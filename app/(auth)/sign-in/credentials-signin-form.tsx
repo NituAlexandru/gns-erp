@@ -45,17 +45,18 @@ export default function CredentialsSignInForm() {
 
   const onSubmit = async (data: IUserSignIn) => {
     try {
-      await signInWithCredentials({
+      const result = await signInWithCredentials({
         email: data.email,
         password: data.password,
       })
-      redirect(callbackUrl)
-    } catch (error) {
-      if (isRedirectError(error)) {
-        throw error
+
+      // Dacă rezultatul returnează o eroare de tip AccessDenied
+      if (result?.error === 'CredentialsSignin') {
+        toast.error('Email sau parolă incorecte')
       }
-      toast.error('Eroare', {
-        description: 'Email sau parolă incorecte',
+    } catch (error) {
+      toast.error('Acces refuzat', {
+        description: 'Contactați adminul pentru crearea contului.',
       })
     }
   }

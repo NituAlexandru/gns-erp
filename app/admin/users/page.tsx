@@ -15,6 +15,7 @@ import {
 import { deleteUser, getAllUsers } from '@/lib/db/modules/user/user.actions'
 import { IUser } from '@/lib/db/modules/user/user.model'
 import { formatId } from '@/lib/utils'
+import CreateUserDialog from './create-user-dialog'
 
 export const metadata: Metadata = {
   title: 'Admin Users',
@@ -33,7 +34,11 @@ export default async function AdminUser(props: {
   })
   return (
     <div className='space-y-2'>
-      <h1 className='h1-bold'>Utilizatori</h1>
+      <div className='flex items-center justify-between'>
+        <h1 className='h1-bold'>Utilizatori</h1>
+        <CreateUserDialog />
+      </div>
+
       <div>
         <Table>
           <TableHeader>
@@ -42,6 +47,8 @@ export default async function AdminUser(props: {
               <TableHead>Nume</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Rol</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Ultima Logare</TableHead>
               <TableHead>Acțiuni</TableHead>
             </TableRow>
           </TableHeader>
@@ -52,6 +59,22 @@ export default async function AdminUser(props: {
                 <TableCell>{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{user.role}</TableCell>
+                <TableCell>
+                  {user.active ? (
+                    <span className='px-2 py-1 rounded-full bg-green-600 text-xs font-bold'>
+                      Activ
+                    </span>
+                  ) : (
+                    <span className='px-2 py-1 rounded-full bg-red-600  text-xs font-bold'>
+                      Inactiv
+                    </span>
+                  )}
+                </TableCell>
+                <TableCell className='text-xs'>
+                  {user.lastLogin
+                    ? new Date(user.lastLogin).toLocaleString('ro-RO')
+                    : 'Niciodată'}
+                </TableCell>
                 <TableCell className='flex gap-1'>
                   <Button asChild variant='outline' size='sm'>
                     <Link href={`/admin/users/${user._id}`}>Editează</Link>
