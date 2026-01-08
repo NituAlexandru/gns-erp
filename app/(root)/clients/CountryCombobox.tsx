@@ -49,8 +49,8 @@ export function CountryCombobox({ value, onChange }: CountryComboboxProps) {
           <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className='w-[250px] p-0 ml-8 cursor-pointer'>
-        <Command>
+      <PopoverContent className='w-[250px] p-0 ml-8 cursor-pointer '>
+        <Command className='bg-white dark:bg-muted'>
           <CommandInput placeholder='Caută țara...' />
           <CommandList>
             <CommandEmpty>Nicio țară găsită.</CommandEmpty>

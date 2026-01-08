@@ -121,7 +121,7 @@ export function OrderLogistics({
                   <SelectValue placeholder='Alege modul de livrare...' />
                 </SelectTrigger>
               </FormControl>
-              <SelectContent>
+              <SelectContent className='bg-white dark:bg-muted'>
                 {DELIVERY_METHODS.map((method) => (
                   <SelectItem key={method.key} value={method.key}>
                     {method.label}

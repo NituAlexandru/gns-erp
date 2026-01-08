@@ -16,14 +16,13 @@ export default function Menu({ forAdmin = false }: { forAdmin?: boolean }) {
       <nav className='hidden md:flex gap-3  w-full'>
         <ThemeSwitcher />
         {forAdmin ? null : <UserButton />}
-        {/* <CartButton /> ??? adaug sau nu? se creiaza comanda noua de aici */}
       </nav>
       <nav className='md:hidden'>
         <Sheet>
           <SheetTrigger className='align-middle header-button'>
             <EllipsisVertical className='h-6 w-6' />
           </SheetTrigger>
-          <SheetContent className='bg-black text-white  flex flex-col items-start  '>
+          <SheetContent className='  flex flex-col items-start  '>
             <SheetHeader className='w-full'>
               <div className='flex items-center justify-between '>
                 <SheetTitle>Site Menu</SheetTitle>

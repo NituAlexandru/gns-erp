@@ -499,7 +499,7 @@ const ProductForm = ({
                     <SelectTrigger className='w-full cursor-pointer'>
                       <SelectValue placeholder='Selectați categoria' />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       {mainCategories.map((cat) => (
                         <SelectItem key={cat._id} value={cat._id}>
                           {cat.name}
@@ -540,7 +540,7 @@ const ProductForm = ({
                     <SelectTrigger className='w-full cursor-pointer'>
                       <SelectValue placeholder='Selectați subcategoria' />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       {subCategories.map((cat) => (
                         <SelectItem key={cat._id} value={cat._id}>
                           {cat.name}
@@ -584,7 +584,7 @@ const ProductForm = ({
                     <SelectTrigger className='w-full cursor-pointer'>
                       <SelectValue placeholder='Selectați unitatea' />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       {UNITS.map((u) => (
                         <SelectItem key={u} value={u}>
                           {u}
@@ -625,7 +625,7 @@ const ProductForm = ({
                     <SelectTrigger className='cursor-pointer w-full'>
                       <SelectValue placeholder='Selectați unitatea' />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       {UNITS.map((u) => (
                         <SelectItem key={u} value={u}>
                           {u}

@@ -392,7 +392,7 @@ export function OrderItemsManager({
             </Button>
           </PopoverTrigger>
           <PopoverContent className='w-[650px] p-0' align='start'>
-            <Command>
+            <Command className='bg-white dark:bg-muted'>
               <CommandInput
                 placeholder='Caută produs...'
                 value={itemSearchTerm}
@@ -431,7 +431,7 @@ export function OrderItemsManager({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className='w-[450px]'
+            className='w-[450px] bg-white dark:bg-muted'
             align='start'
             sideOffset={4}
           >
@@ -460,16 +460,16 @@ export function OrderItemsManager({
           onOpenChange={setIsPermitPopoverOpen}
         >
           <PopoverTrigger asChild>
-            <Button variant='outline' className='w-full sm:w-auto'>
+            <Button variant='outline' className='w-full sm:w-auto '>
               Adaugă Autorizație
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className='w-[550px] p-0'
+            className='w-[550px] p-0 bg-white dark:bg-muted'
             align='start'
             sideOffset={4}
           >
-            <Command>
+            <Command className='bg-white dark:bg-muted'>
               <CommandInput
                 placeholder='Caută autorizație...'
                 value={permitSearchTerm}

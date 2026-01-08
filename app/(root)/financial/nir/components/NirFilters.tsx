@@ -51,7 +51,7 @@ export function NirFilters({
           <SelectTrigger className='w-full sm:w-[180px]'>
             <SelectValue placeholder='Toate statusurile' />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className='bg-white dark:bg-muted'>
             <SelectItem value='ALL'>Toate statusurile</SelectItem>
             {Object.entries(NIR_STATUS_MAP).map(([key, { name }]) => (
               <SelectItem key={key} value={key}>

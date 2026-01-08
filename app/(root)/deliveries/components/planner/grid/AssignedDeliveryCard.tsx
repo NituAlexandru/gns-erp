@@ -389,7 +389,7 @@ export function AssignedDeliveryCard({
             </div>
           </div>
 
-          <div className='border-t pt-3 mt-3 grid grid-cols-3 items-center justify-end gap-2'>
+          <div className='border-t pt-3 mt-3 grid grid-cols-3 items-center justify-end gap-2 text-muted-foreground'>
             {/* --- MODIFICĂ COMANDA (Link)  --- */}
             {canEditDelivery && (
               <Button

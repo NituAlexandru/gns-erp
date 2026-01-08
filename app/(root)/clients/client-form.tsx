@@ -264,7 +264,7 @@ export default function ClientForm() {
                     <SelectTrigger className='w-full cursor-pointer'>
                       <SelectValue placeholder='Alege tip client' />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       <SelectItem
                         value='Persoana fizica'
                         className='cursor-pointer'
@@ -509,7 +509,7 @@ export default function ClientForm() {
                         <SelectValue placeholder='Selectează banca' />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       {ROMANIAN_BANKS.map((bank) => (
                         <SelectItem key={bank} value={bank}>
                           {bank}
@@ -548,7 +548,7 @@ export default function ClientForm() {
                           <SelectValue placeholder='Selectează banca' />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className='bg-white dark:bg-muted'>
                         {ROMANIAN_BANKS.map((bank) => (
                           <SelectItem key={bank} value={bank}>
                             {bank}

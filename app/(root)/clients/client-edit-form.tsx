@@ -319,7 +319,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                     <SelectTrigger className='w-full cursor-pointer'>
                       <SelectValue placeholder='Alege tip client' />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       <SelectItem value='Persoana fizica'>
                         Persoana fizica
                       </SelectItem>
@@ -548,7 +548,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                         <SelectValue placeholder='Selectează banca' />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       {ROMANIAN_BANKS.map((bank) => (
                         <SelectItem key={bank} value={bank}>
                           {bank}
@@ -586,7 +586,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                         <SelectValue placeholder='Selectează banca' />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className='bg-white dark:bg-muted'>
                       {ROMANIAN_BANKS.map((bank) => (
                         <SelectItem key={bank} value={bank}>
                           {bank}
