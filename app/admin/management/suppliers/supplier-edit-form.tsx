@@ -36,6 +36,7 @@ import { Loader2, Pencil, X } from 'lucide-react'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { CountryCombobox } from '@/app/(root)/clients/CountryCombobox'
 import { Switch } from '@/components/ui/switch'
+import { getCompanyDataByCui } from '@/lib/db/modules/setting/efactura/anaf-company-info'
 
 interface Props {
   initialValues: ISupplierDoc
@@ -52,6 +53,7 @@ export default function SupplierEditForm({ initialValues }: Props) {
   )
   const [currentBrand, setCurrentBrand] = useState('')
   const [isCalculating, setIsCalculating] = useState(false)
+  const [isSearchingAnaf, setIsSearchingAnaf] = useState(false)
 
   const form = useForm<ISupplierUpdate>({
     resolver: zodResolver(SupplierUpdateSchema),
@@ -98,6 +100,7 @@ export default function SupplierEditForm({ initialValues }: Props) {
     handleSubmit,
     formState: { isSubmitting },
     getValues,
+    setValue,
   } = form
 
   const handleAddBrand = (
@@ -202,6 +205,44 @@ export default function SupplierEditForm({ initialValues }: Props) {
     toast.success('Adresa fiscală a fost copiată.')
   }
 
+  const handleAnafSearch = async () => {
+    const cui = getValues('fiscalCode')
+    if (!cui || cui.length < 2) {
+      toast.error('Introdu un Cod Fiscal valid!')
+      return
+    }
+
+    setIsSearchingAnaf(true)
+    try {
+      const result = await getCompanyDataByCui(cui)
+
+      if (!result.success || !result.data) {
+        throw new Error(result.message || 'Nu s-au putut prelua datele.')
+      }
+
+      const { data } = result
+
+      // Populăm datele
+      setValue('name', data.name || '')
+      setValue('regComNumber', data.nrRegCom || '')
+      setValue('isVatPayer', data.isVatPayer)
+
+      // Populăm adresa
+      setValue('address.judet', data.address.judet || '')
+      setValue('address.localitate', data.address.localitate || '')
+      setValue('address.strada', data.address.strada || '')
+      setValue('address.numar', data.address.numar || '')
+      setValue('address.codPostal', data.address.codPostal || '')
+      setValue('address.alteDetalii', data.address.alteDetalii || '')
+      setValue('address.tara', data.address.tara || 'RO')
+
+      toast.success('Datele furnizorului au fost actualizate!')
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setIsSearchingAnaf(false)
+    }
+  }
   const onSubmit: SubmitHandler<ISupplierUpdate> = async (values) => {
     try {
       const res = await fetch(`/api/admin/management/suppliers/${values._id}`, {
@@ -296,21 +337,36 @@ export default function SupplierEditForm({ initialValues }: Props) {
 
         {/* Date Fiscale și Contract */}
         <div className='grid grid-cols-1 md:grid-cols-4 gap-6'>
-          <FormField
-            control={control}
-            name='fiscalCode'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>
-                  Cod Fiscal (CUI) <span className='text-red-500'>*</span>
-                </FormLabel>
-                <FormControl>
-                  <Input {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className='flex items-end gap-2'>
+            <FormField
+              control={control}
+              name='fiscalCode'
+              render={({ field }) => (
+                <FormItem className='flex-1'>
+                  <FormLabel>
+                    Cod Fiscal (CUI) <span className='text-red-500'>*</span>
+                  </FormLabel>
+                  <FormControl>
+                    <Input placeholder='RO123456' {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button
+              type='button'
+              variant='secondary'
+              onClick={handleAnafSearch}
+              disabled={isSearchingAnaf}
+              className='mb-[2px]'
+            >
+              {isSearchingAnaf ? (
+                <Loader2 className='h-4 w-4 animate-spin' />
+              ) : (
+                'ANAF'
+              )}
+            </Button>
+          </div>
           <FormField
             control={control}
             name='regComNumber'

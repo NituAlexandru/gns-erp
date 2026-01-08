@@ -36,6 +36,7 @@ import { ROMANIAN_BANKS } from '@/lib/constants'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { Switch } from '@/components/ui/switch'
 import { CountryCombobox } from './CountryCombobox'
+import { getCompanyDataByCui } from '@/lib/db/modules/setting/efactura/anaf-company-info'
 
 interface Props {
   initialValues: IClientDoc
@@ -60,6 +61,7 @@ export default function ClientEditForm({ initialValues }: Props) {
     null
   )
   const [isCalculating, setIsCalculating] = useState(false)
+  const [isSearchingAnaf, setIsSearchingAnaf] = useState(false)
 
   const form = useForm<IClientUpdate>({
     resolver: zodResolver(ClientUpdateSchema),
@@ -103,6 +105,7 @@ export default function ClientEditForm({ initialValues }: Props) {
     handleSubmit,
     formState: { isSubmitting },
     getValues, // Folosit la CopyBillingAddress
+    setValue,
   } = form
 
   // 1. Funcția de Salvare Adresă (Adăugare sau Update)
@@ -257,6 +260,45 @@ export default function ClientEditForm({ initialValues }: Props) {
     }
   }
 
+  const handleAnafSearch = async () => {
+    const cui = getValues('vatId')
+    if (!cui || cui.length < 2) {
+      toast.error('Introdu un CUI valid!')
+      return
+    }
+
+    setIsSearchingAnaf(true)
+    try {
+      const result = await getCompanyDataByCui(cui)
+
+      if (!result.success || !result.data) {
+        throw new Error(result.message || 'Nu s-au putut prelua datele.')
+      }
+
+      const { data } = result
+
+      // Populăm datele
+      setValue('name', data.name || '')
+      setValue('nrRegComert', data.nrRegCom || '')
+      setValue('isVatPayer', data.isVatPayer)
+
+      // Populăm adresa
+      setValue('address.judet', data.address.judet || '')
+      setValue('address.localitate', data.address.localitate || '')
+      setValue('address.strada', data.address.strada || '')
+      setValue('address.numar', data.address.numar || '')
+      setValue('address.codPostal', data.address.codPostal || '')
+      setValue('address.alteDetalii', data.address.alteDetalii || '')
+      setValue('address.tara', data.address.tara || 'RO')
+
+      toast.success('Datele firmei au fost actualizate!')
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setIsSearchingAnaf(false)
+    }
+  }
+
   if (isSubmitting) return <LoadingPage />
 
   return (
@@ -342,21 +384,37 @@ export default function ClientEditForm({ initialValues }: Props) {
         )}
         {clientType === 'Persoana juridica' && (
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-            <FormField
-              control={control}
-              name='vatId'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Cod Fiscal (CUI)<span className='text-red-500'>*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* 👇 AM MODIFICAT ACEST DIV PENTRU A INCLUDE BUTONUL */}
+            <div className='flex items-end gap-2'>
+              <FormField
+                control={control}
+                name='vatId'
+                render={({ field }) => (
+                  <FormItem className='flex-1'>
+                    <FormLabel>
+                      Cod Fiscal (CUI)<span className='text-red-500'>*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder='RO42562324' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type='button'
+                variant='secondary'
+                onClick={handleAnafSearch}
+                disabled={isSearchingAnaf}
+              >
+                {isSearchingAnaf ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  'Caută ANAF'
+                )}
+              </Button>
+            </div>
+
             <FormField
               control={control}
               name='nrRegComert'
@@ -366,7 +424,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                     Nr. Reg. Comerț<span className='text-red-500'>*</span>
                   </FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input placeholder='J23/2873/2022' {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -7,6 +7,9 @@ export const APP_DESCRIPTION =
   process.env.NEXT_PUBLIC_APP_DESCRIPTION ||
   'Genesis ERP va ofera o solutie practica pentru gestionarea tuturor aspectelor legate de business-ul dumneavoastra.'
 
+export const ANAF_TVA_ENDPOINT =
+  'https://webservicesp.anaf.ro/api/PlatitorTvaRest/v9/tva'
+
 export const TIMEZONE = 'Europe/Bucharest'
 
 export const UNITS = [

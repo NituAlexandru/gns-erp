@@ -31,6 +31,7 @@ import { Loader2, Pencil } from 'lucide-react'
 import { ROMANIAN_BANKS } from '@/lib/constants'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { CountryCombobox } from './CountryCombobox'
+import { getCompanyDataByCui } from '@/lib/db/modules/setting/efactura/anaf-company-info'
 
 export default function ClientForm() {
   const router = useRouter()
@@ -41,6 +42,7 @@ export default function ClientForm() {
     null
   )
   const [isCalculating, setIsCalculating] = useState(false)
+  const [isSearchingAnaf, setIsSearchingAnaf] = useState(false)
 
   const form = useForm<IClientCreate>({
     resolver: zodResolver(ClientCreateSchema),
@@ -80,6 +82,7 @@ export default function ClientForm() {
     handleSubmit,
     formState: { isSubmitting },
     getValues,
+    setValue,
   } = form
 
   const handleCopyBillingAddress = () => {
@@ -199,6 +202,45 @@ export default function ClientForm() {
 
   if (isSubmitting) return <LoadingPage />
 
+  const handleAnafSearch = async () => {
+    const cui = getValues('vatId')
+    if (!cui || cui.length < 2) {
+      toast.error('Introdu un CUI valid!')
+      return
+    }
+
+    setIsSearchingAnaf(true)
+    try {
+      const result = await getCompanyDataByCui(cui)
+
+      if (!result.success || !result.data) {
+        throw new Error(result.message || 'Nu s-au putut prelua datele.')
+      }
+
+      const { data } = result
+
+      // Populăm datele principale
+      setValue('name', data.name || '')
+      setValue('nrRegComert', data.nrRegCom || '')
+      setValue('isVatPayer', data.isVatPayer)
+
+      // Populăm adresa cu fallback la string gol pentru a evita erori de "uncontrolled input"
+      setValue('address.judet', data.address.judet || '')
+      setValue('address.localitate', data.address.localitate || '')
+      setValue('address.strada', data.address.strada || '')
+      setValue('address.numar', data.address.numar || '')
+      setValue('address.codPostal', data.address.codPostal || '')
+      setValue('address.alteDetalii', data.address.alteDetalii || '')
+      setValue('address.tara', data.address.tara || 'RO')
+
+      toast.success('Datele firmei au fost încărcate complet!')
+    } catch (err: any) {
+      toast.error(err.message)
+    } finally {
+      setIsSearchingAnaf(false)
+    }
+  }
+
   return (
     <Form {...form}>
       <form
@@ -298,21 +340,35 @@ export default function ClientForm() {
         )}
         {clientType === 'Persoana juridica' && (
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-            <FormField
-              control={control}
-              name='vatId'
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>
-                    Cod Fiscal (CUI)<span className='text-red-500'>*</span>
-                  </FormLabel>
-                  <FormControl>
-                    <Input placeholder='RO42562324' {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className='flex items-end gap-2'>
+              <FormField
+                control={control}
+                name='vatId'
+                render={({ field }) => (
+                  <FormItem className='flex-1'>
+                    <FormLabel>
+                      Cod Fiscal (CUI)<span className='text-red-500'>*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder='RO42562324' {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button
+                type='button'
+                variant='secondary'
+                onClick={handleAnafSearch}
+                disabled={isSearchingAnaf}
+              >
+                {isSearchingAnaf ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  'Caută ANAF'
+                )}
+              </Button>
+            </div>
             <FormField
               control={control}
               name='nrRegComert'
