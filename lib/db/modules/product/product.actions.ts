@@ -117,7 +117,7 @@ export async function createProduct(data: IProductInput) {
 
     await ERPProductModel.create(payload)
     revalidatePath('/admin/products')
-    return { success: true, message: 'Product created successfully' }
+    return { success: true, message: 'Produs creat cu succes!' }
   } catch (error) {
     return { success: false, message: formatError(error) }
   }
@@ -136,7 +136,7 @@ export async function updateProduct(data: IProductUpdate) {
 
     await ERPProductModel.findByIdAndUpdate(payload._id, payload)
     revalidatePath('/admin/products')
-    return { success: true, message: 'Product updated successfully' }
+    return { success: true, message: 'Produs actualizat cu succes!' }
   } catch (error) {
     return { success: false, message: formatError(error) }
   }
@@ -159,7 +159,7 @@ export async function deleteProduct(id: string) {
     const res = await ERPProductModel.findByIdAndDelete(id)
     if (!res) throw new Error('Product not found')
     revalidatePath('/admin/products')
-    return { success: true, message: 'Product deleted successfully' }
+    return { success: true, message: 'Produs sters cu succes!' }
   } catch (error) {
     return { success: false, message: formatError(error) }
   }
@@ -359,7 +359,7 @@ export async function updateProductMarkup(
     )
 
     revalidatePath('/admin/products')
-    return { success: true, message: 'Markup actualizat cu succes.' }
+    return { success: true, message: 'Marja actualizata cu succes.' }
   } catch (error) {
     return { success: false, message: formatError(error) }
   }

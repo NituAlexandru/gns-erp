@@ -87,7 +87,10 @@ export function AssignedDeliveryCard({
   const [printData, setPrintData] = useState<any>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
-  async function handleGenerateDeliveryNote(seriesName?: string) {
+  async function handleGenerateDeliveryNote(
+    seriesName?: string,
+    manualNumber?: string
+  ) {
     setIsGenerating(true)
     const toastId = `generate-${delivery._id}`
     toast.loading('Se generează avizul...', { id: toastId })
@@ -96,6 +99,7 @@ export function AssignedDeliveryCard({
       const result: CreateDeliveryNoteResult = await createDeliveryNote({
         deliveryId: `${delivery._id}`,
         seriesName: seriesName ?? undefined,
+        manualNumber: manualNumber ?? undefined,
       })
 
       if (result.success) {
@@ -684,9 +688,9 @@ export function AssignedDeliveryCard({
       {showSeriesModal && (
         <SelectSeriesModal
           documentType='Aviz'
-          onSelect={async (series) => {
+          onSelect={async (series, manualNumber) => {
             setShowSeriesModal(false)
-            await handleGenerateDeliveryNote(series)
+            await handleGenerateDeliveryNote(series, manualNumber)
           }}
           onCancel={() => setShowSeriesModal(false)}
         />
@@ -696,7 +700,7 @@ export function AssignedDeliveryCard({
           documentType={'Factura' as unknown as DocumentType}
           onSelect={async (series) => {
             setShowInvoiceSeriesModal(false)
-            await handleGenerateInvoice(series) // Apelează handler-ul cu seria selectată
+            await handleGenerateInvoice(series)
           }}
           onCancel={() => setShowInvoiceSeriesModal(false)}
         />

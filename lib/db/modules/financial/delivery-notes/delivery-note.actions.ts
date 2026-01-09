@@ -39,9 +39,11 @@ import { recordStockMovement } from '../../inventory/inventory.actions.core'
 export async function createDeliveryNote({
   deliveryId,
   seriesName,
+  manualNumber,
 }: {
   deliveryId: string
   seriesName?: string
+  manualNumber?: string
 }): Promise<CreateDeliveryNoteResult> {
   try {
     await connectToDatabase()
@@ -126,10 +128,33 @@ export async function createDeliveryNote({
       }
 
       const year = new Date().getFullYear()
-      const nextSeq = await generateNextDocumentNumber(activeSeries!, {
-        session,
-      })
-      const padded = String(nextSeq).padStart(5, '0')
+
+      // --- COD NOU ÎNCEPE AICI ---
+      let nextSeq: number
+      let padded: string
+
+      if (manualNumber && manualNumber.trim()) {
+        // Logica pentru SERIE MANUALĂ
+        padded = manualNumber.trim()
+        const numericPart = parseInt(padded.replace(/\D/g, ''))
+        nextSeq = isNaN(numericPart) ? 0 : numericPart
+
+        // Verificăm duplicat
+        const existingNote = await DeliveryNoteModel.findOne({
+          seriesName: activeSeries,
+          noteNumber: padded,
+        }).session(session)
+
+        if (existingNote) {
+          throw new Error(
+            `Numărul ${padded} există deja pe seria ${activeSeries}.`
+          )
+        }
+      } else {
+        // Logica standard (AUTOMATĂ)
+        nextSeq = await generateNextDocumentNumber(activeSeries!, { session })
+        padded = String(nextSeq).padStart(5, '0')
+      }
 
       const items = delivery.items as unknown as IDeliveryLineItem[]
       const noteItems = items.map((it) => ({

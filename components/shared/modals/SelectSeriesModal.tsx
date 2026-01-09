@@ -19,10 +19,12 @@ import {
 import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbering.actions'
 import type { DocumentType } from '@/lib/db/modules/numbering/documentCounter.model'
 import type { SeriesDTO } from '@/lib/db/modules/numbering/types'
+import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 
 interface SelectSeriesModalProps {
   documentType: DocumentType
-  onSelect: (seriesName: string) => void
+  onSelect: (seriesName: string, manualNumber?: string) => void
   onCancel?: () => void
 }
 
@@ -34,6 +36,8 @@ export function SelectSeriesModal({
   const [seriesList, setSeriesList] = useState<SeriesDTO[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [manualNumber, setManualNumber] = useState('')
+  const MANUAL_SERIES = ['GMD-M']
 
   useEffect(() => {
     const loadSeries = async () => {
@@ -50,6 +54,21 @@ export function SelectSeriesModal({
     }
     loadSeries()
   }, [documentType])
+
+  useEffect(() => {
+    setManualNumber('')
+  }, [selected])
+
+  const handleConfirm = () => {
+    if (!selected) return
+
+    // Dacă seria e în lista MANUAL_SERIES, trimitem și numărul
+    if (MANUAL_SERIES.includes(selected)) {
+      onSelect(selected, manualNumber)
+    } else {
+      onSelect(selected)
+    }
+  }
 
   return (
     <Dialog open onOpenChange={onCancel}>
@@ -83,13 +102,35 @@ export function SelectSeriesModal({
               </SelectContent>
             </Select>
 
+            {selected && MANUAL_SERIES.includes(selected) && (
+              <div className='space-y-2 pt-2 animate-in fade-in zoom-in duration-300'>
+                <Label className='text-red-500 font-semibold'>
+                  Introdu Numărul Avizului (Manual)
+                </Label>
+                <Input
+                  placeholder='Ex: 105'
+                  value={manualNumber}
+                  onChange={(e) => setManualNumber(e.target.value)}
+                  autoFocus
+                />
+                <p className='text-xs text-muted-foreground'>
+                  Această serie necesită introducerea manuală a numărului.
+                </p>
+              </div>
+            )}
+
             <div className='flex justify-end gap-2'>
               <Button variant='secondary' onClick={onCancel}>
                 Anulează
               </Button>
               <Button
-                disabled={!selected}
-                onClick={() => selected && onSelect(selected)}
+                disabled={
+                  !selected ||
+                  (!!selected && // <--- Am adăugat !! aici pentru a forța tipul boolean
+                    MANUAL_SERIES.includes(selected) &&
+                    !manualNumber.trim())
+                }
+                onClick={handleConfirm}
               >
                 Confirmă
               </Button>
