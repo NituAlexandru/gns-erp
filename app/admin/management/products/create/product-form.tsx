@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { useToast } from '@/hooks/use-toast'
 import { UploadButton } from '@/lib/uploadthing'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toSlug } from '@/lib/utils'
@@ -46,6 +45,7 @@ import {
   FIELD_PLACEHOLDERS_RO,
 } from '@/lib/db/modules/product/constants'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
+import { toast } from 'sonner'
 
 const zeroMarkups = {
   markupDirectDeliveryPrice: 0,
@@ -63,7 +63,7 @@ const productDefaultValues: IProductInput =
         images: [],
         brand: 'Sample Brand',
         description: '',
-        isPublished: false,
+        isPublished: true,
         barCode: '',
         productCode: '',
         mainCategory: '',
@@ -88,7 +88,7 @@ const productDefaultValues: IProductInput =
         images: [],
         brand: '',
         description: '',
-        isPublished: false,
+        isPublished: true,
         productCode: '',
         barCode: '',
         category: '',
@@ -140,7 +140,7 @@ const ProductForm = ({
   const [allSubCategories, setAllSubCategories] = useState<ICategoryDoc[]>([])
   const [subCategories, setSubCategories] = useState<ICategoryDoc[]>([])
   const [isGeneratingCode, setIsGeneratingCode] = useState(false)
-
+  const [isGeneratingBarCode, setIsGeneratingBarCode] = useState(false)
   async function handleGenerateCode() {
     setIsGeneratingCode(true)
     try {
@@ -149,21 +149,46 @@ const ProductForm = ({
       if (data.success) {
         form.setValue('productCode', data.code, { shouldValidate: true })
       } else {
-        toast({
-          title: 'Eroare',
+        toast.error('Eroare', {
           description: data.message,
         })
       }
     } catch {
-      toast({
-        title: 'Eroare',
+      toast.error('Eroare', {
         description: 'Nu s-a putut genera codul.',
       })
     } finally {
       setIsGeneratingCode(false)
     }
   }
+  async function handleGenerateBarCode() {
+    setIsGeneratingBarCode(true)
+    try {
+      // Apelăm ruta creată de tine
+      const res = await fetch('/api/barcode/generate-barcode')
+      const data = await res.json()
 
+      if (data.success) {
+        // Punem codul în input
+        form.setValue('barCode', data.code, { shouldValidate: true })
+        // Ștergem erorile dacă existau
+        form.clearErrors('barCode')
+        toast.success('Cod generat cu succes', {
+          description: data.code,
+        })
+      } else {
+        toast.error('Eroare', {
+          description: data.message,
+        })
+      }
+    } catch (error) {
+      toast.error('Eroare', {
+        description: 'Nu s-a putut genera codul.',
+      })
+    } finally {
+      setIsGeneratingBarCode(false)
+    }
+  }
   const form = useForm<IProductInput>({
     resolver: zodResolver(ProductInputSchema),
     defaultValues:
@@ -263,8 +288,6 @@ const ProductForm = ({
     }
   }, [nameValue, setValue])
 
-  const { toast } = useToast()
-
   const images = form.watch('images')
 
   const buttonText =
@@ -273,10 +296,29 @@ const ProductForm = ({
     type === 'Create' ? 'Se crează produsul…' : 'Se salvează…'
 
   const onFormError = (errors: FieldErrors<IProductInput>) => {
-    console.error('Erori de validare formular:', errors)
-    toast({
-      title: 'Formular invalid',
-      description: 'Te rog verifică câmpurile marcate cu erori.',
+    console.error('Erori validare:', errors)
+
+    if (errors.productCode) {
+      toast.error('Eroare Cod Produs', {
+        description: errors.productCode.message,
+      })
+      return
+    }
+    if (errors.barCode) {
+      toast.error('Eroare Cod de Bare', {
+        description: errors.barCode.message,
+      })
+      return
+    }
+    if (errors.name) {
+      toast.error('Lipsește Numele', {
+        description: 'Te rog introdu un nume pentru produs.',
+      })
+      return
+    }
+
+    toast.error('Formular incomplet', {
+      description: `Există ${Object.keys(errors).length} erori. Verifică câmpurile roșii.`,
     })
   }
 
@@ -296,6 +338,9 @@ const ProductForm = ({
       setError('productCode', {
         type: 'manual',
         message: 'Acest cod de produs este deja utilizat.',
+      })
+      toast.error('Cod duplicat!', {
+        description: `Codul "${code}" este deja alocat.`,
       })
     } else {
       clearErrors('productCode')
@@ -319,6 +364,9 @@ const ProductForm = ({
         type: 'manual',
         message: 'Acest cod de bare este deja utilizat.',
       })
+      toast.error('Cod de bare existent!', {
+        description: `Codul "${code}" există deja în baza de date.`,
+      })
     } else {
       clearErrors('barCode')
     }
@@ -327,9 +375,11 @@ const ProductForm = ({
     if (type === 'Create') {
       const res = await createProduct(values)
       if (!res.success) {
-        toast({ title: 'Eroare la creare', description: res.message })
+        // ERROR
+        toast.error('Eroare la creare', { description: res.message })
       } else {
-        toast({ description: res.message })
+        // SUCCESS
+        toast.success(res.message)
         router.push(`/admin/products`)
       }
       return
@@ -350,21 +400,19 @@ const ProductForm = ({
       const result = ProductUpdateSchema.safeParse(dataToUpdate)
 
       if (!result.success) {
-        console.error('Update validation failed:', result.error.flatten())
-        const firstError =
-          result.error.flatten().formErrors[0] || 'Datele nu sunt valide.'
-        toast({
-          title: 'Eroare de validare la salvare',
-          description: firstError,
+        toast.error('Eroare de validare', {
+          description: 'Datele nu sunt corecte.',
         })
         return
       }
 
       const res = await updateProduct(result.data)
       if (!res.success) {
-        toast({ title: 'Eroare la actualizare', description: res.message })
+        // ERROR UPDATE
+        toast.error('Eroare la actualizare', { description: res.message })
       } else {
-        toast({ description: res.message })
+        // SUCCESS UPDATE
+        toast.success(res.message)
         router.push(`/admin/products`)
       }
     }
@@ -424,13 +472,29 @@ const ProductForm = ({
                 <FormLabel>
                   Cod de bare<span className='text-red-500'>*</span>
                 </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder='Introduceți codul de bare'
-                    {...field}
-                    onBlur={checkBarCodeUniqueness}
-                  />
-                </FormControl>
+                <div className='flex gap-2'>
+                  <FormControl>
+                    <Input
+                      placeholder='Scanează sau generează...'
+                      {...field}
+                      // Păstrăm verificarea ta de unicitate la onBlur (când scrii manual)
+                      onBlur={(e) => {
+                        field.onBlur()
+                        checkBarCodeUniqueness(e)
+                      }}
+                    />
+                  </FormControl>
+                  <Button
+                    className='w-[75px] text-xs'
+                    type='button' // Important: type='button' ca să nu dea submit la form
+                    onClick={handleGenerateBarCode}
+                    disabled={
+                      isGeneratingBarCode || form.formState.isSubmitting
+                    }
+                  >
+                    {isGeneratingBarCode ? '...' : 'Generează'}
+                  </Button>
+                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -847,8 +911,8 @@ const ProductForm = ({
                             form.setValue('images', [...images, res[0].ufsUrl])
                           }}
                           onUploadError={(error: Error) => {
-                            toast({
-                              description: `ERROR! ${error.message}`,
+                            toast.error('Eroare la încărcare', {
+                              description: error.message,
                             })
                           }}
                         />

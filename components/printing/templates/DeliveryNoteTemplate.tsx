@@ -26,6 +26,7 @@ const styles = StyleSheet.create({
     padding: 15,
     fontFamily: 'Roboto',
     flexDirection: 'column',
+    paddingLeft: 17,
   },
   halfPageContainer: {
     height: '48%',
@@ -56,6 +57,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#000',
     marginTop: 2,
     paddingTop: 4,
+    paddingLeft: 2,
     minHeight: 40,
   },
   footerColFurnizor: {
