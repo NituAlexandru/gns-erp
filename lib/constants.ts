@@ -447,4 +447,5 @@ export const ROMANIAN_BANKS = [
   'Revolut Bank UAB - Sucursala Romania',
   'TechVentures Bank (fost Vista Bank)',
   'UniCredit Bank',
+  'CitiBank',
 ]
