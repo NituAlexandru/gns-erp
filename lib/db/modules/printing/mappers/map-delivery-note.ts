@@ -87,7 +87,7 @@ export function mapDeliveryNoteToPdfData(
       orderNumber: note.orderNumberSnapshot,
       deliveryNoteNumber: `${note.seriesName}-${note.noteNumber}`,
     },
-
+    uitCode: note.uitCode,
     delegate: {
       name: note.driverName || note.deliveryAddress?.persoanaContact || '',
       vehicle: note.vehicleNumber || '',

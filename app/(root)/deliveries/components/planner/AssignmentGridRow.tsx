@@ -37,17 +37,14 @@ export function AssignmentGridRow({
   onSchedule,
   selectedDate,
 }: AssignmentGridRowProps) {
-  // State pentru Modalul de Blocare
   const [blockModalOpen, setBlockModalOpen] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{
     assignmentId: string
     slot: string
   } | null>(null)
 
-  // --- 1. Construim Harta Blocajelor (Memoizat) ---
   const blockMap = useMemo(() => {
     const map = new Map<string, BlockCardInfo>()
-    // Adăugat fallback (|| []) pentru siguranță
     const blocks = timeBlocks || []
 
     blocks.forEach((block) => {
@@ -148,10 +145,13 @@ export function AssignmentGridRow({
               // C. Verificăm dacă celula e "acoperită" (span) de altcineva de sus
               let isOccupied = false
 
-              // Check Deliveries Span
               for (const [k, v] of deliveryMap.entries()) {
-                const [id, s] = k.split('-')
+                const firstDashIndex = k.indexOf('-')
+                const id = k.substring(0, firstDashIndex)
+                const s = k.substring(firstDashIndex + 1)
                 const idx = displaySlots.indexOf(s as DisplaySlot)
+                // Dacă indexul e -1 (slot invalid), ignorăm
+                if (idx === -1) continue
                 if (
                   id === asm._id &&
                   slotIndex > idx &&
@@ -161,12 +161,12 @@ export function AssignmentGridRow({
                   break
                 }
               }
-              // Check Blocks Span
               if (!isOccupied) {
                 for (const [k, v] of blockMap.entries()) {
-                  const [id, s] = k.split('-')
+                  const firstDashIndex = k.indexOf('-')
+                  const id = k.substring(0, firstDashIndex)
+                  const s = k.substring(firstDashIndex + 1)
                   const idx = displaySlots.indexOf(s as DisplaySlot)
-                  // Fix pentru index -1 (dacă e slot invalid)
                   if (idx === -1) continue
                   if (
                     id === asm._id &&
@@ -199,7 +199,6 @@ export function AssignmentGridRow({
         ))}
       </div>
 
-      {/* Modalul de Blocare */}
       {blockModalOpen && selectedCell && (
         <BlockTimeModal
           isOpen={blockModalOpen}

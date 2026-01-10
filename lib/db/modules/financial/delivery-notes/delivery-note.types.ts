@@ -132,6 +132,7 @@ export interface DeliveryNoteDTO {
   trailerNumber?: string
   deliveryDate?: string
   deliverySlots?: string[]
+  uitCode?: string
   orderNotesSnapshot?: string
   deliveryNotesSnapshot?: string
   items: DeliveryNoteLineDTO[]

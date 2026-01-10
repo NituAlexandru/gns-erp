@@ -7,7 +7,6 @@ import {
   Check,
   ChevronLeft,
   DollarSign,
-  Download,
   Printer,
   X,
   Loader2,

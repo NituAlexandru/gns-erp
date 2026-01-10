@@ -282,8 +282,8 @@ export function AssignedDeliveryCard({
       <TooltipTrigger asChild>
         <button
           className={cn(
-            'w-full h-full p-1 text-left rounded-md bg-card shadow-md hover:shadow-lg transition-all',
-            'flex flex-col justify-center',
+            'w-full h-full p-1 py-0 cursor-pointer text-left rounded-md bg-card shadow-md hover:shadow-lg transition-all',
+            'flex flex-col gap-0 justify-center overflow-hidden',
             'border-l-4',
             {
               'border-red-500': delivery.status === 'SCHEDULED',
@@ -300,18 +300,22 @@ export function AssignedDeliveryCard({
             <p className='text-xs text-muted-foreground truncate flex items-center gap-1'>
               <User className='h-3 w-3 flex-shrink-0' />
               {delivery.clientSnapshot.name}
+              <p className='text-[10px] text-muted-foreground/70 ml-4'>
+                {delivery.clientSnapshot.cui}
+              </p>
             </p>
           </div>
-
           <div>
             <p className='font-semibold text-xs truncate flex gap-1 items-center'>
               <Box className='h-4 w-3 flex-shrink-0' />
-              {delivery.deliveryNumber?.substring(0, 5)}
+              Comanda nr. {delivery.deliveryNumber?.substring(0, 5)}
             </p>
-            <p className='font-semibold text-xs font-mono text-muted-foreground flex gap-1 items-center'>
-              <Truck className='h-4 w-3 flex-shrink-0' />
-              {delivery.orderNumber}
-            </p>
+            {delivery.deliveryNoteNumber && (
+              <p className='font-bold text-[12px] font-mono flex gap-1 items-center mt-0.5'>
+                <FileText className='h-3 w-3 flex-shrink-0' />
+                Aviz {delivery.deliveryNoteNumber}
+              </p>
+            )}
           </div>
         </button>
       </TooltipTrigger>
@@ -326,6 +330,11 @@ export function AssignedDeliveryCard({
               <p className='text-sm font-mono text-muted-foreground -mt-1'>
                 Livr: {delivery.deliveryNumber}
               </p>
+              {delivery.deliveryNoteNumber && (
+                <p className='text-sm font-mono  font-bold -mt-1'>
+                  Aviz: {delivery.deliveryNoteNumber}
+                </p>
+              )}
             </div>
             <Badge
               variant={statusInfo.variant}
@@ -338,9 +347,10 @@ export function AssignedDeliveryCard({
           <div className='space-y-2 text-sm border-t pt-3 mt-3 text-muted-foreground'>
             <div className='flex items-center gap-2'>
               <User className='h-4 w-4 flex-shrink-0' />
-              <span className='font-medium text-foreground '>
-                {delivery.clientSnapshot.name}
-              </span>
+              <div className='font-medium text-foreground flex gap-20'>
+                <span> {delivery.clientSnapshot.name} </span>
+                <span>CUI: {delivery.clientSnapshot.cui}</span>
+              </div>
             </div>
             <div className='flex items-start gap-2'>
               <MapPin className='h-4 w-4 flex-shrink-0 mt-0.5' />{' '}

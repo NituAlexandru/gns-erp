@@ -125,6 +125,7 @@ export interface IDeliveryNoteDoc extends Document {
   deliveryNotesSnapshot?: string
   status: (typeof DELIVERY_NOTE_STATUSES)[number]
   isInvoiced: boolean
+  uitCode?: string
   createdBy: Types.ObjectId
   createdByName: string
   lastUpdatedBy?: Types.ObjectId
@@ -360,6 +361,7 @@ const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
     trailerNumber: { type: String },
     deliveryDate: { type: Date },
     deliverySlots: { type: [String] },
+    uitCode: { type: String, required: false },
     orderNotesSnapshot: { type: String },
     deliveryNotesSnapshot: { type: String },
     items: [DeliveryNoteLineSchema],

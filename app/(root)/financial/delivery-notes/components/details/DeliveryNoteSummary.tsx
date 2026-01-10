@@ -64,6 +64,18 @@ export function DeliveryNoteSummary({ note }: DeliveryNoteSummaryProps) {
               note.orderNotesSnapshot ||
               'Nu există mențiuni.'}
           </div>
+          {note.uitCode && (
+            <div className='border-t pt-2 mt-1'>
+              <div className='flex items-center justify-between'>
+                <span className='text-xs font-bold text-muted-foreground uppercase'>
+                  Cod UIT (e-Transport):
+                </span>
+                <span className='font-mono font-bold text-sm bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 px-2 py-0.5 rounded select-all'>
+                  {note.uitCode}
+                </span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

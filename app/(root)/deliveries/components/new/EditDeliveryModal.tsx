@@ -676,11 +676,7 @@ export function EditDeliveryModal({
               Anulează
             </Button>
           </DialogClose>
-          <Button
-            type='submit'
-            onClick={handleSubmit(onSave)}
-            disabled={isPending}
-          >
+          <Button onClick={handleSubmit(onSave)} disabled={isPending}>
             {isPending ? (
               <Loader2 className='mr-2 h-4 w-4 animate-spin' />
             ) : (

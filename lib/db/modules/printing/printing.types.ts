@@ -89,6 +89,7 @@ export interface PdfDocumentData {
     driverName?: string
   }
   notes?: string
+  uitCode?: string
   delegate?: {
     name?: string
     vehicle?: string

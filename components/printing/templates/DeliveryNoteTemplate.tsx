@@ -31,9 +31,9 @@ const styles = StyleSheet.create({
   halfPageContainer: {
     height: '48%',
     borderBottomWidth: 1,
-    borderBottomColor: '#ccc',
+    borderBottomColor: '#000',
     borderBottomStyle: 'dashed',
-    paddingBottom: 5,
+    paddingBottom: 20,
     marginBottom: 0,
     position: 'relative',
   },
@@ -201,6 +201,7 @@ export const DeliveryNoteTemplate: React.FC<Props> = ({ data }) => {
           date: data.date,
           orderNumber: data.logistic?.orderNumber,
           deliveryNoteNumber: data.logistic?.deliveryNoteNumber,
+          notes: data.notes,
           deliveryAddress: data.deliveryAddress
             ? `Str. ${data.deliveryAddress.strada} nr. ${data.deliveryAddress.numar}, ${data.deliveryAddress.localitate}, ${data.deliveryAddress.judet}`
             : undefined,
@@ -208,11 +209,37 @@ export const DeliveryNoteTemplate: React.FC<Props> = ({ data }) => {
           contactPhone: data.deliveryAddress?.telefonContact,
         }}
       />
-
+      {data.uitCode && (
+        <View
+          style={{
+            marginTop: 1,
+            marginBottom: 1,
+            paddingHorizontal: 2,
+            alignItems: 'flex-start',
+          }}
+        >
+          <Text style={{ fontSize: 8, fontWeight: 'bold' }}>
+            COD UIT (e-Transport): {data.uitCode}
+          </Text>
+        </View>
+      )}
       <View style={{ flex: 1 }}>
         <PdfDeliveryNoteTable items={data.items} />
       </View>
-
+      {data.uitCode && (
+        <View
+          style={{
+            marginTop: 4,
+            marginBottom: 2,
+            paddingHorizontal: 4,
+            alignItems: 'flex-start',
+          }}
+        >
+          <Text style={{ fontSize: 8, fontWeight: 'bold' }}>
+            COD UIT (e-Transport): {data.uitCode}
+          </Text>
+        </View>
+      )}
       <DeliveryNoteFooter data={data} />
     </View>
   )

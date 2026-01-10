@@ -15,6 +15,7 @@ interface PdfHeaderProps {
     dueDate?: string
     orderNumber?: string
     deliveryNoteNumber?: string
+    notes?: string
     invoiceType?: string
     deliveryAddress?: string
     contactPerson?: string
@@ -265,11 +266,38 @@ export const PdfHeader: React.FC<PdfHeaderProps> = ({
               </Text>
             )}
 
-            {meta.deliveryNoteNumber && (
-              <Text style={styles.details}>
-                <Text style={styles.bold}>Nr. Aviz:</Text>{' '}
-                {meta.deliveryNoteNumber}
-              </Text>
+            {meta.notes && (
+              <View
+                style={{
+                  marginTop: 3,
+                  paddingTop: 2,
+                  borderTopWidth: 0.5,
+                  borderTopColor: '#cbd5e1',
+                  height: 24,
+                  overflow: 'hidden',
+                }}
+              >
+                <Text
+                  style={[styles.details, { fontWeight: 'bold', fontSize: 6 }]}
+                >
+                  Mențiuni:
+                </Text>
+                <Text
+                  style={[
+                    styles.details,
+                    {
+                      fontSize: 5.5,
+                      fontStyle: 'italic',
+                      lineHeight: 1.1,
+                    },
+                  ]}
+                >
+                  {/* Tăiem textul manual la 130 caractere ca să fim siguri că intră */}
+                  {meta.notes.length > 130
+                    ? meta.notes.substring(0, 130) + '...'
+                    : meta.notes}
+                </Text>
+              </View>
             )}
             {title.toUpperCase().includes('RECEPTIE') && (
               <>
