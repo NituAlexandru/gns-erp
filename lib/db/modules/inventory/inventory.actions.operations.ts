@@ -562,8 +562,27 @@ export async function addInitialStock(input: AddInitialStockInput) {
       inventoryItem.unitMeasure = unitMeasure
     }
 
-    const batchQuantity = payload.quantity // Luăm exact cât ai scris (27504)
-    const oldStockBalance = inventoryItem.totalStock // Păstrăm pentru istoric (-720)
+    // --- LOGICA DE REGLARE STOC NEGATIV ---
+    let batchQuantity = payload.quantity
+    const oldStockBalance = inventoryItem.totalStock
+
+    // Dacă avem datorie (stoc negativ), o scădem din ce intră acum
+    if (inventoryItem.totalStock < 0) {
+      const deficit = Math.abs(inventoryItem.totalStock) // ex: 5
+
+      if (batchQuantity >= deficit) {
+        // Avem destulă marfă să acoperim datoria (ex: intră 1415, datoria e 5 => rămân 1410)
+        batchQuantity = batchQuantity - deficit
+
+        // Setăm temporar stocul pe 0, ca recalcularea să pornească curat de la suma loturilor
+        inventoryItem.totalStock = 0
+      } else {
+        // Marfa nu ajunge să acopere datoria (ex: intră 3, datoria e 5)
+        // Doar diminuăm datoria (-5 + 3 = -2) și NU creăm lot fizic
+        inventoryItem.totalStock += batchQuantity
+        batchQuantity = 0
+      }
+    }
 
     // 3. Creăm Lotul Nou
     const newBatchId = new Types.ObjectId()
@@ -575,16 +594,18 @@ export async function addInitialStock(input: AddInitialStockInput) {
       ? new Types.ObjectId(payload.supplierId)
       : undefined
 
-    inventoryItem.batches.push({
-      _id: newBatchId,
-      quantity: batchQuantity,
-      unitCost: payload.unitCost,
-      entryDate: new Date(),
-      movementId: movementId,
-      supplierId: supplierId,
-      supplierName: supplierNameSnapshot,
-      qualityDetails: payload.qualityDetails || {},
-    })
+    if (batchQuantity > 0) {
+      inventoryItem.batches.push({
+        _id: newBatchId,
+        quantity: batchQuantity, // Aici va fi 1410 (1415 - 5)
+        unitCost: payload.unitCost,
+        entryDate: new Date(),
+        movementId: movementId,
+        supplierId: supplierId,
+        supplierName: supplierNameSnapshot,
+        qualityDetails: payload.qualityDetails || {},
+      })
+    }
 
     // Actualizăm ultimul preț de achiziție
     inventoryItem.lastPurchasePrice = payload.unitCost
