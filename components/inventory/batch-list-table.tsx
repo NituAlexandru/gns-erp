@@ -46,7 +46,7 @@ export function BatchListTable({
 }: BatchListTableProps) {
   const allUnits = [
     { unitName: baseUnit, baseUnitEquivalent: 1 },
-    ...packagingOptions,
+    ...packagingOptions.filter((opt) => opt.unitName !== baseUnit),
   ]
 
   const [selectedUnit, setSelectedUnit] = useState(baseUnit)

@@ -101,6 +101,7 @@ const InventoryItemSchema = new Schema<IInventoryItemDoc>(
 
 InventoryItemSchema.index({ location: 1, searchableName: 1 })
 InventoryItemSchema.index({ location: 1, searchableCode: 1 })
+InventoryItemSchema.index({ stockableItem: 1, location: 1 }, { unique: true })
 
 const InventoryItemModel: Model<IInventoryItemDoc> =
   (models.InventoryItem as Model<IInventoryItemDoc>) ||

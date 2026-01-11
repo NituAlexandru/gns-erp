@@ -534,24 +534,23 @@ export async function addInitialStock(input: AddInitialStockInput) {
 
     // 2. Căutăm sau Creăm InventoryItem
     let inventoryItem = await InventoryItemModel.findOne({
-      stockableItem: payload.stockableItemId,
+      stockableItem: new Types.ObjectId(payload.stockableItemId),
       stockableItemType: payload.stockableItemType,
-      location: payload.location,
+      location: payload.location.trim(),
     }).session(session)
 
     if (!inventoryItem) {
       // Nu există stoc în această locație -> Creăm documentul
       inventoryItem = new InventoryItemModel({
-        stockableItem: payload.stockableItemId,
+        stockableItem: new Types.ObjectId(payload.stockableItemId),
         stockableItemType: payload.stockableItemType,
         searchableName: itemName,
         searchableCode: itemCode,
         unitMeasure: unitMeasure,
-        location: payload.location,
+        location: payload.location.trim(),
         batches: [],
         totalStock: 0,
         quantityReserved: 0,
-        // Setăm prețurile inițiale
         lastPurchasePrice: payload.unitCost,
         averageCost: payload.unitCost,
         minPurchasePrice: payload.unitCost,
@@ -562,6 +561,9 @@ export async function addInitialStock(input: AddInitialStockInput) {
       inventoryItem.searchableCode = itemCode
       inventoryItem.unitMeasure = unitMeasure
     }
+
+    const batchQuantity = payload.quantity // Luăm exact cât ai scris (27504)
+    const oldStockBalance = inventoryItem.totalStock // Păstrăm pentru istoric (-720)
 
     // 3. Creăm Lotul Nou
     const newBatchId = new Types.ObjectId()
@@ -575,9 +577,9 @@ export async function addInitialStock(input: AddInitialStockInput) {
 
     inventoryItem.batches.push({
       _id: newBatchId,
-      quantity: payload.quantity,
+      quantity: batchQuantity,
       unitCost: payload.unitCost,
-      entryDate: new Date(), // Stocul intră acum
+      entryDate: new Date(),
       movementId: movementId,
       supplierId: supplierId,
       supplierName: supplierNameSnapshot,
@@ -594,17 +596,17 @@ export async function addInitialStock(input: AddInitialStockInput) {
     // 4. Creăm Mișcarea de Stoc (Log)
     const movement = new StockMovementModel({
       _id: movementId,
-      stockableItem: payload.stockableItemId,
+      stockableItem: new Types.ObjectId(payload.stockableItemId),
       stockableItemType: payload.stockableItemType,
       movementType: 'STOC_INITIAL',
-      locationTo: payload.location, // Doar locationTo la intrări
+      locationTo: payload.location.trim(),
       quantity: payload.quantity,
       unitMeasure: unitMeasure,
       responsibleUser: userSession.user.id,
       responsibleUserName: userSession.user.name,
       unitCost: payload.unitCost,
       lineCost: payload.quantity * payload.unitCost,
-      balanceBefore: inventoryItem.totalStock - payload.quantity,
+      balanceBefore: oldStockBalance,
       balanceAfter: inventoryItem.totalStock,
       note: payload.reason,
       referenceId: importOperationId,
