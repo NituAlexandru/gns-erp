@@ -342,6 +342,10 @@ export function AddInitialStockDialog({
                         step='0.01'
                         placeholder='0.00'
                         {...field}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          field.onChange(val === '' ? 0 : parseFloat(val))
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -392,6 +396,10 @@ export function AddInitialStockDialog({
                         step='0.01'
                         placeholder='0.00'
                         {...field}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          field.onChange(val === '' ? 0 : parseFloat(val))
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
