@@ -181,9 +181,11 @@ export function AddInitialStockDialog({
           onSuccess()
         }
       } else {
+        console.error('EROARE SERVER:', res.error)
         toast.error(res.error || 'A apărut o eroare')
       }
     } catch (error) {
+      // console.error('EROARE CRITICA (CATCH):', error)
       toast.error('Eroare de conexiune')
     } finally {
       setIsPending(false)

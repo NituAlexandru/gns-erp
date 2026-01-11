@@ -36,7 +36,7 @@ export function InventoryNav() {
 
   return (
     <aside>
-      <h1 className='text-2xl font-bold'>Gestiune Stocuri</h1>
+      <h1 className='text-xl font-bold'>Gestiune Stocuri</h1>
       <nav className='flex flex-col gap-2 mt-4'>
         <Button
           asChild

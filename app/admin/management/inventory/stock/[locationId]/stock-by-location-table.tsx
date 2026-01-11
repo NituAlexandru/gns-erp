@@ -160,7 +160,9 @@ export function StockByLocationTable({
                     // Logica de calcul (NESCHIMBATA)
                     const allUnits = [
                       { unitName: item.unit, baseUnitEquivalent: 1 },
-                      ...(item.packagingOptions || []),
+                      ...(item.packagingOptions || []).filter(
+                        (p) => p.unitName !== item.unit
+                      ),
                     ]
                     const selectedUnitName =
                       selectedUnits[item._id] || item.unit
