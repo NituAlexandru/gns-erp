@@ -477,11 +477,12 @@ export async function adjustStock(input: AdjustStockInput) {
  * Dacă InventoryItem nu există, îl creează automat.
  */
 export async function addInitialStock(input: AddInitialStockInput) {
+  await connectToDatabase()
+
   const session = await startSession()
   session.startTransaction()
 
   try {
-    await connectToDatabase()
     const payload = addInitialStockSchema.parse(input)
 
     const userSession = await auth()
