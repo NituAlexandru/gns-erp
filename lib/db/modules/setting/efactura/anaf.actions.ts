@@ -17,7 +17,7 @@ import { ISupplierDoc } from '../../suppliers/types'
 import AdmZip from 'adm-zip'
 import { getNoCachedSetting } from '../setting.actions'
 import { XMLParser } from 'fast-xml-parser'
-import { PAGE_SIZE } from '@/lib/constants'
+import { ANAF_SYNC_LOOKBACK_DAYS, PAGE_SIZE } from '@/lib/constants'
 
 // --- HELPER AUTH CHECK ---
 async function checkAdmin() {
@@ -230,7 +230,8 @@ export async function syncAndProcessAnaf() {
     // APEL API & PAGINARE (Folosim endpoint-ul istoric cu TIMESTAMPS)
     const endData = new Date()
     const startData = new Date()
-    startData.setDate(endData.getDate() - 59) // Calculăm data de acum 60 zile
+
+    startData.setDate(endData.getDate() - ANAF_SYNC_LOOKBACK_DAYS) // Calculăm data de acum 60 zile
 
     const startTime = startData.getTime() // Unix Timestamp (milisecunde)
     const endTime = endData.getTime()
