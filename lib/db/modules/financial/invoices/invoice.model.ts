@@ -109,8 +109,9 @@ const CompanySnapshotSubSchema = new Schema<CompanySnapshot>(
 const ClientSnapshotSubSchema = new Schema<ClientSnapshot>(
   {
     name: { type: String, required: true },
-    cui: { type: String, required: true },
-    regCom: { type: String, required: true },
+    cui: { type: String },
+    regCom: { type: String },
+    cnp: { type: String },
     address: { type: FiscalAddressSubSchema, required: true },
     bank: { type: String },
     iban: { type: String },

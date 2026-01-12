@@ -39,9 +39,10 @@ export const CompanySnapshotSchema = z.object({
 // Snapshot-ul clientului
 export const ClientSnapshotSchema = z.object({
   name: z.string(),
-  cui: z.string(),
-  regCom: z.string(),
-  address: FiscalAddressSchema, // Folosim aceeași structură
+  cui: z.string().optional(),
+  regCom: z.string().optional(),
+  cnp: z.string().optional(),
+  address: FiscalAddressSchema, 
   bank: z.string().optional(),
   iban: z.string().optional(),
 })

@@ -29,6 +29,7 @@ import {
   parseISO,
   startOfDay,
   startOfYear,
+  subHours,
 } from 'date-fns'
 import { fromZonedTime } from 'date-fns-tz'
 import { ScheduleDeliveryInput } from './planner-validator'
@@ -603,6 +604,11 @@ export async function scheduleDelivery(
       )
     }
 
+    // --- FIX TIMEZONE: Forțăm ora 12:00 ---
+    const dateAtNoon = new Date(data.deliveryDate)
+    dateAtNoon.setHours(12, 0, 0, 0)
+    // --------------------------------------
+
     // --- VALIDARE CONDITIONALĂ PENTRU ASSEMBLY ---
     const isSpecialDelivery =
       delivery.deliveryType === 'PICK_UP_SALE' ||
@@ -629,8 +635,8 @@ export async function scheduleDelivery(
         _id: { $ne: deliveryId },
         assemblyId: new Types.ObjectId(data.assemblyId),
         deliveryDate: {
-          $gte: startOfDay(data.deliveryDate),
-          $lte: endOfDay(data.deliveryDate),
+          $gte: startOfDay(dateAtNoon), // Folosim variabila nouă
+          $lte: endOfDay(dateAtNoon), // Folosim variabila nouă
         },
         status: { $ne: 'CANCELLED' },
       }
@@ -658,8 +664,8 @@ export async function scheduleDelivery(
       const overlapBlockQuery: FilterQuery<typeof FleetAvailabilityModel> = {
         assignmentId: new Types.ObjectId(data.assemblyId),
         date: {
-          $gte: startOfDay(data.deliveryDate),
-          $lte: endOfDay(data.deliveryDate),
+          $gte: startOfDay(dateAtNoon), // Folosim variabila nouă
+          $lte: endOfDay(dateAtNoon), // Folosim variabila nouă
         },
       }
 
@@ -734,7 +740,7 @@ export async function scheduleDelivery(
     // Actualizăm documentul de livrare
     delivery.set({
       status: 'SCHEDULED',
-      deliveryDate: data.deliveryDate,
+      deliveryDate: dateAtNoon,
       deliverySlots: data.deliverySlots,
 
       assemblyId: isSpecialDelivery
@@ -747,11 +753,9 @@ export async function scheduleDelivery(
       vehicleId: finalVehicleId,
       trailerId: finalTrailerId,
       deliveryNotes: data.deliveryNotes,
-
       driverName: driverName,
       vehicleNumber: vehicleNumber,
       trailerNumber: finalTrailerNumber,
-
       lastUpdatedBy: new Types.ObjectId(user.id),
       lastUpdatedByName: user.name,
     })
@@ -920,4 +924,59 @@ export async function getFilteredDeliveries({
       },
     })
   )
+}
+
+export async function getRecentDeliveries() {
+  await connectToDatabase()
+
+  // Calculăm data limită (cutoff)
+  let cutoffDate = new Date()
+  let hoursToSubtract = 24
+
+  // Logica pentru "24h lucrătoare":
+  // Dacă e Luni, scădem 24h + 48h (weekend) = 72h
+  // Dacă e Duminică, scădem 24h + 24h (Sâmbătă) = 48h (caz teoretic, dacă rulează duminica)
+  // Dacă e Sâmbătă, scădem 24h (caz teoretic)
+  // Simplificare: Dacă acum e Luni, ne uităm începând de Vinerea trecută la aceeași oră.
+
+  const dayOfWeek = cutoffDate.getDay() // 0 = Duminică, 1 = Luni, ...
+
+  if (dayOfWeek === 1) {
+    // Luni
+    hoursToSubtract = 72 // 3 zile în urmă (Vineri)
+  } else if (dayOfWeek === 0) {
+    // Duminică
+    hoursToSubtract = 48 // 2 zile în urmă (Vineri - teoretic)
+  } else if (dayOfWeek === 6) {
+    // Sâmbătă
+    // Dacă rulăm sâmbătă, vrem ultimele 24h reale? Sau lucrătoare?
+    // Presupunem că sâmbătă nu e lucrătoare, deci ar trebui să arate tot de Vineri?
+    // Pentru simplitate, păstrăm logica din prompt: "fără sâmbătă și duminică".
+    // Dacă e sâmbătă, cutoff-ul de 24h ar prinde Vineri. E ok.
+    hoursToSubtract = 24
+  }
+
+  cutoffDate = subHours(cutoffDate, hoursToSubtract)
+
+  try {
+    const deliveries = await DeliveryModel.find({
+      createdAt: { $gte: cutoffDate },
+      status: { $ne: 'CANCELLED' }, // Opțional: excludem cele anulate
+    })
+      .select('deliveryNumber clientSnapshot.name createdAt status') // Selectăm doar câmpurile necesare
+      .sort({ createdAt: -1 })
+      .lean()
+
+    // Mapăm datele pentru a fi serializabile (ObjectId -> string, Date -> string/Date object)
+    return deliveries.map((d) => ({
+      id: d._id.toString(),
+      deliveryNumber: d.deliveryNumber,
+      clientName: d.clientSnapshot?.name || 'Client Necunoscut',
+      date: d.createdAt,
+      status: d.status,
+    }))
+  } catch (error) {
+    console.error('Eroare la preluarea livrărilor recente:', error)
+    return []
+  }
 }

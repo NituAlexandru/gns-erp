@@ -287,8 +287,9 @@ export async function createInvoice(
 
       const clientSnapshot: ClientSnapshot = {
         name: client.name,
-        cui: client.vatId || client.cnp || '',
+        cui: client.vatId || '',
         regCom: client.nrRegComert || '',
+        cnp: client.cnp || '',
         address: {
           judet: client.address.judet,
           localitate: client.address.localitate,
@@ -476,8 +477,9 @@ export async function generateProformaFromOrder(
       // 5. Construire Snapshot Client CORECT
       const clientSnapshot: ClientSnapshot = {
         name: client.name,
-        cui: client.vatId || client.cnp || '',
+        cui: client.vatId || '',
         regCom: client.nrRegComert || '',
+        cnp: client.cnp || '',
         bank: client.bankAccountLei?.bankName || '',
         iban: client.bankAccountLei?.iban || '',
         address: {
@@ -884,8 +886,9 @@ export async function createStornoInvoice(
 
       const clientSnapshot: ClientSnapshot = {
         name: client.name,
-        cui: client.vatId || client.cnp || '',
+        cui: client.vatId || '',
         regCom: client.nrRegComert || '',
+        cnp: client.cnp || '',
         address: {
           judet: client.address.judet,
           localitate: client.address.localitate,
@@ -1699,8 +1702,9 @@ export async function createClientOpeningBalance(
 
       const clientSnapshot: ClientSnapshot = {
         name: client.name,
-        cui: client.vatId || client.cnp || '',
+        cui: client.vatId || '',
         regCom: client.nrRegComert || '-',
+        cnp: client.cnp || '',
         address: {
           judet: client.address.judet,
           localitate: client.address.localitate,
@@ -1892,8 +1896,9 @@ export async function createPackagingOpeningBalance(
       }
       const clientSnapshot: ClientSnapshot = {
         name: client.name,
-        cui: client.vatId || client.cnp || '',
+        cui: client.vatId || '',
         regCom: client.nrRegComert || '-',
+        cnp: client.cnp || '',
         address: {
           judet: client.address.judet,
           localitate: client.address.localitate,

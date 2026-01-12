@@ -146,7 +146,10 @@ export const PdfHeader: React.FC<PdfHeaderProps> = ({
     <>
       <Text style={styles.companyName}>{data.name}</Text>
       <Text style={styles.details}>
-        <Text style={styles.bold}>CIF:</Text> {data.cui}
+        <Text style={styles.bold}>
+          {data.cui && data.cui.length > 12 ? 'CNP:' : 'CIF:'}
+        </Text>{' '}
+        {data.cui}
       </Text>
       {!title.toUpperCase().includes('RECEPTIE') && data.regCom && (
         <Text style={styles.details}>

@@ -58,8 +58,8 @@ export function mapDeliveryNoteToPdfData(
 
     client: {
       name: note.clientSnapshot.name,
-      cui: note.clientSnapshot.cui,
-      regCom: note.clientSnapshot.regCom,
+      cui: note.clientSnapshot.cui || note.clientSnapshot.cnp || '',
+      regCom: note.clientSnapshot.regCom || '-',
       address: {
         strada: note.clientSnapshot.address, // Strada din snapshot
         judet: note.clientSnapshot.judet, // Județul din snapshot

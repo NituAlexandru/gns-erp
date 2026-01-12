@@ -47,8 +47,9 @@ export const CreateOrderInputSchema = z.object({
   clientId: z.string({ required_error: 'Te rog selectează un client.' }).min(1),
   clientSnapshot: z.object({
     name: z.string(),
-    cui: z.string(),
-    regCom: z.string(),
+    cui: z.string().optional(),
+    regCom: z.string().optional(),
+    cnp: z.string().optional(),
     address: z.string(),
     judet: z.string(),
     bank: z.string().optional(),

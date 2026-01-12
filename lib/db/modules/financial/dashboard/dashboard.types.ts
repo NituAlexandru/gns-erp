@@ -6,7 +6,7 @@ export interface DashboardStats {
   invoicesCount: number
   proformasCount: number
   creditNotesCount: number
-  // receiptsCount: number
+  receiptsCount: number
 }
 
 export interface RecentDocument {

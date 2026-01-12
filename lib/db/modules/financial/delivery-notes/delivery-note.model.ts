@@ -137,8 +137,9 @@ export interface IDeliveryNoteDoc extends Document {
   companySnapshot: ICompanySnapshot
   clientSnapshot: {
     name: string
-    cui: string
-    regCom: string
+    cui?: string
+    regCom?: string
+    cnp?: string
     address: string
     judet: string
     bank?: string
@@ -329,8 +330,9 @@ const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
     companySnapshot: { type: CompanySnapshotSchema, required: true },
     clientSnapshot: {
       name: { type: String, required: true },
-      cui: { type: String, required: true },
-      regCom: { type: String, required: true },
+      cui: { type: String },
+      regCom: { type: String },
+      cnp: { type: String },
       address: { type: String, required: true },
       judet: { type: String, required: true },
       bank: { type: String },

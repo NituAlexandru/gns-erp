@@ -106,8 +106,9 @@ export interface DeliveryNoteDTO {
   companySnapshot: CompanySnapshotDTO
   clientSnapshot: {
     name: string
-    cui: string
-    regCom: string
+    cui?: string
+    regCom?: string
+    cnp?: string
     address: string
     judet: string
     bank?: string

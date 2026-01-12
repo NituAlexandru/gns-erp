@@ -14,8 +14,9 @@ export type DeliveryStatusKey =
 // --- Tipuri Snapshot ---
 export interface ClientSnapshot {
   name: string
-  cui: string
-  regCom: string
+  cui?: string
+  regCom?: string
+  cnp?: string
   address: string
   judet: string
   bank?: string

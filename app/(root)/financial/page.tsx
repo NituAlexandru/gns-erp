@@ -95,8 +95,7 @@ export default function FinancialDashboardPage() {
         {/* 3. CHITANȚE (Între Avize și Facturi) */}
         <StatCard
           title='Chitanțe'
-          value='De facut'
-          // value={data.stats.receiptsCount.toString()}
+          value={data.stats.receiptsCount.toString()} 
           icon={<Receipt className='text-cyan-500' size={24} />}
         />
 

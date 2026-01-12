@@ -827,3 +827,78 @@ export async function getDeliveryNoteById(
     return { success: false, message: 'Eroare la preluarea avizului.' }
   }
 }
+export type DeliveryNoteStats = {
+  inTransit: number // Avize în tranzit (neconfirmate)
+  toInvoice: number
+  overdue: number
+}
+
+export async function getDeliveryNoteStats(): Promise<DeliveryNoteStats> {
+  await connectToDatabase()
+
+  try {
+    // Data limită: Acum 3 zile
+    const dateLimitForOverdue = new Date()
+    dateLimitForOverdue.setDate(dateLimitForOverdue.getDate() - 3)
+
+    const stats = await DeliveryNoteModel.aggregate([
+      {
+        $match: {
+          status: { $in: ['IN_TRANSIT', 'DELIVERED'] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          // 1. În Tranzit (Total)
+          inTransit: {
+            $sum: { $cond: [{ $eq: ['$status', 'IN_TRANSIT'] }, 1, 0] },
+          },
+          // 2. Întârziate (În Tranzit + Mai vechi de 3 zile)
+          overdue: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$status', 'IN_TRANSIT'] },
+                    { $lt: ['$createdAt', dateLimitForOverdue] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          // 3. De Facturat (Livrate dar nefacturate)
+          toInvoice: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$status', 'DELIVERED'] },
+                    { $eq: ['$isInvoiced', false] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ])
+
+    if (stats.length > 0) {
+      return {
+        inTransit: stats[0].inTransit || 0,
+        toInvoice: stats[0].toInvoice || 0,
+        overdue: stats[0].overdue || 0,
+      }
+    }
+
+    return { inTransit: 0, toInvoice: 0, overdue: 0 }
+  } catch (error) {
+    console.error('Eroare la calcularea statisticilor pentru avize:', error)
+    return { inTransit: 0, toInvoice: 0, overdue: 0 }
+  }
+}

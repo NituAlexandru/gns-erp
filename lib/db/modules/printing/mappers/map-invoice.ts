@@ -87,8 +87,8 @@ export function mapInvoiceToPdfData(
     // --- MAPARE CLIENT ---
     client: {
       name: invoice.clientSnapshot.name,
-      cui: invoice.clientSnapshot.cui,
-      regCom: invoice.clientSnapshot.regCom,
+      cui: invoice.clientSnapshot.cui || invoice.clientSnapshot.cnp || '',
+      regCom: invoice.clientSnapshot.regCom || '-',
       address: invoice.clientSnapshot.address,
       bank: invoice.clientSnapshot.bank,
       iban: invoice.clientSnapshot.iban,

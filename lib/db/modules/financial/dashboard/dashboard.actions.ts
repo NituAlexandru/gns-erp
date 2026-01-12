@@ -15,6 +15,7 @@ import {
 import { OverdueClientSummary } from '../treasury/summary/summary.types'
 import '../../client/client.model'
 import '@/lib/db/modules/client/summary/client-summary.model'
+import ReceiptModel from '../receipts/receipt.model'
 
 interface LeanDoc {
   _id: unknown
@@ -122,14 +123,19 @@ export async function getFinancialDashboardData(
     { $limit: 10 },
   ]
 
+  const receiptDateFilter = {
+    date: { $gte: startDate, $lte: endDate },
+    status: { $ne: 'CANCELLED' },
+  }
+
   const [
     ordersCount,
     deliveryNotesCount,
     invoicesCount,
     proformasCount,
     creditNotesCount,
+    receiptsCount,
     recentNotesDocs,
-    // recentInvoicesDocs, <--- SCOS (Nu mai avem nevoie de query)
     yearlyOverdueRaw,
     blockedClientsDocs,
   ] = await Promise.all([
@@ -142,13 +148,13 @@ export async function getFinancialDashboardData(
     InvoiceModel.countDocuments({ ...dateFilter, invoiceType: 'PROFORMA' }),
     InvoiceModel.countDocuments({ ...dateFilter, invoiceType: 'STORNO' }),
 
+    ReceiptModel.countDocuments(receiptDateFilter),
+
     DeliveryNoteModel.find(dateFilter)
       .sort({ createdAt: -1 })
       .limit(5)
       .populate('clientSnapshot', 'name')
       .lean(),
-
-    // InvoiceModel.find(...) <--- SCOS QUERY-UL PENTRU ULTIMELE FACTURI
 
     InvoiceModel.aggregate(yearlyOverduePipeline),
 
@@ -216,10 +222,23 @@ export async function getFinancialDashboardData(
       invoicesCount,
       proformasCount,
       creditNotesCount,
+      receiptsCount,
     },
     recentDeliveryNotes,
-    // recentInvoices, <--- SCOS DIN RETURN (Asta cauza eroarea de Backend)
     overdueClients,
     blockedClients,
+  }
+}
+
+export async function getBlockedClientsCount(): Promise<number> {
+  await connectToDatabase()
+
+  try {
+    // Numărăm doar documentele unde isBlocked este true
+    const count = await ClientSummary.countDocuments({ isBlocked: true })
+    return count
+  } catch (error) {
+    console.error('Eroare la numărarea clienților blocați:', error)
+    return 0
   }
 }

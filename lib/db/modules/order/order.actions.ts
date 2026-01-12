@@ -26,6 +26,7 @@ import {
 } from '../setting/services/service.actions'
 import { VatRateDTO } from '../setting/vat-rate/types'
 import { IOrderLineItem } from '../deliveries/types'
+import { subHours } from 'date-fns'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -557,5 +558,144 @@ export async function confirmOrder(orderId: string) {
     return { success: false, message: msg }
   } finally {
     await session.endSession()
+  }
+}
+export async function getRecentOrders() {
+  await connectToDatabase()
+
+  let cutoffDate = new Date()
+  let hoursToSubtract = 24
+
+  const dayOfWeek = cutoffDate.getDay()
+
+  if (dayOfWeek === 1) {
+    // Luni
+    hoursToSubtract = 72
+  } else if (dayOfWeek === 0) {
+    // Duminică
+    hoursToSubtract = 48
+  }
+
+  cutoffDate = subHours(cutoffDate, hoursToSubtract)
+
+  try {
+    const orders = await Order.find({
+      createdAt: { $gte: cutoffDate },
+      status: { $ne: 'CANCELLED' },
+    })
+      .select(
+        'orderNumber clientSnapshot.name totals.grandTotal createdAt status'
+      )
+      .sort({ createdAt: -1 })
+      .lean<IOrder[]>()
+
+    return orders.map((o) => ({
+      id: o._id.toString(),
+      orderNumber: o.orderNumber,
+      clientName: o.clientSnapshot?.name || 'Client Necunoscut',
+      amount: o.totals?.grandTotal || 0,
+      date: o.createdAt,
+      status: o.status,
+    }))
+  } catch (error) {
+    console.error('Eroare la preluarea comenzilor recente:', error)
+    return []
+  }
+}
+export type OrderStats = {
+  confirmed: number // Confirmate (De programat)
+  inProgress: number // Programate + Parțial Livrate
+  toInvoice: number // Livrate Integral + Parțial Facturate
+  drafts: number // <-- NOU
+  overdue: number
+}
+
+export async function getOrderStats(): Promise<OrderStats> {
+  await connectToDatabase()
+
+  try {
+    // Definim "Întârziat" = Comenzi confirmate mai vechi de 3 zile care nu sunt programate
+    const dateLimitForOverdue = new Date()
+    dateLimitForOverdue.setDate(dateLimitForOverdue.getDate() - 3)
+
+    const stats = await Order.aggregate([
+      {
+        $match: {
+          status: {
+            $in: [
+              'DRAFT',
+              'CONFIRMED',
+              'SCHEDULED',
+              'PARTIALLY_DELIVERED',
+              'DELIVERED',
+              'PARTIALLY_INVOICED',
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          // 1. Ciorne (DRAFT)
+          drafts: {
+            $sum: { $cond: [{ $eq: ['$status', 'DRAFT'] }, 1, 0] },
+          },
+          // 2. Confirmate (De programat)
+          confirmed: {
+            $sum: { $cond: [{ $eq: ['$status', 'CONFIRMED'] }, 1, 0] },
+          },
+          // 3. Întârziate (Confirmate + Vechi de 3 zile)
+          overdue: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$status', 'CONFIRMED'] },
+                    { $lt: ['$createdAt', dateLimitForOverdue] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          // 4. În Progres (Programate/Parțial Livrate)
+          inProgress: {
+            $sum: {
+              $cond: [
+                { $in: ['$status', ['SCHEDULED', 'PARTIALLY_DELIVERED']] },
+                1,
+                0,
+              ],
+            },
+          },
+          // 5. De Facturat
+          toInvoice: {
+            $sum: {
+              $cond: [
+                { $in: ['$status', ['DELIVERED', 'PARTIALLY_INVOICED']] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ])
+
+    if (stats.length > 0) {
+      return {
+        confirmed: stats[0].confirmed || 0,
+        inProgress: stats[0].inProgress || 0,
+        toInvoice: stats[0].toInvoice || 0,
+        drafts: stats[0].drafts || 0,
+        overdue: stats[0].overdue || 0,
+      }
+    }
+
+    return { confirmed: 0, inProgress: 0, toInvoice: 0, drafts: 0, overdue: 0 }
+  } catch (error) {
+    console.error('Eroare la calcularea statisticilor pentru comenzi:', error)
+    return { confirmed: 0, inProgress: 0, toInvoice: 0, drafts: 0, overdue: 0 }
   }
 }
