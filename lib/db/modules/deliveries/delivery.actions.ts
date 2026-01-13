@@ -450,13 +450,21 @@ export async function updateSingleDelivery(
     })
     const newDeliveryTotals = calculateDeliveryTotals(newDeliveryLinesData)
 
+    // --- FIX TIMEZONE (Logică replicată din scheduleDelivery) ---
+    let dateAtNoon = undefined
+    if (plan.deliveryDate) {
+      dateAtNoon = new Date(plan.deliveryDate)
+      dateAtNoon.setHours(12, 0, 0, 0) // Forțăm prânzul
+    }
+    // -----------------------------------------------------------
+
     // 5. Actualizăm documentul de livrare
     delivery.set({
       requestedDeliveryDate: plan.requestedDeliveryDate,
       requestedDeliverySlots: plan.requestedDeliverySlots,
       deliveryNotes: plan.deliveryNotes,
       uitCode: plan.uitCode,
-      deliveryDate: plan.deliveryDate,
+      deliveryDate: dateAtNoon,
       deliverySlots: plan.deliverySlots,
       items: newDeliveryLinesData as Types.DocumentArray<IDeliveryLineItem>,
       totals: newDeliveryTotals,
