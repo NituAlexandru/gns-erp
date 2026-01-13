@@ -170,12 +170,14 @@ export function TreasuryDashboardContent({
           title={`Facturat ${formattedDateRange}`}
           value={formatCurrency(dynamicStats.totalFacturat)}
           icon={<FileText className='text-blue-600' size={24} />}
+          infoText='Valoarea totală a facturilor fiscale emise în intervalul selectat (fără proforme). Include scăderile din facturile storno.'
         />
 
         <StatCard
           title={`Încasat ${formattedDateRange}`}
           value={formatCurrency(dynamicStats.totalIncasat)}
           icon={<Banknote className='text-green-500' size={24} />}
+          infoText='Totalul banilor intrați efectiv în firmă (cont/casă) în intervalul selectat, indiferent dacă sunt alocați pe facturi sau nu.'
         />
 
         {isAdmin && (
@@ -183,6 +185,7 @@ export function TreasuryDashboardContent({
             title={`Plăți ${formattedDateRange}`}
             value={formatCurrency(dynamicStats.totalPlati)}
             icon={<Library className='text-purple-500' size={24} />}
+            infoText='Suma totală a plăților efectuate către furnizori în intervalul selectat.'
           />
         )}
 
@@ -190,6 +193,7 @@ export function TreasuryDashboardContent({
           title='Sold Clienți (Total)'
           value={formatCurrency(staticStats.totalDeIncasat)}
           icon={<TrendingUp className='text-emerald-600' size={24} />}
+          infoText='Câți bani ai de recuperat în total de la clienți în acest moment (facturi emise și neîncasate).'
         />
 
         {isAdmin && (
@@ -197,6 +201,7 @@ export function TreasuryDashboardContent({
             title='Sold Furnizori (Total)'
             value={formatCurrency(staticStats.totalDePlatit)}
             icon={<TrendingDown className='text-orange-500' size={24} />}
+            infoText='Câți bani ai de plătit în total către furnizori în acest moment (facturi primite și neachitate).'
           />
         )}
       </div>

@@ -12,14 +12,14 @@ export default async function TreasuryLayout({
   const isAdmin = SUPER_ADMIN_ROLES.includes(userRole.toLowerCase())
 
   return (
-    <div className='grid md:grid-cols-5 max-w-full gap-1 p-0 h-[calc(100vh-6rem)] overflow-hidden'>
+    <div className='grid md:grid-cols-7 max-w-full gap-1 p-0 h-[calc(100vh-6rem)] overflow-hidden'>
       <aside className='md:col-span-1 overflow-y-auto border-r'>
         <div className='sticky top-0 p-0'>
           <TreasuryNav isAdmin={isAdmin} />
         </div>
       </aside>
 
-      <main className='md:col-span-4 h-full overflow-hidden relative'>
+      <main className='md:col-span-6 h-full overflow-hidden relative'>
         {children}
       </main>
     </div>
