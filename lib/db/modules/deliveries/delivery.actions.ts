@@ -256,9 +256,23 @@ export async function createSingleDelivery(
       ])
     )
 
+    // 👇 --- FIX TIMEZONE ---
+    let dateAtNoon = undefined
+    if (plan.requestedDeliveryDate) {
+      dateAtNoon = new Date(plan.requestedDeliveryDate)
+      dateAtNoon.setHours(12, 0, 0, 0) // Forțăm prânzul
+    }
+    // -----------------------------------------------------------
+
+    // Pregătim planul cu data modificată (dacă există)
+    const planWithSafeDate = { ...plan }
+    if (dateAtNoon) {
+      planWithSafeDate.requestedDeliveryDate = dateAtNoon
+    }
+
     // 1. Construim documentul de livrare
     const deliveryData = createSingleDeliveryDocument(
-      plan,
+      planWithSafeDate,
       originalOrder,
       originalLinesMap,
       user,
