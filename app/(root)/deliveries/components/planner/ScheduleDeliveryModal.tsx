@@ -361,16 +361,15 @@ export function ScheduleDeliveryModal({
   const onSave = (data: ScheduleDeliveryInput) => {
     if (!delivery) return
 
-    // 👇👇👇 FIXUL SUPREM: Modificăm data AICI, în browser 👇👇👇
+    //
+
     if (data.deliveryDate) {
       // 1. Luăm data selectată din formular (care e 00:00 Local)
       const safeDate = new Date(data.deliveryDate)
-
       // 2. O setăm la ora 12:00 (Prânz) TIMP LOCAL
       // Astfel, când se convertește la UTC pentru server, va fi ~10:00 AM
       // Rămânând GARANTAT în aceeași zi.
       safeDate.setHours(12, 0, 0, 0)
-
       // 3. Actualizăm obiectul data înainte de a-l trimite
       data.deliveryDate = safeDate
     }

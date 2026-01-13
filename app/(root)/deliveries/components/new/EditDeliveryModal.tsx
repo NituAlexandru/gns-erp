@@ -183,9 +183,15 @@ export function EditDeliveryModal({
     const items = methods.getValues('items')
     const requestedDeliverySlots = methods.getValues('requestedDeliverySlots')
 
+    let safeDate = data.requestedDeliveryDate
+    if (safeDate) {
+      safeDate = new Date(safeDate)
+      safeDate.setHours(12, 0, 0, 0) // Forțăm ora 12:00
+    }
+
     const updatedPlannedDelivery: PlannedDelivery = {
       ...deliveryToEdit,
-      requestedDeliveryDate: data.requestedDeliveryDate,
+      requestedDeliveryDate: safeDate,
       deliveryNotes: data.deliveryNotes,
       uitCode: data.uitCode,
       requestedDeliverySlots: requestedDeliverySlots,

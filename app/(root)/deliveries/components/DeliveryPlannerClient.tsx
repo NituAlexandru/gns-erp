@@ -223,6 +223,12 @@ export function DeliveryPlannerClient({
       deliveryNotes,
       uitCode,
     } = validationResult.data
+
+    // 👇 FIXUL DE PRÂNZ 👇
+    const safeDate = new Date(requestedDeliveryDate)
+    safeDate.setHours(12, 0, 0, 0)
+    // ☝️
+
     const itemsToPlan = plannerItems.filter(
       (item) => item.quantityToAllocate > 0
     )
@@ -233,7 +239,7 @@ export function DeliveryPlannerClient({
 
     const newPlannedDelivery: PlannedDelivery = {
       id: uuidv4(),
-      requestedDeliveryDate: requestedDeliveryDate,
+      requestedDeliveryDate: safeDate,
       requestedDeliverySlots: requestedDeliverySlots,
       deliveryDate: undefined,
       deliverySlots: undefined,
@@ -303,6 +309,11 @@ export function DeliveryPlannerClient({
       uitCode,
     } = validationResult.data
 
+    // 👇 FIXUL DE PRÂNZ 👇
+    const safeDate = new Date(requestedDeliveryDate)
+    safeDate.setHours(12, 0, 0, 0)
+    // ☝️
+
     let totalAllocatedBase = 0
     const itemsToPlan = plannerItems
       .map((item) => {
@@ -335,7 +346,7 @@ export function DeliveryPlannerClient({
 
     const newPlannedDelivery: PlannedDelivery = {
       id: uuidv4(),
-      requestedDeliveryDate: requestedDeliveryDate,
+      requestedDeliveryDate: safeDate,
       requestedDeliverySlots: requestedDeliverySlots,
       deliveryDate: undefined,
       deliverySlots: undefined,
