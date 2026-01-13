@@ -10,24 +10,16 @@ const StornoLineSchema = InvoiceLineSchema.extend({
   sourceInvoiceLineId: z.string().optional(),
   costBreakdown: z.array(CostBreakdownBatchSchema).optional().default([]),
   lineCostFIFO: z.number().optional().default(0),
-  quantity: z.number().negative('Cantitatea stornată trebuie să fie negativă.'),
+  quantity: z.number().refine((val) => val !== 0, 'Cantitatea nu poate fi 0.'),
 }).refine(
   (data) => {
-    // --- LOGICA DE VALIDARE ---
-
-    // 1. Dacă e Intrare Manuală (text liber), nu cerem sursă.
+    // Logica pentru sursă rămâne neschimbată (corectă)
     if (data.isManualEntry || data.productCode === 'MANUAL') {
       return true
     }
-
-    // 2. Dacă e SERVICIU, nu cerem sursă (permitem storno "liber").
-    // Dar dacă frontend-ul trimite un ID (storno din factură), îl acceptăm oricum.
     if (data.stockableItemType === 'Service') {
       return true
     }
-
-    // 3. Pentru orice altceva (ex: Produse de Stoc - ERPProduct), Sursa e OBLIGATORIE.
-    // Altfel nu putem returna produsul în stoc la costul corect.
     return !!data.sourceInvoiceLineId
   },
   {

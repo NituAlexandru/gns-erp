@@ -93,39 +93,19 @@ export function InvoiceFormManualRow({
           name={`items.${index}.quantity`}
           control={control}
           defaultValue={1}
-          render={({ field }) =>
-            isStornoRow ? (
-              <div className='flex items-center relative'>
-                <span className='absolute left-2 text-muted-foreground font-bold'>
-                  -
-                </span>
-                <Input
-                  {...field}
-                  type='number'
-                  step='any'
-                  // Afișăm pozitiv
-                  value={field.value ? Math.abs(field.value) : ''}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value) || 0
-                    // Salvăm negativ
-                    field.onChange(-Math.abs(val))
-                  }}
-                  className='w-full text-right pl-6'
-                />
-              </div>
-            ) : (
-              // Input normal pentru facturi Standard/Avans
-              <Input
-                {...field}
-                type='number'
-                step='any'
-                onChange={(e) =>
-                  field.onChange(parseFloat(e.target.value) || 0)
-                }
-                className='w-full text-right'
-              />
-            )
-          }
+          render={({ field }) => (
+            <Input
+              {...field}
+              type='number'
+              step='any'
+              // Aici este modificarea: Input simplu, fără condiții isStornoRow
+              onChange={(e) => {
+                const val = parseFloat(e.target.value)
+                field.onChange(isNaN(val) ? 0 : val)
+              }}
+              className='w-full text-right'
+            />
+          )}
         />
       </TableCell>
 
@@ -169,44 +149,16 @@ export function InvoiceFormManualRow({
           name={`items.${index}.unitPrice`}
           control={control}
           defaultValue={0}
-          render={({ field }) =>
-            isDiscountRow ? (
-              // --- INPUT PENTRU DISCOUNT (MINUS AUTOMAT) ---
-              <div className='flex items-center relative'>
-                <span className='absolute left-2 text-muted-foreground font-bold'>
-                  -
-                </span>
-                <Input
-                  {...field}
-                  type='number'
-                  step='0.01'
-                  // Afișăm valoarea absolută (pozitivă)
-                  value={field.value ? Math.abs(field.value) : ''}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value)
-                    // Salvăm valoarea negativă
-                    if (!isNaN(val)) {
-                      field.onChange(-Math.abs(val))
-                    } else {
-                      field.onChange(0)
-                    }
-                  }}
-                  className='w-full text-right pl-6'
-                />
-              </div>
-            ) : (
-              // --- INPUT NORMAL ---
-              <Input
-                {...field}
-                type='number'
-                step='0.01'
-                onChange={(e) =>
-                  field.onChange(parseFloat(e.target.value) || 0)
-                }
-                className='w-full text-right'
-              />
-            )
-          }
+          render={({ field }) => (
+            <Input
+              {...field}
+              type='number'
+              step='0.01'
+              // Aici este modificarea: Input simplu, fără condiții isDiscountRow
+              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+              className='w-full text-right'
+            />
+          )}
         />
       </TableCell>
 

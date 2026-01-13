@@ -329,13 +329,13 @@ export const PdfHeader: React.FC<PdfHeaderProps> = ({
           {(meta.contactPerson || meta.contactPhone) && (
             <View
               style={{
-                marginTop: 2,
+                marginTop: 1,
                 borderTopWidth: 0.5,
                 borderTopColor: '#f1f5f9',
                 paddingTop: 1,
                 flexDirection: 'row',
                 flexWrap: 'wrap',
-                gap: 6,
+                gap: 2,
               }}
             >
               {meta.contactPerson && (
@@ -346,13 +346,19 @@ export const PdfHeader: React.FC<PdfHeaderProps> = ({
               )}
 
               {meta.contactPerson && meta.contactPhone && (
-                <Text style={[styles.details, { color: '#cbd5e1' }]}>|</Text>
+                <Text
+                  style={[
+                    styles.details,
+                    { color: '#cbd5e1', marginBottom: 0 },
+                  ]}
+                >
+                  |
+                </Text>
               )}
 
               {meta.contactPhone && (
                 <Text style={[styles.details, { marginBottom: 0 }]}>
-                  <Text style={styles.bold}>Tel. contact:</Text>{' '}
-                  {meta.contactPhone}
+                  <Text style={styles.bold}>Tel.:</Text> {meta.contactPhone}
                 </Text>
               )}
             </View>

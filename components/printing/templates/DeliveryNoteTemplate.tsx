@@ -50,12 +50,20 @@ const styles = StyleSheet.create({
     color: '#999',
     fontWeight: 'bold',
   },
+  fullPageContainer: {
+    height: '100%',
+    borderBottomWidth: 0,
+    paddingBottom: 0,
+    marginBottom: 0,
+    position: 'relative',
+    flex: 1,
+  },
   // FOOTER ULTRA-COMPACT
   footerContainer: {
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: '#000',
-    marginTop: 2,
+    marginTop: 'auto',
     paddingTop: 4,
     paddingLeft: 2,
     minHeight: 40,
@@ -186,9 +194,16 @@ const DeliveryNoteFooter = ({ data }: { data: PdfDocumentData }) => {
 }
 
 export const DeliveryNoteTemplate: React.FC<Props> = ({ data }) => {
-  const renderExemplar = (label: string, isLast: boolean) => (
+  // 1. Verificăm dacă sunt mai mult de 6 produse
+  const isLargeList = data.items.length > 6
+
+  // Funcția de randare a conținutului
+  const renderExemplar = (useFullPage: boolean, isLastInPage: boolean) => (
     <View
-      style={[styles.halfPageContainer, isLast ? styles.lastContainer : {}]}
+      style={[
+        useFullPage ? styles.fullPageContainer : styles.halfPageContainer,
+        !useFullPage && isLastInPage ? styles.lastContainer : {},
+      ]}
       wrap={false}
     >
       <PdfHeader
@@ -205,51 +220,46 @@ export const DeliveryNoteTemplate: React.FC<Props> = ({ data }) => {
           deliveryAddress: data.deliveryAddress
             ? `Str. ${data.deliveryAddress.strada} nr. ${data.deliveryAddress.numar}, ${data.deliveryAddress.localitate}, ${data.deliveryAddress.judet}`
             : undefined,
-          contactPerson: data.deliveryAddress?.persoanaContact, // Verifică dacă există în snapshot
+          contactPerson: data.deliveryAddress?.persoanaContact,
           contactPhone: data.deliveryAddress?.telefonContact,
         }}
       />
+
       {data.uitCode && (
-        <View
-          style={{
-            marginTop: 1,
-            marginBottom: 1,
-            paddingHorizontal: 2,
-            alignItems: 'flex-start',
-          }}
-        >
+        <View style={{ marginTop: 1, marginBottom: 1, paddingHorizontal: 2 }}>
           <Text style={{ fontSize: 8, fontWeight: 'bold' }}>
             COD UIT (e-Transport): {data.uitCode}
           </Text>
         </View>
       )}
+
       <View style={{ flex: 1 }}>
         <PdfDeliveryNoteTable items={data.items} />
       </View>
-      {data.uitCode && (
-        <View
-          style={{
-            marginTop: 4,
-            marginBottom: 2,
-            paddingHorizontal: 4,
-            alignItems: 'flex-start',
-          }}
-        >
-          <Text style={{ fontSize: 8, fontWeight: 'bold' }}>
-            COD UIT (e-Transport): {data.uitCode}
-          </Text>
-        </View>
-      )}
+
       <DeliveryNoteFooter data={data} />
     </View>
   )
 
   return (
     <Document title={`Aviz ${data.series}-${data.number}`}>
-      <Page size='A4' style={styles.page}>
-        {renderExemplar('EXEMPLAR 1 - FURNIZOR', false)}
-        {renderExemplar('EXEMPLAR 2 - CLIENT', true)}
-      </Page>
+      {isLargeList ? (
+        // CAZ A: LISTĂ LUNGĂ -> 2 PAGINI A4 SEPARATE
+        <>
+          <Page size='A4' style={styles.page}>
+            {renderExemplar(true, true)}
+          </Page>
+          <Page size='A4' style={styles.page}>
+            {renderExemplar(true, true)}
+          </Page>
+        </>
+      ) : (
+        // CAZ B: LISTĂ SCURTĂ -> 1 PAGINĂ A4 CU 2 EXEMPLARE (A5)
+        <Page size='A4' style={styles.page}>
+          {renderExemplar(false, false)}
+          {renderExemplar(false, true)}
+        </Page>
+      )}
     </Document>
   )
 }
