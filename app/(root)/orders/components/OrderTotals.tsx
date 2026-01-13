@@ -76,8 +76,11 @@ export function OrderTotals() {
 
   const finalServicesSubtotal = servicesSubtotal
   const overallSubtotal =
-    productsSubtotal + finalServicesSubtotal + manualSubtotal
-  const overallVat = productsVat + servicesVat + manualVat
+    productsSubtotal +
+    packagingSubtotal +
+    finalServicesSubtotal +
+    manualSubtotal
+  const overallVat = productsVat + packagingVat + servicesVat + manualVat
   const grandTotal = overallSubtotal + overallVat
 
   return (

@@ -40,7 +40,7 @@ export function OrdersStatsCard() {
           Situație Comenzi
         </CardTitle>
       </CardHeader>
-      <CardContent className='pb-3'>
+      <CardContent className='pb-1'>
         {/* MODIFICAT: grid-cols-5 pentru a include noile statusuri */}
         <div className='grid grid-cols-5 gap-1 text-center divide-x'>
           {/* 1. CIORNE (NOU) */}
