@@ -361,8 +361,6 @@ export function ScheduleDeliveryModal({
   const onSave = (data: ScheduleDeliveryInput) => {
     if (!delivery) return
 
-    //
-
     if (data.deliveryDate) {
       // 1. Luăm data selectată din formular (care e 00:00 Local)
       const safeDate = new Date(data.deliveryDate)
@@ -372,6 +370,12 @@ export function ScheduleDeliveryModal({
       safeDate.setHours(12, 0, 0, 0)
       // 3. Actualizăm obiectul data înainte de a-l trimite
       data.deliveryDate = safeDate
+    }
+
+    if (data.deliverySlots && data.deliverySlots.length > 0) {
+      data.deliverySlots.sort((a, b) => {
+        return DELIVERY_SLOTS.indexOf(a) - DELIVERY_SLOTS.indexOf(b)
+      })
     }
 
     startTransition(async () => {

@@ -181,12 +181,21 @@ export function EditDeliveryModal({
     if (!deliveryToEdit) return
 
     const items = methods.getValues('items')
-    const requestedDeliverySlots = methods.getValues('requestedDeliverySlots')
+    let requestedDeliverySlots = methods.getValues('requestedDeliverySlots')
 
     let safeDate = data.requestedDeliveryDate
     if (safeDate) {
       safeDate = new Date(safeDate)
       safeDate.setHours(12, 0, 0, 0) // Forțăm ora 12:00
+    }
+
+    if (requestedDeliverySlots && requestedDeliverySlots.length > 0) {
+      requestedDeliverySlots = [...requestedDeliverySlots].sort((a, b) => {
+        return (
+          DELIVERY_SLOTS.indexOf(a as DeliverySlot) -
+          DELIVERY_SLOTS.indexOf(b as DeliverySlot)
+        )
+      })
     }
 
     const updatedPlannedDelivery: PlannedDelivery = {
