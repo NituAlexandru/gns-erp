@@ -70,10 +70,12 @@ export function InvoiceFormItems({
   const handleManualAdd = () => {
     const defaultUnit: string = UNITS[0] || 'bucata'
     const defaultVat: number = isVatDisabled ? 0 : vatRates[0]?.rate || 21
+    const initialQuantity = watchedInvoiceType === 'STORNO' ? -1 : 1
+
     append({
       productName: '',
       productCode: 'MANUAL',
-      quantity: 1,
+      quantity: initialQuantity,
       unitOfMeasure: defaultUnit,
       unitOfMeasureCode: getEFacturaUomCode(defaultUnit),
       unitPrice: 0,
@@ -90,7 +92,7 @@ export function InvoiceFormItems({
       minimumSalePrice: 0,
       packagingOptions: [],
       conversionFactor: 1,
-      quantityInBaseUnit: 1,
+      quantityInBaseUnit: initialQuantity,
       priceInBaseUnit: 0,
       lineCostFIFO: 0, // Costul e 0
       lineProfit: 0, // Profitul e 0
@@ -301,6 +303,10 @@ export function InvoiceFormItems({
               </span>
             </p>
             <div className='flex justify-center gap-4'>
+              <Button type='button' variant='outline' onClick={handleManualAdd}>
+                <PlusCircle className='mr-2 h-4 w-4' />
+                Adaugă Rând Manual
+              </Button>
               <Button
                 type='button'
                 variant='outline'
@@ -409,6 +415,15 @@ export function InvoiceFormItems({
       </div>
       {watchedInvoiceType === 'STORNO' && (
         <div className='flex gap-4 '>
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            onClick={handleManualAdd}
+          >
+            <PlusCircle className='mr-2 h-4 w-4' />
+            Adaugă Rând Manual
+          </Button>
           <Button
             type='button'
             variant='outline'
