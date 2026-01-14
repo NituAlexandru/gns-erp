@@ -85,7 +85,10 @@ export async function GET(request: NextRequest) {
         averagePurchasePrice: 1,
         packagingOptions: 1,
         productCode: 1,
-        images: 1,
+        isPublished: 1,
+        totalStock: 1,
+        images: { $ifNull: ['$images', []] },
+        image: { $arrayElemAt: [{ $ifNull: ['$images', []] }, 0] },
       },
     },
   ]

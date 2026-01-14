@@ -81,3 +81,6 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 # Inventar
 
 - de ajustat pagina inventory/movements/movementID (page-ul) - dupa ce refac reception si creez NIR
+
+# dashboard - lista Stoc disponibil negativ (ca sa stie ca trebuie sa comande)
+profil ud 30 3ml nida
