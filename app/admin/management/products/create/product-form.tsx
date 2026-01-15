@@ -256,9 +256,15 @@ const ProductForm = ({
   }, [])
 
   useEffect(() => {
-    fetch('/api/admin/categories')
+    // Apelăm ruta care aduce DOAR subcategoriile
+    fetch('/api/admin/categories/subcategories')
       .then((r) => r.json())
-      .then((res) => setAllSubCategories(res.data))
+      .then((res) => {
+        // Setăm direct rezultatul (care e un array)
+        if (Array.isArray(res)) {
+          setAllSubCategories(res)
+        }
+      })
       .catch(console.error)
   }, [])
 
@@ -604,7 +610,7 @@ const ProductForm = ({
                     <SelectTrigger className='w-full cursor-pointer'>
                       <SelectValue placeholder='Selectați subcategoria' />
                     </SelectTrigger>
-                    <SelectContent className='bg-white dark:bg-muted'>
+                    <SelectContent className='bg-white dark:bg-muted max-h-[400px] overflow-y-auto'>
                       {subCategories.map((cat) => (
                         <SelectItem key={cat._id} value={cat._id}>
                           {cat.name}

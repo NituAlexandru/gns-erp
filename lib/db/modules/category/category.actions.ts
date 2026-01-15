@@ -99,3 +99,15 @@ export async function getMainCategories() {
     .lean()
   return JSON.parse(JSON.stringify(docs))
 }
+
+// 8) GET ALL SUB-CATEGORIES (Doar cele care au părinte, fără paginare)
+export async function getAllSubCategories() {
+  await connectToDatabase()
+  // Căutăm categoriile care au câmpul mainCategory completat
+  const docs = await CategoryModel.find({
+    mainCategory: { $exists: true, $ne: null },
+  })
+    .sort({ name: 1 })
+    .lean()
+  return JSON.parse(JSON.stringify(docs))
+}

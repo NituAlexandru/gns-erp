@@ -7,7 +7,7 @@ export default function FinancialLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className='grid md:grid-cols-5 max-w-full gap-2 p-0'>
+    <div className='grid md:grid-cols-8 max-w-full gap-2 p-0'>
       {/* Coloana stângă – meniu documente */}
       <aside className='md:col-span-1'>
         <div className='sticky top-24'>
@@ -16,7 +16,7 @@ export default function FinancialLayout({
       </aside>
 
       {/* Coloana dreaptă – conținut */}
-      <main className='md:col-span-4 '>{children}</main>
+      <main className='md:col-span-7 '>{children}</main>
     </div>
   )
 }
