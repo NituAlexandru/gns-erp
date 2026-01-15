@@ -1,5 +1,5 @@
 import mongoose, { Types } from 'mongoose'
-import ReceptionModel, { IInvoice } from './reception.model'
+import ReceptionModel, { IInvoice, IReceptionDoc } from './reception.model'
 import { reverseStockMovementsByReference } from '../inventory/inventory.actions.core'
 import { getStockableItemDetails } from './utils'
 import { ReceptionCreateSchema, ReceptionUpdateSchema } from './validator'
@@ -424,6 +424,7 @@ export async function confirmReception({
 
         const itemType = 'product' in item ? 'ERPProduct' : 'Packaging'
         const itemId = 'product' in item ? item.product : item.packaging
+       
         const details = await getStockableItemDetails(
           itemId.toString(),
           itemType
@@ -431,10 +432,15 @@ export async function confirmReception({
 
         // 1. Calculăm cantitatea în unitatea de BAZĂ
         let baseQuantity = 0
+        let baseDocumentQuantity = 0
         let conversionFactor = 1
+
+        const rawDocumentQty = item.documentQuantity ?? item.quantity
+
         switch (item.unitMeasure) {
           case details.unit:
             baseQuantity = item.quantity
+            baseDocumentQuantity = rawDocumentQty
             conversionFactor = 1
             break
           case details.packagingUnit:
@@ -443,6 +449,7 @@ export async function confirmReception({
                 `Factor de conversie 'packagingQuantity' invalid pentru ${itemId}.`
               )
             baseQuantity = item.quantity * details.packagingQuantity
+            baseDocumentQuantity = rawDocumentQty * details.packagingQuantity
             conversionFactor = details.packagingQuantity
             break
           case 'palet':
@@ -458,6 +465,7 @@ export async function confirmReception({
                 `Calculul unităților pe palet a eșuat pentru ${itemId}.`
               )
             baseQuantity = item.quantity * totalBaseUnitsPerPallet
+            baseDocumentQuantity = rawDocumentQty * totalBaseUnitsPerPallet
             conversionFactor = totalBaseUnitsPerPallet
             break
           default:
@@ -490,9 +498,11 @@ export async function confirmReception({
         item.originalQuantity = item.quantity
         item.originalUnitMeasure = item.unitMeasure
         item.originalInvoicePricePerUnit = item.invoicePricePerUnit
+        item.originalDocumentQuantity = rawDocumentQty
 
         // 3. SUPRASCRIEM DATELE PE DOCUMENTUL DE RECEPȚIE CU VALORILE STANDARD
         item.quantity = baseQuantity
+        item.documentQuantity = baseDocumentQuantity
         item.unitMeasure = details.unit! // Forțăm unitatea de măsură de bază
         item.invoicePricePerUnit = invoicePricePerBaseUnit // Forțăm prețul pe unitatea de bază
         item.distributedTransportCostPerUnit =
@@ -740,6 +750,11 @@ export async function revokeConfirmation(
           item.quantity = item.originalQuantity
           item.unitMeasure = item.originalUnitMeasure
           item.invoicePricePerUnit = item.originalInvoicePricePerUnit
+
+          if (item.originalDocumentQuantity !== undefined) {
+            item.documentQuantity = item.originalDocumentQuantity
+            item.originalDocumentQuantity = undefined // Resetăm câmpul
+          }
 
           // Curățăm câmpurile temporare
           item.originalQuantity = undefined

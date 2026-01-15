@@ -109,6 +109,7 @@ export function ReceptionForm({
             initialData.products?.map((p) => ({
               product: p.product._id,
               quantity: p.quantity,
+              documentQuantity: p.documentQuantity,
               unitMeasure: p.unitMeasure,
               invoicePricePerUnit: p.invoicePricePerUnit,
               vatRate: p.vatRate,
@@ -123,6 +124,7 @@ export function ReceptionForm({
             initialData.packagingItems?.map((p) => ({
               packaging: p.packaging._id,
               quantity: p.quantity,
+              documentQuantity: p.documentQuantity,
               unitMeasure: p.unitMeasure,
               invoicePricePerUnit: p.invoicePricePerUnit,
               vatRate: p.vatRate,

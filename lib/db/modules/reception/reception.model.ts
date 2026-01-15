@@ -88,12 +88,14 @@ export interface IReceptionDoc extends Document {
     productName: string
     productCode?: string
     quantity: number
+    documentQuantity?: number
     unitMeasure: string
     unitMeasureCode?: string
     originalQuantity?: number
     originalUnitMeasure?: string
     originalInvoicePricePerUnit?: number
     qualityDetails?: IQualityDetails
+    originalDocumentQuantity?: number
   } & IReceptionItemCost)[]
   packagingItems: ({
     _id: Types.ObjectId
@@ -101,9 +103,11 @@ export interface IReceptionDoc extends Document {
     packagingName: string
     productCode?: string
     quantity: number
+    documentQuantity?: number
     unitMeasure: string
     unitMeasureCode?: string
     originalQuantity?: number
+    originalDocumentQuantity?: number
     originalUnitMeasure?: string
     originalInvoicePricePerUnit?: number
     qualityDetails?: IQualityDetails
@@ -252,6 +256,7 @@ const receptionSchema = new Schema<IReceptionDoc>(
         originalQuantity: { type: Number, required: false },
         originalUnitMeasure: { type: String, required: false },
         originalInvoicePricePerUnit: { type: Number, required: false },
+        originalDocumentQuantity: { type: Number, required: false },
         qualityDetails: { type: QualityDetailsSchema, required: false },
         ...receptionItemCostSchema,
       },
@@ -269,6 +274,7 @@ const receptionSchema = new Schema<IReceptionDoc>(
         originalQuantity: { type: Number, required: false },
         originalUnitMeasure: { type: String, required: false },
         originalInvoicePricePerUnit: { type: Number, required: false },
+        originalDocumentQuantity: { type: Number, required: false },
         qualityDetails: { type: QualityDetailsSchema, required: false },
         ...receptionItemCostSchema,
       },

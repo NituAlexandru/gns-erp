@@ -19,6 +19,7 @@ const QualityDetailsZod = z
 export const ReceptionProductSchema = z.object({
   product: MongoId,
   documentQuantity: z.number().nonnegative().optional(),
+  originalDocumentQuantity: z.number().nonnegative().optional(),
   quantity: z.number().positive('Cantitatea trebuie să fie mai mare ca 0.'),
   unitMeasure: z.string().min(1),
   invoicePricePerUnit: z.number().nonnegative().nullable().optional(),
@@ -30,6 +31,7 @@ export const ReceptionProductSchema = z.object({
 export const ReceptionPackagingSchema = z.object({
   packaging: MongoId,
   documentQuantity: z.number().nonnegative().optional(),
+  originalDocumentQuantity: z.number().nonnegative().optional(),
   quantity: z.number().positive('Cantitatea trebuie să fie mai mare ca 0.'),
   unitMeasure: z.string().min(1),
   unitMeasureCode: z.string().optional(),
