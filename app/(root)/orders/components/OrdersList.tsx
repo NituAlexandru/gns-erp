@@ -17,7 +17,10 @@ import { useDebounce } from '@/hooks/use-debounce'
 import qs from 'query-string'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { formatCurrency } from '@/lib/utils'
-import { cancelOrder } from '@/lib/db/modules/order/order.actions'
+import {
+  cancelOrder,
+  checkOrderCancellationEligibility,
+} from '@/lib/db/modules/order/order.actions'
 import { toast } from 'sonner'
 import {
   DropdownMenu,
@@ -61,6 +64,9 @@ export function OrdersList({
   const debouncedFilters = useDebounce(filters, 500)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [orderToCancel, setOrderToCancel] = useState<PopulatedOrder | null>(
+    null
+  )
+  const [cancellationWarning, setCancellationWarning] = useState<string | null>(
     null
   )
 
@@ -220,8 +226,26 @@ export function OrdersList({
                         <DropdownMenuItem
                           className='text-red-500'
                           onSelect={() => {
-                            setOrderToCancel(order)
-                            setIsConfirmOpen(true)
+                            // Facem verificarea înainte să deschidem dialogul
+                            startTransition(async () => {
+                              const check =
+                                await checkOrderCancellationEligibility(
+                                  order._id
+                                )
+
+                              if (!check.allowed) {
+                                // Caz BLOCANT: Afișăm eroare și NU deschidem modalul
+                                toast.error('Anulare imposibilă', {
+                                  description: check.message,
+                                })
+                                return
+                              }
+
+                              // Caz PERMIS: Setăm mesajul de avertizare (dacă există livrări) și deschidem
+                              setCancellationWarning(check.message) // Poate fi null sau textul cu "X livrări"
+                              setOrderToCancel(order)
+                              setIsConfirmOpen(true)
+                            })
                           }}
                           disabled={
                             order.status === 'COMPLETED' ||
@@ -275,9 +299,23 @@ export function OrdersList({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmare Anulare</AlertDialogTitle>
             <AlertDialogDescription>
-              Ești sigur că vrei să anulezi comanda{' '}
-              <strong>{orderToCancel?.orderNumber}</strong>? Dacă stocul a fost
-              rezervat, acesta va fi eliberat. Acțiunea este ireversibilă.
+              {cancellationWarning ? (
+                // Varianta cu Avertisment Livrări
+                <span className='flex flex-col gap-2'>
+                  <span>{cancellationWarning}</span>
+                  <span className='text-red-600 font-semibold'>
+                    Ești sigur că vrei să continui?
+                  </span>
+                </span>
+              ) : (
+                // Varianta Standard
+                <span>
+                  Ești sigur că vrei să anulezi comanda{' '}
+                  <strong>{orderToCancel?.orderNumber}</strong>? Dacă stocul a
+                  fost rezervat, acesta va fi eliberat. Acțiunea este
+                  ireversibilă.
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

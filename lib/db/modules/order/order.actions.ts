@@ -27,6 +27,7 @@ import {
 import { VatRateDTO } from '../setting/vat-rate/types'
 import { IOrderLineItem } from '../deliveries/types'
 import { subHours } from 'date-fns'
+import DeliveryModel from '../deliveries/delivery.model'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -439,23 +440,65 @@ export async function cancelOrder(orderId: string) {
   session.startTransaction()
 
   try {
+    const sessionAuth = await auth()
+    const userId = sessionAuth?.user?.id
+    const userName = sessionAuth?.user?.name || 'Sistem'
+
+    // 1. Găsim comanda
     const order = await Order.findById(orderId).session(session)
-    if (!order) {
-      throw new Error('Comanda nu a fost găsită.')
+    if (!order) throw new Error('Comanda nu a fost găsită.')
+
+    // 2. Verificăm Livrările (Guard Logic - Repetăm verificarea pentru siguranță backend)
+    const deliveries = await DeliveryModel.find({ orderId }).session(session)
+
+    // Blocăm dacă există livrate/facturate/în tranzit
+    const blockingDelivery = deliveries.find((d) =>
+      ['DELIVERED', 'INVOICED', 'IN_TRANSIT'].includes(d.status)
+    )
+    if (blockingDelivery) {
+      throw new Error(
+        `Nu se poate anula: Livrarea ${blockingDelivery.deliveryNumber} este în stadiul ${blockingDelivery.status}.`
+      )
     }
 
-    // Eliberăm stocul DOAR dacă comanda era confirmată
-    if (order.status === 'CONFIRMED') {
+    // 3. ANULARE ÎN CASCADĂ: Livrările CREATED sau SCHEDULED
+    // Le setăm pe CANCELLED
+    await DeliveryModel.updateMany(
+      {
+        orderId: order._id,
+        status: { $in: ['CREATED', 'SCHEDULED'] },
+      },
+      {
+        $set: {
+          status: 'CANCELLED',
+          lastUpdatedBy: userId ? new Types.ObjectId(userId) : undefined,
+          lastUpdatedByName: userName,
+        },
+      },
+      { session }
+    )
+
+    // 4. Logica veche de anulare comandă (Eliberare Stoc + Status)
+    if (
+      order.status === 'CONFIRMED' ||
+      order.status === 'SCHEDULED' ||
+      order.status === 'PARTIALLY_DELIVERED'
+    ) {
       await unreserveStock(order.lineItems, session)
     }
 
-    // Setăm noul status
     order.status = 'CANCELLED'
     await order.save({ session })
 
     await session.commitTransaction()
+
     revalidatePath('/orders')
-    return { success: true, message: 'Comanda a fost anulată cu succes.' }
+    revalidatePath('/deliveries') // Important: Actualizăm și lista de livrări
+
+    return {
+      success: true,
+      message: 'Comanda și livrările asociate au fost anulate.',
+    }
   } catch (error) {
     await session.abortTransaction()
     console.error('Eroare la anularea comenzii:', error)
@@ -609,7 +652,6 @@ export type OrderStats = {
   drafts: number // <-- NOU
   overdue: number
 }
-
 export async function getOrderStats(): Promise<OrderStats> {
   await connectToDatabase()
 
@@ -697,5 +739,48 @@ export async function getOrderStats(): Promise<OrderStats> {
   } catch (error) {
     console.error('Eroare la calcularea statisticilor pentru comenzi:', error)
     return { confirmed: 0, inProgress: 0, toInvoice: 0, drafts: 0, overdue: 0 }
+  }
+}
+export async function checkOrderCancellationEligibility(orderId: string) {
+  await connectToDatabase()
+
+  const deliveries = await DeliveryModel.find({ orderId }).lean()
+
+  // 1. Verificare Blocantă: Livrate sau Facturate
+  const hasCompleted = deliveries.some((d) =>
+    ['DELIVERED', 'INVOICED'].includes(d.status)
+  )
+  if (hasCompleted) {
+    return {
+      allowed: false,
+      reason: 'BLOCK_COMPLETED',
+      message:
+        'Există livrări finalizate (Livrate/Facturate). Comanda nu poate fi anulată.',
+    }
+  }
+
+  // 2. Verificare Blocantă: În Tranzit (Aviz Generat)
+  const hasTransit = deliveries.some((d) => d.status === 'IN_TRANSIT')
+  if (hasTransit) {
+    return {
+      allowed: false,
+      reason: 'BLOCK_TRANSIT',
+      message:
+        'Există livrări cu Aviz generat (În Tranzit). Anulează întâi avizele.',
+    }
+  }
+
+  // 3. Verificare Avertisment: Livrări Active (De programat / Programate)
+  const activeDeliveriesCount = deliveries.filter((d) =>
+    ['CREATED', 'SCHEDULED'].includes(d.status)
+  ).length
+
+  return {
+    allowed: true,
+    activeDeliveriesCount,
+    message:
+      activeDeliveriesCount > 0
+        ? `Această comandă are ${activeDeliveriesCount} livrări programate care vor fi anulate automat.`
+        : null,
   }
 }
