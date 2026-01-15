@@ -119,10 +119,10 @@ export function InvoicesList({
   const [printData, setPrintData] = useState<any>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
-  useEffect(() => {
-    setInvoices(initialData.data)
-    setTotalPages(initialData.totalPages)
-  }, [initialData])
+  // useEffect(() => {
+  //   setInvoices(initialData.data)
+  //   setTotalPages(initialData.totalPages)
+  // }, [initialData])
 
   const handleShowError = (errorMsg: string | undefined) => {
     setCurrentError(errorMsg || 'Eroare necunoscută.')

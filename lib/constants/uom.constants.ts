@@ -13,13 +13,13 @@ export const uomToEFacturaMap: Record<InternalUoM, string> = {
   litru: 'LTR',
   m2: 'MTK',
   m3: 'MTQ',
-  ml: 'MLT',
+  ml: 'MTR',
   palet: 'NAR', // PX, NAR
   set: 'SET',
   cutie: 'BX',
   bax: 'CS',
   rola: 'RO',
-  sac: 'BG',
+  sac: 'H87',
   punga: 'BG', // 'punga' și 'sac' au același cod standard
   balot: 'BE',
   colac: 'CL',

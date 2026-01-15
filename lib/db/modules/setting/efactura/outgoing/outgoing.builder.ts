@@ -137,7 +137,7 @@ export const buildAnafXml = ({
     taxSubtotalsMap.set(vatRate, existing)
 
     const mappedCode = getEFacturaUomCode(item.unitOfMeasure)
-    const uomCode = item.unitOfMeasureCode || mappedCode
+    const uomCode = item.unitOfMeasureCode || mappedCode || 'H87'
 
     if (!uomCode) {
       throw new Error(
@@ -285,7 +285,7 @@ export const buildAnafXml = ({
 
       'cbc:CustomizationID':
         'urn:cen.eu:en16931:2017#compliant#urn:efactura.mfinante.ro:CIUS-RO:1.0.1',
-      'cbc:ID': `${invoice.seriesName}${invoice.invoiceNumber}`,
+      'cbc:ID': `${invoice.seriesName}-${invoice.invoiceNumber}`,
       'cbc:IssueDate': format(new Date(invoice.invoiceDate), 'yyyy-MM-dd'),
       'cbc:DueDate': format(new Date(invoice.dueDate), 'yyyy-MM-dd'),
       'cbc:InvoiceTypeCode': invoiceTypeCode,

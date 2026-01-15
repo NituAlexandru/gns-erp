@@ -83,6 +83,10 @@ export async function uploadInvoiceToAnaf(invoiceId: string) {
     if (!populatedInvoice.clientSnapshot?.cui)
       throw new Error('Lipsește CUI Client.')
 
+    populatedInvoice.clientSnapshot.cui = populatedInvoice.clientSnapshot.cui
+      .toUpperCase()
+      .replace(/\s+/g, '')
+
     // 2. Determinare Metodă Plată
     const { method } = await getPaymentDetails(
       invoiceId,
