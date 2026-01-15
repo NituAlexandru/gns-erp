@@ -10,7 +10,8 @@ export default async function TreasuryLayout({
   const session = await auth()
   const userRole = session?.user?.role || 'user'
   const isAdmin = SUPER_ADMIN_ROLES.includes(userRole.toLowerCase())
-
+  const isManager = userRole.toLowerCase() === 'manager'
+  
   return (
     <div className='grid md:grid-cols-7 max-w-full gap-1 p-0 h-[calc(100vh-6rem)] overflow-hidden'>
       <aside className='md:col-span-1 overflow-y-auto border-r'>

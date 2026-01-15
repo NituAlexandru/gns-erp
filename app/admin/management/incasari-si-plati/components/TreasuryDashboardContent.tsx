@@ -50,6 +50,16 @@ interface TreasuryDashboardContentProps {
   initialOverdueClients: OverdueClientSummary[]
 }
 
+function RestrictedAccessMessage() {
+  return (
+    <div className='flex flex-col items-center justify-center h-64 border rounded-lg bg-muted/20 text-center'>
+      <h2 className='text-xl font-bold'>Acces Restricționat</h2>
+      <p className='text-muted-foreground'>
+        Nu ai permisiunea de a vizualiza Sumarul de Trezorerie.
+      </p>
+    </div>
+  )
+}
 export function TreasuryDashboardContent({
   isAdmin,
   initialStaticStats,
@@ -69,6 +79,8 @@ export function TreasuryDashboardContent({
     useState<PopulatedClientPayment | null>(null)
 
   useEffect(() => {
+    if (!isAdmin) return
+
     const fetchDynamicData = async () => {
       if (!date || !date.from || !date.to) return
       setIsLoading(true)
@@ -84,7 +96,7 @@ export function TreasuryDashboardContent({
     }
 
     fetchDynamicData()
-  }, [date])
+  }, [date, isAdmin])
 
   // Handler pentru deschiderea modalului când dai click pe o plată nealocată
   const handleOpenAllocation = async (paymentId: string) => {
@@ -98,6 +110,10 @@ export function TreasuryDashboardContent({
     } catch {
       toast.error('Eroare la deschiderea plății.')
     }
+  }
+
+  if (!isAdmin) {
+    return <RestrictedAccessMessage />
   }
 
   const staticStats = initialStaticStats

@@ -1,4 +1,3 @@
-
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -17,6 +16,10 @@ const links = [
   {
     title: 'Receptie',
     href: '/admin/management/reception',
+  },
+  {
+    title: 'Incasări si Plăti',
+    href: '/admin/management/incasari-si-plati',
   },
   {
     title: 'Parc Auto',

@@ -27,7 +27,7 @@ const ALL_NAV_ITEMS = [
     id: 'payables',
     label: 'Plăți Furnizori',
     icon: <TrendingDown size={16} />,
-    adminOnly: true,
+    adminOnly: false,
   },
   {
     id: 'budgeting',

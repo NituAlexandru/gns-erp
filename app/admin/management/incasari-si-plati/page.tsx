@@ -1,4 +1,3 @@
-
 import { auth } from '@/auth'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 import {
@@ -10,11 +9,18 @@ import {
   TreasuryStaticStats,
   OverdueClientSummary,
 } from '@/lib/db/modules/financial/treasury/summary/summary.types'
+import { redirect } from 'next/navigation'
 
 export default async function TreasuryDashboardPage() {
   const session = await auth()
   const userRole = session?.user?.role || 'user'
   const isAdmin = SUPER_ADMIN_ROLES.includes(userRole.toLowerCase())
+  const isManager = userRole.toLowerCase() === 'manager'
+
+  // Dacă e manager și NU e admin, îl trimitem direct la Plăți Furnizori
+  if (isManager && !isAdmin) {
+    redirect('/admin/management/incasari-si-plati/payables')
+  }
 
   const [staticStats, overdueClients] = await Promise.all([
     getStaticTreasuryStats(),
