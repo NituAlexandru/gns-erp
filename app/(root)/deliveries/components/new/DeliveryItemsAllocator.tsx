@@ -10,13 +10,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PlannerItem } from '@/lib/db/modules/deliveries/types'
@@ -65,12 +58,6 @@ export function DeliveryItemsAllocator({
     })
   }, [itemsToAllocate])
 
-  const handleUnitChange = (item: PlannerItem, newUnit: string) => {
-    onAllocationChange(item.id, {
-      unitOfMeasure: newUnit,
-      quantityToAllocate: 0,
-    })
-  }
   const handleQuantityChange = (item: PlannerItem, newQuantityStr: string) => {
     if (newQuantityStr === '') {
       onAllocationChange(item.id, { quantityToAllocate: 0 })
@@ -173,28 +160,8 @@ export function DeliveryItemsAllocator({
                         </span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Select
-                        value={item.unitOfMeasure}
-                        onValueChange={(newUnit) =>
-                          handleUnitChange(
-                            itemsToAllocate.find((i) => i.id === item.id)!,
-                            newUnit
-                          )
-                        }
-                        disabled={item.allUnits.length <= 1}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {item.allUnits.map((u) => (
-                            <SelectItem key={u.unitName} value={u.unitName}>
-                              {u.unitName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <TableCell className='text-center font-medium'>
+                      {item.unitOfMeasure}
                     </TableCell>
                     <TableCell className='text-right'>
                       <Input
