@@ -334,14 +334,6 @@ export function InvoiceForm({
     }
   }, [watchedClientId, selectedClient, getValues, setValue])
 
-  // ... (useEffect pentru scadență)
-  useEffect(() => {
-    if (selectedClient && watchedInvoiceDate) {
-      const paymentTerm = selectedClient.paymentTerm || 0
-      setValue('dueDate', addDays(watchedInvoiceDate, paymentTerm))
-    }
-  }, [watchedInvoiceDate, selectedClient, setValue])
-
   useEffect(() => {
     if (selectedAddress) {
       // Setează valorile în formular pentru validare și submit

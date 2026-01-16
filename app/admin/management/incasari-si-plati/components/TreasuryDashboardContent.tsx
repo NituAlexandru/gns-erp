@@ -186,14 +186,14 @@ export function TreasuryDashboardContent({
           title={`Facturat ${formattedDateRange}`}
           value={formatCurrency(dynamicStats.totalFacturat)}
           icon={<FileText className='text-blue-600' size={24} />}
-          infoText='Valoarea totală a facturilor fiscale emise în intervalul selectat (fără proforme). Include scăderile din facturile storno.'
+          infoText='Volumul de vânzări din perioada selectată. Adună valoarea totală a tuturor facturilor fiscale emise (status Create, Trimise, Aprobate), indiferent dacă au fost plătite sau nu. Această cifră este fixă și nu scade când încasezi.'
         />
 
         <StatCard
           title={`Încasat ${formattedDateRange}`}
           value={formatCurrency(dynamicStats.totalIncasat)}
           icon={<Banknote className='text-green-500' size={24} />}
-          infoText='Totalul banilor intrați efectiv în firmă (cont/casă) în intervalul selectat, indiferent dacă sunt alocați pe facturi sau nu.'
+          infoText='Flux de numerar (Cashflow). Totalul încasărilor înregistrate (Bancă/Casă) în perioada selectată, indiferent dacă au fost alocate pe facturi sau au rămas nealocate.'
         />
 
         {isAdmin && (
@@ -201,7 +201,7 @@ export function TreasuryDashboardContent({
             title={`Plăți ${formattedDateRange}`}
             value={formatCurrency(dynamicStats.totalPlati)}
             icon={<Library className='text-purple-500' size={24} />}
-            infoText='Suma totală a plăților efectuate către furnizori în intervalul selectat.'
+            infoText='Flux de numerar (Cashflow). Totalul plăților efectuate efectiv către furnizori în perioada selectată.'
           />
         )}
 
@@ -209,7 +209,7 @@ export function TreasuryDashboardContent({
           title='Sold Clienți (Total)'
           value={formatCurrency(staticStats.totalDeIncasat)}
           icon={<TrendingUp className='text-emerald-600' size={24} />}
-          infoText='Câți bani ai de recuperat în total de la clienți în acest moment (facturi emise și neîncasate).'
+          infoText='Câți bani ai de primit AZI. Adună "Restul de Plată" de la toate facturile active din istoric (inclusiv cele doar Emise sau Trimise). Această cifră este vie: crește când facturezi și SCADE când înregistrezi o încasare. Sunt luate in calcul doar facturile APROBATE'
         />
 
         {isAdmin && (
@@ -217,7 +217,7 @@ export function TreasuryDashboardContent({
             title='Sold Furnizori (Total)'
             value={formatCurrency(staticStats.totalDePlatit)}
             icon={<TrendingDown className='text-orange-500' size={24} />}
-            infoText='Câți bani ai de plătit în total către furnizori în acest moment (facturi primite și neachitate).'
+            infoText='Datoria curentă către furnizori. Suma rămasă de plată pentru toate facturile de furnizor înregistrate în sistem (status Neplătită sau Parțial Plătită).'
           />
         )}
       </div>

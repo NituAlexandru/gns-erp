@@ -28,6 +28,7 @@ export async function getStaticTreasuryStats(): Promise<TreasuryStaticStats> {
             {
               $match: {
                 status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
+                invoiceType: { $ne: 'PROFORMA' },
               },
             },
             {
@@ -191,7 +192,7 @@ export async function getDynamicClientSummary(
         {
           $match: {
             invoiceDate: { $gte: startDate, $lte: endOfDayTo },
-            status: { $ne: 'CANCELLED' },
+            status: { $in: ['CREATED', 'APPROVED', 'PAID', 'PARTIAL_PAID'] },
             invoiceType: { $ne: 'PROFORMA' },
           },
         },
@@ -435,7 +436,7 @@ export async function getDynamicInvoicedTotal(
       {
         $match: {
           invoiceDate: { $gte: startDate, $lte: endOfDayTo },
-          status: { $ne: 'CANCELLED' }, // Ignorăm anulatele
+          status: { $in: ['CREATED', 'APPROVED', 'PAID', 'PARTIAL_PAID'] },
           invoiceType: { $ne: 'PROFORMA' }, // Ignorăm proformele
         },
       },
