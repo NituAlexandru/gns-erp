@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 import {
   Table,
   TableBody,
@@ -85,7 +85,7 @@ interface InvoicesListProps {
     totalPages: number
   }
   currentPage: number
-  isAdmin: boolean // Vom folosi asta pentru aprobări
+  isAdmin: boolean
 }
 
 export function InvoicesList({
@@ -97,7 +97,9 @@ export function InvoicesList({
   const [invoices, setInvoices] = useState<PopulatedInvoice[]>(initialData.data)
   const [totalPages, setTotalPages] = useState(initialData.totalPages)
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(currentPage)
+  const [queryParams, setQueryParams] = useState({
+    page: currentPage,
+  })
   const [filters, setFilters] = useState<InvoiceFilters>({})
   const debouncedFilters = useDebounce(filters, 500)
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
@@ -119,46 +121,50 @@ export function InvoicesList({
   const [printData, setPrintData] = useState<any>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
-  // useEffect(() => {
-  //   setInvoices(initialData.data)
-  //   setTotalPages(initialData.totalPages)
-  // }, [initialData])
-
   const handleShowError = (errorMsg: string | undefined) => {
     setCurrentError(errorMsg || 'Eroare necunoscută.')
     setErrorModalOpen(true)
   }
 
   useEffect(() => {
+    setQueryParams({ page: 1 })
+  }, [debouncedFilters])
+
+  useEffect(() => {
+    const controller = new AbortController()
     if (typeof window !== 'undefined') {
       const fetchInvoices = () => {
         startTransition(async () => {
           const url = qs.stringifyUrl(
             {
               url: '/api/invoices',
-              query: { ...debouncedFilters, page },
+              query: {
+                ...queryParams, // Trimitem pagina
+                ...debouncedFilters, // ✅ MODIFICARE: Adăugăm și filtrele în query string
+              },
             },
             { skipNull: true, skipEmptyString: true }
           )
 
           try {
-            const res = await fetch(url)
+            const res = await fetch(url, { signal: controller.signal })
             const result = await res.json()
             setInvoices(result.data || [])
             setTotalPages(result.totalPages || 0)
           } catch (error) {
-            console.error('Failed to fetch filtered invoices:', error)
-            setInvoices([])
-            setTotalPages(0)
+            if ((error as Error).name !== 'AbortError') {
+              console.error('Fetch error:', error)
+              setInvoices([])
+            }
           }
         })
       }
       fetchInvoices()
     }
-  }, [debouncedFilters, page])
+    return () => controller.abort()
+  }, [queryParams, debouncedFilters])
 
   const handleFiltersChange = (newFilters: Partial<InvoiceFilters>) => {
-    setPage(1) // Resetează pagina la orice filtru nou
     setFilters((prev) => ({ ...prev, ...newFilters }))
   }
 
@@ -793,18 +799,32 @@ export function InvoicesList({
         <div className='flex items-center justify-center gap-2 mt-4'>
           <Button
             variant='outline'
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || isPending}
+            // Modificare aici:
+            onClick={() =>
+              setQueryParams((prev) => ({
+                ...prev,
+                page: Math.max(1, prev.page - 1),
+              }))
+            }
+            disabled={queryParams.page <= 1 || isPending}
           >
             Anterior
           </Button>
+
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {queryParams.page} din {totalPages}
           </span>
+
           <Button
             variant='outline'
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || isPending}
+            // Modificare aici:
+            onClick={() =>
+              setQueryParams((prev) => ({
+                ...prev,
+                page: Math.min(totalPages, prev.page + 1),
+              }))
+            }
+            disabled={queryParams.page >= totalPages || isPending}
           >
             Următor
           </Button>
