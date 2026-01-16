@@ -263,6 +263,7 @@ export async function createInvoice(
   await connectToDatabase()
 
   const session = await startSession()
+  
   try {
     let newInvoice: IInvoiceDoc | null = null
 
