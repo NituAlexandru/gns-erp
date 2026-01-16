@@ -15,15 +15,15 @@ export const connectToDatabase = async (
 ) => {
   if (cached.conn) {
     // Mesaj pentru conexiunea din cache
-    console.log('🟢 [DB] Folosesc conexiunea existentă (CACHE).')
+    console.log('🟢 [DB] Folosesc conexiunea existentă (CACHE). /db/index.ts')
     return cached.conn
   }
 
   if (!MONGODB_ERP_URI) throw new Error('MONGODB_ERP_URI is missing')
 
   if (!cached.promise) {
-    console.log('🟡 [DB] Se inițiază o conexiune NOUĂ...')
-    
+    console.log('🟡 [DB] Se inițiază o conexiune NOUĂ.../db/index.ts')
+
     const opts = {
       bufferCommands: false, // Asta e cheia pentru timeout!
     }
