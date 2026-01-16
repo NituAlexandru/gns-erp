@@ -1,6 +1,12 @@
 import { DeliveryNoteDTO } from '@/lib/db/modules/financial/delivery-notes/delivery-note.types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Calendar, FileText, Info, ShoppingCart } from 'lucide-react'
+import {
+  AlertCircle,
+  Calendar,
+  FileText,
+  Info,
+  ShoppingCart,
+} from 'lucide-react'
 import { DetailRow } from './DeliveryNoteDetails.helpers'
 
 interface DeliveryNoteSummaryProps {
@@ -8,6 +14,8 @@ interface DeliveryNoteSummaryProps {
 }
 
 export function DeliveryNoteSummary({ note }: DeliveryNoteSummaryProps) {
+  const isCancelled = note.status === 'CANCELLED'
+
   return (
     <div className='space-y-2'>
       {/* REFERINȚE DOCUMENT */}
@@ -73,6 +81,37 @@ export function DeliveryNoteSummary({ note }: DeliveryNoteSummaryProps) {
                 <span className='font-mono font-bold text-sm bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-200 px-2 py-0.5 rounded select-all'>
                   {note.uitCode}
                 </span>
+              </div>
+            </div>
+          )}
+          {isCancelled && (
+            <div className='mt-4 p-3 rounded-md border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-900/50'>
+              <div className='flex items-center gap-2 mb-2 pb-2 border-b border-red-200/50'>
+                <AlertCircle className='h-4 w-4 text-red-600 dark:text-red-400' />
+                <span className='font-bold text-red-700 dark:text-red-400 text-xs uppercase tracking-wide'>
+                  Acest aviz este anulat
+                </span>
+              </div>
+
+              <div className='space-y-1'>
+                <div>
+                  <p className='text-xs text-red-600/80 dark:text-red-300 uppercase font-semibold'>
+                    Motiv:
+                  </p>
+                  <p className='text-sm font-bold text-red-900 dark:text-red-100'>
+                    {note.cancellationReason || 'Nespecificat'}
+                  </p>
+                </div>
+                {/* Meta-data despre anulare */}
+                {note.cancelledByName && (
+                  <div className='pt-1 mt-1 text-xs text-red-700/70 dark:text-red-300/70 italic text-right'>
+                    Anulat de {note.cancelledByName} <br />
+                    la data{' '}
+                    {note.cancelledAt
+                      ? new Date(note.cancelledAt).toLocaleString('ro-RO')
+                      : ''}
+                  </div>
+                )}
               </div>
             </div>
           )}

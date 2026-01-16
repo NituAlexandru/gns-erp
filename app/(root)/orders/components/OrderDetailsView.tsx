@@ -59,7 +59,22 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
     DELIVERY_METHODS.find((m) => m.key === order.deliveryType)?.label ||
     order.deliveryType
 
-  // --- BLOCUL useMemo A FOST ȘTERS DE AICI ---
+  const formatAddress = (addr: any) => {
+    if (!addr) return '-'
+    if (typeof addr === 'string') return addr
+
+    return [
+      addr.strada ? `Str. ${addr.strada}` : null,
+      addr.numar ? `nr. ${addr.numar}` : null,
+      addr.alteDetalii,
+      addr.localitate,
+      addr.judet ? `Jud. ${addr.judet}` : null,
+      addr.codPostal,
+    ]
+      .filter(Boolean)
+      .join(', ')
+  }
+  const deliveryAddressString = formatAddress(order.deliveryAddress)
 
   const [isProformaModalOpen, setIsProformaModalOpen] = useState(false)
   const [proformaSeries, setProformaSeries] = useState<SeriesDTO[]>([])
@@ -181,7 +196,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
             <CardContent className='text-sm space-y-4'>
               <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
                 {/* Date Facturare */}
-                <div>
+                <div className='col-span-1'>
                   <h3 className='font-semibold mb-1'>Date Facturare</h3>
                   <p className='font-medium '>{order.clientSnapshot.name}</p>
                   <p className='text-muted-foreground'>
@@ -227,23 +242,14 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                 </div>
 
                 {/* Detalii Logistice */}
-                <div>
+                <div className='col-span-2'>
                   <h3 className='font-semibold mb-1'>Detalii Logistice</h3>
-                  {/* Adresă Livrare */}
+
                   <p className='text-muted-foreground'>
-                    Adresă de Livrare:{' '}
+                    Adresă de Livrare:
                     <span className='font-medium text-foreground'>
-                      Str. {order.deliveryAddress.strada}, Nr.{' '}
-                      {order.deliveryAddress.numar},{' '}
-                      {order.deliveryAddress.localitate},{' '}
-                      {order.deliveryAddress.judet},{' '}
-                      {order.deliveryAddress.codPostal}
+                      {deliveryAddressString}
                     </span>
-                    {order.deliveryAddress.alteDetalii && (
-                      <p className='text-xs italic text-muted-foreground'>
-                        {order.deliveryAddress.alteDetalii}.
-                      </p>
-                    )}
                   </p>
                   <p className='text-muted-foreground'>
                     Mod Livrare:{' '}
@@ -278,17 +284,17 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                       {formatCurrency(order.recommendedShippingCost || 0)}
                     </span>
                   </p>
-                </div>
-                <div>
-                  {/* Card Note Comandă */}
-                  {order.notes && (
-                    <div>
-                      <p>Mentiuni: </p>
-                      <span className='font-medium text-foreground'>
-                        {order.notes}{' '}
-                      </span>
-                    </div>
-                  )}
+                  <div>
+                    {/* Card Note Comandă */}
+                    {order.notes && (
+                      <div>
+                        <p>Mentiuni: </p>
+                        <span className='font-medium text-foreground'>
+                          {order.notes}{' '}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </CardContent>

@@ -121,7 +121,14 @@ export interface InvoiceFilters {
 
 // Tipul pentru o factură "populată" (cu client și agent)
 export interface PopulatedInvoice
-  extends Omit<IInvoiceDoc, 'clientId' | 'salesAgentId'> {
+  extends Omit<
+    IInvoiceDoc,
+    'clientId' | 'salesAgentId' | 'cancelledBy' | 'cancelledAt'
+  > {
   clientId: IClientDoc // Obiectul client complet
   salesAgentId: Pick<IUser, '_id' | 'name'> // Doar ID și nume agent
+  cancelledBy?: string | any
+  cancellationReason?: string
+  cancelledByName?: string
+  cancelledAt?: Date | string
 }

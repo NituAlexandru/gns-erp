@@ -60,6 +60,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { Input } from '@/components/ui/input'
 
 interface InvoiceFormProps {
   initialData: (Partial<InvoiceInput> & { _id?: string }) | null
@@ -92,7 +93,7 @@ export function InvoiceForm({
   const router = useRouter()
   const [showSplitModal, setShowSplitModal] = useState(false)
   const [showCancelAlert, setShowCancelAlert] = useState(false)
-  // Folosim direct variabila asta existentă
+  const [cancelReason, setCancelReason] = useState('')
   const isSplitGroupMember = !!initialData?.splitGroupId
   const isEditSplitMode = isSplitGroupMember
   const defaultValues: Partial<InvoiceInput> = {
@@ -920,7 +921,11 @@ export function InvoiceForm({
     const toastId = toast.loading('Se anulează grupul de facturi...')
 
     try {
-      const result = await cancelSplitGroup(initialData.splitGroupId.toString())
+      const result = await cancelSplitGroup(
+        initialData.splitGroupId.toString(),
+        cancelReason || 'Anulare grup manuală (din editare)'
+      )
+
       if (result.success) {
         toast.success(result.message, { id: toastId })
         router.push('/financial/invoices')
@@ -935,6 +940,7 @@ export function InvoiceForm({
     } finally {
       setIsLoading(false)
       setShowCancelAlert(false)
+      setCancelReason('')
     }
   }
 
@@ -1082,7 +1088,16 @@ export function InvoiceForm({
                     </div>
                   ))}
                 </div>
-
+                <div className='mb-4'>
+                  <label className='text-xs font-semibold mb-1 block'>
+                    Motiv Anulare Grup:
+                  </label>
+                  <Input
+                    placeholder='Introduceți motivul anulării...'
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                  />
+                </div>
                 <div className='flex items-start gap-2 text-amber-600 bg-amber-50 p-2 rounded border border-amber-200'>
                   <div className='mt-1.5'>
                     <Trash2 className='h-5 w-5' />

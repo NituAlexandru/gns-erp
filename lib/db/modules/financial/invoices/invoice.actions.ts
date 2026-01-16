@@ -263,7 +263,7 @@ export async function createInvoice(
   await connectToDatabase()
 
   const session = await startSession()
-  
+
   try {
     let newInvoice: IInvoiceDoc | null = null
 
@@ -2090,6 +2090,11 @@ export async function cancelInvoice(
       // 2. Update Factură
       invoice.status = 'CANCELLED'
       invoice.eFacturaStatus = 'NOT_REQUIRED'
+
+      invoice.cancellationReason = reason
+      invoice.cancelledBy = new Types.ObjectId(authSession.user.id)
+      invoice.cancelledByName = authSession.user.name || 'Utilizator'
+      invoice.cancelledAt = new Date()
       invoice.notes = invoice.notes
         ? `${invoice.notes}\n[ANULATĂ]: ${reason}`
         : `[ANULATĂ]: ${reason}`

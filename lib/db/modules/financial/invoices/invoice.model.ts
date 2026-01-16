@@ -73,6 +73,10 @@ export interface IInvoiceDoc extends Document {
   splitGroupId?: Types.ObjectId
   createdAt: Date
   updatedAt: Date
+  cancellationReason?: string
+  cancelledBy?: Types.ObjectId
+  cancelledByName?: string
+  cancelledAt?: Date
 }
 
 // --- Sub-schemele ---

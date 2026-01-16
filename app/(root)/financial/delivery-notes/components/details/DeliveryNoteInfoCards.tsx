@@ -21,7 +21,16 @@ interface DeliveryNoteInfoCardsProps {
 
 export function DeliveryNoteInfoCards({ note }: DeliveryNoteInfoCardsProps) {
   const deliveryAddr = note.deliveryAddress
-  const addressString = `Str. ${deliveryAddr.strada}, nr. ${deliveryAddr.numar}, ${deliveryAddr.localitate}, Jud. ${deliveryAddr.judet}, ${deliveryAddr.tara || 'RO'}`
+  const addressString = [
+    deliveryAddr.strada ? `Str. ${deliveryAddr.strada}` : null,
+    deliveryAddr.numar ? `nr. ${deliveryAddr.numar}` : null,
+    deliveryAddr.alteDetalii,
+    deliveryAddr.localitate,
+    deliveryAddr.judet ? `Jud. ${deliveryAddr.judet}` : null,
+    deliveryAddr.tara || 'RO',
+  ]
+    .filter(Boolean)
+    .join(', ')
 
   const timeSlots =
     note.deliverySlots && note.deliverySlots.length > 0

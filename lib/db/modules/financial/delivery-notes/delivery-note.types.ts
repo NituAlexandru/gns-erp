@@ -144,6 +144,10 @@ export interface DeliveryNoteDTO {
   transportCompany?: string
   createdAt: string
   updatedAt: string
+  cancellationReason?: string
+  cancelledBy?: string
+  cancelledByName?: string
+  cancelledAt?: string
 }
 
 // -------------------------------------------------------------

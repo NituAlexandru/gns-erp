@@ -2,6 +2,7 @@ import { PopulatedInvoice } from '@/lib/db/modules/financial/invoices/invoice.ty
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import {
+  AlertCircle,
   Building2,
   Calendar,
   FileText,
@@ -21,6 +22,25 @@ interface InvoiceInfoCardsProps {
 }
 
 export function InvoiceInfoCards({ invoice }: InvoiceInfoCardsProps) {
+  const formatAddress = (addr: any) => {
+    if (!addr) return '-'
+    return [
+      addr.strada ? `Str. ${addr.strada}` : null,
+      addr.numar ? `nr. ${addr.numar}` : null,
+      addr.alteDetalii,
+      addr.localitate,
+      addr.judet ? `Jud. ${addr.judet}` : null,
+      addr.tara || 'RO',
+    ]
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  const companyAddressString = formatAddress(invoice.companySnapshot.address)
+  const clientAddressString = formatAddress(invoice.clientSnapshot.address)
+  const deliveryAddressString = formatAddress(invoice.deliveryAddress)
+  const isCancelled = invoice.status === 'CANCELLED'
+
   return (
     <div className='space-y-2'>
       <div className='grid grid-cols-1 md:grid-cols-2 gap-2 mb-2'>
@@ -45,7 +65,7 @@ export function InvoiceInfoCards({ invoice }: InvoiceInfoCardsProps) {
             <DetailRow
               icon={MapPin}
               label='Sediu:'
-              value={` Str. ${invoice.companySnapshot.address.strada}, nr. ${invoice.companySnapshot.address.numar}, ${invoice.companySnapshot.address.localitate}, Jud. ${invoice.companySnapshot.address.judet}, ${invoice.companySnapshot.address.tara}`}
+              value={companyAddressString}
             />
             <DetailRow
               icon={Phone}
@@ -98,7 +118,7 @@ export function InvoiceInfoCards({ invoice }: InvoiceInfoCardsProps) {
             <DetailRow
               icon={MapPin}
               label='Sediu:'
-              value={` Str. ${invoice.clientSnapshot.address.strada}, nr. ${invoice.clientSnapshot.address.numar}, ${invoice.clientSnapshot.address.localitate}, Jud. ${invoice.clientSnapshot.address.judet}, ${invoice.clientSnapshot.address.tara}`}
+              value={clientAddressString}
             />
             <DetailRow
               icon={User2}
@@ -184,7 +204,7 @@ export function InvoiceInfoCards({ invoice }: InvoiceInfoCardsProps) {
             />
             <DetailRow
               icon={User}
-              label='Intocmit de:'
+              label='Agent:'
               value={invoice.salesAgentSnapshot?.name || invoice.createdByName}
             />
           </CardContent>
@@ -230,11 +250,43 @@ export function InvoiceInfoCards({ invoice }: InvoiceInfoCardsProps) {
             <DetailRow
               icon={User}
               label='Adresa livrare:'
-              value={`Str. ${invoice.deliveryAddress.strada}, nr. ${invoice.deliveryAddress.numar || '-'}, ${invoice.deliveryAddress.localitate}, Jud. ${invoice.deliveryAddress.judet}, ${invoice.deliveryAddress.tara}`}
+              value={deliveryAddressString}
             />
           </CardContent>
         </Card>
       </div>
+      {isCancelled && (
+        <div className='p-3 rounded-md border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-900/50 mb-2'>
+          <div className='flex items-center gap-2 mb-2 pb-2 border-b border-red-200/50'>
+            <AlertCircle className='h-4 w-4 text-red-600 dark:text-red-400' />
+            <span className='font-bold text-red-700 dark:text-red-400 text-xs uppercase tracking-wide'>
+              Această factură este anulată
+            </span>
+          </div>
+
+          <div className='space-y-1'>
+            <p className='text-xs text-red-600/80 dark:text-red-300 uppercase font-semibold'>
+              Motiv:
+            </p>
+            <p className='text-sm font-bold text-red-900 dark:text-red-100'>
+              {invoice.cancellationReason ||
+                invoice.rejectionReason ||
+                'Nespecificat'}
+            </p>
+
+            {/* Meta-data despre anulare */}
+            {invoice.cancelledByName && (
+              <div className='pt-1 mt-1 text-xs text-red-700/70 dark:text-red-300/70 italic text-right'>
+                Anulată de {invoice.cancelledByName} <br />
+                la data{' '}
+                {invoice.cancelledAt
+                  ? new Date(invoice.cancelledAt).toLocaleString('ro-RO')
+                  : ''}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

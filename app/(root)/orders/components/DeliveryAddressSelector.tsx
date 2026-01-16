@@ -106,7 +106,15 @@ export function DeliveryAddressSelector({
           <SelectContent>
             {activeDeliveryAddresses.map((addr) => (
               <SelectItem key={addr._id!} value={addr._id!}>
-                {`${addr.strada}, ${addr.numar}, ${addr.localitate}`}
+                {[
+                  addr.strada,
+                  addr.numar,
+                  addr.alteDetalii,
+                  addr.judet,
+                  addr.localitate,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
               </SelectItem>
             ))}
           </SelectContent>

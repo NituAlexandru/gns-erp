@@ -264,7 +264,8 @@ export async function createSplitInvoices(
 }
 
 export async function cancelSplitGroup(
-  splitGroupId: string
+  splitGroupId: string,
+  reason: string
 ): Promise<{ success: boolean; message: string }> {
   await connectToDatabase()
   const session = await startSession()
@@ -314,7 +315,11 @@ export async function cancelSplitGroup(
           $set: {
             status: 'CANCELLED',
             eFacturaStatus: 'NOT_REQUIRED',
-            notes: `Grup de split anulat integral de ${authSession.user.name}`,
+            notes: `Grup de split anulat integral de ${authSession.user.name}. Motiv: ${reason}`,
+            cancellationReason: reason,
+            cancelledBy: authSession.user.id,
+            cancelledByName: authSession.user.name,
+            cancelledAt: new Date(),
           },
         },
         { session }

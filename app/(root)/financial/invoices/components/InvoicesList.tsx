@@ -415,7 +415,8 @@ export function InvoicesList({
 
     startTransition(async () => {
       const result = await cancelSplitGroup(
-        invoiceToActOn.splitGroupId!.toString()
+        invoiceToActOn.splitGroupId!.toString(),
+        cancelReason || 'Anulare grup manuală'
       )
 
       if (result.success) {
@@ -438,7 +439,7 @@ export function InvoicesList({
       } else {
         toast.error('Eroare la anulare grup', { description: result.message })
       }
-
+      setCancelReason('')
       setIsSplitCancelModalOpen(false)
       setInvoiceToActOn(null)
     })
@@ -984,7 +985,16 @@ export function InvoicesList({
                     </div>
                   ))}
                 </div>
-
+                <div className='mb-4'>
+                  <label className='text-xs font-semibold mb-1 block'>
+                    Motiv Anulare Grup:
+                  </label>
+                  <Input
+                    placeholder='Introduceți motivul anulării...'
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                  />
+                </div>
                 <div className='flex items-start gap-2 text-amber-600 bg-amber-50 p-2 rounded border border-amber-200'>
                   <div className='mt-1.5'>
                     <Trash2 className='h-5 w-5' />
