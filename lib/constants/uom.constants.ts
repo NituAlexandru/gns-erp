@@ -16,13 +16,13 @@ export const uomToEFacturaMap: Record<InternalUoM, string> = {
   ml: 'MTR',
   palet: 'NAR', // PX, NAR
   set: 'SET',
-  cutie: 'BX',
-  bax: 'CS',
-  rola: 'RO',
+  cutie: 'H87',
+  bax: 'H87',
+  rola: 'H87',
   sac: 'H87',
-  punga: 'BG', // 'punga' și 'sac' au același cod standard
-  balot: 'BE',
-  colac: 'CL',
+  punga: 'H87', // 'punga' și 'sac' au același cod standard
+  balot: 'H87',
+  colac: 'H87',
 }
 
 // 2. Harta pentru IMPORT (ANAF -> Intern) - Aici e magia (Many-to-One)

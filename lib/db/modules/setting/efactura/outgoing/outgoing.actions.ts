@@ -80,12 +80,21 @@ export async function uploadInvoiceToAnaf(invoiceId: string) {
     // Validări
     if (!populatedInvoice.companySnapshot?.cui)
       throw new Error('Lipsește CUI Furnizor.')
-    if (!populatedInvoice.clientSnapshot?.cui)
-      throw new Error('Lipsește CUI Client.')
 
-    populatedInvoice.clientSnapshot.cui = populatedInvoice.clientSnapshot.cui
-      .toUpperCase()
-      .replace(/\s+/g, '')
+    // ✅ MODIFICARE: Verificăm dacă există CUI sau CNP
+    const clientRef = populatedInvoice.clientSnapshot
+    if (!clientRef?.cui && !clientRef?.cnp) {
+      throw new Error('Lipsește CUI sau CNP Client.')
+    }
+
+    // Curățare date (CUI)
+    if (clientRef.cui) {
+      clientRef.cui = clientRef.cui.toUpperCase().replace(/\s+/g, '')
+    }
+    // Curățare date (CNP) - eliminăm spații dacă există
+    if (clientRef.cnp) {
+      clientRef.cnp = clientRef.cnp.replace(/\s+/g, '')
+    }
 
     // 2. Determinare Metodă Plată
     const { method } = await getPaymentDetails(

@@ -60,6 +60,8 @@ export const buildAnafXml = ({
     .join(', ')
   // 3. Mapare Client
   const clientSnapshot = invoice.clientSnapshot
+  const clientID = clientSnapshot.cui || clientSnapshot.cnp
+  const isCompany = !!clientSnapshot.cui // E firmă doar dacă are CUI
   const clientCounty = getCountyCode(clientSnapshot.address.judet)
   const clientCity = formatAnafCity(
     clientSnapshot.address.localitate || '',
@@ -311,9 +313,9 @@ export const buildAnafXml = ({
       // --- REFERINȚE AVIZE (0..n) ---
       ...(despatchIds.length > 0
         ? {
-            'cac:DespatchDocumentReference': despatchIds.map((ref) => ({
-              'cbc:ID': ref,
-            })),
+            'cac:DespatchDocumentReference': {
+              'cbc:ID': despatchIds.join(', '),
+            },
           }
         : {}),
 
@@ -354,10 +356,9 @@ export const buildAnafXml = ({
         'cac:Party': {
           // 1. Identificare
           'cac:PartyIdentification': {
-            'cbc:ID': clientSnapshot.cui,
+            'cbc:ID': clientID,
           },
           'cac:PartyName': { 'cbc:Name': clientSnapshot.name },
-          // 3. Adresă (Corectată anterior)
           'cac:PostalAddress': {
             'cbc:StreetName': clientStreet,
             'cbc:CityName': clientCity,
@@ -365,14 +366,18 @@ export const buildAnafXml = ({
             'cac:Country': { 'cbc:IdentificationCode': 'RO' },
           },
           // 4. Regim Fiscal -> RO Obligatoriu la TaxScheme
-          'cac:PartyTaxScheme': {
-            'cbc:CompanyID': clientSnapshot.cui,
-            'cac:TaxScheme': { 'cbc:ID': 'VAT' },
-          },
+          ...(isCompany
+            ? {
+                'cac:PartyTaxScheme': {
+                  'cbc:CompanyID': clientSnapshot.cui, // Aici folosim strict CUI-ul existent
+                  'cac:TaxScheme': { 'cbc:ID': 'VAT' },
+                },
+              }
+            : {}),
           // 5. Entitate Legală -> AICI PUNEM J-ul (RegCom)
           'cac:PartyLegalEntity': {
             'cbc:RegistrationName': clientSnapshot.name,
-            'cbc:CompanyID': clientSnapshot.regCom || clientSnapshot.cui,
+            'cbc:CompanyID': clientSnapshot.regCom || clientID,
           },
         },
       },
