@@ -192,8 +192,10 @@ export async function getInternalAccessToken(): Promise<string> {
 }
 // MAIN SYNC ACTION ---
 export async function syncAndProcessAnaf() {
-  await checkAdmin()
   const session = await auth()
+  if (!session) {
+    throw new Error('Trebuie să fii autentificat.')
+  }
   const userId = session?.user?.id
 
   // 1. Preluăm setările companiei din DB
@@ -588,7 +590,6 @@ export async function getAnafInboxErrors(
   page: number = 1,
   limit: number = PAGE_SIZE
 ) {
-  await checkAdmin()
   await connectToDatabase()
 
   const skip = (page - 1) * limit
@@ -622,7 +623,6 @@ export async function getAnafInboxErrors(
 }
 // 2. Logs Paginat
 export async function getAnafLogs(page: number = 1, limit: number = PAGE_SIZE) {
-  await checkAdmin()
   await connectToDatabase()
 
   const skip = (page - 1) * limit

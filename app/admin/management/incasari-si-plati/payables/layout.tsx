@@ -10,8 +10,9 @@ export default async function PayablesLayout({
   const session = await auth()
   const userRole = session?.user?.role || 'user'
   const isAdmin = SUPER_ADMIN_ROLES.includes(userRole.toLowerCase())
+  const isManager = userRole.toLowerCase() === 'manager'
 
-  if (!isAdmin) {
+  if (!isAdmin && !isManager) {
     redirect('/')
   }
 
