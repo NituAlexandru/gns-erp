@@ -44,9 +44,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
       async authorize(credentials) {
         await connectToDatabase()
-        if (credentials == null) return null
+        // 1. Verificare de siguranță
+        if (!credentials?.email || !credentials?.password) return null
 
-        const user = await User.findOne({ email: credentials.email })
+        const email = (credentials.email as string).toLowerCase().trim()
+
+        const user = await User.findOne({ email: email })
 
         if (user && user.password) {
           const isMatch = await bcrypt.compare(
@@ -55,7 +58,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           )
           if (isMatch) {
             return {
-              id: user._id,
+              id: user._id.toString(),
               name: user.name,
               email: user.email,
               role: user.role,

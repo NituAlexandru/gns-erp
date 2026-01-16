@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/select'
 import { IClientDoc, IAddress } from '@/lib/db/modules/client/types'
 import { MapPin, Clock } from 'lucide-react'
-import { formatMinutes } from '@/lib/db/modules/client/client.utils' 
+import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 
 interface InvoiceAddressSelectorProps {
   client: IClientDoc | null
@@ -81,7 +81,15 @@ export function InvoiceAddressSelector({
                 key={addr._id?.toString()}
                 value={addr._id?.toString() || ''}
               >
-                {`${addr.strada}, ${addr.numar}, ${addr.localitate}`}
+                {[
+                  addr.strada,
+                  addr.numar,
+                  addr.alteDetalii, // Dacă e undefined/null, va fi filtrat
+                  addr.judet,
+                  addr.localitate,
+                ]
+                  .filter(Boolean) // Elimină tot ce e null, undefined sau string gol
+                  .join(', ')}{' '}
               </SelectItem>
             ))}
           </SelectContent>
