@@ -13,6 +13,8 @@ import TrailerModel from '@/lib/db/modules/fleet/trailers/trailers.model'
 import { ITrailerDoc } from '@/lib/db/modules/fleet/trailers/types'
 import { getBlocksForDate } from '@/lib/db/modules/deliveries/availability/availability.actions'
 import { IFleetAvailabilityDoc } from '@/lib/db/modules/deliveries/availability/availability.model'
+import { connectToDatabase } from '@/lib/db'
+import { Loader2 } from 'lucide-react'
 
 interface PlannerPageProps {
   searchParams: Promise<{ date?: string }>
@@ -21,6 +23,8 @@ interface PlannerPageProps {
 export default async function LogisticsPlannerPage({
   searchParams,
 }: PlannerPageProps) {
+  await connectToDatabase()
+
   const params = await searchParams
   const selectedDateStr = params.date
 
@@ -44,27 +48,34 @@ export default async function LogisticsPlannerPage({
 
   const unassignedDeliveries = sanitizeForClient(unassignedDeliveriesRaw)
   const allAssignedDeliveries = sanitizeForClient(
-    allAssignedDeliveriesRaw
+    allAssignedDeliveriesRaw,
   ) as IDelivery[]
   const assignments = sanitizeForClient(assignmentsRaw)
   const availableTrailers = sanitizeForClient(trailersRaw)
   const timeBlocks = sanitizeForClient(timeBlocksRaw) as IFleetAvailabilityDoc[]
 
   const pickUpDeliveries = allAssignedDeliveries.filter(
-    (d) => d.deliveryType === 'PICK_UP_SALE'
+    (d) => d.deliveryType === 'PICK_UP_SALE',
   )
 
   const thirdPartyDeliveries = allAssignedDeliveries.filter(
-    (d) => d.isThirdPartyHauler === true && d.deliveryType !== 'PICK_UP_SALE'
+    (d) => d.isThirdPartyHauler === true && d.deliveryType !== 'PICK_UP_SALE',
   )
 
   const fleetDeliveries = allAssignedDeliveries.filter(
-    (d) => d.deliveryType !== 'PICK_UP_SALE' && d.isThirdPartyHauler !== true
+    (d) => d.deliveryType !== 'PICK_UP_SALE' && d.isThirdPartyHauler !== true,
   )
 
   return (
     <div className='space-y-1'>
-      <Suspense fallback={<div>Încărcare Planner...</div>}>
+      <Suspense
+        fallback={
+          <div className='flex h-[50vh] w-full flex-col items-center justify-center gap-2 text-muted-foreground'>
+            <Loader2 className='h-8 w-8 animate-spin text-primary' />
+            <p>Se încarcă datele...</p>
+          </div>
+        }
+      >
         <LogisticsPlannerClient
           initialSelectedDate={selectedDate}
           unassignedDeliveries={unassignedDeliveries as IDelivery[]}

@@ -2,16 +2,16 @@ import mongoose from 'mongoose'
 
 // 1. Încercăm să luăm variabila de pe global
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let cached = (global as any).mangoose
+let cached = (global as any).mongoose
 
 // 2. Doar dacă NU există, o inițializăm ȘI o salvăm pe global
 if (!cached) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  cached = (global as any).mangoose = { conn: null, promise: null }
+  cached = (global as any).mongoose = { conn: null, promise: null }
 }
 
 export const connectToDatabase = async (
-  MONGODB_ERP_URI = process.env.MONGODB_ERP_URI
+  MONGODB_ERP_URI = process.env.MONGODB_ERP_URI,
 ) => {
   if (cached.conn) {
     // Mesaj pentru conexiunea din cache
@@ -50,7 +50,7 @@ export const connectToDatabase = async (
 // import mongoose from 'mongoose'
 
 // // eslint-disable-next-line @typescript-eslint/no-explicit-any
-// const cached = (global as any).mangoose || { conn: null, promise: null }
+// const cached = (global as any).mongoose || { conn: null, promise: null }
 
 // export const connectToDatabase = async (
 //   MONGODB_ERP_URI = process.env.MONGODB_ERP_URI

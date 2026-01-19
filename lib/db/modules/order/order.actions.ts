@@ -148,13 +148,13 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
     totals.productsSubtotal +
       totals.servicesSubtotal +
       totals.manualSubtotal +
-      totals.packagingSubtotal // <-- ADAUGAT
+      totals.packagingSubtotal 
   )
   totals.vatTotal = round2(
     totals.productsVat +
       totals.servicesVat +
       totals.manualVat +
-      totals.packagingVat // <-- ADAUGAT
+      totals.packagingVat 
   )
   totals.grandTotal = round2(totals.subtotal + totals.vatTotal)
 
