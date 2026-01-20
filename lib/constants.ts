@@ -8,7 +8,7 @@ export const APP_DESCRIPTION =
   'Genesis ERP va ofera o solutie practica pentru gestionarea tuturor aspectelor legate de business-ul dumneavoastra.'
 
 // zile descarcare facturi anaf
-export const ANAF_SYNC_LOOKBACK_DAYS = 14
+export const ANAF_SYNC_LOOKBACK_DAYS = 21
 
 export const ANAF_TVA_ENDPOINT =
   'https://webservicesp.anaf.ro/api/PlatitorTvaRest/v9/tva'
@@ -44,7 +44,7 @@ export const ADMIN_EMAIL =
 export const SITE_URL = 'http://localhost:3000/'
 
 export const FREE_SHIPPING_MIN_PRICE = Number(
-  process.env.FREE_SHIPPING_MIN_PRICE || 10000
+  process.env.FREE_SHIPPING_MIN_PRICE || 10000,
 )
 
 export const ALLOWED_COUNTIES: string[] = [
@@ -414,7 +414,7 @@ export const ADMIN_PAGE_SIZE = 14
 export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 13)
 export const MOVEMENTS_PAGE_SIZE = 16
 export const CLIENT_DETAIL_PAGE_SIZE = Number(
-  process.env.CLIENT_DETAIL_PAGE_SIZE || 10
+  process.env.CLIENT_DETAIL_PAGE_SIZE || 10,
 )
 export const AVAILABLE_TAGS = [
   'best-seller',

@@ -73,7 +73,7 @@ function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
 
   if (!defaultEmail || !defaultPhone || !defaultBank) {
     throw new Error(
-      'Setările implicite (email, telefon, bancă) nu sunt configurate.'
+      'Setările implicite (email, telefon, bancă) nu sunt configurate.',
     )
   }
   return {
@@ -92,7 +92,7 @@ function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
  * Creează (înregistrează manual) o factură primită de la un furnizor.
  */
 export async function createSupplierInvoice(
-  data: CreateSupplierInvoiceInput
+  data: CreateSupplierInvoiceInput,
 ): Promise<SupplierInvoiceActionResult> {
   const session = await startSession()
   let newInvoice: ISupplierInvoiceDoc | null = null
@@ -124,7 +124,7 @@ export async function createSupplierInvoice(
             status: 'NEPLATITA',
           },
         ],
-        { session }
+        { session },
       )
 
       return createdInvoice
@@ -137,7 +137,7 @@ export async function createSupplierInvoice(
         await recalculateSupplierSummary(
           newInvoice.supplierId.toString(),
           'auto-recalc',
-          true
+          true,
         )
       } catch (err) {
         console.error('Eroare recalculare sold furnizor (create invoice):', err)
@@ -167,7 +167,7 @@ export async function createSupplierInvoice(
 
 export async function getSupplierInvoices(
   page: number = 1,
-  limit: number = PAGE_SIZE
+  limit: number = PAGE_SIZE,
 ) {
   try {
     await connectToDatabase()
@@ -182,7 +182,7 @@ export async function getSupplierInvoices(
           model: Supplier,
           select: 'name',
         })
-        .sort({ createdAt: -1 })
+        .sort({ invoiceDate: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -214,7 +214,7 @@ export async function getSupplierInvoices(
 }
 
 export async function getSupplierInvoiceById(
-  invoiceId: string
+  invoiceId: string,
 ): Promise<SingleInvoiceResult> {
   try {
     await connectToDatabase()
@@ -245,7 +245,7 @@ export async function getSupplierInvoiceById(
 }
 export async function getInvoicesForSupplier(
   supplierId: string,
-  page: number = 1
+  page: number = 1,
 ): Promise<SupplierInvoicesPage> {
   try {
     await connectToDatabase()
@@ -270,7 +270,7 @@ export async function getInvoicesForSupplier(
 
     const invoices = await SupplierInvoiceModel.find(queryConditions)
       .select(
-        'invoiceSeries invoiceNumber invoiceDate dueDate status totals.grandTotal'
+        'invoiceSeries invoiceNumber invoiceDate dueDate status totals.grandTotal',
       )
       .sort({ invoiceDate: -1 })
       .skip(skip)
@@ -296,7 +296,7 @@ export async function getInvoicesForSupplier(
 
 export async function getReceptionsForSupplier(
   supplierId: string,
-  page: number = 1
+  page: number = 1,
 ): Promise<{
   data: ReceptionListItem[]
   totalPages: number
@@ -328,7 +328,7 @@ export async function getReceptionsForSupplier(
     // 2. Căutăm documentele cu proiecția corectă (select)
     const receptions = await NirModel.find(queryConditions)
       .select(
-        'seriesName nirNumber nirDate invoices destinationLocation totals.grandTotal'
+        'seriesName nirNumber nirDate invoices destinationLocation totals.grandTotal',
       )
       .sort({ nirDate: -1 }) // Cele mai recente primele
       .skip(skip)
@@ -355,7 +355,7 @@ export async function getReceptionsForSupplier(
           warehouseName: nir.destinationLocation, // Din schema: destinationLocation
           totalValue: nir.totals?.grandTotal || 0, // Din schema: totals.grandTotal
         }
-      }
+      },
     )
 
     return {
@@ -375,7 +375,7 @@ export async function getReceptionsForSupplier(
  * - Dacă amount < 0: Avans/Credit (STORNO sau STANDARD Negativ)
  */
 export async function createSupplierOpeningBalance(
-  data: CreateOpeningBalanceInput
+  data: CreateOpeningBalanceInput,
 ): Promise<{ success: boolean; message: string }> {
   const session = await startSession()
 
@@ -393,7 +393,7 @@ export async function createSupplierOpeningBalance(
 
       if (!supplier.address) {
         throw new Error(
-          `Furnizorul ${supplier.name} nu are adresă configurată.`
+          `Furnizorul ${supplier.name} nu are adresă configurată.`,
         )
       }
 
@@ -493,14 +493,14 @@ export async function createSupplierOpeningBalance(
             remainingAmount: absoluteAmount,
           },
         ],
-        { session }
+        { session },
       )
     })
 
     await recalculateSupplierSummary(
       data.partnerId,
       'init-balance-update',
-      true
+      true,
     )
     return {
       success: true,

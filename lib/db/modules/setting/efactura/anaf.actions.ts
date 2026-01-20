@@ -34,7 +34,7 @@ async function logAnaf(
   type: 'INFO' | 'SUCCESS' | 'ERROR',
   action: string,
   message: string,
-  details?: unknown
+  details?: unknown,
 ) {
   try {
     await AnafLog.create({ type, action, message, details })
@@ -54,7 +54,7 @@ export async function generateAnafLoginUrl() {
   }
 
   const url = `${authEndpoint}?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(
-    redirectUri
+    redirectUri,
   )}&token_content_type=jwt`
 
   return url
@@ -97,10 +97,10 @@ export async function exchangeCodeForToken(code: string) {
     const encryptedRefresh = encrypt(data.refresh_token)
     const now = new Date()
     const accessTokenExpiresAt = new Date(
-      now.getTime() + (data.expires_in - 60) * 1000
+      now.getTime() + (data.expires_in - 60) * 1000,
     )
     const refreshTokenExpiresAt = new Date(
-      now.getTime() + 90 * 24 * 60 * 60 * 1000
+      now.getTime() + 90 * 24 * 60 * 60 * 1000,
     )
 
     await AnafToken.deleteMany({})
@@ -179,10 +179,10 @@ export async function getInternalAccessToken(): Promise<string> {
     tokenDoc.encryptedAccessToken = encAccess.data
     tokenDoc.encryptedRefreshToken = encRefresh.data + ':' + encRefresh.iv
     tokenDoc.accessTokenExpiresAt = new Date(
-      now.getTime() + (data.expires_in - 60) * 1000
+      now.getTime() + (data.expires_in - 60) * 1000,
     )
     tokenDoc.refreshTokenExpiresAt = new Date(
-      now.getTime() + 90 * 24 * 60 * 60 * 1000
+      now.getTime() + 90 * 24 * 60 * 60 * 1000,
     )
     await tokenDoc.save()
 
@@ -202,7 +202,7 @@ export async function syncAndProcessAnaf() {
   const settings = await getNoCachedSetting()
   if (!settings) {
     throw new Error(
-      'Datele companiei nu sunt configurate. Mergi la Setări > Companie.'
+      'Datele companiei nu sunt configurate. Mergi la Setări > Companie.',
     )
   }
 
@@ -236,9 +236,11 @@ export async function syncAndProcessAnaf() {
     startData.setDate(endData.getDate() - ANAF_SYNC_LOOKBACK_DAYS) // Calculăm data de acum 60 zile
 
     const startTime = startData.getTime() // Unix Timestamp (milisecunde)
-    const endTime = endData.getTime()
+    const endTime = endData.getTime() - 60000
+    console.log(
+      `📅 CERERE ANAF (Interval Larg): ${new Date(startTime).toISOString()} -> ${new Date(endTime).toISOString()}`,
+    )
 
-    // ATENȚIE: Endpoint diferit, specific pentru paginație/istoric
     const endpoint = `${process.env.ANAF_API_BASE_URL}/listaMesajePaginatieFactura`
 
     let currentPage = 1
@@ -308,6 +310,16 @@ export async function syncAndProcessAnaf() {
           const realId = msg.id || msg.id_descarcare
           const rawTip = msg.tip || 'NECUNOSCUT'
           const realTip = rawTip.replace(/\s+/g, '_')
+          const msgDate = parseAnafDate(msg.data_creare)
+
+          // console.log(
+          //   `🔎 ID: ${realId} | Data: ${msgDate.toISOString()} | Tip: ${realTip} | Titlu: ${msg.titlu}`,
+          // )
+
+          if (msgDate < new Date('2026-01-01T00:00:00.000Z')) {
+            console.log(`⛔ SKIP: E din 2025.`)
+            continue
+          }
 
           // FILTRU: Ignorăm ce nu e primit
           if (realTip !== 'FACTURA_PRIMITA') continue
@@ -361,7 +373,7 @@ export async function syncAndProcessAnaf() {
                     zipEntries.find(
                       (entry) =>
                         entry.entryName.toLowerCase().endsWith('.xml') &&
-                        !entry.entryName.toLowerCase().includes('semnatura')
+                        !entry.entryName.toLowerCase().includes('semnatura'),
                     ) || zipEntries[0]
 
                   if (xmlEntry) {
@@ -378,13 +390,17 @@ export async function syncAndProcessAnaf() {
                 // PARSARE XML
                 try {
                   const parsed = parseAnafXml(xmlText)
+
                   const cleanCuiSupplier = parsed.supplierCui
                     .replace(/^RO/, '')
                     .trim()
 
                   const supplier = (await Supplier.findOne({
                     fiscalCode: {
-                      $regex: new RegExp(`^RO?${cleanCuiSupplier}$`, 'i'),
+                      $regex: new RegExp(
+                        `^\\s*(RO)?\\s*${cleanCuiSupplier}\\s*$`,
+                        'i',
+                      ),
                     },
                   }).lean()) as ISupplierDoc | null
 
@@ -417,7 +433,7 @@ export async function syncAndProcessAnaf() {
                           codPostal:
                             parsed.supplierAddressDetails.zip ||
                             String(
-                              supAddr.zipCode || supAddr.codPostal || '000000'
+                              supAddr.zipCode || supAddr.codPostal || '000000',
                             ),
                           tara: parsed.supplierAddressDetails.country || '',
                           alteDetalii: parsed.supplierAddress,
@@ -588,7 +604,7 @@ function parseAnafDate(str: string): Date {
 // GET INBOX MESSAGES from eFactura ---
 export async function getAnafInboxErrors(
   page: number = 1,
-  limit: number = PAGE_SIZE
+  limit: number = PAGE_SIZE,
 ) {
   await connectToDatabase()
 
@@ -686,7 +702,7 @@ export async function retryProcessMessage(messageId: string) {
           zipEntries.find(
             (entry) =>
               entry.entryName.toLowerCase().endsWith('.xml') &&
-              !entry.entryName.toLowerCase().includes('semnatura')
+              !entry.entryName.toLowerCase().includes('semnatura'),
           ) || zipEntries[0]
 
         if (xmlEntry) {
@@ -707,7 +723,9 @@ export async function retryProcessMessage(messageId: string) {
 
     // Căutare Furnizor
     const supplier = (await Supplier.findOne({
-      fiscalCode: { $regex: new RegExp(`^RO?${cleanCuiSupplier}$`, 'i') },
+      fiscalCode: {
+        $regex: new RegExp(`^\\s*(RO)?\\s*${cleanCuiSupplier}\\s*$`, 'i'),
+      },
     }).lean()) as ISupplierDoc | null
 
     if (!supplier) {
@@ -863,7 +881,7 @@ export async function retryProcessMessage(messageId: string) {
     await logAnaf(
       'SUCCESS',
       'MANUAL_RETRY',
-      `Mesaj procesat manual (ID: ${msg.id_descarcare})`
+      `Mesaj procesat manual (ID: ${msg.id_descarcare})`,
     )
 
     revalidatePath('/admin/management/incasari-si-plati/payables')
@@ -904,7 +922,7 @@ export async function previewAnafInvoice(messageId: string) {
           zipEntries.find(
             (entry) =>
               entry.entryName.toLowerCase().endsWith('.xml') &&
-              !entry.entryName.toLowerCase().includes('semnatura')
+              !entry.entryName.toLowerCase().includes('semnatura'),
           ) || zipEntries[0]
 
         if (xmlEntry) xmlText = zip.readAsText(xmlEntry)
@@ -936,7 +954,7 @@ export async function previewAnafInvoice(messageId: string) {
     // AFISĂM ÎN CONSOLA COMPARATIA
     console.log('=====================================================')
     console.log(
-      `🔎 ANALIZĂ FACTURĂ: ${parsed.invoiceSeries} ${parsed.invoiceNumber}`
+      `🔎 ANALIZĂ FACTURĂ: ${parsed.invoiceSeries} ${parsed.invoiceNumber}`,
     )
     console.log('=====================================================')
 
