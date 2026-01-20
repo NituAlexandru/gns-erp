@@ -45,30 +45,25 @@ export function CatalogRow({
 }: CatalogRowProps) {
   const router = useRouter()
 
+  // 1. APELĂM HOOK-UL O SINGURĂ DATĂ (pentru stoc și prețul principal)
   const {
     convertedStock,
     selectedUnit,
     handleUnitChange,
     allUnits,
     convertedPrice: directPrice,
+    conversionFactor, // <--- EXTRAGEM FACTORUL DE AICI
   } = useUnitConversion({
     item,
     baseStock: item.totalStock,
     basePrice: item.directDeliveryPrice,
   })
 
-  const { convertedPrice: fullTruckPrice } = useUnitConversion({
-    item,
-    basePrice: item.fullTruckPrice,
-  })
-  const { convertedPrice: smallBizPrice } = useUnitConversion({
-    item,
-    basePrice: item.smallDeliveryBusinessPrice,
-  })
-  const { convertedPrice: retailPrice } = useUnitConversion({
-    item,
-    basePrice: item.retailPrice,
-  })
+  // 2. CALCULĂM CELELALTE PREȚURI FOLOSIND FACTORUL COMUN
+  // Dacă factorul e 50 (Palet), înmulțim toate prețurile de bază cu 50.
+  const fullTruckPrice = item.fullTruckPrice * conversionFactor
+  const smallBizPrice = item.smallDeliveryBusinessPrice * conversionFactor
+  const retailPrice = item.retailPrice * conversionFactor
 
   return (
     <TableRow className='hover:bg-muted/50'>
@@ -106,10 +101,13 @@ export function CatalogRow({
         </TooltipProvider>
       </TableCell>
       <TableCell>{item.category || '-'}</TableCell>
+
+      {/* 3. AFIȘĂM PREȚURILE CALCULATE MAI SUS */}
       <TableCell>{formatCurrency(directPrice)}</TableCell>
       <TableCell>{formatCurrency(fullTruckPrice)}</TableCell>
       <TableCell>{formatCurrency(smallBizPrice)}</TableCell>
       <TableCell>{formatCurrency(retailPrice)}</TableCell>
+
       <TableCell>{convertedStock.toFixed(2)}</TableCell>
       <TableCell>
         <Select value={selectedUnit} onValueChange={handleUnitChange}>

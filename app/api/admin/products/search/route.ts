@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
         productCode: 1,
         isPublished: 1,
         totalStock: 1,
+        defaultMarkups: 1,
         images: { $ifNull: ['$images', []] },
         image: { $arrayElemAt: [{ $ifNull: ['$images', []] }, 0] },
       },

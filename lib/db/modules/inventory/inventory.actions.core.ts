@@ -31,7 +31,7 @@ import PackagingModel from '../packaging-products/packaging.model'
 
 export async function recordStockMovement(
   input: StockMovementInput,
-  existingSession?: ClientSession
+  existingSession?: ClientSession,
 ): Promise<{ movement: IStockMovementDoc; costInfo: FifoCostInfo | null }> {
   const payload = StockMovementSchema.parse(input)
 
@@ -73,7 +73,7 @@ export async function recordStockMovement(
       isInput = false
     } else {
       throw new Error(
-        `Tipul de mișcare '${payload.movementType}' este necunoscut.`
+        `Tipul de mișcare '${payload.movementType}' este necunoscut.`,
       )
     }
 
@@ -152,7 +152,7 @@ export async function recordStockMovement(
     if (isInput) {
       if (payload.unitCost === undefined) {
         throw new Error(
-          'Costul unitar este obligatoriu pentru mișcările de intrare.'
+          'Costul unitar este obligatoriu pentru mișcările de intrare.',
         )
       }
       const supplierIdObj = payload.supplierId
@@ -244,7 +244,7 @@ export async function recordStockMovement(
                 archivedAt: new Date(),
               },
             ],
-            { session }
+            { session },
           )
         }
       }
@@ -316,7 +316,7 @@ export async function recordStockMovement(
 }
 export async function reverseStockMovementsByReference(
   referenceId: string,
-  session: ClientSession
+  session: ClientSession,
 ) {
   const movementsToReverse = await StockMovementModel.find({
     referenceId,
@@ -326,7 +326,7 @@ export async function reverseStockMovementsByReference(
 
   if (movementsToReverse.length === 0) {
     console.warn(
-      `[REVOC] Nu au fost găsite mișcări ACTIVE de tip RECEPTIE pentru referința ${referenceId}.`
+      `[REVOC] Nu au fost găsite mișcări ACTIVE de tip RECEPTIE pentru referința ${referenceId}.`,
     )
     return
   }
@@ -343,19 +343,19 @@ export async function reverseStockMovementsByReference(
     if (!inventoryItem) {
       // Caz critic: Itemul de inventar a dispărut cu totul.
       throw new Error(
-        `Nu se poate anula recepția. Articolul de inventar pentru ${movement.stockableItem} nu mai există (stocul a fost epuizat).`
+        `Nu se poate anula recepția. Articolul de inventar pentru ${movement.stockableItem} nu mai există (stocul a fost epuizat).`,
       )
     }
 
     // 1. Căutăm lotul specific creat de această mișcare
     const batchIndex = inventoryItem.batches.findIndex(
-      (b) => String(b.movementId) === movementIdStr
+      (b) => String(b.movementId) === movementIdStr,
     )
 
     // Caz A: Lotul nu mai există deloc (a fost consumat complet și arhivat)
     if (batchIndex === -1) {
       throw new Error(
-        `Nu se poate anula recepția. Lotul pentru articolul ${movement.stockableItem} a fost deja epuizat complet.`
+        `Nu se poate anula recepția. Lotul pentru articolul ${movement.stockableItem} a fost deja epuizat complet.`,
       )
     }
 
@@ -367,7 +367,7 @@ export async function reverseStockMovementsByReference(
       throw new Error(
         `Nu se poate anula recepția. Din articolul ${movement.stockableItem} s-au vândut deja produse. ` +
           `(Stoc Rămas: ${batch.quantity}, Stoc Inițial: ${movement.quantity}). ` +
-          `Trebuie să faceți retur la vânzări înainte de a anula recepția.`
+          `Trebuie să faceți retur la vânzări înainte de a anula recepția.`,
       )
     }
 
@@ -413,7 +413,7 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
   // Calculăm suma loturilor fizice existente
   const batchesSum = item.batches.reduce(
     (sum, batch) => sum + batch.quantity,
-    0
+    0,
   )
 
   // --- MODIFICARE PENTRU A PERMITE STOC NEGATIV ---
@@ -456,6 +456,34 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
     item.minPurchasePrice = 0
     // NU ATINGEM item.lastPurchasePrice. Acesta trebuie să persiste.
   }
+
+  // =====================================================================
+  // 🟢 Actualizare Preț Maxim în Produsul Părinte (Global)
+  // =====================================================================
+
+  // 1. Calculăm noul preț maxim global
+  const globalMaxResult = await InventoryItemModel.aggregate([
+    { $match: { stockableItem: item.stockableItem } },
+    { $group: { _id: null, maxGlobal: { $max: '$maxPurchasePrice' } } },
+  ])
+
+  const currentLocalMax = item.maxPurchasePrice || 0
+  const otherLocationsMax = globalMaxResult[0]?.maxGlobal || 0
+  const finalMaxPrice = Math.max(currentLocalMax, otherLocationsMax)
+
+  // 2. Facem update DOAR la produsul/ambalajul vizat
+  // Folosim findByIdAndUpdate care este foarte rapid
+  if (item.stockableItemType === 'ERPProduct') {
+    // Putem adăuga o verificare să nu scriem dacă prețul e același,
+    // dar MongoDB e oricum smart și nu "suferă" de la un update redundant.
+    await ERPProductModel.findByIdAndUpdate(item.stockableItem, {
+      averagePurchasePrice: finalMaxPrice,
+    })
+  } else if (item.stockableItemType === 'Packaging') {
+    await PackagingModel.findByIdAndUpdate(item.stockableItem, {
+      averagePurchasePrice: finalMaxPrice,
+    })
+  }
 }
 export async function updateBatchDetails(
   inventoryItemId: string,
@@ -465,7 +493,7 @@ export async function updateBatchDetails(
     certificateNumbers: string[]
     testReports: string[]
     additionalNotes: string
-  }
+  },
 ) {
   try {
     await connectToDatabase()
@@ -475,7 +503,7 @@ export async function updateBatchDetails(
 
     // (Loturile nu au _id, dar au garantat un movementId unic)
     const batch = item.batches.find(
-      (b: IInventoryBatch) => b.movementId.toString() === batchMovementId
+      (b: IInventoryBatch) => b.movementId.toString() === batchMovementId,
     )
 
     if (!batch) throw new Error('Lotul nu a fost găsit.')
@@ -505,7 +533,7 @@ export async function updateBatchDetails(
             },
             {
               $set: { 'products.$.qualityDetails': qualityDetails },
-            }
+            },
           )
         } else if (item.stockableItemType === 'Packaging') {
           await ReceptionModel.updateOne(
@@ -515,7 +543,7 @@ export async function updateBatchDetails(
             },
             {
               $set: { 'packagingItems.$.qualityDetails': qualityDetails },
-            }
+            },
           )
         }
       }
@@ -524,7 +552,7 @@ export async function updateBatchDetails(
     // Revalidăm toate căile posibile
     revalidatePath('/admin/management/inventory/stock')
     revalidatePath(
-      `/admin/management/inventory/stock/details/${item.stockableItem}`
+      `/admin/management/inventory/stock/details/${item.stockableItem}`,
     )
     revalidatePath('/admin/management/receptions') // Revalidăm și recepțiile
 
