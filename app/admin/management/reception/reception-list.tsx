@@ -41,7 +41,7 @@ import { PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
 import { useDebounce } from '@/hooks/use-debounce'
 import { generateNirForReceptionAction } from '@/lib/db/modules/financial/nir/nir.actions'
-import { FileText, Loader2, Printer } from 'lucide-react'
+import { Loader2, Printer } from 'lucide-react'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
@@ -80,13 +80,13 @@ function computeReceptionTotals(rec: PopulatedReception) {
   const productsSum =
     (rec.products ?? []).reduce(
       (s, p) => s + (p.invoicePricePerUnit ?? 0) * (p.quantity ?? 0),
-      0
+      0,
     ) || 0
 
   const packagingSum =
     (rec.packagingItems ?? []).reduce(
       (s, p) => s + (p.invoicePricePerUnit ?? 0) * (p.quantity ?? 0),
-      0
+      0,
     ) || 0
 
   const transportSum =
@@ -157,11 +157,12 @@ export default function ReceptionList() {
         pageSize: String(currentFilters.pageSize),
         status: currentFilters.status || 'ALL',
         createdBy: currentFilters.createdBy || 'ALL',
+        q: currentFilters.q || '',
       })
 
       try {
         const response = await fetch(
-          `/api/admin/management/receptions/list?${params.toString()}`
+          `/api/admin/management/receptions/list?${params.toString()}`,
         )
         if (!response.ok) throw new Error('Eroare la preluarea recepțiilor')
 
@@ -175,7 +176,7 @@ export default function ReceptionList() {
         setIsLoading(false)
       }
     },
-    []
+    [],
   )
 
   useEffect(() => {
@@ -186,7 +187,7 @@ export default function ReceptionList() {
     (newFilters: Partial<ReceptionFilters>) => {
       setFilters((prev) => ({ ...prev, ...newFilters, page: 1 }))
     },
-    []
+    [],
   )
 
   function fetchPage(newPage: number) {
@@ -200,7 +201,7 @@ export default function ReceptionList() {
     const promise = new Promise(async (resolve, reject) => {
       const res = await fetch(
         `/api/admin/management/receptions/${deleteTarget._id}`,
-        { method: 'DELETE' }
+        { method: 'DELETE' },
       )
 
       if (!res.ok) {
@@ -236,7 +237,7 @@ export default function ReceptionList() {
     const revokePromise = async () => {
       const response = await fetch(
         `/api/admin/management/receptions/${targetId}/revoke`,
-        { method: 'POST' }
+        { method: 'POST' },
       )
 
       if (!response.ok) {
@@ -474,7 +475,7 @@ export default function ReceptionList() {
                               {d.dispatchNoteNumber} –{' '}
                               {format(
                                 new Date(d.dispatchNoteDate),
-                                'dd/MM/yyyy'
+                                'dd/MM/yyyy',
                               )}
                             </div>
                           ))
@@ -524,7 +525,7 @@ export default function ReceptionList() {
                             className='cursor-pointer'
                             onSelect={() =>
                               router.push(
-                                `/admin/management/reception/${rec._id}`
+                                `/admin/management/reception/${rec._id}`,
                               )
                             }
                           >
@@ -534,7 +535,7 @@ export default function ReceptionList() {
                             className='cursor-pointer'
                             onSelect={() =>
                               router.push(
-                                `/admin/management/reception/${rec._id}/edit`
+                                `/admin/management/reception/${rec._id}/edit`,
                               )
                             }
                             disabled={rec.status === 'CONFIRMAT'}
@@ -568,7 +569,7 @@ export default function ReceptionList() {
                                     className='cursor-pointer'
                                     onSelect={() =>
                                       router.push(
-                                        `/admin/management/reception/nir/${rec.nirId}`
+                                        `/admin/management/reception/nir/${rec.nirId}`,
                                       )
                                     }
                                   >
