@@ -1311,6 +1311,8 @@ export async function getAllInvoices(
     // --- Faza 1: Filtrare Inițială ($match) ---
     const matchStage: FilterQuery<IInvoiceDoc> = {
       invoiceType: { $ne: 'PROFORMA' },
+      // 2. ADĂUGAT: Excludem seriile de Sold Inițial (Clienți și Ambalaje)
+      seriesName: { $nin: ['INIT-C', 'INIT-AMB'] },
     }
     if (status) {
       matchStage.status = status

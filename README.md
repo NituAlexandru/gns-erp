@@ -80,29 +80,22 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # dashboard - lista Stoc disponibil negativ (ca sa stie ca trebuie sa comande)
 
-profil ud 30 3ml nida
-
 # De urmarit / testat
-- FACUT - factura split, trebuie sa bata pe sumele totale conform cotelor, nu fiecare rand + adresa de livrare.
 
-
-
+- FACUT - factura split, trebuie sa bata pe sumele totale conform cotelor, nu fiecare rand + adresa de livrare. factura split, bate pe sumele totale conform cotelor, nu fiecare rand.
 
 # Foarte important
 
-- Vreau să muți facturile fiscale separat de proforme! Este urgent! ‼️
+- de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
 - comanda adminul trebuie sa poata sa vanda si sub pretul minim
 - nir - de scos costul de transport
 - aspect factura - de verificat la fact mai mari de o pagina
 - solduri + fisa client
-- factura split, trebuie sa bata pe sumele totale conform cotelor, nu fiecare rand.
 - paletii storno
-- comanda adminul trebuie sa poata sa vanda si sub pretul minim
 - la facturi de la funizori, sa poata fi cautate dupa furnizori (incasari si plati)
 - la produse in aplicatie, sa se afiseze cate buc sunt la palet
-- de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
-- lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus.
+- lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
 - La facturi, când modific ceva aș vrea să rămână la aceeași pagină - cu factura modificată
 - LA PRODUSE, CAND CAUT UN PRODUS SA IMI RAMANA ACEL PRODUS , NU SA DISPARA CAND DAU BACK
-- Printare multiplă facturi iesire
 - De preluat codul UIT si soferul / masina / remorca pe factura
+- Printare multiplă facturi iesire
