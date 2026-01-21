@@ -61,11 +61,13 @@ export const buildAnafXml = ({
   // 3. Mapare Client
   const clientSnapshot = invoice.clientSnapshot
   const clientID = clientSnapshot.cui || clientSnapshot.cnp
-  const isCompany = !!clientSnapshot.cui // E firmă doar dacă are CUI
+  //  Considerăm că e firmă doar dacă are CUI și CUI-ul e scurt (max 12 caractere)
+  // CNP-urile au 13 caractere. Astfel eviți ca un CNP pus din greșeală la CUI să fie tratat ca firmă.
+  const isCompany = !!clientSnapshot.cui && clientSnapshot.cui.length < 13
   const clientCounty = getCountyCode(clientSnapshot.address.judet)
   const clientCity = formatAnafCity(
     clientSnapshot.address.localitate || '',
-    clientCounty
+    clientCounty,
   )
   const clientStreet = [
     clientSnapshot.address.strada,
@@ -93,13 +95,13 @@ export const buildAnafXml = ({
     if (item.packagingOptions && item.packagingOptions.length > 0) {
       const currentUom = item.unitOfMeasure.toLowerCase()
       const currentOption = item.packagingOptions.find(
-        (opt) => opt.unitName.toLowerCase() === currentUom
+        (opt) => opt.unitName.toLowerCase() === currentUom,
       )
 
       if (currentOption) {
         const candidates = item.packagingOptions
           .filter(
-            (opt) => opt.baseUnitEquivalent < currentOption.baseUnitEquivalent
+            (opt) => opt.baseUnitEquivalent < currentOption.baseUnitEquivalent,
           )
           .sort((a, b) => b.baseUnitEquivalent - a.baseUnitEquivalent)
 
@@ -143,7 +145,7 @@ export const buildAnafXml = ({
 
     if (!uomCode) {
       throw new Error(
-        `Produsul "${item.productName}" (linie ${lineId}) are unitatea "${item.unitOfMeasure}" care nu poate fi mapată la un cod e-Factura.`
+        `Produsul "${item.productName}" (linie ${lineId}) are unitatea "${item.unitOfMeasure}" care nu poate fi mapată la un cod e-Factura.`,
       )
     }
 
