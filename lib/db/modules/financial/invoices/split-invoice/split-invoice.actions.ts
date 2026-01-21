@@ -27,7 +27,7 @@ function buildCompanySnapshot(settings: ISettingInput) {
 
   if (!defaultEmail || !defaultPhone || !defaultBank) {
     throw new Error(
-      'Setările implicite (email, telefon, bancă) nu sunt configurate.'
+      'Setările implicite (email, telefon, bancă) nu sunt configurate.',
     )
   }
   return {
@@ -63,7 +63,7 @@ export interface CreateSplitInvoicesInput {
 }
 
 export async function createSplitInvoices(
-  data: CreateSplitInvoicesInput
+  data: CreateSplitInvoicesInput,
 ): Promise<{ success: boolean; message: string; invoiceIds?: string[] }> {
   await connectToDatabase()
   const session = await startSession()
@@ -135,7 +135,7 @@ export async function createSplitInvoices(
           _id: { $in: sourceNoteIds },
         })
           .select(
-            'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId'
+            'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId',
           )
           .lean()
           .session(session)
@@ -152,7 +152,7 @@ export async function createSplitInvoices(
 
         // Convertim string -> ObjectId pentru referințe
         relatedOrderIds = [...new Set(sourceNotes.map((n) => n.orderId))].map(
-          (id) => new Types.ObjectId(id)
+          (id) => new Types.ObjectId(id),
         )
         relatedDeliveryIds = [
           ...new Set(sourceNotes.map((n) => n.deliveryId)),
@@ -169,7 +169,7 @@ export async function createSplitInvoices(
       const invoiceInputs = generateSplitInvoiceInputs(
         data.commonData,
         data.originalItems,
-        fullSplitConfigs
+        fullSplitConfigs,
       )
 
       // 6. Iterare și Salvare Facturi
@@ -177,7 +177,7 @@ export async function createSplitInvoices(
         // A. Generare Număr (Consecutiv pentru fiecare factură din serie)
         const nextSeq = await generateNextDocumentNumber(
           invoiceData.seriesName,
-          { session }
+          { session },
         )
         const invoiceNumber = String(nextSeq).padStart(5, '0')
         const year = new Date(invoiceData.invoiceDate).getFullYear()
@@ -202,15 +202,16 @@ export async function createSplitInvoices(
 
               // --- Referințe Obligatorii (Mapare ObjectId) ---
               clientId: new Types.ObjectId(invoiceData.clientId),
+              deliveryAddress: invoiceData.deliveryAddress,
               deliveryAddressId: new Types.ObjectId(
-                invoiceData.deliveryAddressId
+                invoiceData.deliveryAddressId,
               ),
               salesAgentId: new Types.ObjectId(invoiceData.salesAgentId),
               // Notă: salesAgentSnapshot vine din commonData (Formular)
 
               // --- Array-uri de Referințe (Fix pentru TypeScript) ---
               sourceDeliveryNotes: (invoiceData.sourceDeliveryNotes || []).map(
-                (id: string) => new Types.ObjectId(id)
+                (id: string) => new Types.ObjectId(id),
               ),
               relatedOrders: relatedOrderIds, // Folosim ce am calculat la pasul 4
               relatedDeliveries: relatedDeliveryIds, // Folosim ce am calculat la pasul 4
@@ -235,7 +236,7 @@ export async function createSplitInvoices(
               splitGroupId: splitGroupId,
             },
           ],
-          { session }
+          { session },
         )
 
         resultIds.push(createdInvoice._id.toString())
@@ -265,7 +266,7 @@ export async function createSplitInvoices(
 
 export async function cancelSplitGroup(
   splitGroupId: string,
-  reason: string
+  reason: string,
 ): Promise<{ success: boolean; message: string }> {
   await connectToDatabase()
   const session = await startSession()
@@ -290,7 +291,7 @@ export async function cancelSplitGroup(
         // A. Validare e-Factura
         if (['SENT', 'ACCEPTED'].includes(inv.eFacturaStatus)) {
           throw new Error(
-            `Eroare Critică: Factura ${inv.invoiceNumber} este deja transmisă în SPV. Grupul nu poate fi anulat automat.`
+            `Eroare Critică: Factura ${inv.invoiceNumber} este deja transmisă în SPV. Grupul nu poate fi anulat automat.`,
           )
         }
 
@@ -300,7 +301,7 @@ export async function cancelSplitGroup(
           ['PAID', 'PARTIAL_PAID', 'APPROVED', 'CANCELLED'].includes(inv.status)
         ) {
           throw new Error(
-            `Eroare Critică: Factura ${inv.invoiceNumber} are statusul "${inv.status}". Grupul nu poate fi anulat automat.`
+            `Eroare Critică: Factura ${inv.invoiceNumber} are statusul "${inv.status}". Grupul nu poate fi anulat automat.`,
           )
         }
       }
@@ -322,16 +323,16 @@ export async function cancelSplitGroup(
             cancelledAt: new Date(),
           },
         },
-        { session }
+        { session },
       )
 
       // 4. DECUPLARE DOCUMENTE (Avize & Livrări)
       // Folosim lista completă de ID-uri pentru a curăța referințele
       const allSourceDeliveryNoteIds = allGroupInvoices.flatMap(
-        (i) => i.sourceDeliveryNotes || []
+        (i) => i.sourceDeliveryNotes || [],
       )
       const allRelatedDeliveryIds = allGroupInvoices.flatMap(
-        (i) => i.relatedDeliveries || []
+        (i) => i.relatedDeliveries || [],
       )
 
       // A. Curățare Avize
@@ -348,7 +349,7 @@ export async function cancelSplitGroup(
               status: 'DELIVERED', // Revin la statusul livrat, gata de refacturare
             },
           },
-          { session }
+          { session },
         )
       }
 
@@ -365,7 +366,7 @@ export async function cancelSplitGroup(
               status: 'DELIVERED',
             },
           },
-          { session }
+          { session },
         )
       }
     })
@@ -388,7 +389,7 @@ export async function getSplitGroupPreview(splitGroupId: string) {
   try {
     const invoices = await InvoiceModel.find({ splitGroupId })
       .select(
-        'invoiceNumber invoiceDate clientSnapshot.name totals.grandTotal currency'
+        'invoiceNumber invoiceDate clientSnapshot.name totals.grandTotal currency',
       )
       .lean()
 

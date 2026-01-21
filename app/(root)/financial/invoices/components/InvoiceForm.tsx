@@ -80,12 +80,23 @@ export function InvoiceForm({
   const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
-  const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
+  const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(
+    () => {
+      if (initialData?.deliveryAddress && initialData?.deliveryAddressId) {
+        return {
+          ...initialData.deliveryAddress,
+          _id: initialData.deliveryAddressId,
+          isActive: true,
+        } as IAddress
+      }
+      return null
+    },
+  )
   const [showNoteLoaderModal, setShowNoteLoaderModal] = useState(false)
   const [showStornoModal, setShowStornoModal] = useState(false)
   const [showStornoProductModal, setShowStornoProductModal] = useState(false)
   const [loadedNotes, setLoadedNotes] = useState<{ id: string; ref: string }[]>(
-    []
+    [],
   )
   const [loadedStornoSources, setLoadedStornoSources] = useState<
     { id: string; ref: string }[]
@@ -228,7 +239,7 @@ export function InvoiceForm({
         totalCost: 0,
         totalProfit: 0,
         profitMargin: 0,
-      } as InvoiceTotals
+      } as InvoiceTotals,
     )
 
     // --- Calculăm Totalurile Generale și Marjele ---
@@ -236,26 +247,26 @@ export function InvoiceForm({
       newTotals.productsSubtotal +
         newTotals.servicesSubtotal +
         newTotals.manualSubtotal +
-        newTotals.packagingSubtotal
+        newTotals.packagingSubtotal,
     )
     newTotals.vatTotal = round2(
       newTotals.productsVat +
         newTotals.servicesVat +
         newTotals.manualVat +
-        newTotals.packagingVat
+        newTotals.packagingVat,
     )
     newTotals.grandTotal = round2(newTotals.subtotal + newTotals.vatTotal)
     newTotals.totalCost = round2(
       newTotals.productsCost +
         newTotals.servicesCost +
         newTotals.manualCost +
-        newTotals.packagingCost
+        newTotals.packagingCost,
     )
     newTotals.totalProfit = round2(
       newTotals.productsProfit +
         newTotals.servicesProfit +
         newTotals.manualProfit +
-        newTotals.packagingProfit
+        newTotals.packagingProfit,
     )
 
     // Marjele %
@@ -266,7 +277,7 @@ export function InvoiceForm({
     newTotals.packagingMargin =
       newTotals.packagingSubtotal > 0
         ? round2(
-            (newTotals.packagingProfit / newTotals.packagingSubtotal) * 100
+            (newTotals.packagingProfit / newTotals.packagingSubtotal) * 100,
           )
         : 0
     newTotals.servicesMargin =
@@ -285,7 +296,7 @@ export function InvoiceForm({
     // Rotunjim totul
     Object.keys(newTotals).forEach((key) => {
       newTotals[key as keyof InvoiceTotals] = round2(
-        newTotals[key as keyof InvoiceTotals]
+        newTotals[key as keyof InvoiceTotals],
       )
     })
 
@@ -380,7 +391,7 @@ export function InvoiceForm({
 
       // Verificăm dacă avem linii care au TVA diferit de 0
       const needsUpdate = currentItems.some(
-        (item) => item.vatRateDetails.rate !== 0
+        (item) => item.vatRateDetails.rate !== 0,
       )
 
       if (needsUpdate) {
@@ -406,7 +417,7 @@ export function InvoiceForm({
           shouldDirty: true,
         })
         toast.info(
-          `Cota TVA a fost schimbată automat la 0% pentru regimul ${watchedVatCategory}.`
+          `Cota TVA a fost schimbată automat la 0% pentru regimul ${watchedVatCategory}.`,
         )
       }
     }
@@ -418,7 +429,7 @@ export function InvoiceForm({
 
     // 2. Filtrează avizele care SUNT DEJA pe factură
     const newNotesToAdd = selectedNotes.filter(
-      (note) => !currentSourceNoteIds.has(note._id.toString())
+      (note) => !currentSourceNoteIds.has(note._id.toString()),
     )
 
     // 3. Verifică dacă am rămas cu ceva de adăugat
@@ -475,7 +486,7 @@ export function InvoiceForm({
           stornedQuantity: 0,
           relatedAdvanceId: undefined,
         }
-      })
+      }),
     )
 
     // 5. Adaugă (append) liniile noi la cele existente (FĂRĂ remove())
@@ -486,7 +497,7 @@ export function InvoiceForm({
     setValue(
       'sourceDeliveryNotes',
       [...Array.from(currentSourceNoteIds), ...newSourceIds], // Folosim Set-ul
-      { shouldDirty: true }
+      { shouldDirty: true },
     )
 
     // 7. Combină referințele pentru badge-uri (vechi + noi)
@@ -498,7 +509,7 @@ export function InvoiceForm({
 
     // 8. Feedback
     toast.success(
-      `${newInvoiceItems.length} linii au fost adăugate din ${newNotesToAdd.length} avize noi.`
+      `${newInvoiceItems.length} linii au fost adăugate din ${newNotesToAdd.length} avize noi.`,
     )
     setShowNoteLoaderModal(false)
   }
@@ -519,7 +530,7 @@ export function InvoiceForm({
               ...cb,
               entryDate: new Date(cb.entryDate),
             })),
-          })
+          }),
         )
 
         const currentItems = getValues('items')
@@ -530,7 +541,7 @@ export function InvoiceForm({
           // Verificăm dacă există deja o linie cu același ID de linie sursă
           const isDuplicate = currentItems.some(
             (existingItem) =>
-              existingItem.sourceInvoiceLineId === newLine.sourceInvoiceLineId
+              existingItem.sourceInvoiceLineId === newLine.sourceInvoiceLineId,
           )
 
           if (isDuplicate) {
@@ -546,7 +557,7 @@ export function InvoiceForm({
             {
               description:
                 'Dacă doriți să modificați cantitatea, editați linia existentă.',
-            }
+            },
           )
         }
 
@@ -571,7 +582,7 @@ export function InvoiceForm({
 
         const sourceInvoices = await getStornoSourceInvoices(
           result.data.header.clientId,
-          result.data.header.deliveryAddressId
+          result.data.header.deliveryAddressId,
         )
         if (sourceInvoices.success) {
           setLoadedStornoSources(
@@ -580,13 +591,13 @@ export function InvoiceForm({
               .map((inv) => ({
                 id: inv._id,
                 ref: `${inv.seriesName}-${inv.invoiceNumber}`,
-              }))
+              })),
           )
         }
 
         toast.success(
           `${result.data.lines.length} linii de stornat au fost încărcate.`,
-          { id: toastId }
+          { id: toastId },
         )
         setShowStornoModal(false)
       } else {
@@ -606,7 +617,7 @@ export function InvoiceForm({
   }
   const handleLoadStornoLines = async (
     productId: string,
-    quantityToStorno: number
+    quantityToStorno: number,
   ) => {
     if (!watchedClientId || !watchedDeliveryAddressId) {
       toast.error('Clientul sau adresa de livrare nu sunt selectate.', {
@@ -625,7 +636,7 @@ export function InvoiceForm({
         watchedClientId,
         watchedDeliveryAddressId,
         productId,
-        quantityToStorno
+        quantityToStorno,
       )
 
       if (result.success) {
@@ -637,7 +648,7 @@ export function InvoiceForm({
               ...cb,
               entryDate: new Date(cb.entryDate), // Conversia
             })),
-          })
+          }),
         )
 
         // 2. ADĂUGĂM liniile
@@ -653,7 +664,7 @@ export function InvoiceForm({
         // 4. Actualizăm badge-urile (opțional, dar util)
         const sourceInvoices = await getStornoSourceInvoices(
           watchedClientId,
-          watchedDeliveryAddressId
+          watchedDeliveryAddressId,
         )
         if (sourceInvoices.success) {
           setLoadedStornoSources(
@@ -662,7 +673,7 @@ export function InvoiceForm({
               .map((inv) => ({
                 id: inv._id,
                 ref: `${inv.seriesName}-${inv.invoiceNumber}`,
-              }))
+              })),
           )
         }
 
@@ -693,7 +704,7 @@ export function InvoiceForm({
     const currentItems = getValues('items')
     const indicesToRemove = currentItems
       .map((item: InvoiceLineInput, index: number) =>
-        item.sourceDeliveryNoteId === noteIdToRemove ? index : -1
+        item.sourceDeliveryNoteId === noteIdToRemove ? index : -1,
       )
       .filter((index: number) => index !== -1)
       .reverse()
@@ -702,7 +713,7 @@ export function InvoiceForm({
     }
     setLoadedNotes((prev) => prev.filter((n) => n.id !== noteIdToRemove))
     const newSourceIds = getValues('sourceDeliveryNotes').filter(
-      (id: string) => id !== noteIdToRemove
+      (id: string) => id !== noteIdToRemove,
     )
     setValue('sourceDeliveryNotes', newSourceIds)
     toast.info('Avizul și liniile asociate au fost scoase din factură.')
@@ -726,13 +737,13 @@ export function InvoiceForm({
 
     // 3. Actualizează starea pentru relatedInvoiceIds (folosită la submit)
     const remainingSourceInvoices = getValues('relatedInvoiceIds').filter(
-      (id: string) => id !== invoiceIdToRemove
+      (id: string) => id !== invoiceIdToRemove,
     )
     setValue('relatedInvoiceIds', remainingSourceInvoices)
 
     // 4. Actualizează starea pentru badge-uri (vizual)
     setLoadedStornoSources((prev) =>
-      prev.filter((inv) => inv.id !== invoiceIdToRemove)
+      prev.filter((inv) => inv.id !== invoiceIdToRemove),
     )
 
     toast.info('Factura sursă și liniile asociate au fost eliminate.')
@@ -755,7 +766,7 @@ export function InvoiceForm({
 
         // 1. Găsim o serie validă pentru Nota de Retur (fără hardcodare)
         const returnNoteSeriesList = (await getActiveSeriesForDocumentType(
-          'NotaRetur' as unknown as DocumentType
+          'NotaRetur' as unknown as DocumentType,
         )) as SeriesDTO[]
 
         if (!returnNoteSeriesList || returnNoteSeriesList.length === 0) {
@@ -764,7 +775,7 @@ export function InvoiceForm({
             {
               id: loadingToastId,
               description: 'Vă rugăm configurați o serie în Setări.',
-            }
+            },
           )
           setIsLoading(false)
           return
@@ -823,7 +834,7 @@ export function InvoiceForm({
     })
   }
   const handleSplitConfirm = async (
-    configs: { clientId: string; percentage: number }[]
+    configs: { clientId: string; percentage: number }[],
   ) => {
     // Validare de bază (doar pentru split nou, la editare avem items din groupData)
     const currentItems = getValues('items')
@@ -869,7 +880,7 @@ export function InvoiceForm({
     const toastId = toast.loading(
       isEditSplitMode
         ? 'Se regenerează grupul de facturi...'
-        : 'Se generează facturile split...'
+        : 'Se generează facturile split...',
     )
 
     try {
@@ -900,7 +911,7 @@ export function InvoiceForm({
       if (initialData?.splitGroupId) {
         setIsLoading(true)
         const result = await getSplitGroupPreview(
-          initialData.splitGroupId.toString()
+          initialData.splitGroupId.toString(),
         )
         setIsLoading(false)
 
@@ -923,7 +934,7 @@ export function InvoiceForm({
     try {
       const result = await cancelSplitGroup(
         initialData.splitGroupId.toString(),
-        cancelReason || 'Anulare grup manuală (din editare)'
+        cancelReason || 'Anulare grup manuală (din editare)',
       )
 
       if (result.success) {

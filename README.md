@@ -83,4 +83,19 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - de ajustat pagina inventory/movements/movementID (page-ul) - dupa ce refac reception si creez NIR
 
 # dashboard - lista Stoc disponibil negativ (ca sa stie ca trebuie sa comande)
+
 profil ud 30 3ml nida
+
+# Foarte important
+
+- comanda adminul trebuie sa poata sa vanda si sub pretul minim
+- nir - de scos costul de transport
+- aspect factura - de verificat la fact mai mari de o pagina
+- solduri + fisa client
+- factura split, trebuie sa bata pe sumele totale conform cotelor, nu fiecare rand.
+- paletii storno
+- comanda adminul trebuie sa poata sa vanda si sub pretul minim
+- la facturi de la funizori, sa poata fi cautate dupa furnizori (incasari si plati)
+- la produse in aplicatie, sa se afiseze cate buc sunt la palet
+
+- lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus.
