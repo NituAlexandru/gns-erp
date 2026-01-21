@@ -207,7 +207,9 @@ export async function createSplitInvoices(
                 invoiceData.deliveryAddressId,
               ),
               salesAgentId: new Types.ObjectId(invoiceData.salesAgentId),
-              // Notă: salesAgentSnapshot vine din commonData (Formular)
+              salesAgentSnapshot: invoiceData.salesAgentSnapshot || {
+                name: 'Agent Necunoscut',
+              },
 
               // --- Array-uri de Referințe (Fix pentru TypeScript) ---
               sourceDeliveryNotes: (invoiceData.sourceDeliveryNotes || []).map(

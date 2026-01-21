@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -25,7 +25,10 @@ import { toast } from 'sonner'
 import { IClientDoc } from '@/lib/db/modules/client/types'
 import { formatCurrency, round2 } from '@/lib/utils'
 import { ClientWithSummary } from '@/lib/db/modules/client/summary/client-summary.model'
-import { InvoiceLineInput } from '@/lib/db/modules/financial/invoices/invoice.types'
+import {
+  InvoiceLineInput,
+  InvoiceInput,
+} from '@/lib/db/modules/financial/invoices/invoice.types'
 import { InlineClientSelector } from './InlineClientSelector'
 import {
   Table,
@@ -40,7 +43,7 @@ interface SplitInvoiceModalProps {
   isOpen: boolean
   onClose: () => void
   onConfirm: (
-    configs: { clientId: string; percentage: number }[]
+    configs: { clientId: string; percentage: number }[],
   ) => Promise<void>
   originalClient: IClientDoc | null
   grandTotal: number
@@ -67,7 +70,10 @@ export function SplitInvoiceModal({
 }: SplitInvoiceModalProps) {
   const [rows, setRows] = useState<SplitRow[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  // Stare pentru Preview
   const [viewMode, setViewMode] = useState<'config' | 'preview'>('config')
+  const [previewData, setPreviewData] = useState<InvoiceInput[] | null>(null)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [activePreviewTab, setActivePreviewTab] = useState<string>('')
 
   // Inițializare
@@ -84,251 +90,67 @@ export function SplitInvoiceModal({
         },
       ])
       setViewMode('config')
+      setPreviewData(null)
     }
   }, [isOpen, originalClient])
 
   const totalPercentage = rows.reduce((sum, r) => sum + (r.percentage || 0), 0)
   const isValid = Math.abs(totalPercentage - 100) < 0.01
 
-  // --- LOGICA DE CALCUL DISTRIBUȚIE ---
-  const previewData = useMemo(() => {
-    if (viewMode !== 'preview' || !isValid) return null
-
-    try {
-      // 1. Calculăm distribuția per articol
-      const itemDistributions = originalItems.map((item) => {
-        // --- IDENTIFICARE TIP ARTICOL ---
-        // Stocabil = Produs sau Ambalaj, DAR NU Manual
-        const isStockable =
-          !item.isManualEntry &&
-          !item.serviceId &&
-          (item.stockableItemType === 'ERPProduct' ||
-            item.stockableItemType === 'Packaging')
-
-        // --- PREGĂTIRE DATE (CONVERSIE UM) ---
-        // Conversia se aplică doar la stocabile
-        const shouldConvertToBase =
-          isStockable &&
-          item.conversionFactor &&
-          item.conversionFactor > 1 &&
-          item.baseUnit
-
-        // Cantitatea Totală (Bază sau Originală)
-        const totalQty = shouldConvertToBase
-          ? item.quantity * (item.conversionFactor || 1)
-          : item.quantity
-
-        // Prețul Unitar de Referință (Bază sau Original)
-        const refUnitPrice = shouldConvertToBase
-          ? item.priceInBaseUnit ||
-            item.unitPrice / (item.conversionFactor || 1)
-          : item.unitPrice
-
-        const refUM = shouldConvertToBase
-          ? item.baseUnit || item.unitOfMeasure
-          : item.unitOfMeasure
-
-        // ============================================================
-        // CAZ 1: PRODUSE & AMBALAJE (Împărțim CANTITATEA, Preț Fix)
-        // ============================================================
-        if (isStockable) {
-          let allocatedQty = 0
-
-          const distribution = rows.map((row, idx) => {
-            // Calculăm cantitatea întreagă (fără zecimale)
-            const qty = Math.floor(totalQty * (row.percentage / 100))
-            allocatedQty += qty
-            return {
-              rowIndex: idx,
-              qty: qty,
-              percentage: row.percentage,
-            }
-          })
-
-          // Gestionăm restul (bucățile rămase din rotunjire)
-          let remainder = Math.round(totalQty - allocatedQty)
-
-          // Distribuim restul la clienții cu cota cea mai mare
-          const sortedIndices = distribution
-            .map((d, i) => ({ ...d, originalIndex: i }))
-            .sort((a, b) => b.percentage - a.percentage)
-
-          let i = 0
-          while (remainder > 0) {
-            const targetIndex =
-              sortedIndices[i % sortedIndices.length].originalIndex
-            distribution[targetIndex].qty += 1
-            remainder -= 1
-            i++
-          }
-
-          return {
-            type: 'STOCKABLE',
-            baseDetails: {
-              um: refUM,
-              unitPrice: refUnitPrice,
-              conversionFactor: shouldConvertToBase ? 1 : item.conversionFactor,
-            },
-            splits: distribution,
-          }
-        }
-
-        // ============================================================
-        // CAZ 2: SERVICII, AUTORIZAȚII, MANUALE (Duplicăm CANTITATEA, Împărțim PREȚUL)
-        // ============================================================
-        else {
-          const distribution = rows.map((row, idx) => {
-            const splitNetValue = (item.lineValue * row.percentage) / 100
-            const newNetUnitPrice = splitNetValue / totalQty
-
-            return {
-              rowIndex: idx,
-              qty: totalQty,
-              unitPrice: newNetUnitPrice,
-            }
-          })
-
-          return {
-            type: 'SERVICE',
-            baseDetails: {
-              um: item.unitOfMeasure,
-              conversionFactor: item.conversionFactor,
-            },
-            splits: distribution,
-          }
-        }
-      })
-
-      // 2. Reconstruim structura pe Clienți (salvăm în variabilă, nu returnăm direct)
-      const initialInvoices = rows.map((row, rowIndex) => {
-        const clientItems = originalItems.map((originalItem, itemIndex) => {
-          const distData = itemDistributions[itemIndex]
-
-          // Luăm datele specifice acestui client
-          const mySplit =
-            distData.type === 'STOCKABLE'
-              ? distData.splits[rowIndex]
-              : (distData.splits as any)[rowIndex]
-
-          const finalQty = mySplit.qty
-
-          // Determinăm prețul unitar final
-          const finalUnitPrice =
-            distData.type === 'STOCKABLE'
-              ? distData.baseDetails.unitPrice
-              : mySplit.unitPrice
-
-          // --- RECALCULARE FINALĂ ---
-          const finalValue = round2(finalQty * finalUnitPrice)
-          const vatRate = originalItem.vatRateDetails?.rate || 0
-          const finalVat = round2((finalValue * vatRate) / 100)
-          const finalTotal = round2(finalValue + finalVat)
-
-          return {
-            ...originalItem,
-            quantity: finalQty,
-            unitOfMeasure: distData.baseDetails.um,
-            unitPrice: finalUnitPrice,
-            conversionFactor: distData.baseDetails.conversionFactor,
-            lineValue: finalValue,
-            lineTotal: finalTotal,
-            vatRateDetails: {
-              ...originalItem.vatRateDetails,
-              value: finalVat,
-            },
-          }
-        })
-
-        // Calculăm totalul per factură
-        const newGrandTotal = clientItems.reduce(
-          (acc, item) => acc + item.lineTotal,
-          0
-        )
-
-        return {
-          clientId: row.clientId,
-          clientName: row.clientName || 'Client Necunoscut',
-          items: clientItems,
-          totals: { grandTotal: newGrandTotal },
-        }
-      })
-
-      // --- 3. GLOBAL FAIL-SAFE (Corecție Total General) ---
-      // Aici rezolvăm problema cu banul în plus/minus
-
-      const calculatedGrandTotal = initialInvoices.reduce(
-        (sum, inv) => sum + inv.totals.grandTotal,
-        0
-      )
-
-      // Diferența (ex: +0.01 sau -0.01)
-      const globalDiff = round2(calculatedGrandTotal - grandTotal)
-
-      if (globalDiff !== 0) {
-        // Găsim factura clientului principal (cel cu cota cea mai mare)
-        const sortedIndices = rows
-          .map((r, i) => ({ idx: i, pct: r.percentage }))
-          .sort((a, b) => b.pct - a.pct)
-
-        const targetIdx = sortedIndices[0].idx
-        const targetInvoice = initialInvoices[targetIdx]
-
-        // Căutăm o linie potrivită pentru ajustare (Serviciu sau Manual e ideal)
-        // Dacă nu, luăm linia cu valoarea cea mai mare
-        let lineIdx = targetInvoice.items.findIndex(
-          (i) => !i.stockableItemType || i.isManualEntry || i.serviceId
-        )
-
-        if (lineIdx === -1) {
-          lineIdx = targetInvoice.items.reduce(
-            (maxI, item, i, arr) =>
-              item.lineTotal > arr[maxI].lineTotal ? i : maxI,
-            0
-          )
-        }
-
-        if (lineIdx !== -1) {
-          const line = targetInvoice.items[lineIdx]
-
-          // Corectăm Totalul și TVA-ul
-          const newLineTotal = round2(line.lineTotal - globalDiff)
-          const newVat = round2(line.vatRateDetails.value - globalDiff)
-
-          // Aplicăm corecția pe linie
-          targetInvoice.items[lineIdx] = {
-            ...line,
-            lineTotal: newLineTotal,
-            vatRateDetails: {
-              ...line.vatRateDetails,
-              value: newVat,
-            },
-          }
-
-          // Aplicăm corecția pe totalul facturii
-          targetInvoice.totals.grandTotal = round2(
-            targetInvoice.totals.grandTotal - globalDiff
-          )
-        }
-      }
-
-      return initialInvoices
-    } catch (error) {
-      console.error('Eroare la calcul preview:', error)
-      return null
-    }
-  }, [viewMode, isValid, rows, originalItems, grandTotal])
-
-  // Restul componentei (Handlers, Render) rămâne neschimbat
+  // --- LOGICA DE CALCUL: SERVER-SIDE ---
+  // Când trecem pe modul 'preview', cerem backend-ului să calculeze
   useEffect(() => {
-    if (viewMode === 'preview' && previewData && previewData.length > 0) {
-      const activeExists = previewData.some(
-        (p) => p.clientId === activePreviewTab
-      )
-      if (!activePreviewTab || !activeExists) {
-        setActivePreviewTab(previewData[0].clientId)
+    if (viewMode === 'preview' && isValid) {
+      const fetchPreview = async () => {
+        setIsLoadingPreview(true)
+        try {
+          // Pregătim config-ul pentru backend
+          const splitConfigs = rows.map((r) => ({
+            clientId: r.clientId, // ID-ul real sau gol
+            clientSnapshot: r.clientData || {}, // Mock snapshot
+            percentage: r.percentage,
+          }))
+
+          // Date comune dummy
+          const commonData = {
+            currency: currency,
+            status: 'Draft',
+          }
+
+          const response = await fetch(
+            '/api/financial/invoices/split-preview',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                originalItems,
+                splitConfigs,
+                commonData,
+              }),
+            },
+          )
+
+          if (!response.ok) throw new Error('Eroare la calcul')
+
+          const data: InvoiceInput[] = await response.json()
+          setPreviewData(data)
+
+          // Setăm primul tab activ dacă există date și client valid
+          if (data.length > 0 && data[0].clientId) {
+            setActivePreviewTab(data[0].clientId)
+          }
+        } catch (error) {
+          console.error(error)
+          toast.error('Nu s-a putut genera previzualizarea.')
+          setViewMode('config') // Ne întoarcem dacă e eroare
+        } finally {
+          setIsLoadingPreview(false)
+        }
       }
+
+      fetchPreview()
     }
-  }, [viewMode, previewData, activePreviewTab])
+  }, [viewMode, isValid, rows, originalItems, currency])
 
   const handleAddClient = () => {
     setRows([
@@ -398,7 +220,7 @@ export function SplitInvoiceModal({
             <DialogDescription>
               {viewMode === 'config'
                 ? `Configurați cotele pentru suma totală de ${formatCurrency(
-                    grandTotal
+                    grandTotal,
                   )} ${currency}.`
                 : 'Verificați distribuția produselor înainte de generare.'}
             </DialogDescription>
@@ -513,141 +335,188 @@ export function SplitInvoiceModal({
             </div>
           )}
 
-          {viewMode === 'preview' && previewData && (
-            <div className='p-6 h-full flex flex-col'>
-              <Tabs
-                value={activePreviewTab}
-                onValueChange={setActivePreviewTab}
-                className='w-full h-full flex flex-col'
-              >
-                <TabsList className='w-full justify-start overflow-x-auto h-auto p-2 bg-muted/50 mb-4 shrink-0'>
+          {viewMode === 'preview' && (
+            <div className='p-6 h-full flex flex-col relative min-h-[300px]'>
+              {/* Loader Overlay */}
+              {isLoadingPreview && (
+                <div className='absolute inset-0 bg-background/80 z-50 flex items-center justify-center backdrop-blur-sm'>
+                  <div className='flex flex-col items-center gap-2'>
+                    <Loader2 className='h-8 w-8 animate-spin text-primary' />
+                    <p className='text-sm text-muted-foreground'>
+                      Se calculează distribuția...
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {!isLoadingPreview && previewData && (
+                <Tabs
+                  value={activePreviewTab}
+                  onValueChange={setActivePreviewTab}
+                  className='w-full h-full flex flex-col'
+                >
+                  <TabsList className='w-full justify-start overflow-x-auto h-auto p-2 bg-muted/50 mb-4 shrink-0'>
+                    {previewData.map((inv) => (
+                      <TabsTrigger
+                        key={inv.clientId}
+                        // Folosim || '' pentru a evita undefined la value
+                        value={inv.clientId || ''}
+                        className='px-4 py-2 h-auto flex flex-col items-start gap-1 cursor-pointer data-[state=active]:bg-white data-[state=active]:shadow-sm'
+                      >
+                        <div className='font-semibold text-sm truncate max-w-[250px] '>
+                          {rows.find((r) => r.clientId === inv.clientId)
+                            ?.clientName || 'Client'}
+                        </div>
+                        <div className='text-xs font-mono flex items-center gap-2 mt-1'>
+                          <span className='text-muted-foreground'>
+                            {formatCurrency(inv.totals.grandTotal)}
+                          </span>
+                          <span
+                            className={
+                              Math.abs(
+                                (inv.totals.grandTotal / grandTotal) * 100 -
+                                  (rows.find((r) => r.clientId === inv.clientId)
+                                    ?.percentage || 0),
+                              ) < 0.5
+                                ? 'text-green-600 font-bold'
+                                : 'text-red-500 font-bold'
+                            }
+                          >
+                            (
+                            {(
+                              (inv.totals.grandTotal / grandTotal) *
+                              100
+                            ).toFixed(2)}
+                            %)
+                          </span>
+                        </div>
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+
                   {previewData.map((inv) => (
-                    <TabsTrigger
+                    <TabsContent
                       key={inv.clientId}
-                      value={inv.clientId}
-                      className='px-4 py-2 h-auto flex flex-col items-start gap-1 cursor-pointer data-[state=active]:bg-white data-[state=active]:shadow-sm'
+                      // Folosim || '' pentru a evita undefined la value
+                      value={inv.clientId || ''}
+                      className='flex-1 overflow-hidden flex flex-col border rounded-md bg-card shadow-sm mt-0'
                     >
-                      <div className='font-semibold text-sm truncate max-w-[250px] '>
-                        {inv.clientName}
+                      <div className='p-4 border-b bg-muted/20 flex justify-between items-center'>
+                        <div className='font-medium text-sm'>
+                          Linii Factură ({inv.items.length})
+                        </div>
+                        <div className='font-mono font-bold'>
+                          {formatCurrency(inv.totals.grandTotal)}
+                        </div>
                       </div>
-                      <div className='text-xs text-muted-foreground font-mono'>
-                        {formatCurrency(inv.totals.grandTotal)}
-                      </div>
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
 
-                {previewData.map((inv) => (
-                  <TabsContent
-                    key={inv.clientId}
-                    value={inv.clientId}
-                    className='flex-1 overflow-hidden flex flex-col border rounded-md bg-card shadow-sm mt-0'
-                  >
-                    <div className='p-4 border-b bg-muted/20 flex justify-between items-center'>
-                      <div className='font-medium text-sm'>
-                        Linii Factură ({inv.items.length})
-                      </div>
-                      <div className='font-mono font-bold'>
-                        {formatCurrency(inv.totals.grandTotal)}
-                      </div>
-                    </div>
+                      <div className='flex-1 overflow-y-auto p-0'>
+                        <Table>
+                          <TableHeader className='bg-muted/10 sticky top-0 z-10 text-xs uppercase text-muted-foreground'>
+                            <TableRow className='hover:bg-transparent border-b-input'>
+                              <TableHead className='px-4 py-3 text-left font-medium h-auto text-muted-foreground w-[30%]'>
+                                Produs
+                              </TableHead>
+                              <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
+                                Cotă Reală
+                              </TableHead>
 
-                    <div className='flex-1 overflow-y-auto p-0'>
-                      <Table>
-                        <TableHeader className='bg-muted/10 sticky top-0 z-10 text-xs uppercase text-muted-foreground'>
-                          <TableRow className='hover:bg-transparent border-b-input'>
-                            <TableHead className='px-4 py-3 text-left font-medium h-auto text-muted-foreground'>
-                              Produs
-                            </TableHead>
-                            <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
-                              Cotă Reală
-                            </TableHead>
-                            <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
-                              Cantitate
-                            </TableHead>
-                            <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
-                              Preț Unit.
-                            </TableHead>
-                            <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
-                              Valoare
-                            </TableHead>
-                            <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
-                              TVA
-                            </TableHead>
-                            <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
-                              Total
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {inv.items.map((item, idx) => {
-                            // 1. Calculăm procentul REAL
-                            const originalTotal =
-                              originalItems[idx]?.lineTotal || 0
-                            const realPercentage =
-                              originalTotal !== 0
-                                ? (item.lineTotal / originalTotal) * 100
+                              <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
+                                Cantitate
+                              </TableHead>
+                              <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
+                                UM
+                              </TableHead>
+
+                              <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
+                                Preț Unit.
+                              </TableHead>
+                              <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
+                                Valoare
+                              </TableHead>
+                              <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
+                                TVA
+                              </TableHead>
+                              <TableHead className='px-4 py-3 text-right font-medium h-auto text-muted-foreground'>
+                                Total
+                              </TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {inv.items.map((item, idx) => {
+                              // 🔴 MODIFICARE: Calcul Cotă Reală
+                              // Căutăm itemul original pentru a compara valorile
+                              const originalItem = originalItems.find(
+                                (oi) => oi.productName === item.productName,
+                              )
+                              const originalTotal = originalItem
+                                ? originalItem.lineTotal
                                 : 0
 
-                            // 2. Găsim procentul ȚINTĂ
-                            const targetRow = rows.find(
-                              (r) => r.clientId === inv.clientId
-                            )
-                            const targetPercentage = targetRow?.percentage || 0
+                              const realPercentage =
+                                originalTotal !== 0
+                                  ? (item.lineTotal / originalTotal) * 100
+                                  : 0
 
-                            // 3. Verificăm potrivirea
-                            const isMatch =
-                              Math.abs(realPercentage - targetPercentage) < 0.01
+                              // Găsim procentul ȚINTĂ (din configurație) pentru a colora
+                              const targetRow = rows.find(
+                                (r) => r.clientId === inv.clientId,
+                              )
+                              const targetPercentage =
+                                targetRow?.percentage || 0
+                              // Toleranță mai mare (1%) pentru că "gap filling" poate devia procentele pe liniile individuale
+                              // (scopul e totalul general, nu linia individuală)
+                              const isMatch =
+                                Math.abs(realPercentage - targetPercentage) < 5
+                              const colorClass = isMatch
+                                ? 'text-green-600'
+                                : 'text-red-500'
 
-                            const colorClass = isMatch
-                              ? 'text-green-600'
-                              : 'text-red-600'
-
-                            return (
-                              <TableRow
-                                key={idx}
-                                className={`hover:bg-muted/5 border-b-input ${
-                                  item.quantity === 0 ? 'opacity-40' : ''
-                                }`}
-                              >
-                                <TableCell className='px-4 py-3 font-medium'>
-                                  {item.productName}
-                                </TableCell>
-
-                                {/* Cotă Reală */}
-                                <TableCell
-                                  className={`px-4 py-3 text-right font-mono font-bold ${colorClass}`}
+                              return (
+                                <TableRow
+                                  key={idx}
+                                  className={`hover:bg-muted/5 border-b-input ${
+                                    item.quantity === 0 ? 'opacity-40' : ''
+                                  }`}
                                 >
-                                  {realPercentage.toFixed(2)}%
-                                </TableCell>
+                                  <TableCell className='px-4 py-3 font-medium'>
+                                    {item.productName}
+                                  </TableCell>
 
-                                <TableCell className='px-4 py-3 text-right font-mono'>
-                                  {item.quantity}{' '}
-                                  <span className='text-xs text-muted-foreground ml-1'>
+                                  {/* Cotă Reală */}
+                                  <TableCell
+                                    className={`px-4 py-3 text-right font-mono font-bold ${colorClass}`}
+                                  >
+                                    {realPercentage.toFixed(2)}%
+                                  </TableCell>
+                                  <TableCell className='px-4 py-3 text-right font-mono'>
+                                    {item.quantity}
+                                  </TableCell>
+                                  <TableCell className='px-4 py-3 text-right font-mono text-xs text-muted-foreground '>
                                     {item.unitOfMeasure}
-                                  </span>
-                                </TableCell>
-                                <TableCell className='px-4 py-3 text-right font-mono text-muted-foreground'>
-                                  {formatCurrency(item.unitPrice)}
-                                </TableCell>
-                                <TableCell className='px-4 py-3 text-right font-mono'>
-                                  {formatCurrency(item.lineValue)}
-                                </TableCell>
-                                <TableCell className='px-4 py-3 text-right font-mono text-muted-foreground'>
-                                  {formatCurrency(item.vatRateDetails.value)}
-                                </TableCell>
-                                <TableCell className='px-4 py-3 text-right font-mono font-semibold'>
-                                  {formatCurrency(item.lineTotal)}
-                                </TableCell>
-                              </TableRow>
-                            )
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
+                                  </TableCell>
+                                  <TableCell className='px-4 py-3 text-right font-mono text-muted-foreground'>
+                                    {formatCurrency(item.unitPrice)}
+                                  </TableCell>
+                                  <TableCell className='px-4 py-3 text-right font-mono'>
+                                    {formatCurrency(item.lineValue)}
+                                  </TableCell>
+                                  <TableCell className='px-4 py-3 text-right font-mono text-muted-foreground'>
+                                    {formatCurrency(item.vatRateDetails.value)}
+                                  </TableCell>
+                                  <TableCell className='px-4 py-3 text-right font-mono font-semibold'>
+                                    {formatCurrency(item.lineTotal)}
+                                  </TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              )}
             </div>
           )}
         </div>
@@ -712,7 +581,7 @@ export function SplitInvoiceModal({
                 </Button>
                 <Button
                   onClick={handleConfirm}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isLoadingPreview}
                   className='bg-green-600 hover:bg-green-700 text-white h-11 px-8 text-base shadow-md'
                 >
                   {isSubmitting ? (

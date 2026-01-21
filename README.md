@@ -78,16 +78,19 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - bug QuantityOriginal - este gresit - adauga ultima cantitate (cea care a mai ramas din tot lotul) atunci cand se termina. Ex. lot 100 buc, comandat 20,30,40, ramas 10, cand se va scade ult 10 buc, doar acel 10 se va adauga in arhiva.
 - nu are un scurt history pentru trasabilitate rapida
 
-# Inventar
-
-- de ajustat pagina inventory/movements/movementID (page-ul) - dupa ce refac reception si creez NIR
-
 # dashboard - lista Stoc disponibil negativ (ca sa stie ca trebuie sa comande)
 
 profil ud 30 3ml nida
 
+# De urmarit / testat
+- FACUT - factura split, trebuie sa bata pe sumele totale conform cotelor, nu fiecare rand + adresa de livrare.
+
+
+
+
 # Foarte important
 
+- Vreau să muți facturile fiscale separat de proforme! Este urgent! ‼️
 - comanda adminul trebuie sa poata sa vanda si sub pretul minim
 - nir - de scos costul de transport
 - aspect factura - de verificat la fact mai mari de o pagina
@@ -97,5 +100,9 @@ profil ud 30 3ml nida
 - comanda adminul trebuie sa poata sa vanda si sub pretul minim
 - la facturi de la funizori, sa poata fi cautate dupa furnizori (incasari si plati)
 - la produse in aplicatie, sa se afiseze cate buc sunt la palet
-
+- de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
 - lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus.
+- La facturi, când modific ceva aș vrea să rămână la aceeași pagină - cu factura modificată
+- LA PRODUSE, CAND CAUT UN PRODUS SA IMI RAMANA ACEL PRODUS , NU SA DISPARA CAND DAU BACK
+- Printare multiplă facturi iesire
+- De preluat codul UIT si soferul / masina / remorca pe factura
