@@ -105,7 +105,7 @@ export function InvoicesList({
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
   const [invoiceToActOn, setInvoiceToActOn] = useState<PopulatedInvoice | null>(
-    null
+    null,
   )
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
   const [isBulkRefreshing, setIsBulkRefreshing] = useState(false)
@@ -143,7 +143,7 @@ export function InvoicesList({
                 ...debouncedFilters, // ✅ MODIFICARE: Adăugăm și filtrele în query string
               },
             },
-            { skipNull: true, skipEmptyString: true }
+            { skipNull: true, skipEmptyString: true },
           )
 
           try {
@@ -178,8 +178,8 @@ export function InvoicesList({
           prev.map((inv) =>
             inv._id === invoice._id
               ? { ...inv, status: 'APPROVED', eFacturaStatus: 'PENDING' }
-              : inv
-          )
+              : inv,
+          ),
         )
       } else {
         toast.error('Eroare la aprobare', { description: result.message })
@@ -192,7 +192,7 @@ export function InvoicesList({
     startTransition(async () => {
       const result = await rejectInvoice(
         invoiceToActOn._id.toString(),
-        rejectionReason
+        rejectionReason,
       )
       if (result.success) {
         toast.success(result.message)
@@ -200,8 +200,8 @@ export function InvoicesList({
           prev.map((inv) =>
             inv._id === invoiceToActOn._id
               ? { ...inv, status: 'REJECTED', rejectionReason: rejectionReason }
-              : inv
-          )
+              : inv,
+          ),
         )
       } else {
         toast.error('Eroare la respingere', { description: result.message })
@@ -237,7 +237,7 @@ export function InvoicesList({
               }
             }
             return inv
-          })
+          }),
         )
       } else {
         toast.error('Eroare ANAF', { description: result.message })
@@ -246,8 +246,8 @@ export function InvoicesList({
           prev.map((inv) =>
             inv._id === invoice._id
               ? { ...inv, eFacturaStatus: 'REJECTED_ANAF' }
-              : inv
-          )
+              : inv,
+          ),
         )
       }
     } catch (err) {
@@ -318,16 +318,16 @@ export function InvoicesList({
             prev.map((inv) =>
               inv._id === invoice._id
                 ? { ...inv, eFacturaStatus: 'ACCEPTED' }
-                : inv
-            )
+                : inv,
+            ),
           )
         } else if (result.status === 'nok') {
           setInvoices((prev) =>
             prev.map((inv) =>
               inv._id === invoice._id
                 ? { ...inv, eFacturaStatus: 'REJECTED_ANAF' }
-                : inv
-            )
+                : inv,
+            ),
           )
         }
       } else {
@@ -358,7 +358,7 @@ export function InvoicesList({
     startTransition(async () => {
       const result = await cancelInvoice(
         invoiceToActOn._id.toString(),
-        cancelReason || 'Anulare manuală din listă'
+        cancelReason || 'Anulare manuală din listă',
       )
 
       if (result.success) {
@@ -371,8 +371,8 @@ export function InvoicesList({
                   status: 'CANCELLED',
                   eFacturaStatus: 'NOT_REQUIRED',
                 }
-              : inv
-          )
+              : inv,
+          ),
         )
       } else {
         toast.error('Eroare la anulare', { description: result.message })
@@ -389,7 +389,7 @@ export function InvoicesList({
       startTransition(async () => {
         toast.loading('Se încarcă detaliile grupului...')
         const result = await getSplitGroupPreview(
-          invoice.splitGroupId!.toString()
+          invoice.splitGroupId!.toString(),
         )
         toast.dismiss()
 
@@ -416,7 +416,7 @@ export function InvoicesList({
     startTransition(async () => {
       const result = await cancelSplitGroup(
         invoiceToActOn.splitGroupId!.toString(),
-        cancelReason || 'Anulare grup manuală'
+        cancelReason || 'Anulare grup manuală',
       )
 
       if (result.success) {
@@ -433,8 +433,8 @@ export function InvoicesList({
                   status: 'CANCELLED',
                   eFacturaStatus: 'NOT_REQUIRED',
                 }
-              : inv
-          )
+              : inv,
+          ),
         )
       } else {
         toast.error('Eroare la anulare grup', { description: result.message })
@@ -515,7 +515,7 @@ export function InvoicesList({
                       <span>
                         {invoice.seriesName}-{invoice.invoiceNumber}
                       </span>
-                      <span className='text-xs text-muted-foreground'>
+                      <span className='text-[10px] text-yellow-600 font-bold uppercase tracking-wider'>
                         {invoice.invoiceType}
                       </span>
                     </div>
@@ -538,7 +538,7 @@ export function InvoicesList({
                         'inline-block',
                         // Adăugăm cursor special doar dacă e respinsă, ca să știe că poate da click/hover
                         invoice.eFacturaStatus === 'REJECTED_ANAF' &&
-                          'cursor-help'
+                          'cursor-help',
                       )}
                       // 1. TOOLTIP PE BADGE
                       title={
@@ -600,7 +600,7 @@ export function InvoicesList({
                                 className={cn(
                                   'text-[10px] font-mono border px-2 py-1 rounded flex items-center gap-1 transition-colors h-7',
                                   'hover:bg-primary/10 hover:text-primary cursor-pointer',
-                                  'bg-muted text-muted-foreground'
+                                  'bg-muted text-muted-foreground',
                                 )}
                                 onClick={() => handleDownloadZip(invoice)}
                                 title='Descarcă XML / ZIP'
@@ -632,7 +632,7 @@ export function InvoicesList({
                                       (actionLoadingId ===
                                         invoice._id.toString() ||
                                         isBulkRefreshing) &&
-                                        'animate-spin'
+                                        'animate-spin',
                                     )}
                                   />
                                 </Button>
@@ -652,7 +652,7 @@ export function InvoicesList({
                       <TableCell
                         className={cn(
                           'text-right font-medium',
-                          getProfitColorClass(invoice.totals.totalProfit)
+                          getProfitColorClass(invoice.totals.totalProfit),
                         )}
                       >
                         {invoice.invoiceType !== 'STORNO'
@@ -662,7 +662,7 @@ export function InvoicesList({
                       <TableCell
                         className={cn(
                           'text-right text-xs',
-                          getMarginColorClass(invoice.totals.profitMargin)
+                          getMarginColorClass(invoice.totals.profitMargin),
                         )}
                       >
                         {invoice.invoiceType !== 'STORNO'
@@ -720,7 +720,7 @@ export function InvoicesList({
                         <DropdownMenuItem
                           onSelect={() =>
                             router.push(
-                              `/financial/invoices/${invoice._id.toString()}/edit`
+                              `/financial/invoices/${invoice._id.toString()}/edit`,
                             )
                           }
                           disabled={
@@ -732,7 +732,7 @@ export function InvoicesList({
                         </DropdownMenuItem>
 
                         {/* --- ÎNCEPUT BLOC ACȚIUNI ADMIN --- */}
-                        {/* Afișăm aceste acțiuni doar dacă ești admin */}
+
                         {isAdmin && (
                           <>
                             <DropdownMenuSeparator />
@@ -771,7 +771,7 @@ export function InvoicesList({
                             invoice.status === 'PARTIAL_PAID' ||
                             invoice.status === 'APPROVED' ||
                             ['SENT', 'ACCEPTED'].includes(
-                              invoice.eFacturaStatus
+                              invoice.eFacturaStatus,
                             )
                           }
                         >

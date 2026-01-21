@@ -64,7 +64,7 @@ function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
 
   if (!defaultEmail || !defaultPhone || !defaultBank) {
     throw new Error(
-      'Setările implicite (email, telefon, bancă) nu sunt configurate.'
+      'Setările implicite (email, telefon, bancă) nu sunt configurate.',
     )
   }
   return {
@@ -85,7 +85,7 @@ function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
  */
 export async function getUninvoicedDeliveryNotes(
   clientId: string,
-  deliveryAddressId: string
+  deliveryAddressId: string,
 ) {
   try {
     await connectToDatabase()
@@ -118,7 +118,7 @@ export async function getUninvoicedDeliveryNotes(
 
 export async function getUnsettledAdvances(
   clientId: string,
-  deliveryAddressId: string
+  deliveryAddressId: string,
 ): Promise<
   | { success: true; data: UnsettledAdvanceDTO[] }
   | { success: false; message: string }
@@ -153,7 +153,7 @@ export async function getUnsettledAdvances(
       ],
     })
       .select(
-        'seriesName invoiceNumber invoiceDate totals.grandTotal remainingAmount advanceScope'
+        'seriesName invoiceNumber invoiceDate totals.grandTotal remainingAmount advanceScope',
       )
       .sort({ invoiceDate: 1 }) // Le folosim pe cele mai vechi prima dată
       .lean()
@@ -181,7 +181,7 @@ export async function getUnsettledAdvances(
 
 export async function getStornoSourceInvoices(
   clientId: string,
-  deliveryAddressId: string
+  deliveryAddressId: string,
 ): Promise<
   | { success: true; data: StornoSourceInvoiceDTO[] }
   | { success: false; message: string }
@@ -215,7 +215,7 @@ export async function getStornoSourceInvoices(
       },
     })
       .select(
-        'seriesName invoiceNumber invoiceDate totals items.quantity items.stornedQuantity'
+        'seriesName invoiceNumber invoiceDate totals items.quantity items.stornedQuantity',
       )
       .sort({ invoiceDate: -1 }) // Cele mai noi prima dată
       .lean()
@@ -225,11 +225,11 @@ export async function getStornoSourceInvoices(
       // Calculăm cât mai e de stornat pe întreaga factură
       const totalQuantity = inv.items.reduce(
         (sum, item) => sum + (item.quantity || 0),
-        0
+        0,
       )
       const totalStorned = inv.items.reduce(
         (sum, item) => sum + (item.stornedQuantity || 0),
-        0
+        0,
       )
 
       return {
@@ -258,7 +258,7 @@ export async function getStornoSourceInvoices(
  */
 export async function createInvoice(
   data: InvoiceInput,
-  status: 'CREATED'
+  status: 'CREATED',
 ): Promise<InvoiceActionResult> {
   await connectToDatabase()
 
@@ -319,7 +319,7 @@ export async function createInvoice(
         _id: { $in: data.sourceDeliveryNotes },
       })
         .select(
-          'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId items salesAgentId salesAgentSnapshot'
+          'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId items salesAgentId salesAgentSnapshot',
         )
         .lean()
         .session(session)
@@ -386,7 +386,7 @@ export async function createInvoice(
             items: data.items, // Liniile direct din formular
             totals: totals, // Totalurile recalculate pe server
             sourceDeliveryNotes: data.sourceDeliveryNotes.map(
-              (id) => new Types.ObjectId(id)
+              (id) => new Types.ObjectId(id),
             ),
             relatedOrders: relatedOrderIds,
             relatedDeliveries: relatedDeliveryIds,
@@ -411,7 +411,7 @@ export async function createInvoice(
             deliveryNotesSnapshot: data.deliveryNotesSnapshot,
           },
         ],
-        { session }
+        { session },
       )
 
       newInvoice = createdInvoice
@@ -439,7 +439,7 @@ export async function createInvoice(
 
 export async function generateProformaFromOrder(
   orderId: string,
-  seriesName: string
+  seriesName: string,
 ): Promise<InvoiceActionResult> {
   await connectToDatabase()
   const session = await startSession()
@@ -558,7 +558,7 @@ export async function generateProformaFromOrder(
             stornedQuantity: 0,
             relatedAdvanceId: undefined,
           }
-        }
+        },
       )
 
       // 8. Recalculare Totaluri (pe Server)
@@ -609,7 +609,7 @@ export async function generateProformaFromOrder(
             remainingAmount: 0,
           },
         ],
-        { session }
+        { session },
       )
 
       newProforma = createdProforma
@@ -632,7 +632,7 @@ export async function generateProformaFromOrder(
 }
 export async function createInvoiceFromSingleNote(
   deliveryId: string, // Primește ID-ul Livrării
-  seriesName?: string
+  seriesName?: string,
 ): Promise<InvoiceActionResult> {
   await connectToDatabase()
 
@@ -654,7 +654,7 @@ export async function createInvoiceFromSingleNote(
 
       if (!note) {
         throw new Error(
-          'Avizul (status "Livrat") nu a fost găsit pentru această livrare.'
+          'Avizul (status "Livrat") nu a fost găsit pentru această livrare.',
         )
       }
       if (note.isInvoiced) {
@@ -691,7 +691,7 @@ export async function createInvoiceFromSingleNote(
             success: false,
             requireSelection: true,
             message: `Există mai multe serii active (${seriesNames.join(
-              ', '
+              ', ',
             )}).`,
             series: seriesNames,
           } as InvoiceActionSelectionRequired
@@ -786,7 +786,7 @@ export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
       .select(
         'clientId clientSnapshot deliveryAddressId deliveryAddress ' +
           'salesAgentId salesAgentSnapshot ' +
-          'items totals'
+          'items totals',
       )
       .lean()
 
@@ -857,7 +857,7 @@ export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
   }
 }
 export async function createStornoInvoice(
-  data: CreateStornoInput
+  data: CreateStornoInput,
 ): Promise<InvoiceActionResult> {
   await connectToDatabase()
 
@@ -910,7 +910,7 @@ export async function createStornoInvoice(
         validatedData.seriesName,
         {
           session,
-        }
+        },
       )
       const invoiceNumber = String(nextSeq).padStart(5, '0')
 
@@ -962,11 +962,11 @@ export async function createStornoInvoice(
         const returnNoteResult = await createReturnNote(
           returnNoteData,
           'COMPLETED',
-          session
+          session,
         )
         if (!returnNoteResult.success) {
           throw new Error(
-            `Eroare la crearea Notei de Retur: ${returnNoteResult.message}`
+            `Eroare la crearea Notei de Retur: ${returnNoteResult.message}`,
           )
         }
         returnNoteId = new Types.ObjectId(returnNoteResult.data._id)
@@ -992,7 +992,7 @@ export async function createStornoInvoice(
             },
           },
         ],
-        { session }
+        { session },
       )
 
       // 8. Actualizăm Nota de Retur cu ID-ul Stornării
@@ -1000,7 +1000,7 @@ export async function createStornoInvoice(
         await ReturnNoteModel.findByIdAndUpdate(
           returnNoteId,
           { $set: { relatedInvoiceId: createdInvoice._id } },
-          { session }
+          { session },
         )
       }
 
@@ -1011,7 +1011,7 @@ export async function createStornoInvoice(
           {
             $inc: { 'items.$.stornedQuantity': Math.abs(item.quantity) },
           },
-          { session }
+          { session },
         )
       }
 
@@ -1041,7 +1041,7 @@ export async function createStornoInvoice(
 export async function getStornableProductsList(
   clientId: string,
   deliveryAddressId: string,
-  searchTerm: string
+  searchTerm: string,
 ): Promise<
   | { success: true; data: StornableProductDTO[] }
   | { success: false; message: string }
@@ -1151,7 +1151,7 @@ export async function generateStornoLinesForQuantity(
   clientId: string,
   deliveryAddressId: string,
   productId: string,
-  quantityToStorno: number // Cantitatea e POZITIVĂ (ex: 100)
+  quantityToStorno: number, // Cantitatea e POZITIVĂ (ex: 100)
 ): Promise<
   | {
       success: true
@@ -1277,7 +1277,7 @@ export async function generateStornoLinesForQuantity(
     if (remainingQtyToStorno > 0) {
       const foundQty = quantityToStorno - remainingQtyToStorno
       throw new Error(
-        `Cantitate insuficientă. Ați cerut ${quantityToStorno}, dar s-au găsit doar ${foundQty} disponibile pentru stornare.`
+        `Cantitate insuficientă. Ați cerut ${quantityToStorno}, dar s-au găsit doar ${foundQty} disponibile pentru stornare.`,
       )
     }
 
@@ -1296,7 +1296,7 @@ export async function generateStornoLinesForQuantity(
 }
 export async function getAllInvoices(
   page: number = 1,
-  filters: InvoiceFilters = {}
+  filters: InvoiceFilters = {},
 ): Promise<{ data: PopulatedInvoice[]; totalPages: number }> {
   try {
     await connectToDatabase()
@@ -1309,7 +1309,9 @@ export async function getAllInvoices(
     const pipeline: PipelineStage[] = []
 
     // --- Faza 1: Filtrare Inițială ($match) ---
-    const matchStage: FilterQuery<IInvoiceDoc> = {}
+    const matchStage: FilterQuery<IInvoiceDoc> = {
+      invoiceType: { $ne: 'PROFORMA' },
+    }
     if (status) {
       matchStage.status = status
     }
@@ -1396,7 +1398,7 @@ export async function getAllInvoices(
                   acc[path] = 1
                   return acc
                 },
-                {}
+                {},
               ),
               clientId: '$clientDoc',
               salesAgentId: {
@@ -1427,7 +1429,7 @@ export async function getAllInvoices(
   }
 }
 export async function approveInvoice(
-  invoiceId: string
+  invoiceId: string,
 ): Promise<{ success: boolean; message: string }> {
   try {
     const session = await auth()
@@ -1452,7 +1454,7 @@ export async function approveInvoice(
 
     if (invoice.status !== 'CREATED' && invoice.status !== 'REJECTED') {
       throw new Error(
-        `Factura cu statusul ${invoice.status} nu poate fi aprobată.`
+        `Factura cu statusul ${invoice.status} nu poate fi aprobată.`,
       )
     }
 
@@ -1467,7 +1469,7 @@ export async function approveInvoice(
       await recalculateClientSummary(
         invoice.clientId.toString(),
         'auto-recalc',
-        true
+        true,
       )
     } catch (err) {
       console.error('Eroare recalculare sold (approve invoice):', err)
@@ -1482,7 +1484,7 @@ export async function approveInvoice(
 
 export async function rejectInvoice(
   invoiceId: string,
-  reason: string
+  reason: string,
 ): Promise<{ success: boolean; message: string }> {
   try {
     const session = await auth()
@@ -1511,7 +1513,7 @@ export async function rejectInvoice(
 
     if (invoice.status !== 'CREATED') {
       throw new Error(
-        `Factura cu statusul ${invoice.status} nu poate fi respinsă.`
+        `Factura cu statusul ${invoice.status} nu poate fi respinsă.`,
       )
     }
 
@@ -1526,7 +1528,7 @@ export async function rejectInvoice(
   }
 }
 export async function getInvoiceById(
-  invoiceId: string
+  invoiceId: string,
 ): Promise<{ success: boolean; data?: PopulatedInvoice; message?: string }> {
   try {
     if (!Types.ObjectId.isValid(invoiceId)) {
@@ -1573,7 +1575,7 @@ export async function getInvoiceById(
 }
 export async function updateInvoice(
   invoiceId: string,
-  data: InvoiceInput
+  data: InvoiceInput,
 ): Promise<InvoiceActionResult> {
   await connectToDatabase()
 
@@ -1611,7 +1613,7 @@ export async function updateInvoice(
         originalInvoiceForCheck.status !== 'REJECTED'
       ) {
         throw new Error(
-          `Factura cu statusul ${originalInvoice.status} nu mai poate fi modificată.`
+          `Factura cu statusul ${originalInvoice.status} nu mai poate fi modificată.`,
         )
       }
 
@@ -1634,7 +1636,7 @@ export async function updateInvoice(
         vatCategory: validatedData.vatCategory,
         vatExemptionReason: validatedData.vatExemptionReason,
         sourceDeliveryNotes: validatedData.sourceDeliveryNotes.map(
-          (id) => new Types.ObjectId(id)
+          (id) => new Types.ObjectId(id),
         ),
       })
 
@@ -1646,7 +1648,7 @@ export async function updateInvoice(
         {
           originalSourceNoteIds: originalSourceNoteIds, // Trimitem ID-urile *vechi*
         },
-        { session }
+        { session },
       )
     })
 
@@ -1669,7 +1671,116 @@ export async function updateInvoice(
     return { success: false, message: (error as Error).message }
   }
 }
+// --- FUNCȚIE NOUĂ: DOAR PROFORME ---
+export async function getProformas(
+  page: number = 1,
+  filters: InvoiceFilters = {},
+): Promise<{ data: PopulatedInvoice[]; totalPages: number }> {
+  try {
+    await connectToDatabase()
+    const { q, minTotal, agentId, clientId } = filters
+    const skip = (page - 1) * PAGE_SIZE
+    const limit = PAGE_SIZE
+    const pipeline: PipelineStage[] = []
 
+    // 1. Filtrare STRICTĂ pe Proforme
+    const matchStage: FilterQuery<IInvoiceDoc> = {
+      invoiceType: 'PROFORMA',
+    }
+
+    if (minTotal) matchStage['totals.grandTotal'] = { $gte: Number(minTotal) }
+    if (agentId && Types.ObjectId.isValid(agentId))
+      matchStage.salesAgentId = new Types.ObjectId(agentId)
+    if (clientId && Types.ObjectId.isValid(clientId))
+      matchStage.clientId = new Types.ObjectId(clientId)
+
+    pipeline.push({ $match: matchStage })
+
+    pipeline.push({
+      $lookup: {
+        from: 'clients',
+        localField: 'clientId',
+        foreignField: '_id',
+        as: 'clientDoc',
+      },
+    })
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'salesAgentId',
+        foreignField: '_id',
+        as: 'agentDoc',
+      },
+    })
+    pipeline.push({
+      $lookup: {
+        from: 'users',
+        localField: 'createdBy',
+        foreignField: '_id',
+        as: 'creatorDoc',
+      },
+    })
+    pipeline.push({
+      $unwind: { path: '$clientDoc', preserveNullAndEmptyArrays: true },
+    })
+    pipeline.push({
+      $unwind: { path: '$agentDoc', preserveNullAndEmptyArrays: true },
+    })
+    pipeline.push({
+      $unwind: { path: '$creatorDoc', preserveNullAndEmptyArrays: true },
+    })
+
+    if (q) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { invoiceNumber: { $regex: q, $options: 'i' } },
+            { seriesName: { $regex: q, $options: 'i' } },
+            { 'clientDoc.name': { $regex: q, $options: 'i' } },
+          ],
+        },
+      })
+    }
+
+    pipeline.push({
+      $facet: {
+        totalCount: [{ $count: 'count' }],
+        data: [
+          { $sort: { invoiceDate: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              ...Object.keys(InvoiceModel.schema.paths).reduce(
+                (acc: any, path) => {
+                  acc[path] = 1
+                  return acc
+                },
+                {},
+              ),
+              clientId: '$clientDoc',
+              salesAgentId: { _id: '$agentDoc._id', name: '$agentDoc.name' },
+              createdByName: '$creatorDoc.name',
+            },
+          },
+        ],
+      },
+    })
+
+    const result = await InvoiceModel.aggregate(pipeline)
+    const data = result[0].data as PopulatedInvoice[]
+    const totalItems = result[0].totalCount[0]?.count || 0
+    const totalPages = Math.ceil(totalItems / PAGE_SIZE)
+
+    return {
+      data: JSON.parse(JSON.stringify(data)),
+      totalPages: totalPages,
+    }
+  } catch (error) {
+    console.error('Eroare la preluarea proformelor:', error)
+    return { data: [], totalPages: 0 }
+  }
+}
 /**
  * SOLD INIȚIAL CLIENT (INIT-C)
  * Creează o factură de deschidere sold pentru client.
@@ -1677,7 +1788,7 @@ export async function updateInvoice(
  * - Dacă amount < 0: Avans primit de la Client (STORNO sau STANDARD Negativ)
  */
 export async function createClientOpeningBalance(
-  data: CreateOpeningBalanceInput
+  data: CreateOpeningBalanceInput,
 ): Promise<{ success: boolean; message: string }> {
   const session = await startSession()
 
@@ -1690,7 +1801,7 @@ export async function createClientOpeningBalance(
 
       if (!userId) {
         throw new Error(
-          'Trebuie să fiți autentificat pentru a seta soldul inițial.'
+          'Trebuie să fiți autentificat pentru a seta soldul inițial.',
         )
       }
 
@@ -1821,7 +1932,7 @@ export async function createClientOpeningBalance(
             remainingAmount: absoluteAmount,
           },
         ],
-        { session }
+        { session },
       )
 
       return {
@@ -1843,7 +1954,7 @@ export async function createClientOpeningBalance(
 }
 
 export async function createPackagingOpeningBalance(
-  data: CreatePackagingOpeningBalanceInput
+  data: CreatePackagingOpeningBalanceInput,
 ): Promise<{ success: boolean; message: string }> {
   const session = await startSession()
 
@@ -1860,7 +1971,7 @@ export async function createPackagingOpeningBalance(
 
       // 3. Client
       const client = await ClientModel.findById(
-        validatedData.partnerId
+        validatedData.partnerId,
       ).session(session)
       if (!client) throw new Error('Clientul nu a fost găsit.')
 
@@ -1879,7 +1990,8 @@ export async function createPackagingOpeningBalance(
         validatedData.deliveryAddressId !== client._id.toString()
       ) {
         const foundAddr = client.deliveryAddresses.find(
-          (addr: any) => addr._id.toString() === validatedData.deliveryAddressId
+          (addr: any) =>
+            addr._id.toString() === validatedData.deliveryAddressId,
         )
 
         if (foundAddr) {
@@ -1924,12 +2036,12 @@ export async function createPackagingOpeningBalance(
 
       for (const itemInput of validatedData.items) {
         const packaging = await PackagingModel.findById(
-          itemInput.productId
+          itemInput.productId,
         ).session(session)
 
         if (!packaging) {
           throw new Error(
-            `Ambalajul cu ID ${itemInput.productId} nu a fost găsit.`
+            `Ambalajul cu ID ${itemInput.productId} nu a fost găsit.`,
           )
         }
 
@@ -2022,7 +2134,7 @@ export async function createPackagingOpeningBalance(
             },
           },
         ],
-        { session }
+        { session },
       )
 
       // --- Forțăm statusul PAID imediat după creare ---
@@ -2036,7 +2148,7 @@ export async function createPackagingOpeningBalance(
             remainingAmount: 0,
           },
         },
-        { session }
+        { session },
       )
 
       return { success: true, message: 'Sold ambalaje înregistrat cu succes.' }
@@ -2052,7 +2164,7 @@ export async function createPackagingOpeningBalance(
 }
 export async function cancelInvoice(
   invoiceId: string,
-  reason: string
+  reason: string,
 ): Promise<{ success: boolean; message: string }> {
   const session = await startSession()
   try {
@@ -2069,12 +2181,12 @@ export async function cancelInvoice(
       // 1. Validări
       if (['APPROVED', 'PAID', 'PARTIAL_PAID'].includes(invoice.status)) {
         throw new Error(
-          `Nu puteți anula o factură cu statusul ${invoice.status}.`
+          `Nu puteți anula o factură cu statusul ${invoice.status}.`,
         )
       }
       if (['SENT', 'ACCEPTED'].includes(invoice.eFacturaStatus)) {
         throw new Error(
-          'Nu puteți anula o factură transmisă în SPV. Emiteți storno.'
+          'Nu puteți anula o factură transmisă în SPV. Emiteți storno.',
         )
       }
       if (invoice.status === 'CANCELLED') {
@@ -2083,7 +2195,7 @@ export async function cancelInvoice(
       // Validare Split: Dacă e parte dintr-un grup, nu o anulăm individual pe aici
       if (invoice.splitGroupId) {
         throw new Error(
-          'Această factură este parte dintr-un split. Folosiți funcția "Resetează Split" pentru a anula tot grupul.'
+          'Această factură este parte dintr-un split. Folosiți funcția "Resetează Split" pentru a anula tot grupul.',
         )
       }
 
@@ -2118,7 +2230,7 @@ export async function cancelInvoice(
               status: 'DELIVERED', // Revine la livrat, gata de refacturare
             },
           },
-          { session }
+          { session },
         )
       }
 
@@ -2135,7 +2247,7 @@ export async function cancelInvoice(
               status: 'DELIVERED',
             },
           },
-          { session }
+          { session },
         )
       }
     })
