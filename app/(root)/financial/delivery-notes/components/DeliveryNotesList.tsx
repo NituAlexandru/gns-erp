@@ -31,15 +31,13 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { MoreHorizontal, Loader2, DollarSign, Printer } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { cn, formatCurrency } from '@/lib/utils'
 import { useDebounce } from '@/hooks/use-debounce'
-
-// Importuri specifice Avize
 import { DeliveryNoteDTO } from '@/lib/db/modules/financial/delivery-notes/delivery-note.types'
 import {
   getDeliveryNotes,
   confirmDeliveryNote,
   cancelDeliveryNote,
+  revokeDeliveryNoteConfirmation,
 } from '@/lib/db/modules/financial/delivery-notes/delivery-note.actions'
 import {
   DeliveryNotesFilters,
@@ -51,11 +49,12 @@ import { InvoiceActionResult } from '@/lib/db/modules/financial/invoices/invoice
 import { createInvoiceFromSingleNote } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { DocumentType } from '@/lib/db/modules/numbering/documentCounter.model'
-import { PDFDownloadLink } from '@react-pdf/renderer'
 import { DeliveryNoteTemplate } from '@/components/printing/templates/DeliveryNoteTemplate'
 import { mapDeliveryNoteToPdfData } from '@/lib/db/modules/printing/mappers/map-delivery-note'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { useSession } from 'next-auth/react'
+import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 
 interface DeliveryNotesListProps {
   initialData: {
@@ -74,6 +73,11 @@ export function DeliveryNotesList({
   currentUserName,
 }: DeliveryNotesListProps) {
   const router = useRouter()
+
+  const { data: session } = useSession()
+  const userRole = session?.user?.role || ''
+  const isSuperAdmin = SUPER_ADMIN_ROLES.includes(userRole)
+
   const [notes, setNotes] = useState<DeliveryNoteDTO[]>(initialData.data)
   const [totalPages, setTotalPages] = useState(initialData.totalPages)
 
@@ -92,16 +96,19 @@ export function DeliveryNotesList({
   const [noteToCancel, setNoteToCancel] = useState<DeliveryNoteDTO | null>(null)
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
   const [noteToConfirm, setNoteToConfirm] = useState<DeliveryNoteDTO | null>(
-    null
+    null,
   )
   // Generare Factură
   const [showInvoiceSeriesModal, setShowInvoiceSeriesModal] = useState(false)
   const [noteToInvoice, setNoteToInvoice] = useState<DeliveryNoteDTO | null>(
-    null
+    null,
   )
   const [previewNote, setPreviewNote] = useState<DeliveryNoteDTO | null>(null)
   const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
+  // Stări pentru Revocare Confirmare
+  const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false)
+  const [noteToRevoke, setNoteToRevoke] = useState<DeliveryNoteDTO | null>(null)
 
   // 1. Efect: Fetch date când se schimbă filtrele sau pagina
   useEffect(() => {
@@ -151,8 +158,8 @@ export function DeliveryNotesList({
         toast.success(result.message)
         setNotes((prev) =>
           prev.map((n) =>
-            n._id === noteToConfirm._id ? { ...n, status: 'DELIVERED' } : n
-          )
+            n._id === noteToConfirm._id ? { ...n, status: 'DELIVERED' } : n,
+          ),
         )
       } else {
         toast.error('Eroare la confirmare', { description: result.message })
@@ -166,7 +173,7 @@ export function DeliveryNotesList({
   }
   // Reset pagina la filtrare nouă
   const handleFiltersChange = (
-    newFilters: Partial<DeliveryNoteFiltersState>
+    newFilters: Partial<DeliveryNoteFiltersState>,
   ) => {
     setPage(1)
     setFilters((prev) => ({ ...prev, ...newFilters }))
@@ -190,8 +197,8 @@ export function DeliveryNotesList({
         // Actualizăm local lista
         setNotes((prev) =>
           prev.map((n) =>
-            n._id === note._id ? { ...n, status: 'DELIVERED' } : n
-          )
+            n._id === note._id ? { ...n, status: 'DELIVERED' } : n,
+          ),
         )
       } else {
         toast.error('Eroare la confirmare', { description: result.message })
@@ -217,8 +224,8 @@ export function DeliveryNotesList({
         toast.success(result.message)
         setNotes((prev) =>
           prev.map((n) =>
-            n._id === noteToCancel._id ? { ...n, status: 'CANCELLED' } : n
-          )
+            n._id === noteToCancel._id ? { ...n, status: 'CANCELLED' } : n,
+          ),
         )
       } else {
         toast.error('Eroare la anulare', { description: result.message })
@@ -232,7 +239,7 @@ export function DeliveryNotesList({
   }
   const handleGenerateInvoice = async (
     note: DeliveryNoteDTO,
-    seriesName?: string
+    seriesName?: string,
   ) => {
     if (actionLoadingId) return
 
@@ -244,7 +251,7 @@ export function DeliveryNotesList({
       // Trimitem deliveryId, deoarece funcția din backend leagă factura de livrare
       const result: InvoiceActionResult = await createInvoiceFromSingleNote(
         note.deliveryId,
-        seriesName
+        seriesName,
       )
 
       if (result.success) {
@@ -255,8 +262,8 @@ export function DeliveryNotesList({
           prev.map((n) =>
             n._id === note._id
               ? { ...n, status: 'INVOICED', isInvoiced: true }
-              : n
-          )
+              : n,
+          ),
         )
         // Resetăm selecția dacă a fost cazul
         setNoteToInvoice(null)
@@ -302,6 +309,35 @@ export function DeliveryNotesList({
       setIsGeneratingPdf(null)
     }
   }
+
+  const handleRevokeConfirmation = () => {
+    if (!noteToRevoke) return
+
+    setActionLoadingId(noteToRevoke._id)
+    startTransition(async () => {
+      const result = await revokeDeliveryNoteConfirmation({
+        deliveryNoteId: noteToRevoke._id,
+        userId: currentUserId,
+        userName: currentUserName,
+      })
+
+      if (result.success) {
+        toast.success(result.message)
+        setNotes((prev) =>
+          prev.map((n) =>
+            n._id === noteToRevoke._id ? { ...n, status: 'IN_TRANSIT' } : n,
+          ),
+        )
+      } else {
+        toast.error('Eroare la revocare', { description: result.message })
+      }
+
+      setIsRevokeModalOpen(false)
+      setNoteToRevoke(null)
+      setActionLoadingId(null)
+    })
+  }
+
   return (
     <div className='flex flex-col gap-2'>
       <DeliveryNotesFilters
@@ -395,9 +431,10 @@ export function DeliveryNotesList({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align='end'>
                           <DropdownMenuItem
+                            className='cursor-pointer'
                             onSelect={() =>
                               router.push(
-                                `/financial/delivery-notes/${note._id}`
+                                `/financial/delivery-notes/${note._id}`,
                               )
                             }
                           >
@@ -405,13 +442,13 @@ export function DeliveryNotesList({
                           </DropdownMenuItem>
 
                           <DropdownMenuItem
+                            className='cursor-pointer'
                             onSelect={() => {
                               setPreviewNote(note)
                               handlePrintPreview(note._id)
                             }}
                             disabled={!!isGeneratingPdf}
                           >
-                            <Printer className='mr-2 h-4 w-4' />
                             Printează
                             {isGeneratingPdf === note._id && (
                               <Loader2 className='h-3 w-3 animate-spin ml-2' />
@@ -422,7 +459,7 @@ export function DeliveryNotesList({
 
                           {note.status === 'IN_TRANSIT' && (
                             <DropdownMenuItem
-                              className='text-green-600 focus:text-green-700'
+                              className='text-green-600 cursor-pointer focus:text-green-700'
                               onSelect={() => handleConfirmClick(note)}
                             >
                               Confirmă Livrarea
@@ -431,7 +468,7 @@ export function DeliveryNotesList({
 
                           {note.status === 'IN_TRANSIT' && (
                             <DropdownMenuItem
-                              className='text-destructive focus:text-destructive'
+                              className='text-destructive cursor-pointer focus:text-destructive'
                               onSelect={() => {
                                 setNoteToCancel(note)
                                 setIsCancelModalOpen(true)
@@ -441,12 +478,28 @@ export function DeliveryNotesList({
                             </DropdownMenuItem>
                           )}
                           {note.status === 'DELIVERED' && !note.isInvoiced && (
-                            <DropdownMenuItem
-                              onSelect={() => handleGenerateInvoice(note)}
-                            >
-                              <DollarSign className='mr-2 h-4 w-4' />
-                              Generează Factură Automată din Aviz
-                            </DropdownMenuItem>
+                            <>
+                              <DropdownMenuItem
+                                className='cursor-pointer'
+                                onSelect={() => handleGenerateInvoice(note)}
+                              >
+                                Generează Factură Automată din Aviz
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              {isSuperAdmin && (
+                                <>
+                                  <DropdownMenuItem
+                                    className='text-red-500 cursor-pointer focus:text-red-600'
+                                    onSelect={() => {
+                                      setNoteToRevoke(note)
+                                      setIsRevokeModalOpen(true)
+                                    }}
+                                  >
+                                    Anulează Confirmarea (Revocare)
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -576,6 +629,62 @@ export function DeliveryNotesList({
           isLoading={isGeneratingPdf === previewNote._id}
         />
       )}
+
+      {/* Modal Revocare Confirmare */}
+      <AlertDialog open={isRevokeModalOpen} onOpenChange={setIsRevokeModalOpen}>
+        <AlertDialogContent className='max-w-md'>
+          <AlertDialogHeader>
+            <AlertDialogTitle className='text-orange-600'>
+              Revocare Confirmare Aviz
+            </AlertDialogTitle>
+            <AlertDialogDescription className='space-y-3'>
+              <p>
+                Ești sigur că vrei să anulezi confirmarea livrării pentru avizul{' '}
+                <strong>
+                  {noteToRevoke?.seriesName}-{noteToRevoke?.noteNumber}
+                </strong>
+                ?
+              </p>
+              <div className='bg-muted p-3 rounded-md text-xs space-y-2 border border-orange-200'>
+                <p className='font-bold text-orange-800'>
+                  Următoarele acțiuni vor avea loc:
+                </p>
+                <ul className='list-disc ml-4 space-y-1'>
+                  <li>
+                    Marfa va fi returnată în stocul fizic (inversare FIFO).
+                  </li>
+                  <li>
+                    Statusul avizului și al livrării va reveni la{' '}
+                    <strong>"În Tranzit"</strong>.
+                  </li>
+                  <li>
+                    Comanda va reveni la statusul{' '}
+                    <strong>"Livrată Parțial"</strong>.
+                  </li>
+                  <li>
+                    Costurile de achiziție calculate anterior vor fi șterse.
+                  </li>
+                </ul>
+              </div>
+              <p className='text-sm text-destructive font-semibold'>
+                Această acțiune este permisă doar administratorilor pentru
+                corecția datelor.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setNoteToRevoke(null)}>
+              Renunță
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRevokeConfirmation}
+              className='bg-orange-600 hover:bg-orange-700'
+            >
+              Confirmă Revocarea
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

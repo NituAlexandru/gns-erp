@@ -13,7 +13,10 @@ import DeliveryModel, {
   IDelivery,
   IDeliveryLineItem,
 } from '../../deliveries/delivery.model'
-import { unreserveStock } from '../../inventory/inventory.actions.reservation'
+import {
+  reserveStock,
+  unreserveStock,
+} from '../../inventory/inventory.actions.reservation'
 import {
   CreateDeliveryNoteResult,
   DeliveryNoteDTO,
@@ -31,7 +34,11 @@ import Service from '../../setting/services/service.model'
 import { round2 } from '@/lib/utils'
 import { PAGE_SIZE } from '@/lib/constants'
 import { DELIVERY_METHODS } from '../../order/constants'
-import { recordStockMovement } from '../../inventory/inventory.actions.core'
+import {
+  recordStockMovement,
+  reverseStockMovementsByReference,
+} from '../../inventory/inventory.actions.core'
+import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
 
 // -------------------------------------------------------------
 // CREATE DELIVERY NOTE
@@ -59,7 +66,7 @@ export async function createDeliveryNote({
 
       if (seriesList.length === 0) {
         throw new Error(
-          'Nu există nicio serie activă pentru documente de tip Aviz.'
+          'Nu există nicio serie activă pentru documente de tip Aviz.',
         )
       }
 
@@ -72,7 +79,7 @@ export async function createDeliveryNote({
           success: false,
           requireSelection: true,
           message: `Există mai multe serii active (${seriesNames.join(
-            ', '
+            ', ',
           )}). Utilizatorul trebuie să aleagă una.`,
           series: seriesNames,
         }
@@ -90,7 +97,7 @@ export async function createDeliveryNote({
       const companySettings = await getSetting() // Preluăm setările
       if (!companySettings) {
         throw new Error(
-          'Setările companiei nu sunt configurate. Nu se poate genera avizul.'
+          'Setările companiei nu sunt configurate. Nu se poate genera avizul.',
         )
       }
 
@@ -102,7 +109,7 @@ export async function createDeliveryNote({
       // Validare că există date default
       if (!defaultEmail || !defaultPhone || !defaultBank) {
         throw new Error(
-          'Datele implicite (email, telefon, bancă) nu sunt setate în Setări Companie.'
+          'Datele implicite (email, telefon, bancă) nu sunt setate în Setări Companie.',
         )
       }
 
@@ -147,7 +154,7 @@ export async function createDeliveryNote({
 
         if (existingNote) {
           throw new Error(
-            `Numărul ${padded} există deja pe seria ${activeSeries}.`
+            `Numărul ${padded} există deja pe seria ${activeSeries}.`,
           )
         }
       } else {
@@ -223,7 +230,7 @@ export async function createDeliveryNote({
             noteDate: new Date(),
           },
         ],
-        { session }
+        { session },
       )
 
       await DeliveryModel.findByIdAndUpdate(
@@ -237,7 +244,7 @@ export async function createDeliveryNote({
             deliveryNoteNumber: `${newNote.seriesName}-${newNote.noteNumber}`,
           },
         },
-        { session }
+        { session },
       )
       await Order.findByIdAndUpdate(
         delivery.orderId,
@@ -245,7 +252,7 @@ export async function createDeliveryNote({
         // (ex: 'PARTIALLY_IN_TRANSIT' dacă e prima livrare)
         // Deocamdată, 'IN_TRANSIT' este corect.
         { status: 'PARTIALLY_DELIVERED' },
-        { session }
+        { session },
       )
       // 🔽 MODIFICARE: Returnăm nota din tranzacție 🔽
       return JSON.parse(JSON.stringify(newNote)) as DeliveryNoteDTO
@@ -299,13 +306,13 @@ export async function confirmDeliveryNote({
 
       // 2. Anulează Rezervările
       const noteItemOrderLineIds = note.items.map((item) =>
-        item.orderLineItemId?.toString()
+        item.orderLineItemId?.toString(),
       )
 
       const orderLinesToUnreserve = order.lineItems.filter(
         (
-          ol: IOrderLineItem // <-- Tipăm 'ol'
-        ) => noteItemOrderLineIds.includes(ol._id.toString())
+          ol: IOrderLineItem, // <-- Tipăm 'ol'
+        ) => noteItemOrderLineIds.includes(ol._id.toString()),
       ) as unknown as IOrderLineItem[]
 
       if (orderLinesToUnreserve.length > 0) {
@@ -314,7 +321,7 @@ export async function confirmDeliveryNote({
 
       // --- DATE PENTRU AFISARE (Client / Doc) ---
       const methodObj = DELIVERY_METHODS.find(
-        (m) => m.key === note.deliveryType
+        (m) => m.key === note.deliveryType,
       )
       const friendlyDeliveryName = methodObj
         ? methodObj.label
@@ -361,7 +368,7 @@ export async function confirmDeliveryNote({
               note: `Livrare (${friendlyDeliveryName}) conf. Aviz Seria ${note.seriesName} nr. ${note.noteNumber}`,
               timestamp: new Date(),
             },
-            session
+            session,
           )
 
           if (costInfo) {
@@ -370,7 +377,7 @@ export async function confirmDeliveryNote({
             item.costBreakdown = costInfo.costBreakdown
           } else {
             console.warn(
-              `Nu s-a putut calcula costul FIFO pentru ${item.productName} pe avizul ${note.noteNumber}`
+              `Nu s-a putut calcula costul FIFO pentru ${item.productName} pe avizul ${note.noteNumber}`,
             )
           }
         } else if (item.serviceId) {
@@ -402,7 +409,7 @@ export async function confirmDeliveryNote({
       const delivery = await DeliveryModel.findByIdAndUpdate(
         note.deliveryId,
         { status: 'DELIVERED' },
-        { session, new: true }
+        { session, new: true },
       )
       if (!delivery) throw new Error('Livrarea asociată nu a fost găsită.')
 
@@ -413,7 +420,7 @@ export async function confirmDeliveryNote({
       }).session(session)
 
       const allDeliveriesDone = otherDeliveries.every(
-        (d) => d.status === 'DELIVERED'
+        (d) => d.status === 'DELIVERED',
       )
 
       if (allDeliveriesDone) {
@@ -475,7 +482,7 @@ export async function confirmDeliveryFromPlanner({
 
     if (!noteToConfirm) {
       throw new Error(
-        'Avizul nu a fost găsit sau nu este "În Tranzit". Generați un aviz înainte de a confirma.'
+        'Avizul nu a fost găsit sau nu este "În Tranzit". Generați un aviz înainte de a confirma.',
       )
     }
 
@@ -492,6 +499,184 @@ export async function confirmDeliveryFromPlanner({
     return { success: false, message: (error as Error).message }
   }
 }
+
+// -------------------------------------------------------------
+// REVOKE CONFIRMATION (DELIVERED → IN_TRANSIT + Reverse Stock)
+// -------------------------------------------------------------
+export async function revokeDeliveryNoteConfirmation({
+  deliveryNoteId,
+  userId,
+  userName,
+}: {
+  deliveryNoteId: string
+  userId: string
+  userName: string
+}): Promise<{ success: boolean; message: string; data?: DeliveryNoteDTO }> {
+  // --- 🔒 1. SECURITATE (SUPER ADMIN CHECK) ---
+  const userSession = await auth()
+
+  // Luăm rolul curent (sau string gol dacă nu există)
+  const currentUserRole = userSession?.user?.role || ''
+
+  // Verificăm dacă rolul NU se află în lista de super admini
+  if (!SUPER_ADMIN_ROLES.includes(currentUserRole)) {
+    return {
+      success: false,
+      message: 'Acces interzis. Doar administratorii pot revoca o confirmare.',
+    }
+  }
+
+  const session = await startSession()
+
+  try {
+    // Începem tranzacția. Dacă ceva eșuează, totul se anulează.
+    const transactionResult = await session.withTransaction(async (session) => {
+      // 1. Găsește Avizul
+      const note =
+        await DeliveryNoteModel.findById(deliveryNoteId).session(session)
+      if (!note) throw new Error('Avizul nu a fost găsit.')
+
+      // GUARD: Verificări de status
+      if (note.status !== 'DELIVERED') {
+        throw new Error(
+          'Doar pentru avizele cu statusul "Livrat" poate fi revocată confirmarea.',
+        )
+      }
+
+      // GUARD: Verificare Facturare (CRITIC)
+      if (note.isInvoiced) {
+        throw new Error(
+          'Acest aviz a fost deja facturat. Trebuie să anulezi/stornezi factura înainte de a revoca avizul.',
+        )
+      }
+
+      const order = await Order.findById(note.orderId).session(session)
+      if (!order) throw new Error('Comanda asociată nu a fost găsită.')
+
+      // 2. Inversează Mișcările de Stoc (Aduce marfa înapoi fizic)
+      // Folosim ID-ul avizului ca referință, exact cum a fost folosit la ieșire.
+      await reverseStockMovementsByReference(note._id.toString(), session)
+
+      // 3. Re-Rezervă Stocul (Corectat)
+      // Construim o listă de iteme "virtuale" bazate pe ce e în aviz,
+      // pentru ca reserveStock să rezerve EXACT cantitatea care s-a întors.
+
+      const itemsToReserve = note.items
+        .filter(
+          (item) =>
+            item.productId && item.stockableItemType && item.quantityInBaseUnit,
+        )
+        .map((noteItem) => {
+          // Găsim linia originală din comandă doar pentru a avea ID-ul corect (_id)
+          // reserveStock are nevoie de _id pentru a lega rezervarea de linia comenzii.
+          const originalOrderLine = order.lineItems.find(
+            (ol: any) =>
+              ol._id.toString() === noteItem.orderLineItemId?.toString(),
+          )
+
+          if (!originalOrderLine) return null
+
+          // Construim un obiect compatibil cu IOrderLineItem, dar cu cantitatea din aviz!
+          return {
+            ...originalOrderLine.toObject(), // Luăm proprietățile de bază (productId, etc)
+            quantityInBaseUnit: noteItem.quantityInBaseUnit, // SUPRASCRIEM cu cantitatea din aviz
+            // Nu ne interesează prețul aici, reserveStock se uită doar la cantitate și stoc
+          }
+        })
+        .filter((item) => item !== null) // Eliminăm eventualele null-uri
+
+      // Apelăm funcția existentă de rezervare
+      if (itemsToReserve.length > 0) {
+        await reserveStock(
+          order._id,
+          order.client,
+          itemsToReserve as any, // Cast necesar pentru că e un obiect parțial construit
+          session,
+        )
+      }
+
+      // 4. Resetează Avizul la IN_TRANSIT și Șterge Costurile Vechi
+      note.status = 'IN_TRANSIT'
+      note.lastUpdatedBy = new Types.ObjectId(userId)
+      note.lastUpdatedByName = userName
+
+      // Iterăm prin iteme pentru a șterge datele de cost (FIFO),
+      // pentru ca la re-confirmare să se recalculeze corect pe baza noilor loturi.
+      note.items.forEach((item) => {
+        item.unitCostFIFO = 0
+        item.lineCostFIFO = 0
+        item.costBreakdown = []
+      })
+
+      await note.save({ session })
+
+      // 5. Resetează Livrarea la IN_TRANSIT
+      // Deoarece avizul există încă (neconfirmat), livrarea e "În Tranzit".
+      await DeliveryModel.findByIdAndUpdate(
+        note.deliveryId,
+        { status: 'IN_TRANSIT' },
+        { session },
+      )
+
+      // 6. Recalculează Status Comandă (Logica Robustă)
+      // Căutăm TOATE livrările acestei comenzi din DB.
+      const allDeliveries = await DeliveryModel.find({
+        orderId: order._id,
+      }).session(session)
+
+      // Verificăm dacă există ALTE livrări finalizate (în afară de cea curentă care e IN_TRANSIT în memorie,
+      // dar poate fi încă DELIVERED în DB până la commit, deci trebuie să fim atenți).
+      // Livrarea curentă are ID-ul note.deliveryId.
+
+      const otherDeliveries = allDeliveries.filter(
+        (d) => d._id.toString() !== note.deliveryId.toString(),
+      )
+
+      const isAnyOtherDelivered = otherDeliveries.some(
+        (d) => d.status === 'DELIVERED',
+      )
+
+      if (isAnyOtherDelivered) {
+        // Dacă mai sunt și altele livrate, clar e PARTIALLY_DELIVERED
+        order.status = 'PARTIALLY_DELIVERED'
+      } else {
+        // Dacă nicio altă livrare nu e gata, iar cea curentă e IN_TRANSIT (aviz generat),
+        // atunci statusul corect este PARTIALLY_DELIVERED conform logicii tale din createDeliveryNote.
+        // (Doar dacă am fi anulat avizul complet am fi putut reveni la CONFIRMED/SCHEDULED).
+        order.status = 'PARTIALLY_DELIVERED'
+      }
+
+      await order.save({ session })
+
+      return {
+        revokedNote: JSON.parse(JSON.stringify(note)) as DeliveryNoteDTO,
+      }
+    })
+
+    await session.endSession()
+
+    if (transactionResult) {
+      // 7. Invalidează Cache-ul
+      revalidatePath('/deliveries')
+      revalidatePath('/financial/delivery-notes')
+      revalidatePath('/admin/management/inventory/stock')
+
+      return {
+        success: true,
+        message:
+          'Confirmarea a fost revocată cu succes. Stocul a fost restituit.',
+        data: transactionResult.revokedNote,
+      }
+    } else {
+      throw new Error('Tranzacția nu a returnat un rezultat.')
+    }
+  } catch (error) {
+    await session.endSession()
+    console.error('❌ Eroare revokeDeliveryNoteConfirmation:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
 // -------------------------------------------------------------
 // UPDATE DELIVERY NOTE STATUS
 // -------------------------------------------------------------
@@ -572,7 +757,7 @@ export async function cancelDeliveryNote({
             status: 'SCHEDULED', // Revine la Programat
             isNoticed: false, // Nu mai este avizat
           },
-          { session, new: true }
+          { session, new: true },
         )
         if (!delivery) throw new Error('Livrarea asociată nu a fost găsită.')
 
@@ -586,7 +771,7 @@ export async function cancelDeliveryNote({
         }).session(session)
 
         const isAnyOtherDeliveryActive = otherDeliveries.some(
-          (d) => d.status === 'IN_TRANSIT' || d.status === 'DELIVERED'
+          (d) => d.status === 'IN_TRANSIT' || d.status === 'DELIVERED',
         )
 
         if (isAnyOtherDeliveryActive) {
@@ -599,7 +784,7 @@ export async function cancelDeliveryNote({
         return {
           cancelledNote: JSON.parse(JSON.stringify(note)) as DeliveryNoteDTO,
         }
-      }
+      },
     )
 
     // --- Sfârșitul Tranzacției ---
@@ -685,7 +870,7 @@ export async function getDeliveryNotes(
     status?: (typeof DELIVERY_NOTE_STATUSES)[number]
     clientId?: string
     q?: string
-  }
+  },
 ): Promise<{ data: DeliveryNoteDTO[]; totalPages: number }> {
   try {
     await connectToDatabase()
@@ -740,7 +925,7 @@ export async function getDeliveryNotes(
 export async function syncDeliveryNoteWithDelivery(
   delivery: IDelivery,
   session: mongoose.ClientSession,
-  user: { id: string; name: string }
+  user: { id: string; name: string },
 ) {
   const existingNote = await DeliveryNoteModel.findOne({
     deliveryId: delivery._id,
@@ -808,7 +993,7 @@ export async function syncDeliveryNoteWithDelivery(
   await existingNote.save({ session })
 }
 export async function getDeliveryNoteById(
-  id: string
+  id: string,
 ): Promise<{ success: boolean; data?: DeliveryNoteDTO; message?: string }> {
   try {
     await connectToDatabase()

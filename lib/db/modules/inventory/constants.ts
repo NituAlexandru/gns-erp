@@ -27,6 +27,7 @@ export const STOCK_MOVEMENT_TYPES = [
   'PLUS_INVENTAR',
   'TRANSFER_IN',
   'STOC_INITIAL',
+  'ANULARE_AVIZ',
 
   // --- Ieșiri Operaționale (Negative) ---
   'BON_DE_CONSUM',
@@ -58,6 +59,7 @@ export const MOVEMENT_TYPE_DETAILS_MAP: Record<
   RETUR_CLIENT: { name: 'Retur de la Client', variant: 'default' },
   PLUS_INVENTAR: { name: 'Plus la Inventar', variant: 'default' },
   STOC_INITIAL: { name: 'Stoc Inițial', variant: 'default' },
+  ANULARE_AVIZ: { name: 'Aviz Anulat', variant: 'default' },
 
   // Operațiuni Negative (dar nu vânzări standard)
   BON_DE_CONSUM: { name: 'Bon de Consum', variant: 'destructive' },
@@ -106,6 +108,7 @@ export const IN_TYPES = new Set<StockMovementType>([
   'PLUS_INVENTAR',
   'TRANSFER_IN',
   'STOC_INITIAL',
+  'ANULARE_AVIZ',
 ])
 
 export const TRANSPORT_TYPE_MAP = {

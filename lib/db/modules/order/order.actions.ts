@@ -28,10 +28,11 @@ import { VatRateDTO } from '../setting/vat-rate/types'
 import { IOrderLineItem } from '../deliveries/types'
 import { subHours } from 'date-fns'
 import DeliveryModel from '../deliveries/delivery.model'
+import DeliveryNoteModel from '../financial/delivery-notes/delivery-note.model'
 
 export async function calculateShippingCost(
   vehicleType: string,
-  distanceInKm: number
+  distanceInKm: number,
 ): Promise<number> {
   try {
     if (!vehicleType || !distanceInKm || distanceInKm <= 0) {
@@ -45,7 +46,7 @@ export async function calculateShippingCost(
 
     if (!vehicleRate || !vehicleRate.ratePerKm) {
       console.warn(
-        `Nu a fost găsit un tarif/km pentru tipul de vehicul: ${vehicleType}`
+        `Nu a fost găsit un tarif/km pentru tipul de vehicul: ${vehicleType}`,
       )
       return 0
     }
@@ -115,7 +116,7 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
       item.unitOfMeasure !== item.baseUnit
     ) {
       const option = item.packagingOptions?.find(
-        (opt: { unitName: string }) => opt.unitName === item.unitOfMeasure
+        (opt: { unitName: string }) => opt.unitName === item.unitOfMeasure,
       )
       if (option && option.baseUnitEquivalent) {
         conversionFactor = option.baseUnitEquivalent
@@ -148,20 +149,20 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
     totals.productsSubtotal +
       totals.servicesSubtotal +
       totals.manualSubtotal +
-      totals.packagingSubtotal 
+      totals.packagingSubtotal,
   )
   totals.vatTotal = round2(
     totals.productsVat +
       totals.servicesVat +
       totals.manualVat +
-      totals.packagingVat 
+      totals.packagingVat,
   )
   totals.grandTotal = round2(totals.subtotal + totals.vatTotal)
 
   // Rotunjim totul la final
   Object.keys(totals).forEach((key) => {
     totals[key as keyof typeof totals] = round2(
-      totals[key as keyof typeof totals]
+      totals[key as keyof typeof totals],
     )
   })
 
@@ -200,7 +201,7 @@ export async function getOrderFormInitialData() {
   } catch (error) {
     console.error(
       'Eroare la preluarea datelor inițiale pentru formular:',
-      error
+      error,
     )
     return {
       success: false,
@@ -216,7 +217,7 @@ export async function getOrderFormInitialData() {
 }
 export async function createOrder(
   data: CreateOrderInput,
-  status: 'DRAFT' | 'CONFIRMED'
+  status: 'DRAFT' | 'CONFIRMED',
 ) {
   const session = await startSession()
   session.startTransaction()
@@ -225,7 +226,7 @@ export async function createOrder(
     const sessionAuth = await auth()
     if (!sessionAuth?.user?.id || !sessionAuth?.user?.name) {
       throw new Error(
-        'Utilizator neautentificat sau date incomplete. Acțiune interzisă.'
+        'Utilizator neautentificat sau date incomplete. Acțiune interzisă.',
       )
     }
     const { id: userId, name: userName } = sessionAuth.user
@@ -233,7 +234,7 @@ export async function createOrder(
     const validatedData = CreateOrderInputSchema.parse(data)
 
     const { processedLineItems, finalTotals } = processOrderData(
-      validatedData.lineItems
+      validatedData.lineItems,
     )
 
     const orderNumber = await generateOrderNumber({ session })
@@ -258,7 +259,7 @@ export async function createOrder(
         newOrder._id,
         newOrder.client,
         newOrder.lineItems,
-        session
+        session,
       )
     }
 
@@ -320,7 +321,7 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     ]
     if (!allowedStatuses.includes(oldOrder.status)) {
       throw new Error(
-        `Comanda nu poate fi modificată în statusul "${oldOrder.status}".`
+        `Comanda nu poate fi modificată în statusul "${oldOrder.status}".`,
       )
     }
 
@@ -354,7 +355,7 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
         // Validare de Business
         if (newQuantity < existingItem.quantityShipped) {
           throw new Error(
-            `Eroare la "${newItem.productName}": Cantitatea nouă (${newQuantity}) nu poate fi mai mică decât cea deja livrată (${existingItem.quantityShipped}).`
+            `Eroare la "${newItem.productName}": Cantitatea nouă (${newQuantity}) nu poate fi mai mică decât cea deja livrată (${existingItem.quantityShipped}).`,
           )
         }
 
@@ -376,7 +377,7 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     // ANULĂM STOCUL VECHI
     if (wasConfirmed) {
       console.log(
-        `[updateOrder] Anulare rezervări vechi pentru comanda ${oldOrder.orderNumber}`
+        `[updateOrder] Anulare rezervări vechi pentru comanda ${oldOrder.orderNumber}`,
       )
       await unreserveStock(oldOrder.lineItems, session)
     }
@@ -384,6 +385,7 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     // Actualizăm documentul
     oldOrder.set({
       ...validatedData,
+      client: validatedData.clientId,
       totals: newFinalTotals,
       status: newStatus === 'DRAFT' ? 'DRAFT' : oldOrder.status,
     })
@@ -393,7 +395,7 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     const totalShipped = mergedLineItems.reduce(
       (acc: number, item: { quantityShipped: number }) =>
         acc + (item.quantityShipped || 0),
-      0
+      0,
     )
 
     if (totalShipped > 0 && oldOrder.status !== 'DELIVERED') {
@@ -402,16 +404,57 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
 
     const updatedOrder = await oldOrder.save({ session })
 
+    const identityUpdate = {
+      client: updatedOrder.client,
+      clientSnapshot: updatedOrder.clientSnapshot,
+      deliveryAddress: updatedOrder.deliveryAddress,
+      deliveryAddressId: updatedOrder.deliveryAddressId,
+      salesAgent: updatedOrder.salesAgent,
+      salesAgentSnapshot: updatedOrder.salesAgentSnapshot,
+    }
+
+    // 1. Actualizăm Livrările deschise (cele care pot fi încă modificate)
+    // Folosim updateMany - dacă nu găsește nimic, nu face nimic (nu dă eroare)
+    await DeliveryModel.updateMany(
+      {
+        orderId: updatedOrder._id,
+        status: { $in: ['CREATED', 'SCHEDULED', 'IN_TRANSIT'] },
+      },
+      { $set: identityUpdate },
+      { session },
+    )
+
+    // 2. Actualizăm Avizele neconfirmate (IN_TRANSIT)
+    // Folosim aceleași ID-uri, dar adaptate numelor de câmpuri din modelul de Aviz
+    await DeliveryNoteModel.updateMany(
+      {
+        orderId: updatedOrder._id,
+        status: 'IN_TRANSIT',
+      },
+      {
+        $set: {
+          clientId: identityUpdate.client,
+          clientSnapshot: identityUpdate.clientSnapshot,
+          deliveryAddress: identityUpdate.deliveryAddress,
+          deliveryAddressId: identityUpdate.deliveryAddressId,
+          salesAgentId: identityUpdate.salesAgent, // Modelul Aviz are salesAgentId
+          salesAgentSnapshot: identityUpdate.salesAgentSnapshot,
+          orderNotesSnapshot: updatedOrder.notes,
+        },
+      },
+      { session },
+    )
+
     // REZERVĂM STOCUL NOU
     if (updatedOrder.status !== 'DRAFT') {
       console.log(
-        `[updateOrder] Rezervare stoc nou pentru comanda ${updatedOrder.orderNumber}`
+        `[updateOrder] Rezervare stoc nou pentru comanda ${updatedOrder.orderNumber}`,
       )
       await reserveStock(
         updatedOrder._id,
         updatedOrder.client,
         updatedOrder.lineItems,
-        session
+        session,
       )
     }
 
@@ -420,6 +463,8 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     revalidatePath('/orders')
     revalidatePath(`/orders/${orderId}`)
     revalidatePath(`/orders/${orderId}/edit`)
+    revalidatePath('/deliveries')
+    revalidatePath('/financial/delivery-notes')
 
     return {
       success: true,
@@ -453,11 +498,11 @@ export async function cancelOrder(orderId: string) {
 
     // Blocăm dacă există livrate/facturate/în tranzit
     const blockingDelivery = deliveries.find((d) =>
-      ['DELIVERED', 'INVOICED', 'IN_TRANSIT'].includes(d.status)
+      ['DELIVERED', 'INVOICED', 'IN_TRANSIT'].includes(d.status),
     )
     if (blockingDelivery) {
       throw new Error(
-        `Nu se poate anula: Livrarea ${blockingDelivery.deliveryNumber} este în stadiul ${blockingDelivery.status}.`
+        `Nu se poate anula: Livrarea ${blockingDelivery.deliveryNumber} este în stadiul ${blockingDelivery.status}.`,
       )
     }
 
@@ -475,7 +520,7 @@ export async function cancelOrder(orderId: string) {
           lastUpdatedByName: userName,
         },
       },
-      { session }
+      { session },
     )
 
     // 4. Logica veche de anulare comandă (Eliberare Stoc + Status)
@@ -508,7 +553,7 @@ export async function cancelOrder(orderId: string) {
   }
 }
 export async function getAllOrders(
-  page: number = 1
+  page: number = 1,
 ): Promise<{ data: PopulatedOrder[]; totalPages: number }> {
   try {
     await connectToDatabase()
@@ -538,7 +583,7 @@ export async function getAllOrders(
   }
 }
 export async function getOrderById(
-  orderId: string
+  orderId: string,
 ): Promise<PopulatedOrder | null> {
   try {
     await connectToDatabase()
@@ -575,7 +620,7 @@ export async function confirmOrder(orderId: string) {
 
     if (order.status !== 'DRAFT') {
       throw new Error(
-        'Doar comenzile "Ciornă" pot fi finalizate prin această acțiune.'
+        'Doar comenzile "Ciornă" pot fi finalizate prin această acțiune.',
       )
     }
 
@@ -627,7 +672,7 @@ export async function getRecentOrders() {
       status: { $ne: 'CANCELLED' },
     })
       .select(
-        'orderNumber clientSnapshot.name totals.grandTotal createdAt status'
+        'orderNumber clientSnapshot.name totals.grandTotal createdAt status',
       )
       .sort({ createdAt: -1 })
       .lean<IOrder[]>()
@@ -748,7 +793,7 @@ export async function checkOrderCancellationEligibility(orderId: string) {
 
   // 1. Verificare Blocantă: Livrate sau Facturate
   const hasCompleted = deliveries.some((d) =>
-    ['DELIVERED', 'INVOICED'].includes(d.status)
+    ['DELIVERED', 'INVOICED'].includes(d.status),
   )
   if (hasCompleted) {
     return {
@@ -772,7 +817,7 @@ export async function checkOrderCancellationEligibility(orderId: string) {
 
   // 3. Verificare Avertisment: Livrări Active (De programat / Programate)
   const activeDeliveriesCount = deliveries.filter((d) =>
-    ['CREATED', 'SCHEDULED'].includes(d.status)
+    ['CREATED', 'SCHEDULED'].includes(d.status),
   ).length
 
   return {

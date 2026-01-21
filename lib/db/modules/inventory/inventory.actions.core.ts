@@ -314,84 +314,124 @@ export async function recordStockMovement(
     }
   }
 }
+
 export async function reverseStockMovementsByReference(
   referenceId: string,
   session: ClientSession,
 ) {
+  // 1. Căutăm mișcările (Păstrăm lista ta de tipuri exact așa cum ai cerut)
   const movementsToReverse = await StockMovementModel.find({
     referenceId,
-    movementType: 'RECEPTIE',
+    movementType: {
+      $in: [
+        'RECEPTIE',
+        'DIRECT_SALE',
+        'DELIVERY_FULL_TRUCK',
+        'DELIVERY_CRANE',
+        'DELIVERY_SMALL_VEHICLE_PJ',
+        'RETAIL_SALE_PF',
+        'PICK_UP_SALE',
+      ],
+    },
     status: 'ACTIVE',
   }).session(session)
 
   if (movementsToReverse.length === 0) {
     console.warn(
-      `[REVOC] Nu au fost găsite mișcări ACTIVE de tip RECEPTIE pentru referința ${referenceId}.`,
+      `[REVOC] Nu au fost găsite mișcări ACTIVE pentru referința ${referenceId}.`,
     )
     return
   }
 
   for (const movement of movementsToReverse) {
     const movementIdStr = String(movement._id)
+    const isReceptie = movement.movementType === 'RECEPTIE'
 
+    // 2. Găsim InventoryItem folosind locația corectă (To pentru recepții, From pentru vânzări)
     const inventoryItem = await InventoryItemModel.findOne({
       stockableItem: movement.stockableItem,
       stockableItemType: movement.stockableItemType,
-      location: movement.locationTo,
+      location: isReceptie ? movement.locationTo : movement.locationFrom,
     }).session(session)
 
     if (!inventoryItem) {
-      // Caz critic: Itemul de inventar a dispărut cu totul.
-      throw new Error(
-        `Nu se poate anula recepția. Articolul de inventar pentru ${movement.stockableItem} nu mai există (stocul a fost epuizat).`,
-      )
+      throw new Error(`Articolul de inventar nu a fost găsit în locația sursă.`)
     }
 
-    // 1. Căutăm lotul specific creat de această mișcare
-    const batchIndex = inventoryItem.batches.findIndex(
-      (b) => String(b.movementId) === movementIdStr,
-    )
-
-    // Caz A: Lotul nu mai există deloc (a fost consumat complet și arhivat)
-    if (batchIndex === -1) {
-      throw new Error(
-        `Nu se poate anula recepția. Lotul pentru articolul ${movement.stockableItem} a fost deja epuizat complet.`,
+    // =============================================================
+    // 🟢 START LOGICĂ PROTEJATĂ
+    // =============================================================
+    if (isReceptie) {
+      const batchIndex = inventoryItem.batches.findIndex(
+        (b) => String(b.movementId) === movementIdStr,
       )
+
+      if (batchIndex === -1) {
+        throw new Error(
+          `Nu se poate anula recepția. Lotul a fost deja epuizat complet.`,
+        )
+      }
+
+      const batch = inventoryItem.batches[batchIndex]
+
+      if (batch.quantity < movement.quantity) {
+        throw new Error(
+          `Nu se poate anula recepția. Din articolul ${movement.stockableItem} s-au vândut deja produse. ` +
+            `(Stoc Rămas: ${batch.quantity}, Stoc Inițial: ${movement.quantity}). ` +
+            `Trebuie să faceți retur la vânzări înainte de a anula recepția.`,
+        )
+      }
+
+      // Ștergem lotul (doar pentru recepții)
+      inventoryItem.batches.splice(batchIndex, 1)
+    } else {
+      // CAZ NOU: ANULARE LIVRARE (REINTRODUCERE ÎN LOTURI)
+      if (movement.costBreakdown && movement.costBreakdown.length > 0) {
+        for (const breakdown of movement.costBreakdown) {
+          const existingBatch = inventoryItem.batches.find(
+            (b) => String(b.movementId) === String(breakdown.movementId),
+          )
+
+          if (existingBatch) {
+            existingBatch.quantity += breakdown.quantity
+          } else {
+            // Re-creăm lotul dacă a fost epuizat între timp
+            inventoryItem.batches.push({
+              _id: new Types.ObjectId(),
+              quantity: breakdown.quantity,
+              unitCost: breakdown.unitCost,
+              entryDate: breakdown.entryDate,
+              movementId: breakdown.movementId as Types.ObjectId,
+              supplierId: breakdown.supplierId,
+              supplierName: breakdown.supplierName,
+              qualityDetails: breakdown.qualityDetails,
+            })
+          }
+        }
+      }
     }
-
-    const batch = inventoryItem.batches[batchIndex]
-
-    // Caz B: Lotul există, dar cantitatea este mai mică (s-a consumat parțial)
-    // Folosim o mică toleranță pentru float numbers, dar logic trebuie să fie egale
-    if (batch.quantity < movement.quantity) {
-      throw new Error(
-        `Nu se poate anula recepția. Din articolul ${movement.stockableItem} s-au vândut deja produse. ` +
-          `(Stoc Rămas: ${batch.quantity}, Stoc Inițial: ${movement.quantity}). ` +
-          `Trebuie să faceți retur la vânzări înainte de a anula recepția.`,
-      )
-    }
-
-    // 2. Dacă am trecut de verificări, e safe să ștergem lotul
-    inventoryItem.batches.splice(batchIndex, 1)
 
     // 3. Recalculăm și salvăm
     await recalculateInventorySummary(inventoryItem)
     await inventoryItem.save({ session })
 
-    // 4. Creăm mișcarea de audit de tip "ANULARE_RECEPTIE"
+    // 4. Creăm mișcarea de audit (Dinamica: ANULARE_RECEPTIE vs ANULARE_AVIZ)
     const reversalMovement = new StockMovementModel({
       stockableItem: movement.stockableItem,
       stockableItemType: movement.stockableItemType,
-      movementType: 'ANULARE_RECEPTIE',
+      movementType: isReceptie ? 'ANULARE_RECEPTIE' : 'ANULARE_AVIZ',
       quantity: movement.quantity,
       unitMeasure: movement.unitMeasure,
       responsibleUser: movement.responsibleUser,
       locationFrom: movement.locationTo,
+      locationTo: movement.locationFrom,
       referenceId,
-      note: `Anulare mișcare recepție originală ${movementIdStr}`,
+      note: `Anulare automată mișcare ${movement.movementType} (${movementIdStr})`,
       timestamp: new Date(),
-      // Soldurile se iau din inventoryItem DUPĂ recalculare (care a scăzut stocul)
-      balanceBefore: inventoryItem.totalStock + movement.quantity,
+      // Calculăm balanța corect: recepția scade stocul la anulare (+), livrarea îl crește (-)
+      balanceBefore:
+        inventoryItem.totalStock +
+        (isReceptie ? movement.quantity : -movement.quantity),
       balanceAfter: inventoryItem.totalStock,
       supplierId: movement.supplierId,
       supplierName: movement.supplierName,
@@ -456,7 +496,6 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
     item.minPurchasePrice = 0
     // NU ATINGEM item.lastPurchasePrice. Acesta trebuie să persiste.
   }
-
   // =====================================================================
   // 🟢 Actualizare Preț Maxim în Produsul Părinte (Global)
   // =====================================================================
