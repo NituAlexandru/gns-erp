@@ -180,7 +180,7 @@ export const PdfFooter: React.FC<Props> = ({ data }) => {
   const grandTotal = data.totals?.grandTotal || 0
 
   return (
-    <View style={styles.footerContainer}>
+    <View style={styles.footerContainer} wrap={false}>
       {/* 1. SECTIUNEA DE SUS */}
       <View style={styles.topSection}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
