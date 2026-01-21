@@ -410,7 +410,7 @@ export function DeliveryNotesList({
                         className='truncate text-sm text-muted-foreground'
                         title={addressString}
                       >
-                        {address.strada} {address.numar}, {address.localitate}
+                        {addressString}
                       </div>
                     </TableCell>
 
