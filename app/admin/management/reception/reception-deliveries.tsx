@@ -24,12 +24,24 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { CalendarIcon, Trash2 } from 'lucide-react'
+import { CalendarIcon, ChevronDown, Trash2, Truck } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { ReceptionCreateInput } from '@/lib/db/modules/reception/types'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
+import { Checkbox } from '@/components/ui/checkbox'
+import { getActiveAssignments } from '@/lib/db/modules/fleet/assignments/assignments.actions'
+import { useEffect, useState } from 'react'
+import { IPopulatedAssignmentDoc } from '@/lib/db/modules/fleet/assignments/types'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 type ReceptionDeliveriesProps = {
   vatRates: VatRateDTO[]
@@ -43,6 +55,27 @@ export function ReceptionDeliveries({ vatRates }: ReceptionDeliveriesProps) {
     name: 'deliveries',
   })
   const defaultRate = vatRates && vatRates.length > 0 ? vatRates[0].rate : 0
+
+  const [assignments, setAssignments] = useState<IPopulatedAssignmentDoc[]>([])
+
+  useEffect(() => {
+    getActiveAssignments().then((data) => setAssignments(data))
+  }, [])
+
+  const handleFillFromAssignment = (
+    index: number,
+    item: IPopulatedAssignmentDoc,
+  ) => {
+    // 1. Setăm Nume Șofer
+    form.setValue(`deliveries.${index}.driverName`, item.driverId.name)
+
+    // 2. Construim Numar Auto (Vehicul [+ Remorca])
+    const vehicleNo = item.vehicleId.carNumber
+    const trailerNo = item.trailerId?.licensePlate
+    const fullCarNumber = trailerNo ? `${vehicleNo} / ${trailerNo}` : vehicleNo
+
+    form.setValue(`deliveries.${index}.carNumber`, fullCarNumber)
+  }
 
   return (
     <Card>
@@ -108,7 +141,7 @@ export function ReceptionDeliveries({ vatRates }: ReceptionDeliveriesProps) {
                               variant={'outline'}
                               className={cn(
                                 'w-full justify-start text-left font-normal',
-                                !field.value && 'text-muted-foreground'
+                                !field.value && 'text-muted-foreground',
                               )}
                             >
                               <CalendarIcon className='mr-2 h-4 w-4' />
@@ -139,7 +172,59 @@ export function ReceptionDeliveries({ vatRates }: ReceptionDeliveriesProps) {
                   name={`deliveries.${index}.driverName`}
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nume Șofer</FormLabel>
+                      {/* --- MODIFICARE AICI: Label cu Dropdown --- */}
+                      <div className='flex justify-between items-center'>
+                        <FormLabel>Nume Șofer</FormLabel>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type='button'
+                              variant='secondary'
+                              size='sm'
+                              className='h-6 px-2 text-xs text-muted-foreground hover:text-primary'
+                            >
+                              <Truck className='mr-1 h-3 w-3' />
+
+                              <ChevronDown className='ml-1 h-3 w-3' />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align='end'
+                            className='w-[250px]'
+                          >
+                            <DropdownMenuLabel>
+                              Ansambluri Active
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {assignments.length === 0 ? (
+                              <div className='p-2 text-xs text-muted-foreground'>
+                                Nu există ansambluri active.
+                              </div>
+                            ) : (
+                              assignments.map((asg) => (
+                                <DropdownMenuItem
+                                  key={asg._id}
+                                  onClick={() =>
+                                    handleFillFromAssignment(index, asg)
+                                  }
+                                  className='flex flex-col items-start cursor-pointer'
+                                >
+                                  <span className='font-medium'>
+                                    {asg.name}
+                                  </span>
+                                  <span className='text-[10px] text-muted-foreground'>
+                                    {asg.driverId.name} •{' '}
+                                    {asg.vehicleId.carNumber}
+                                  </span>
+                                </DropdownMenuItem>
+                              ))
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {/* --- FINAL MODIFICARE --- */}
+
                       <FormControl>
                         <Input
                           placeholder='Popescu Ion'
@@ -286,7 +371,42 @@ export function ReceptionDeliveries({ vatRates }: ReceptionDeliveriesProps) {
                   )}
                 />
               </div>
-
+              {/* --- CHECKBOX COST INTERN --- */}
+              <div className='pt-2'>
+                <FormField
+                  control={form.control}
+                  name={`deliveries.${index}.isInternal`}
+                  render={({ field }) => (
+                    <FormItem className='flex flex-row items-start space-x-1 space-y-0 rounded-md border p-2 shadow-sm bg-muted/20'>
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={(checked) => {
+                            field.onChange(checked)
+                            // Opțional: Dacă bifează, poți seta automat tipul pe INTERN
+                            if (checked) {
+                              form.setValue(
+                                `deliveries.${index}.transportType`,
+                                'INTERN',
+                              )
+                            }
+                          }}
+                        />
+                      </FormControl>
+                      <div className='space-y-1 leading-none'>
+                        <FormLabel>
+                          Cost Logistic Propriu (Fără Factură)
+                        </FormLabel>
+                        <p className='text-sm text-muted-foreground'>
+                          Bifează dacă acest cost este suportat intern. Suma se
+                          va adăuga automat la totalul facturilor pentru
+                          validare, dar costul se va distribui pe produse.
+                        </p>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
               {/* --- Rândul 3: Detalii Transportator Terț (apare condiționat) --- */}
               {transportType === 'TERT' && (
                 <div className='p-3 pt-4 border-t space-y-3 bg-muted/30 rounded-md'>

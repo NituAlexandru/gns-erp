@@ -58,6 +58,7 @@ export const DeliverySchema = z.object({
   transportVatRate: z.coerce.number().nonnegative().default(0),
   transportVatValue: z.number().optional(),
   tertiaryTransporterDetails: TertiaryTransporterSchema.optional(),
+  isInternal: z.boolean().default(false).optional(),
 })
 
 export const InvoiceSchema = z.object({

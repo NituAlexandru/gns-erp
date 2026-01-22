@@ -34,6 +34,7 @@ export interface IDelivery {
   transportVatRate?: number // Ex: 21
   transportVatValue?: number // Valoarea calculată
   tertiaryTransporterDetails?: ITertiaryTransporter
+  isInternal?: boolean
 }
 
 export interface IInvoice {
@@ -132,7 +133,7 @@ const tertiaryTransporterSchema = new Schema<ITertiaryTransporter>(
     regCom: { type: String },
     address: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const deliverySchema = new Schema<IDelivery>(
@@ -155,8 +156,9 @@ const deliverySchema = new Schema<IDelivery>(
       type: tertiaryTransporterSchema,
       required: false,
     },
+    isInternal: { type: Boolean, default: false },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const invoiceSchema = new Schema<IInvoice>(
@@ -177,7 +179,7 @@ const invoiceSchema = new Schema<IInvoice>(
     totalWithVat: { type: Number, required: true, default: 0 },
     exchangeRateOnIssueDate: { type: Number, required: false },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const receptionItemCostSchema = {
@@ -194,7 +196,7 @@ const supplierSnapshotSchema = new Schema(
     name: { type: String, required: true },
     cui: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const QualityDetailsSchema = new Schema(
@@ -208,7 +210,7 @@ const QualityDetailsSchema = new Schema(
     // Aici sunt MENȚIUNI SUPLIMENTARE (orice altceva scris de gestionar)
     additionalNotes: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 // --- Schema Principală ---
@@ -294,7 +296,7 @@ const receptionSchema = new Schema<IReceptionDoc>(
     nirDate: { type: Date },
     nirId: { type: Schema.Types.ObjectId, ref: 'Nir' },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 receptionSchema.index({ createdBy: 1 })

@@ -291,8 +291,8 @@ export async function confirmReception({
 }): Promise<ActionResultWithData<PopulatedReception>> {
   await connectToDatabase()
 
-  console.time('EXECUTION_TIMER') 
-  // console.log('1. [START] confirmReception a pornit') 
+  console.time('EXECUTION_TIMER')
+  // console.log('1. [START] confirmReception a pornit')
 
   const initialData = await ReceptionModel.findById(receptionId).lean()
 
@@ -438,11 +438,27 @@ export async function confirmReception({
         }
       }
 
+      const internalTransportVal = (reception.deliveries || []).reduce(
+        (acc, d) => {
+          // Verificăm dacă livrarea are flag-ul isInternal (salvat în baza de date)
+          // Sau, pentru siguranță, verificăm și tipul
+          const isInt = (d as any).isInternal || d.transportType === 'INTERN'
+
+          if (isInt) {
+            return acc + (d.transportCost || 0)
+          }
+          return acc
+        },
+        0,
+      )
+
       const expectedNoVatRON = round2(merchandiseTotalRON + transportTotalRON)
 
-      if (invoicesTotalRON !== expectedNoVatRON) {
+      if (
+        round2(invoicesTotalRON + internalTransportVal) !== expectedNoVatRON
+      ) {
         throw new Error(
-          `Total facturi fără TVA (${invoicesTotalRON} RON) ≠ marfă + transport (${expectedNoVatRON} RON).`,
+          `Total facturi (${invoicesTotalRON} RON) + Transport Intern (${internalTransportVal} RON) ≠ Total marfă + transport (${expectedNoVatRON} RON).`,
         )
       }
 
@@ -693,8 +709,8 @@ export async function confirmReception({
       error instanceof Error
         ? error.message
         : 'Eroare la confirmarea recepției.'
-    console.timeEnd('EXECUTION_TIMER') // <--- ADAUGĂ ASTA
-    // console.log('6. [DONE] Totul salvat cu succes!') // <--- ADAUGĂ ASTA
+    // console.timeEnd('EXECUTION_TIMER')
+    // console.log('6. [DONE] Totul salvat cu succes!')
     return { success: false, message }
   }
 }

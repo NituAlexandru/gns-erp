@@ -85,7 +85,9 @@ export function ReceptionForm({
 }: ReceptionFormProps) {
   const router = useRouter()
   const [selectedSupplier, setSelectedSupplier] = useState<SearchResult | null>(
-    initialData?.supplier ? { ...initialData.supplier, isVatPayer: true } : null
+    initialData?.supplier
+      ? { ...initialData.supplier, isVatPayer: true }
+      : null,
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const isEditMode = !!initialData
@@ -190,6 +192,7 @@ export function ReceptionForm({
     calculatedGrandTotal,
     isBalancedNoVat,
     isBalancedWithVat,
+    internalTransportTotal,
   } = useMemo(() => {
     const watchedData = form.getValues()
 
@@ -197,12 +200,12 @@ export function ReceptionForm({
     const productsReduce = (watchedData.products || []).reduce(
       (acc, item) => {
         const net = round2(
-          (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0)
+          (item.invoicePricePerUnit ?? 0) * (item.quantity ?? 0),
         )
         const vat = round2(net * ((item.vatRate ?? 0) / 100))
         return { net: round2(acc.net + net), vat: round2(acc.vat + vat) }
       },
-      { net: 0, vat: 0 }
+      { net: 0, vat: 0 },
     )
 
     const packagingReduce = (watchedData.packagingItems || []).reduce(
@@ -211,7 +214,7 @@ export function ReceptionForm({
         const vat = net * ((item.vatRate ?? 0) / 100)
         return { net: acc.net + net, vat: acc.vat + vat }
       },
-      { net: 0, vat: 0 }
+      { net: 0, vat: 0 },
     )
 
     const merchandiseNet = round2(productsReduce.net + packagingReduce.net)
@@ -223,16 +226,23 @@ export function ReceptionForm({
         const cost = Number(delivery.transportCost || 0)
         const rate = Number(delivery.transportVatRate || 0)
         const vat = round2(cost * (rate / 100))
+        const isInt = (delivery as any).isInternal
+
         return {
           cost: round2(acc.cost + cost),
           vat: round2(acc.vat + vat),
+          internalNet: isInt ? round2(acc.internalNet + cost) : acc.internalNet,
+          internalVat: isInt ? round2(acc.internalVat + vat) : acc.internalVat,
         }
       },
-      { cost: 0, vat: 0 }
+      { cost: 0, vat: 0, internalNet: 0, internalVat: 0 },
     )
 
     const transportNet = transportReduce.cost
     const transportVat = transportReduce.vat
+
+    const internalTransportTotal = transportReduce.internalNet
+    const internalTransportVat = transportReduce.internalVat
 
     // --- TOTALURILE PENTRU CARDUL DE JOS (Ce a intrat in stoc) ---
     const totalIntrareNet = round2(merchandiseNet + transportNet)
@@ -257,7 +267,7 @@ export function ReceptionForm({
 
         return round2(sum + round2(amount * exchangeRate))
       },
-      0
+      0,
     )
 
     // B. Calculăm BRUT-ul facturilor în RON (Net + TVA)
@@ -283,18 +293,25 @@ export function ReceptionForm({
 
         return sum + grossAmount * exchangeRate
       },
-      0
+      0,
     )
 
     // Validare 1: Net Facturi vs Total Intrare Net (Strict la 2 zecimale)
     const isBalancedNoVat =
-      Math.round((calculatedInvoicesNoVatRON + Number.EPSILON) * 100) ===
-      Math.round((totalIntrareNet + Number.EPSILON) * 100)
+      Math.round(
+        (calculatedInvoicesNoVatRON + internalTransportTotal + Number.EPSILON) *
+          100,
+      ) === Math.round((totalIntrareNet + Number.EPSILON) * 100)
 
     // Validare 2: Brut Facturi vs Total General Brut (Strict la 2 zecimale)
     const isBalancedWithVat =
-      Math.round((calculatedInvoicesGrossRON + Number.EPSILON) * 100) ===
-      Math.round((totalGeneralCalculated + Number.EPSILON) * 100)
+      Math.round(
+        (calculatedInvoicesGrossRON +
+          internalTransportTotal +
+          internalTransportVat +
+          Number.EPSILON) *
+          100,
+      ) === Math.round((totalGeneralCalculated + Number.EPSILON) * 100)
 
     // --- Distribuire cost transport (Logica existenta) ---
     const productsToProcess = (watchedData.products || []).map((p, i) => ({
@@ -307,12 +324,12 @@ export function ReceptionForm({
         ...p,
         originalIndex: i,
         type: 'packaging',
-      })
+      }),
     )
     // Folosim orice in loc de o interfata stricta aici pentru a evita erorile de typescript pe moment
     const productsWithCosts = distributeTransportCost(
       productsToProcess as any,
-      transportNet
+      transportNet,
     )
     const packagingsWithZeroCost = packagingsToProcess.map((p) => ({
       ...p,
@@ -325,7 +342,7 @@ export function ReceptionForm({
     itemsWithCosts.forEach((item: any) => {
       localCostsMap.set(
         `${item.type}_${item.originalIndex}`,
-        item.totalDistributedTransportCost
+        item.totalDistributedTransportCost,
       )
     })
 
@@ -341,7 +358,7 @@ export function ReceptionForm({
 
       // Folosite pentru afisare erori la submit
       invoicesTotalNoVatRON: calculatedInvoicesNoVatRON,
-
+      internalTransportTotal,
       // Folosite pentru culori (Verde/Rosu)
       isBalancedNoVat: isBalancedNoVat,
       isBalancedWithVat: isBalancedWithVat,
@@ -355,7 +372,7 @@ export function ReceptionForm({
   // 1. Când se schimbă furnizorul
   const handleSupplierChange = async (
     id: string,
-    item: SearchResult | null
+    item: SearchResult | null,
   ) => {
     // Logica existentă
     form.setValue('supplier', id, { shouldValidate: true })
@@ -412,14 +429,14 @@ export function ReceptionForm({
             if (!fx || fx <= 0) {
               // mesaj clar când lipsește cursul
               throw new Error(
-                `Factura ${extras.series || ''} ${extras.number || ''}: lipsește exchangeRateOnIssueDate pentru ${currency}.`
+                `Factura ${extras.series || ''} ${extras.number || ''}: lipsește exchangeRateOnIssueDate pentru ${currency}.`,
               )
             }
             return sum + amount * fx
           }
 
           return sum + amount
-        }, 0)
+        }, 0),
       )
 
       // 3) Valoarea mărfii FĂRĂ TVA (produse + ambalaje) + transport (TOT în RON)
@@ -429,9 +446,9 @@ export function ReceptionForm({
       if (invoicesTotalNoVatRON !== expectedNoVatRON) {
         toast.error('Verificare eșuată', {
           description: `Suma facturilor fără TVA (${formatCurrency(
-            invoicesTotalNoVatRON
+            invoicesTotalNoVatRON,
           )}) trebuie să fie egală cu (valoarea mărfii + transport) (${formatCurrency(
-            expectedNoVatRON
+            expectedNoVatRON,
           )}).`,
           duration: 8000,
         })
@@ -533,7 +550,7 @@ export function ReceptionForm({
                                 variant='outline'
                                 className={cn(
                                   'pl-3 text-left font-normal',
-                                  !field.value && 'text-muted-foreground'
+                                  !field.value && 'text-muted-foreground',
                                 )}
                               >
                                 {field.value ? (
@@ -598,7 +615,7 @@ export function ReceptionForm({
                                   <span className='font-medium'>
                                     #{ord.orderNumber} -{' '}
                                     {new Date(ord.orderDate).toLocaleDateString(
-                                      'ro-RO'
+                                      'ro-RO',
                                     )}
                                   </span>
 
@@ -755,7 +772,8 @@ export function ReceptionForm({
                             </span>
                             <span className='font-medium'>
                               {formatCurrency(
-                                selectedOrderData.transportDetails.transportCost
+                                selectedOrderData.transportDetails
+                                  .transportCost,
                               )}
                             </span>
                           </div>
@@ -808,7 +826,7 @@ export function ReceptionForm({
                         (item: any, idx: number) => {
                           const remaining = Math.max(
                             0,
-                            item.quantityOrdered - (item.quantityReceived || 0)
+                            item.quantityOrdered - (item.quantityReceived || 0),
                           )
 
                           // --- DEFINIRE VARIABILE (AICI, CA SĂ FIE VIZIBILE PESTE TOT) ---
@@ -844,7 +862,7 @@ export function ReceptionForm({
                                     'text-xs font-bold px-2 py-1 rounded border text-right flex gap-2 justify-center items-center',
                                     remaining > 0
                                       ? 'bg-orange-500/10 text-orange-600 border-orange-200'
-                                      : 'bg-green-500/10 text-green-600 border-green-200'
+                                      : 'bg-green-500/10 text-green-600 border-green-200',
                                   )}
                                 >
                                   <span>
@@ -1005,7 +1023,7 @@ export function ReceptionForm({
                                       <span>/ {prodData.packagingUnit}:</span>
                                       <span>
                                         {formatCurrency(
-                                          item.pricePerUnit * pkgQty
+                                          item.pricePerUnit * pkgQty,
                                         )}
                                       </span>
                                     </div>
@@ -1017,7 +1035,7 @@ export function ReceptionForm({
                                       <span>
                                         {formatCurrency(
                                           item.pricePerUnit *
-                                            totalUnitsPerPallet
+                                            totalUnitsPerPallet,
                                         )}
                                       </span>
                                     </div>
@@ -1026,7 +1044,7 @@ export function ReceptionForm({
                               </div>
                             </div>
                           )
-                        }
+                        },
                       )}
                       {(!selectedOrderData.products ||
                         selectedOrderData.products.length === 0) && (
@@ -1047,7 +1065,7 @@ export function ReceptionForm({
                             const remaining = Math.max(
                               0,
                               item.quantityOrdered -
-                                (item.quantityReceived || 0)
+                                (item.quantityReceived || 0),
                             )
                             return (
                               <div
@@ -1063,7 +1081,7 @@ export function ReceptionForm({
                                       'text-xs font-bold px-2 py-0.5 rounded border',
                                       remaining > 0
                                         ? 'bg-orange-500/10 text-orange-600 border-orange-200'
-                                        : 'bg-green-500/10 text-green-600 border-green-200'
+                                        : 'bg-green-500/10 text-green-600 border-green-200',
                                     )}
                                   >
                                     Rest: {remaining} {item.unitMeasure}
@@ -1090,7 +1108,7 @@ export function ReceptionForm({
                                 </div>
                               </div>
                             )
-                          }
+                          },
                         )
                       ) : (
                         <p className='text-xs text-muted-foreground italic p-2 border border-dashed rounded'>
@@ -1138,7 +1156,7 @@ export function ReceptionForm({
                       'text-base font-semibold border pl-4 ml-2 p-2 rounded-lg',
                       isBalancedNoVat
                         ? 'border-emerald-600/40 text-emerald-400 bg-emerald-600/10'
-                        : 'border-red-600/40 text-red-400 bg-red-600/10'
+                        : 'border-red-600/40 text-red-400 bg-red-600/10',
                     )}
                     title={
                       isBalancedNoVat
@@ -1160,7 +1178,7 @@ export function ReceptionForm({
 
                         isBalancedWithVat
                           ? 'border-emerald-600/40 text-emerald-400 bg-emerald-600/10'
-                          : 'border-red-600/40 text-red-400 bg-red-600/10'
+                          : 'border-red-600/40 text-red-400 bg-red-600/10',
                       )}
                     >
                       TOTAL General:{' '}
