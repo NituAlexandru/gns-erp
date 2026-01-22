@@ -33,6 +33,7 @@ export async function recordStockMovement(
   input: StockMovementInput,
   existingSession?: ClientSession,
 ): Promise<{ movement: IStockMovementDoc; costInfo: FifoCostInfo | null }> {
+  // console.log('   [STOCK-DEBUG] 1. Start recordStockMovement')
   const payload = StockMovementSchema.parse(input)
 
   const executeLogic = async (session: ClientSession) => {
@@ -43,6 +44,7 @@ export async function recordStockMovement(
 
     // Dacă nu au fost trimise prin payload, le căutăm noi acum (Safety Check)
     if (!finalItemName && session) {
+      // console.log('   [STOCK-DEBUG] 2.1 Missing name, fetching product...')
       if (payload.stockableItemType === 'ERPProduct') {
         const prod = await ERPProductModel.findById(payload.stockableItem)
           .select('name productCode unit')
@@ -81,7 +83,7 @@ export async function recordStockMovement(
     if (!auditLocation) {
       throw new Error('Locația (To/From) lipsește pentru acest tip de mișcare.')
     }
-
+    console.log('   [STOCK-DEBUG] 3. Caut Inventory Item...')
     let inventoryItem = await InventoryItemModel.findOne({
       stockableItem: payload.stockableItem,
       stockableItemType: payload.stockableItemType,
@@ -89,6 +91,7 @@ export async function recordStockMovement(
     }).session(session)
 
     if (!inventoryItem) {
+      // console.log('   [STOCK-DEBUG] 3.1 Item nu exista, creez unul nou...')
       inventoryItem = new InventoryItemModel({
         stockableItem: payload.stockableItem,
         searchableName: finalItemName,
@@ -113,6 +116,7 @@ export async function recordStockMovement(
 
     let responsibleUserName = 'Sistem'
     if (payload.responsibleUser) {
+      // console.log('   [STOCK-DEBUG] 4. Fetch User...')
       const user = await User.findById(payload.responsibleUser)
         .select('name')
         .session(session)
@@ -148,7 +152,7 @@ export async function recordStockMovement(
     })
 
     let costInfo: FifoCostInfo | null = null
-
+    // console.log('   [STOCK-DEBUG] 5. Calcul FIFO/Batches...')
     if (isInput) {
       if (payload.unitCost === undefined) {
         throw new Error(
@@ -279,12 +283,15 @@ export async function recordStockMovement(
       inventoryItem.totalStock = balanceAfter
     }
 
-    await recalculateInventorySummary(inventoryItem)
+    // console.log('   [STOCK-DEBUG] 6. Recalculez sumar...')
+    await recalculateInventorySummary(inventoryItem, session)
+    // console.log('   [STOCK-DEBUG] 7. Salvez InventoryItem...')
     await inventoryItem.save({ session })
 
     movement.balanceAfter = inventoryItem.totalStock
+    // console.log('   [STOCK-DEBUG] 8. Salvez Movement...')
     await movement.save({ session })
-
+    // console.log('   [STOCK-DEBUG] 9. Gata recordStockMovement!')
     return { movement, costInfo }
   }
 
@@ -444,7 +451,10 @@ export async function reverseStockMovementsByReference(
     await movement.save({ session })
   }
 }
-export async function recalculateInventorySummary(item: IInventoryItemDoc) {
+export async function recalculateInventorySummary(
+  item: IInventoryItemDoc,
+  session?: ClientSession,
+) {
   if (!item) return
 
   // Păstrat codul tău de sortare:
@@ -455,8 +465,6 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
     (sum, batch) => sum + batch.quantity,
     0,
   )
-
-  // --- MODIFICARE PENTRU A PERMITE STOC NEGATIV ---
 
   // 1. Dacă avem loturi fizice, stocul total se aliniază cu ele.
   if (batchesSum > 0) {
@@ -504,7 +512,7 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
   const globalMaxResult = await InventoryItemModel.aggregate([
     { $match: { stockableItem: item.stockableItem } },
     { $group: { _id: null, maxGlobal: { $max: '$maxPurchasePrice' } } },
-  ])
+  ]).session(session || null)
 
   const currentLocalMax = item.maxPurchasePrice || 0
   const otherLocationsMax = globalMaxResult[0]?.maxGlobal || 0
@@ -515,13 +523,21 @@ export async function recalculateInventorySummary(item: IInventoryItemDoc) {
   if (item.stockableItemType === 'ERPProduct') {
     // Putem adăuga o verificare să nu scriem dacă prețul e același,
     // dar MongoDB e oricum smart și nu "suferă" de la un update redundant.
-    await ERPProductModel.findByIdAndUpdate(item.stockableItem, {
-      averagePurchasePrice: finalMaxPrice,
-    })
+    await ERPProductModel.findByIdAndUpdate(
+      item.stockableItem,
+      {
+        averagePurchasePrice: finalMaxPrice,
+      },
+      { session },
+    )
   } else if (item.stockableItemType === 'Packaging') {
-    await PackagingModel.findByIdAndUpdate(item.stockableItem, {
-      averagePurchasePrice: finalMaxPrice,
-    })
+    await PackagingModel.findByIdAndUpdate(
+      item.stockableItem,
+      {
+        averagePurchasePrice: finalMaxPrice,
+      },
+      { session },
+    )
   }
 }
 export async function updateBatchDetails(

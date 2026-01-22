@@ -15,6 +15,7 @@ import User, { IUser } from '../user/user.model'
 import {
   calculateInvoiceTotals,
   distributeTransportCost,
+  runTransactionWithRetry,
 } from './reception.helpers'
 import { convertAmountToRON, sumToTwoDecimals } from '@/lib/finance/money'
 import { ISupplierDoc } from '../suppliers/types'
@@ -41,7 +42,7 @@ export type ActionResult =
   | { success: false; message: string }
 
 function processReceptionInputData(
-  data: ReceptionCreateInput | ReceptionUpdateInput
+  data: ReceptionCreateInput | ReceptionUpdateInput,
 ) {
   const processedData = { ...data }
 
@@ -84,8 +85,10 @@ function processReceptionInputData(
 }
 
 export async function createReception(
-  data: ReceptionCreateInput
+  data: ReceptionCreateInput,
 ): Promise<ActionResultWithData<PopulatedReception>> {
+  await connectToDatabase()
+
   try {
     const payloadToValidate = processReceptionInputData(data)
     const payload = ReceptionCreateSchema.parse(payloadToValidate)
@@ -107,10 +110,10 @@ export async function createReception(
     if (!supplier) throw new Error('Furnizorul nu a fost găsit.')
 
     const productsMap = new Map(
-      productsData.map((p: IERPProductDoc) => [p._id.toString(), p])
+      productsData.map((p: IERPProductDoc) => [p._id.toString(), p]),
     )
     const packagingMap = new Map(
-      packagingData.map((p: IPackagingDoc) => [p._id.toString(), p])
+      packagingData.map((p: IPackagingDoc) => [p._id.toString(), p]),
     )
 
     const payloadWithSnapshots = {
@@ -160,7 +163,7 @@ export async function createReception(
       const formattedErrors = JSON.stringify(
         error.flatten().fieldErrors,
         null,
-        2
+        2,
       )
       console.error('Eroare de validare Zod:', formattedErrors)
       return {
@@ -176,7 +179,7 @@ export async function createReception(
 }
 
 export async function updateReception(
-  data: ReceptionUpdateInput
+  data: ReceptionUpdateInput,
 ): Promise<ActionResultWithData<PopulatedReception>> {
   try {
     const payloadToValidate = processReceptionInputData(data)
@@ -200,10 +203,10 @@ export async function updateReception(
     if (!supplier) throw new Error('Furnizorul nu a fost găsit.')
 
     const productsMap = new Map(
-      productsData.map((p: IERPProductDoc) => [p._id.toString(), p])
+      productsData.map((p: IERPProductDoc) => [p._id.toString(), p]),
     )
     const packagingMap = new Map(
-      packagingData.map((p: IPackagingDoc) => [p._id.toString(), p])
+      packagingData.map((p: IPackagingDoc) => [p._id.toString(), p]),
     )
 
     const updateDataWithSnapshots = {
@@ -243,11 +246,11 @@ export async function updateReception(
     const updatedReception = await ReceptionModel.findByIdAndUpdate(
       _id,
       updateDataWithSnapshots,
-      { new: true }
+      { new: true },
     )
     if (!updatedReception) {
       throw new Error(
-        'Recepția pe care încerci să o modifici nu a fost găsită.'
+        'Recepția pe care încerci să o modifici nu a fost găsită.',
       )
     }
 
@@ -261,7 +264,7 @@ export async function updateReception(
       const formattedErrors = JSON.stringify(
         error.flatten().fieldErrors,
         null,
-        2
+        2,
       )
       console.error('Eroare de validare Zod la update:', formattedErrors)
       return {
@@ -286,9 +289,45 @@ export async function confirmReception({
   receptionId: string
   userId: string
 }): Promise<ActionResultWithData<PopulatedReception>> {
-  const session = await mongoose.startSession()
+  await connectToDatabase()
+
+  console.time('EXECUTION_TIMER') 
+  // console.log('1. [START] confirmReception a pornit') 
+
+  const initialData = await ReceptionModel.findById(receptionId).lean()
+
+  if (!initialData)
+    return { success: false, message: 'Recepția nu a fost găsită.' }
+  if (initialData.status === 'CONFIRMAT')
+    return { success: false, message: 'Recepția este deja confirmată.' }
+
+  // Pregătim lista de produse și ambalaje
+  const allItemsToFetch = [
+    ...(initialData.products || []).map((p) => ({
+      id: p.product.toString(),
+      type: 'ERPProduct' as const,
+    })),
+    ...(initialData.packagingItems || []).map((p) => ({
+      id: p.packaging.toString(),
+      type: 'Packaging' as const,
+    })),
+  ]
+
+  // Le citim pe toate o singură dată și le punem într-o mapă
+  const itemDetailsMap = new Map<string, any>()
+  await Promise.all(
+    allItemsToFetch.map(async (item) => {
+      const details = await getStockableItemDetails(item.id, item.type)
+      itemDetailsMap.set(item.id, details)
+    }),
+  )
+
   try {
-    const result = await session.withTransaction(async (session) => {
+    // console.log(
+    //   `2. [PRE-FETCH] Gata. Map size: ${itemDetailsMap.size}. Încep tranzacția...`,
+    // )
+    return await runTransactionWithRetry(async (session) => {
+      // console.log('3. [TRX] Sesiune deschisă. Citesc recepția...')
       const reception = await ReceptionModel.findById(receptionId)
         .populate<{
           supplier: { _id: Types.ObjectId; name: string }
@@ -323,13 +362,13 @@ export async function confirmReception({
 
       const totalTransportCost = reception.deliveries.reduce(
         (sum, delivery) => sum + (delivery.transportCost || 0),
-        0
+        0,
       )
       const productsToProcess = reception.products || [] // Pas 2: Distribuim costul total de transport PONDERAT doar pe lista de produse.
 
       const productsWithTransportCost = distributeTransportCost(
         productsToProcess,
-        totalTransportCost
+        totalTransportCost,
       ) // Pas 3: Creăm o listă pentru ambalaje cu cost de transport ZERO,
       // menținând o structură compatibilă pentru bucla principală.
       // Presupunem că `distributeTransportCost` returnează un array de obiecte
@@ -358,20 +397,20 @@ export async function confirmReception({
       const merchandiseTotalRON = round2(
         (reception.products || []).reduce(
           (sum, it) => sum + (it.invoicePricePerUnit ?? 0) * (it.quantity ?? 0),
-          0
+          0,
         ) +
           (reception.packagingItems || []).reduce(
             (sum, it) =>
               sum + (it.invoicePricePerUnit ?? 0) * (it.quantity ?? 0),
-            0
-          )
+            0,
+          ),
       )
 
       const transportTotalRON = round2(
         (reception.deliveries || []).reduce(
           (sum, d) => sum + (d.transportCost || 0),
-          0
-        )
+          0,
+        ),
       )
 
       // total facturi fără TVA în RON (cu curs, dacă e cazul)
@@ -381,10 +420,10 @@ export async function confirmReception({
             convertAmountToRON(
               typeof inv.amount === 'number' ? inv.amount : 0,
               inv.currency || 'RON',
-              inv.exchangeRateOnIssueDate
-            )
-          )
-        )
+              inv.exchangeRateOnIssueDate,
+            ),
+          ),
+        ),
       )
 
       // valută ≠ RON => curs obligatoriu
@@ -393,7 +432,7 @@ export async function confirmReception({
           const fx = inv.exchangeRateOnIssueDate
           if (!fx || fx <= 0) {
             throw new Error(
-              `Factura ${inv.series || ''} ${inv.number}: lipsește exchangeRateOnIssueDate pentru moneda ${inv.currency}.`
+              `Factura ${inv.series || ''} ${inv.number}: lipsește exchangeRateOnIssueDate pentru moneda ${inv.currency}.`,
             )
           }
         }
@@ -403,12 +442,16 @@ export async function confirmReception({
 
       if (invoicesTotalRON !== expectedNoVatRON) {
         throw new Error(
-          `Total facturi fără TVA (${invoicesTotalRON} RON) ≠ marfă + transport (${expectedNoVatRON} RON).`
+          `Total facturi fără TVA (${invoicesTotalRON} RON) ≠ marfă + transport (${expectedNoVatRON} RON).`,
         )
       }
 
       // === SCRIERE COSTURI & INVENTAR ===
       for (let i = 0; i < allOriginalItems.length; i++) {
+        const rawItem = allOriginalItems[i]
+        // console.log(
+        //   `4. [LOOP] Procesez item ${i + 1} (ID: ${'product' in rawItem ? rawItem.product : rawItem.packaging})`,
+        // )
         const item = allOriginalItems[i]
         const transportData = itemsWithTransportCost[i]
 
@@ -418,17 +461,19 @@ export async function confirmReception({
           item.invoicePricePerUnit < 0
         ) {
           throw new Error(
-            'Prețul de factură (fără TVA) lipsește pentru cel puțin un articol.'
+            'Prețul de factură (fără TVA) lipsește pentru cel puțin un articol.',
           )
         }
 
         const itemType = 'product' in item ? 'ERPProduct' : 'Packaging'
         const itemId = 'product' in item ? item.product : item.packaging
-       
-        const details = await getStockableItemDetails(
-          itemId.toString(),
-          itemType
-        )
+
+        const details = itemDetailsMap.get(itemId.toString())
+
+        if (!details)
+          throw new Error(
+            `Detaliile pentru ${itemId} nu au putut fi recuperate.`,
+          )
 
         // 1. Calculăm cantitatea în unitatea de BAZĂ
         let baseQuantity = 0
@@ -446,7 +491,7 @@ export async function confirmReception({
           case details.packagingUnit:
             if (!details.packagingQuantity || details.packagingQuantity <= 0)
               throw new Error(
-                `Factor de conversie 'packagingQuantity' invalid pentru ${itemId}.`
+                `Factor de conversie 'packagingQuantity' invalid pentru ${itemId}.`,
               )
             baseQuantity = item.quantity * details.packagingQuantity
             baseDocumentQuantity = rawDocumentQty * details.packagingQuantity
@@ -455,14 +500,14 @@ export async function confirmReception({
           case 'palet':
             if (!details.itemsPerPallet || details.itemsPerPallet <= 0)
               throw new Error(
-                `Factor de conversie 'itemsPerPallet' invalid pentru ${itemId}.`
+                `Factor de conversie 'itemsPerPallet' invalid pentru ${itemId}.`,
               )
             const totalBaseUnitsPerPallet = details.packagingQuantity
               ? details.itemsPerPallet * details.packagingQuantity
               : details.itemsPerPallet
             if (totalBaseUnitsPerPallet <= 0)
               throw new Error(
-                `Calculul unităților pe palet a eșuat pentru ${itemId}.`
+                `Calculul unităților pe palet a eșuat pentru ${itemId}.`,
               )
             baseQuantity = item.quantity * totalBaseUnitsPerPallet
             baseDocumentQuantity = rawDocumentQty * totalBaseUnitsPerPallet
@@ -470,7 +515,7 @@ export async function confirmReception({
             break
           default:
             throw new Error(
-              `Unitate de măsură '${item.unitMeasure}' invalidă pentru ${itemId}.`
+              `Unitate de măsură '${item.unitMeasure}' invalidă pentru ${itemId}.`,
             )
         }
 
@@ -478,20 +523,20 @@ export async function confirmReception({
 
         // 2. Calculăm TOATE costurile pe unitatea de BAZĂ
         const invoicePricePerBaseUnit = round6(
-          item.invoicePricePerUnit / conversionFactor
+          item.invoicePricePerUnit / conversionFactor,
         )
         const totalDistributedTransport =
           transportData.totalDistributedTransportCost || 0
 
         const distributedTransportCostPerBaseUnit = round6(
-          totalDistributedTransport / baseQuantity
+          totalDistributedTransport / baseQuantity,
         )
 
         const landedCostPerUnit = round6(
-          invoicePricePerBaseUnit + distributedTransportCostPerBaseUnit
+          invoicePricePerBaseUnit + distributedTransportCostPerBaseUnit,
         )
         const vatValuePerUnit = round6(
-          invoicePricePerBaseUnit * (item.vatRate / 100)
+          invoicePricePerBaseUnit * (item.vatRate / 100),
         )
 
         // Salvăm valorile originale introduse de utilizator
@@ -511,6 +556,7 @@ export async function confirmReception({
         item.landedCostPerUnit = landedCostPerUnit
         item.vatValuePerUnit = vatValuePerUnit
 
+        // console.log('      > [DEBUG] Start Update Supplier...')
         // --- NOU: 4. Actualizăm Furnizorul Produsului (Auto-Discovery) ---
         if (itemType === 'ERPProduct') {
           const productItem = item as (typeof reception.products)[0]
@@ -520,7 +566,7 @@ export async function confirmReception({
             supplierIdStr,
             item.landedCostPerUnit,
             productItem.productCode, // Aici folosim productCode
-            session
+            session,
           )
         } else {
           // Aici item este un ambalaj
@@ -531,9 +577,10 @@ export async function confirmReception({
             supplierIdStr,
             item.landedCostPerUnit,
             packagingItem.productCode,
-            session
+            session,
           )
         }
+        // console.log('      > [DEBUG] Supplier Updated. Start Stock Movement...')
         // 4. Trimitem datele CURATE și STANDARDIZATE la inventar
         await recordStockMovement(
           {
@@ -559,10 +606,11 @@ export async function confirmReception({
               : undefined,
             supplierOrderNumber: supplierOrderNumberFromDb,
           },
-          session
+          session,
         )
+        // console.log('      > [DEBUG] Stock Movement Recorded.')
       }
-
+      // console.log('5. [SAVE] Bucla gata. Salvez statusul CONFIRMAT...')
       reception.status = 'CONFIRMAT'
 
       await reception.save({ session })
@@ -572,7 +620,7 @@ export async function confirmReception({
         // 1. Calculăm valoarea totală din FACTURI (Preferabil)
         const invoiceTotalWithVat = (reception.invoices || []).reduce(
           (sum, inv) => sum + (inv.totalWithVat || 0),
-          0
+          0,
         )
 
         // 2. Calculăm manual valoarea TOTALĂ (Brut: Net + TVA) ca fallback
@@ -591,7 +639,7 @@ export async function confirmReception({
             const vat = val * ((p.vatRate || 0) / 100)
             return acc + val + vat
           },
-          0
+          0,
         )
 
         // C. Transport (Aici folosim noile câmpuri calculate în processReceptionInputData)
@@ -628,7 +676,7 @@ export async function confirmReception({
               quantity: p.quantity,
             })),
           },
-          session
+          session,
         )
       }
       // -------------------------------------------
@@ -639,16 +687,15 @@ export async function confirmReception({
         data: JSON.parse(JSON.stringify(reception)),
       }
     })
-    return result as ActionResultWithData<PopulatedReception>
   } catch (error: unknown) {
     console.error('Eroare la confirmarea recepției:', error)
     const message =
       error instanceof Error
         ? error.message
         : 'Eroare la confirmarea recepției.'
+    console.timeEnd('EXECUTION_TIMER') // <--- ADAUGĂ ASTA
+    // console.log('6. [DONE] Totul salvat cu succes!') // <--- ADAUGĂ ASTA
     return { success: false, message }
-  } finally {
-    await session.endSession()
   }
 }
 
@@ -657,7 +704,7 @@ export async function confirmReception({
 export async function revokeConfirmation(
   receptionId: string,
   userId: string,
-  userName: string
+  userName: string,
 ): Promise<ActionResultWithData<PopulatedReception>> {
   const session = await mongoose.startSession()
   try {
@@ -697,7 +744,7 @@ export async function revokeConfirmation(
             cancelledBy: new Types.ObjectId(userId),
             cancelledByName: userName,
           },
-          { session }
+          { session },
         )
 
         // B. Rupem legătura din Recepție
@@ -730,7 +777,7 @@ export async function revokeConfirmation(
           reception.orderRef.toString(),
           reception._id.toString(),
           itemsToSubtract,
-          session
+          session,
         )
       }
       // ---------------------------------------------
@@ -789,7 +836,7 @@ export async function revokeConfirmation(
 }
 
 export async function deleteReception(
-  receptionId: string
+  receptionId: string,
 ): Promise<ActionResult> {
   try {
     await connectToDatabase()
@@ -839,7 +886,7 @@ export async function getAllReceptions() {
 }
 
 export async function getReceptionById(
-  id: string
+  id: string,
 ): Promise<PopulatedReception | null> {
   try {
     await connectToDatabase()
@@ -890,7 +937,7 @@ export async function getLastReceptionPriceForProduct(productId: string) {
     }
 
     const receptionItem = latestConfirmedReception.products.find(
-      (p) => p.product.toString() === productId
+      (p) => p.product.toString() === productId,
     )
 
     if (!receptionItem) {
@@ -904,7 +951,7 @@ export async function getLastReceptionPriceForProduct(productId: string) {
   } catch (error) {
     console.error(
       `Eroare în getLastReceptionPriceForProduct pentru ID ${productId}:`,
-      error
+      error,
     )
     return null
   }
@@ -921,7 +968,7 @@ export async function getLastReceptionPriceForPackaging(packagingId: string) {
 
     if (!rec) return null
     const item = rec.packagingItems.find(
-      (p) => p.packaging.toString() === packagingId
+      (p) => p.packaging.toString() === packagingId,
     )
 
     if (!item) return null
@@ -934,7 +981,7 @@ export async function getLastReceptionPriceForPackaging(packagingId: string) {
   } catch (err) {
     console.error(
       `Eroare în getLastReceptionPriceForPackaging pentru ID ${packagingId}:`,
-      err
+      err,
     )
     return null
   }

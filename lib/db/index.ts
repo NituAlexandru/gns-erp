@@ -24,15 +24,9 @@ export const connectToDatabase = async (
   if (!cached.promise) {
     console.log('🟡 [DB] Se inițiază o conexiune NOUĂ.../db/index.ts')
 
-    const opts = {
-      bufferCommands: false, // Asta e cheia pentru timeout!
-    }
-
-    cached.promise = mongoose
-      .connect(MONGODB_ERP_URI, opts)
-      .then((mongoose) => {
-        return mongoose
-      })
+    cached.promise = mongoose.connect(MONGODB_ERP_URI).then((mongoose) => {
+      return mongoose
+    })
   }
 
   try {
@@ -53,7 +47,7 @@ export const connectToDatabase = async (
 // const cached = (global as any).mongoose || { conn: null, promise: null }
 
 // export const connectToDatabase = async (
-//   MONGODB_ERP_URI = process.env.MONGODB_ERP_URI
+//   MONGODB_ERP_URI = process.env.MONGODB_ERP_URI,
 // ) => {
 //   if (cached.conn) return cached.conn
 

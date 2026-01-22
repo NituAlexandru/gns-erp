@@ -1,3 +1,4 @@
+import mongoose from 'mongoose'
 import { IInvoice } from './reception.model'
 import { round2 } from '@/lib/utils'
 
@@ -15,7 +16,7 @@ interface DistributableItem {
  */
 export function distributeTransportCost<T extends DistributableItem>(
   items: T[],
-  totalTransportCost: number
+  totalTransportCost: number,
 ): (T & { totalDistributedTransportCost: number })[] {
   // Verificare explicită la început. Dacă nu sunt articole, ieșim imediat.
   if (!items || items.length === 0) {
@@ -46,7 +47,7 @@ export function distributeTransportCost<T extends DistributableItem>(
 
   const allocatedSum = allocatedTransportCosts.reduce(
     (s, v) => round2(s + v),
-    0
+    0,
   )
   const allocationDifference = round2(totalTransportCost - allocatedSum)
 
@@ -56,7 +57,7 @@ export function distributeTransportCost<T extends DistributableItem>(
   ) {
     const lastIdx = allocatedTransportCosts.length - 1
     allocatedTransportCosts[lastIdx] = round2(
-      allocatedTransportCosts[lastIdx] + allocationDifference
+      allocatedTransportCosts[lastIdx] + allocationDifference,
     )
   }
 
@@ -81,4 +82,49 @@ export function calculateInvoiceTotals(invoices: IInvoice[]): IInvoice[] {
       totalWithVat,
     }
   })
+}
+
+export async function runTransactionWithRetry<T>(
+  operation: (session: mongoose.ClientSession) => Promise<T>,
+  maxRetries = 3,
+): Promise<T> {
+  let attempt = 0
+  while (true) {
+    const session = await mongoose.startSession()
+    try {
+      const transactionOptions: mongoose.mongo.TransactionOptions = {
+        readConcern: { level: 'local' },
+        writeConcern: { w: 'majority' },
+      }
+
+      let result: T | undefined
+
+      await session.withTransaction(async () => {
+        result = await operation(session)
+      }, transactionOptions)
+
+      return result!
+    } catch (error: any) {
+      attempt++
+      const isTransientError =
+        error.code === 112 ||
+        error.code === 251 ||
+        (error.errorLabels &&
+          error.errorLabels.includes('TransientTransactionError'))
+
+      if (isTransientError && attempt < maxRetries) {
+        console.warn(
+          `⚠️ [DB] Tranzacție eșuată (Conflict). Reîncercare ${attempt}/${maxRetries}...`,
+        )
+        // Așteptăm puțin înainte de retry (backoff exponențial: 200ms, 400ms, etc)
+        await new Promise((resolve) => setTimeout(resolve, 200 * attempt))
+        continue
+      }
+
+      // Dacă nu e eroare temporară sau am depășit încercările, o aruncăm mai departe
+      throw error
+    } finally {
+      await session.endSession()
+    }
+  }
 }

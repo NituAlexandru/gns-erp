@@ -61,7 +61,7 @@ export async function addOrUpdateSupplierForProduct(
   supplierId: string,
   price: number,
   supplierProductCode: string | undefined,
-  session: ClientSession
+  session: ClientSession,
 ) {
   if (!productId || !supplierId) return
 
@@ -69,7 +69,7 @@ export async function addOrUpdateSupplierForProduct(
 
   if (!product) {
     throw new Error(
-      `Produsul cu ID ${productId} nu a fost găsit pentru actualizarea furnizorului.`
+      `Produsul cu ID ${productId} nu a fost găsit pentru actualizarea furnizorului.`,
     )
   }
 
@@ -77,7 +77,7 @@ export async function addOrUpdateSupplierForProduct(
 
   // Căutăm dacă furnizorul există deja
   const existingSupplierIndex = product.suppliers.findIndex(
-    (s) => s.supplier.toString() === supplierId
+    (s) => s.supplier.toString() === supplierId,
   )
 
   if (existingSupplierIndex > -1) {
@@ -178,13 +178,13 @@ export async function getAllCategories(): Promise<
         _id: c._id.toString(),
         name: c.name,
         slug: c.slug,
-      }))
+      })),
     )
 }
 // GET PRODUCT BY SLUG
 export async function getProductBySlug(
   slug: string,
-  options?: { includeUnpublished: boolean }
+  options?: { includeUnpublished: boolean },
 ): Promise<IProductDoc> {
   await connectToDatabase()
 
@@ -345,7 +345,7 @@ export async function getAllProducts({
 
 export async function updateProductMarkup(
   id: string,
-  defaultMarkups: MarkupPatch
+  defaultMarkups: MarkupPatch,
 ): Promise<{ success: boolean; message: string }> {
   try {
     await connectToDatabase()
@@ -355,7 +355,7 @@ export async function updateProductMarkup(
     await ERPProductModel.findByIdAndUpdate(
       id,
       { defaultMarkups },
-      { new: true }
+      { new: true },
     )
 
     revalidatePath('/admin/products')
@@ -375,13 +375,13 @@ export async function updateProductAveragePurchasePrice(productId: string) {
   })
 
   console.log(
-    `Updated averagePurchasePrice for product ${productId} to HIGHEST cost: ${highestCost}`
+    `Updated averagePurchasePrice for product ${productId} to HIGHEST cost: ${highestCost}`,
   )
 }
 
 // For Orders
 export async function searchStockableItems(
-  searchTerm: string
+  searchTerm: string,
 ): Promise<SearchedProduct[]> {
   try {
     await connectToDatabase()
@@ -532,7 +532,7 @@ export async function searchStockableItems(
     ])
 
     const combinedResults = [...products, ...packagings].sort(
-      (a, b) => (b.totalStock || 0) - (a.totalStock || 0)
+      (a, b) => (b.totalStock || 0) - (a.totalStock || 0),
     )
 
     return combinedResults.map((r) => ({
@@ -547,7 +547,7 @@ export async function searchStockableItems(
 
 export async function calculateMinimumPrice(
   itemId: string,
-  deliveryMethodKey: string
+  deliveryMethodKey: string,
 ): Promise<number> {
   try {
     await connectToDatabase()
@@ -560,12 +560,12 @@ export async function calculateMinimumPrice(
     // Găsim cel mai mare 'maxPurchasePrice' dintre toate locațiile
     const baseCost = inventoryItems.reduce(
       (max, item) => Math.max(max, item.maxPurchasePrice || 0),
-      0
+      0,
     )
 
     if (baseCost === 0) {
       console.warn(
-        `ATENȚIE: Articolul ${itemId} nu are un 'maxPurchasePrice' > 0. Prețul minim va fi 0.`
+        `ATENȚIE: Articolul ${itemId} nu are un 'maxPurchasePrice' > 0. Prețul minim va fi 0.`,
       )
       return 0
     }
@@ -584,7 +584,7 @@ export async function calculateMinimumPrice(
 
     if (!itemWithMarkups) {
       throw new Error(
-        'Articolul (produs/ambalaj) nu a fost găsit pentru calculul markup-ului.'
+        'Articolul (produs/ambalaj) nu a fost găsit pentru calculul markup-ului.',
       )
     }
 
@@ -616,7 +616,7 @@ export async function calculateMinimumPrice(
   }
 }
 export async function getProductForOrderLine(
-  productId: string
+  productId: string,
 ): Promise<ProductForOrderLine | null> {
   try {
     await connectToDatabase()
@@ -636,7 +636,7 @@ export async function getProductForOrderLine(
   } catch (error) {
     console.error(
       'Eroare la preluarea datelor de produs pentru comandă:',
-      error
+      error,
     )
     throw new Error('Nu s-au putut prelua datele produsului.')
   }
