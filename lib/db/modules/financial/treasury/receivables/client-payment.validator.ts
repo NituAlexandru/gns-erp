@@ -13,6 +13,6 @@ export const CreateClientPaymentSchema = z.object({
     .positive('Suma trebuie să fie mai mare ca 0.'),
   seriesName: z.string().optional(),
   paymentNumber: z.string().min(1, 'Numărul documentului este obligatoriu.'),
-  referenceDocument: z.string().optional(),
+  referenceDocument: z.string().optional().default(''),
   notes: z.string().optional(),
 })

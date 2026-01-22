@@ -23,9 +23,8 @@ export const SupplierPaymentPayloadSchema = z.object({
   unallocatedAmount: z.coerce.number().min(0),
   paymentNumber: z.string().min(1, 'Numărul documentului este obligatoriu.'),
   seriesName: z.string().optional(),
-  referenceDocument: z.string().optional(),
+  referenceDocument: z.string().optional().default(''),
   notes: z.string().optional(),
-
   budgetCategorySnapshot: BudgetCategorySnapshotSchema,
 })
 

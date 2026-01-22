@@ -141,44 +141,61 @@ export function SupplierLedgerTable({ supplierId }: SupplierLedgerTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entries.map((entry, index) => (
-              <TableRow key={index}>
-                <TableCell className='text-muted-foreground '>
-                  {entry.documentType}
-                </TableCell>
-                <TableCell>
-                  <button
-                    onClick={() => handleRowClick(entry)}
-                    className='font-medium hover:underline text-left cursor-pointer'
-                    title='Vezi detalii'
-                  >
-                    {entry.documentNumber}
-                  </button>
-                </TableCell>
-                <TableCell>{formatDate(entry.date)}</TableCell>
+            {entries.map((entry, index) => {
+              const isOverdue =
+                entry.dueDate &&
+                new Date(entry.dueDate).getTime() < new Date().getTime() &&
+                Number(entry.remainingAmount || 0) > 0
 
-                <TableCell>{formatDate(entry.dueDate)}</TableCell>
-                {/* Detalii */}
-                <TableCell
-                  className='text-muted-foreground max-w-[200px] truncate'
-                  title={entry.details}
-                >
-                  {entry.details}
-                </TableCell>
-                {/* Debit (Verde) */}
-                <TableCell className='text-right font-medium text-green-600'>
-                  {entry.debit !== 0 ? formatCurrency(entry.debit) : '—'}
-                </TableCell>
-                {/* Credit (Roșu) - Fără Math.abs pentru Storno */}
-                <TableCell className='text-right font-medium text-red-600'>
-                  {entry.credit !== 0 ? formatCurrency(entry.credit) : '—'}
-                </TableCell>
-                {/* Sold */}
-                <TableCell className='text-right font-bold'>
-                  {formatCurrency(entry.runningBalance)}
-                </TableCell>
-              </TableRow>
-            ))}
+              return (
+                <TableRow key={index}>
+                  <TableCell className='text-muted-foreground '>
+                    {entry.documentType}
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => handleRowClick(entry)}
+                      className='font-medium hover:underline text-left cursor-pointer'
+                      title='Vezi detalii'
+                    >
+                      {entry.documentNumber}
+                    </button>
+                  </TableCell>
+
+                  {/* Data Documentului */}
+                  <TableCell>{formatDate(entry.date)}</TableCell>
+
+                  {/* Data Scadenței - Cu logica de culoare ROȘU */}
+                  <TableCell
+                    className={cn(
+                      'text-muted-foreground',
+                      isOverdue && 'text-red-600 font-bold', // <--- Aceasta va funcționa acum
+                    )}
+                  >
+                    {entry.dueDate ? formatDate(new Date(entry.dueDate)) : '—'}
+                  </TableCell>
+                  
+                  <TableCell
+                    className='text-muted-foreground max-w-[200px] truncate'
+                    title={entry.details}
+                  >
+                    {entry.details}
+                  </TableCell>
+
+                  <TableCell className='text-right font-medium text-green-600'>
+                    {entry.debit !== 0 ? formatCurrency(entry.debit) : '—'}
+                  </TableCell>
+
+                  <TableCell className='text-right font-medium text-red-600'>
+                    {entry.credit !== 0 ? formatCurrency(entry.credit) : '—'}
+                  </TableCell>
+
+                  <TableCell className='text-right font-bold'>
+                    {formatCurrency(entry.runningBalance)}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
           </TableBody>
 
           <TableFooter className='bg-background'>

@@ -54,7 +54,7 @@ interface LeanClientSummary {
 }
 
 export async function getFinancialDashboardData(
-  year: number
+  year: number,
 ): Promise<FinancialDashboardData> {
   await connectToDatabase()
 
@@ -73,6 +73,7 @@ export async function getFinancialDashboardData(
         dueDate: { $lt: new Date() },
         status: { $nin: ['DRAFT', 'CANCELLED'] },
         invoiceType: { $in: ['STANDARD', 'STORNO'] },
+        seriesName: { $nin: ['INIT-AMB'] },
       },
     },
     {
@@ -120,7 +121,6 @@ export async function getFinancialDashboardData(
       },
     },
     { $sort: { totalOverdue: -1 } },
-    { $limit: 10 },
   ]
 
   const receiptDateFilter = {
@@ -144,9 +144,14 @@ export async function getFinancialDashboardData(
     InvoiceModel.countDocuments({
       ...dateFilter,
       invoiceType: { $in: ['STANDARD', 'AVANS'] },
+      seriesName: { $nin: ['INIT-C', 'INIT-AMB'] },
     }),
     InvoiceModel.countDocuments({ ...dateFilter, invoiceType: 'PROFORMA' }),
-    InvoiceModel.countDocuments({ ...dateFilter, invoiceType: 'STORNO' }),
+    InvoiceModel.countDocuments({
+      ...dateFilter,
+      invoiceType: 'STORNO',
+      seriesName: { $nin: ['INIT-C', 'INIT-AMB'] },
+    }),
 
     ReceiptModel.countDocuments(receiptDateFilter),
 
@@ -161,7 +166,7 @@ export async function getFinancialDashboardData(
     ClientSummary.find({ isBlocked: true })
       .populate('clientId', 'name')
       .select(
-        'clientId outstandingBalance creditLimit isBlocked lockingStatus lockingReason'
+        'clientId outstandingBalance creditLimit isBlocked lockingStatus lockingReason',
       )
       .lean(),
   ])

@@ -42,7 +42,6 @@ import {
   CreateOpeningBalanceSchema,
   CreateOpeningBalanceInput,
 } from '@/lib/db/modules/financial/initial-balance/initial-balance.validator'
-
 import { createClientOpeningBalance } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { createSupplierOpeningBalance } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 

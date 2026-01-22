@@ -13,22 +13,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PlusCircle, FileText } from 'lucide-react'
-
-// --- IMPORTURI TABELE (Asigură-te că fișierele există!) ---
 import { SupplierInvoicesTable } from './SupplierInvoicesTable'
-// <--- AICI ERA EROAREA "NOT DEFINED"
 import { AnafLogsTable } from './AnafLogsTable'
-
 import { CreateSupplierInvoiceForm } from './CreateSupplierInvoiceForm'
 import { CreateSupplierPaymentForm } from './CreateSupplierPaymentForm'
 import {
   SupplierAllocationModal,
-  PopulatedSupplierPayment, // <--- IMPORT TIPUL CORECT
+  PopulatedSupplierPayment, 
 } from './SupplierAllocationModal'
 import { SupplierInvoiceDetailSheet } from './SupplierInvoiceDetailSheet'
 import { AnafSyncButton } from './AnafSyncButton'
-
-// --- IMPORTURI TYPES & ACTIONS ---
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { BudgetCategoryDTO } from '@/lib/db/modules/financial/treasury/budgeting/budget-category.types'

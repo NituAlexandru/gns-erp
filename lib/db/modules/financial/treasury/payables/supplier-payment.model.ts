@@ -12,7 +12,7 @@ const BudgetCategorySnapshotSchema = new Schema(
     subCategoryId: { type: Schema.Types.ObjectId },
     subCategoryName: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
@@ -33,7 +33,7 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
     referenceDocument: {
       type: String,
       index: true,
-      unique: true,
+      unique: false,
       sparse: true,
     },
     notes: { type: String },
@@ -51,7 +51,7 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 // Hook-ul 'pre save' ( setează status și unallocated)

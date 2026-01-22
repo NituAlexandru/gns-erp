@@ -83,6 +83,9 @@ export function ClientLedgerTable({
             <TableHead className='sticky top-0 bg-muted w-[120px]'>
               Data
             </TableHead>
+            <TableHead className='sticky top-0 bg-muted w-[120px]'>
+              Scadență
+            </TableHead>
             <TableHead className='sticky top-0 bg-muted'>Document</TableHead>
             <TableHead className='sticky top-0 bg-muted'>Detalii</TableHead>
             <TableHead className='sticky top-0 bg-muted text-right'>
@@ -97,50 +100,83 @@ export function ClientLedgerTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {entries.map((entry, index) => (
-            <TableRow key={index}>
-              <TableCell>{formatDate(entry.date)}</TableCell>
-              <TableCell>
-                {isAdmin ? (
-                  <button
-                    onClick={() => {
-                      if (entry.documentType === 'Încasare') {
-                        onPaymentClick(entry._id.toString())
-                      } else {
-                        onInvoiceClick(entry)
-                      }
-                    }}
-                    className='font-medium hover:underline text-left cursor-pointer'
-                    title='Vezi detalii alocare'
-                  >
-                    {entry.documentNumber}
-                  </button>
-                ) : (
-                  <span className='font-medium'>{entry.documentNumber}</span>
-                )}
-              </TableCell>
-              <TableCell className='text-muted-foreground'>
-                {entry.details}
-              </TableCell>
-              <TableCell className='text-right font-medium text-red-600'>
-                {entry.debit !== 0 ? formatCurrency(entry.debit) : '—'}
-              </TableCell>
-              <TableCell className='text-right font-medium text-green-600'>
-                {entry.credit !== 0
-                  ? formatCurrency(Math.abs(entry.credit))
-                  : '—'}
-              </TableCell>
-              <TableCell className='text-right font-bold'>
-                {formatCurrency(entry.runningBalance)}
-              </TableCell>
-            </TableRow>
-          ))}
+          {entries.map((entry, index) => {
+            // Calculăm dacă scadența e depășită ȘI mai sunt bani de dat
+            const isOverdue =
+              entry.dueDate &&
+              new Date(entry.dueDate).getTime() < new Date().getTime() &&
+              Number(entry.remainingAmount) > 0
+
+            return (
+              <TableRow key={index}>
+                <TableCell>{formatDate(entry.date)}</TableCell>
+
+                {/* Data scadenței devine roșie doar dacă isOverdue e true */}
+                <TableCell
+                  className={cn(
+                    'text-muted-foreground',
+                    isOverdue && 'text-red-600 font-bold',
+                  )}
+                >
+                  {entry.dueDate ? formatDate(new Date(entry.dueDate)) : '-'}
+                </TableCell>
+
+                <TableCell>
+                  {isAdmin ? (
+                    <button
+                      onClick={() => {
+                        if (entry.documentType === 'Încasare') {
+                          onPaymentClick(entry._id.toString())
+                        } else {
+                          onInvoiceClick(entry)
+                        }
+                      }}
+                      className='font-medium hover:underline text-left cursor-pointer'
+                      title='Vezi detalii alocare'
+                    >
+                      {entry.documentNumber}
+                    </button>
+                  ) : (
+                    <span className='font-medium'>{entry.documentNumber}</span>
+                  )}
+                </TableCell>
+
+                <TableCell className='text-muted-foreground'>
+                  {entry.documentNumber.startsWith('INIT-C') ? (
+                    entry.debit > 0 ? (
+                      <span className='font-medium text-foreground'>
+                        Sold Inițial - Debit
+                      </span>
+                    ) : (
+                      <span className='font-medium text-foreground'>
+                        Sold Inițial - Credit
+                      </span>
+                    )
+                  ) : (
+                    entry.details
+                  )}
+                </TableCell>
+
+                <TableCell className='text-right font-medium text-red-600'>
+                  {entry.debit !== 0 ? formatCurrency(entry.debit) : '—'}
+                </TableCell>
+                <TableCell className='text-right font-medium text-green-600'>
+                  {entry.credit !== 0
+                    ? formatCurrency(Math.abs(entry.credit))
+                    : '—'}
+                </TableCell>
+                <TableCell className='text-right font-bold'>
+                  {formatCurrency(entry.runningBalance)}
+                </TableCell>
+              </TableRow>
+            )
+          })}
         </TableBody>
 
         {/* Footer-ul (NU mai este sticky) */}
         <TableFooter className='bg-background'>
           <TableRow>
-            <TableCell colSpan={5} className='text-right'>
+            <TableCell colSpan={6} className='text-right'>
               <span className='font-bold text-lg'>SOLD FINAL CLIENT:</span>
             </TableCell>
             <TableCell className='text-right'>

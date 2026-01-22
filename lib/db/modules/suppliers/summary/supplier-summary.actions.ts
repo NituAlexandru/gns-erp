@@ -25,6 +25,7 @@ export interface SupplierLedgerEntry {
   credit: number
   runningBalance: number
   isAdvance?: boolean
+  remainingAmount?: number
 }
 
 export async function findOrCreateSupplierSummary(supplierId: string) {
@@ -73,7 +74,7 @@ export async function getSupplierSummary(supplierId: string) {
 export async function recalculateSupplierSummary(
   supplierId: string,
   supplierSlug: string,
-  skipRevalidation: boolean = false
+  skipRevalidation: boolean = false,
 ) {
   if (!supplierId) throw new Error('Lipsă ID Furnizor.')
 
@@ -89,7 +90,7 @@ export async function recalculateSupplierSummary(
     if (!skipRevalidation && supplierSlug) {
       try {
         revalidatePath(
-          `/admin/management/suppliers/${supplierId}/${supplierSlug}`
+          `/admin/management/suppliers/${supplierId}/${supplierSlug}`,
         )
       } catch {
         // Ignorăm eroarea de render pass
@@ -128,7 +129,7 @@ export async function getSupplierLedger(supplierId: string): Promise<{
         then: ` prin ${
           PAYMENT_METHOD_MAP[method as PaymentMethodKey]?.name || method
         }`,
-      })
+      }),
     )
 
     // 1. Ramura DEBIT (Plăți)
@@ -196,6 +197,7 @@ export async function getSupplierLedger(supplierId: string): Promise<{
           _id: 1,
           date: '$paymentDate',
           dueDate: { $literal: null }, // Plățile nu au scadență
+          remainingAmount: { $literal: 0 },
           documentType: { $literal: 'Plată' },
           documentTypeRaw: { $literal: 'PLATA' },
           documentNumber: {
@@ -238,6 +240,7 @@ export async function getSupplierLedger(supplierId: string): Promise<{
           _id: 1,
           date: '$invoiceDate',
           dueDate: '$dueDate', // <--- Aducem data scadenței
+          remainingAmount: { $ifNull: ['$remainingAmount', 0] },
           documentTypeRaw: '$invoiceType', // <--- Aducem tipul brut pentru UI
           documentType: {
             $cond: {
@@ -325,7 +328,7 @@ export async function getSupplierLedger(supplierId: string): Promise<{
     ]
 
     const ledgerEntries = (await SupplierPaymentModel.aggregate(
-      finalPipeline
+      finalPipeline,
     )) as SupplierLedgerEntry[]
 
     ledgerEntries.forEach((entry) => {

@@ -40,7 +40,7 @@ type PaymentActionResult = {
   allocationDetails?: AllocationDetail[]
 }
 export async function createClientPayment(
-  data: CreateClientPaymentInput
+  data: CreateClientPaymentInput,
 ): Promise<PaymentActionResult> {
   const session = await startSession()
   let newPaymentDoc: IClientPaymentDoc | null = null
@@ -62,6 +62,7 @@ export async function createClientPayment(
           {
             ...validatedData,
             paymentNumber: validatedData.paymentNumber,
+            referenceDocument: validatedData.referenceDocument,
             seriesName: validatedData.seriesName,
             sequenceNumber: null,
             unallocatedAmount: validatedData.totalAmount,
@@ -69,7 +70,7 @@ export async function createClientPayment(
             createdByName: userName,
           },
         ],
-        { session }
+        { session },
       )
 
       let currentUnallocated = newPayment.totalAmount
@@ -123,13 +124,13 @@ export async function createClientPayment(
               createdByName: userName,
             },
           ],
-          { session }
+          { session },
         )
 
         // 6. Actualizarea Facturii
         invoice.paidAmount = round2(invoice.paidAmount + amountToAllocate)
         invoice.remainingAmount = round2(
-          invoice.remainingAmount - amountToAllocate
+          invoice.remainingAmount - amountToAllocate,
         )
         await invoice.save({ session })
 
@@ -157,7 +158,7 @@ export async function createClientPayment(
       await recalculateClientSummary(
         newPaymentDoc.clientId.toString(),
         'auto-recalc',
-        true
+        true,
       )
     } catch (err) {
       console.error('Eroare recalculare sold (create payment):', err)
@@ -202,7 +203,7 @@ export async function getClientPayments() {
   }
 }
 export async function cancelClientPayment(
-  paymentId: string
+  paymentId: string,
 ): Promise<{ success: boolean; message: string }> {
   const session = await startSession()
 
@@ -236,7 +237,7 @@ export async function cancelClientPayment(
         payment.status === 'ALOCAT_COMPLET'
       ) {
         throw new Error(
-          'Încasarea are alocări active și nu poate fi anulată direct. Vă rugăm anulați alocările existente manual.'
+          'Încasarea are alocări active și nu poate fi anulată direct. Vă rugăm anulați alocările existente manual.',
         )
       }
 
@@ -247,7 +248,7 @@ export async function cancelClientPayment(
 
       if (allocationCount > 0) {
         throw new Error(
-          'Eroare de integritate: Încasarea este NEALOCATA dar are alocări în baza de date.'
+          'Eroare de integritate: Încasarea este NEALOCATA dar are alocări în baza de date.',
         )
       }
 
@@ -281,7 +282,7 @@ export async function cancelClientPayment(
   }
 }
 export async function getClientPaymentById(
-  paymentId: string
+  paymentId: string,
 ): Promise<GetPaymentResult> {
   try {
     await connectToDatabase()

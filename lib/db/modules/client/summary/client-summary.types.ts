@@ -28,4 +28,6 @@ export type ClientLedgerEntry = {
   debit: number
   credit: number
   runningBalance: number
+  dueDate?: Date
+  remainingAmount: number
 }

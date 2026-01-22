@@ -99,3 +99,4 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - LA PRODUSE, CAND CAUT UN PRODUS SA IMI RAMANA ACEL PRODUS , NU SA DISPARA CAND DAU BACK
 - De preluat codul UIT si soferul / masina / remorca pe factura
 - Printare multiplă facturi iesire
+- scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina

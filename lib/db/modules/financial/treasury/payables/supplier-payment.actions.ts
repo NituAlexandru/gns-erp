@@ -68,7 +68,7 @@ export type SupplierPaymentsPage = {
   total: number
 }
 export async function createSupplierPayment(
-  data: z.infer<typeof CreateSupplierPaymentFormSchema>
+  data: z.infer<typeof CreateSupplierPaymentFormSchema>,
 ): Promise<PaymentActionResult> {
   const session = await startSession()
   let newPaymentDoc: ISupplierPaymentDoc | null = null
@@ -92,7 +92,7 @@ export async function createSupplierPayment(
 
       if (validatedData.mainCategoryId) {
         const mainCategory = await BudgetCategoryModel.findById(
-          validatedData.mainCategoryId
+          validatedData.mainCategoryId,
         ).lean()
         if (!mainCategory)
           throw new Error('Categoria de buget nu a fost găsită.')
@@ -100,7 +100,7 @@ export async function createSupplierPayment(
         let subCategoryName: string | undefined = undefined
         if (validatedData.subCategoryId) {
           const subCategory = await BudgetCategoryModel.findById(
-            validatedData.subCategoryId
+            validatedData.subCategoryId,
           ).lean()
           if (!subCategory)
             throw new Error('Subcategoria de buget nu a fost găsită.')
@@ -131,7 +131,7 @@ export async function createSupplierPayment(
       const payloadValidation = SupplierPaymentPayloadSchema.safeParse(payload)
       if (!payloadValidation.success) {
         throw new Error(
-          'Eroare de validare payload: ' + payloadValidation.error.message
+          'Eroare de validare payload: ' + payloadValidation.error.message,
         )
       }
 
@@ -140,13 +140,15 @@ export async function createSupplierPayment(
         [
           {
             ...payloadValidation.data,
-            paymentNumber: payloadValidation.data.referenceDocument || null,
+            paymentNumber: payloadValidation.data.paymentNumber,
+            referenceDocument:
+              payloadValidation.data.referenceDocument || undefined,
             sequenceNumber: null,
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
           },
         ],
-        { session }
+        { session },
       )
 
       // ... (Logica de alocare ) ...
@@ -187,11 +189,11 @@ export async function createSupplierPayment(
               createdByName: userName,
             },
           ],
-          { session }
+          { session },
         )
         invoice.paidAmount = round2(invoice.paidAmount + amountToAllocate)
         invoice.remainingAmount = round2(
-          invoice.remainingAmount - amountToAllocate
+          invoice.remainingAmount - amountToAllocate,
         )
         if (invoice.remainingAmount <= 0.001) {
           invoice.status = 'PLATITA'
@@ -213,7 +215,7 @@ export async function createSupplierPayment(
         await recalculateSupplierSummary(
           newPaymentDoc.supplierId.toString(),
           'auto-recalc',
-          true
+          true,
         )
       } catch (err) {
         console.error('Eroare recalculare sold furnizor (create payment):', err)
@@ -244,7 +246,7 @@ export async function createSupplierPayment(
 // aduce toate platile, indiferent de furnizor
 export async function getSupplierPayments(
   page: number = 1,
-  limit: number = PAGE_SIZE
+  limit: number = PAGE_SIZE,
 ): Promise<
   SupplierPaymentsPage & { success: boolean; totalCurrentYear?: number }
 > {
@@ -312,7 +314,7 @@ export async function getSupplierPaymentById(paymentId: string) {
  * Anulează o plată furnizor. Permis doar dacă plata este NEALOCATA.
  */
 export async function cancelSupplierPayment(
-  paymentId: string
+  paymentId: string,
 ): Promise<PaymentCancellationResult> {
   const session = await startSession()
 
@@ -343,7 +345,7 @@ export async function cancelSupplierPayment(
         payment.status === 'ALOCATA'
       ) {
         throw new Error(
-          'Plata are alocări active și nu poate fi anulată direct. Vă rugăm anulați alocările existente manual.'
+          'Plata are alocări active și nu poate fi anulată direct. Vă rugăm anulați alocările existente manual.',
         )
       }
 
@@ -369,7 +371,7 @@ export async function cancelSupplierPayment(
         await recalculateSupplierSummary(
           supplierIdToRecalc,
           'auto-recalc',
-          true
+          true,
         )
       } catch (err) {
         console.error(err)
@@ -390,7 +392,7 @@ export async function cancelSupplierPayment(
   }
 }
 export async function checkSupplierHasUnallocatedPayments(
-  supplierId: string
+  supplierId: string,
 ): Promise<CheckResult> {
   try {
     await connectToDatabase()
@@ -426,7 +428,7 @@ export async function checkSupplierHasUnallocatedPayments(
 // aduce platile pentru un furnizor, indiferent de furnizor
 export async function getPaymentsForSupplier(
   supplierId: string,
-  page: number = 1
+  page: number = 1,
 ): Promise<SupplierPaymentsPage> {
   try {
     await connectToDatabase()

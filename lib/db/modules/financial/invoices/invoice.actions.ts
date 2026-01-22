@@ -202,6 +202,7 @@ export async function getStornoSourceInvoices(
       invoiceType: 'STANDARD',
       // Stornăm doar facturi finalizate (Aprobate sau Plătite)
       status: { $in: ['APPROVED', 'PAID'] },
+      seriesName: { $nin: ['INIT-C', 'INIT-AMB'] },
 
       // --- Logica Cheie ---
       // Căutăm facturi care au cel puțin o linie
@@ -1073,6 +1074,7 @@ export async function getStornableProductsList(
           $match: {
             clientId: validClientId,
             deliveryAddressId: validAddressId,
+            seriesName: { $nin: ['INIT-C'] },
             status: { $in: ['APPROVED', 'PAID'] }, // <-- Asta e cheia!
           },
         },
@@ -1182,6 +1184,7 @@ export async function generateStornoLinesForQuantity(
         $match: {
           clientId: validClientId,
           deliveryAddressId: validAddressId,
+          seriesName: { $nin: ['INIT-C'] },
           status: { $in: ['APPROVED', 'PAID'] },
         },
       },

@@ -70,7 +70,7 @@ export async function getClientSummary(clientId: string) {
 export async function recalculateClientSummary(
   clientId: string,
   clientSlug: string,
-  skipRevalidation: boolean = false
+  skipRevalidation: boolean = false,
 ) {
   if (!clientId || !clientSlug) {
     throw new Error('Lipsă ID Client sau Slug Client pentru recalculare.')
@@ -82,7 +82,7 @@ export async function recalculateClientSummary(
 
     if (!ledgerResult.success) {
       throw new Error(
-        ledgerResult.message || 'Eroare la recalcularea prin ledger.'
+        ledgerResult.message || 'Eroare la recalcularea prin ledger.',
       )
     }
 
@@ -120,7 +120,7 @@ export async function updateClientFinancialSettings(
     limit: number | null
     lockingStatus: 'AUTO' | 'MANUAL_BLOCK' | 'MANUAL_UNBLOCK'
     lockingReason?: string
-  }
+  },
 ) {
   const session = await auth()
   const userRole = session?.user?.role?.toLowerCase() || ''
@@ -172,7 +172,7 @@ export async function updateClientFinancialSettings(
 }
 
 export async function getClientLedger(
-  clientId: string
+  clientId: string,
 ): Promise<{ success: boolean; data: ClientLedgerEntry[]; message?: string }> {
   try {
     await connectToDatabase()
@@ -200,6 +200,8 @@ export async function getClientLedger(
         $project: {
           _id: 1,
           date: '$invoiceDate',
+          dueDate: '$dueDate',
+          remainingAmount: { $ifNull: ['$remainingAmount', 0] },
           documentType: {
             $cond: {
               if: { $eq: ['$invoiceType', 'STORNO'] },
@@ -253,7 +255,7 @@ export async function getClientLedger(
         then: ` prin ${
           PAYMENT_METHOD_MAP[method as PaymentMethodKey]?.name || method
         }`,
-      })
+      }),
     )
 
     const creditPipeline: PipelineStage[] = [
@@ -300,6 +302,8 @@ export async function getClientLedger(
         $project: {
           _id: 1,
           date: '$paymentDate',
+          dueDate: { $literal: null },
+          remainingAmount: { $literal: 0 },
           documentType: 'Încasare',
           documentNumber: {
             $concat: [{ $ifNull: ['$seriesName', ''] }, '-', '$paymentNumber'],

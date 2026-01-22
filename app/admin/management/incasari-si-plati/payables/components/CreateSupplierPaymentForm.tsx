@@ -78,7 +78,7 @@ export function CreateSupplierPaymentForm({
   const subCategories = useMemo(() => {
     if (!watchedMainCategory) return []
     const selectedCategory = budgetCategories.find(
-      (cat) => cat._id === watchedMainCategory
+      (cat) => cat._id === watchedMainCategory,
     )
     return selectedCategory?.children || []
   }, [watchedMainCategory, budgetCategories])
@@ -194,7 +194,7 @@ export function CreateSupplierPaymentForm({
                 <FormLabel>Referință (Opțional)</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder='ex: 12345'
+                    placeholder='Detalii document...'
                     {...field}
                     value={field.value || ''}
                   />

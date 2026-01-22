@@ -175,8 +175,10 @@ export async function getSupplierInvoices(
     const skip = (page - 1) * limit
     const startOfYear = new Date(new Date().getFullYear(), 0, 1)
 
+    const query = { invoiceSeries: { $ne: 'INIT-F' } }
+
     const [invoices, total, totalCurrentYear] = await Promise.all([
-      SupplierInvoiceModel.find()
+      SupplierInvoiceModel.find(query)
         .populate({
           path: 'supplierId',
           model: Supplier,
@@ -186,7 +188,7 @@ export async function getSupplierInvoices(
         .skip(skip)
         .limit(limit)
         .lean(),
-      SupplierInvoiceModel.countDocuments(),
+      SupplierInvoiceModel.countDocuments(query),
       SupplierInvoiceModel.countDocuments({
         invoiceDate: { $gte: startOfYear },
       }),

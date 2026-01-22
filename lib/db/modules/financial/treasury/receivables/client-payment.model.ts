@@ -2,7 +2,7 @@ import mongoose, { Schema, models, Model } from 'mongoose'
 import { PAYMENT_METHODS } from '../payment.constants'
 import { IClientPaymentDoc } from './client-payment.types'
 import { CLIENT_PAYMENT_STATUSES } from './client-payment.constants'
-import { round2 } from '@/lib/utils' 
+import { round2 } from '@/lib/utils'
 
 // --- Schema Mongoose ---
 const ClientPaymentSchema = new Schema<IClientPaymentDoc>(
@@ -23,7 +23,7 @@ const ClientPaymentSchema = new Schema<IClientPaymentDoc>(
     referenceDocument: {
       type: String,
       index: true,
-      unique: true,
+      unique: false,
       sparse: true,
     },
     notes: { type: String },
@@ -37,7 +37,7 @@ const ClientPaymentSchema = new Schema<IClientPaymentDoc>(
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 // --- Hook-ul .pre('save') ---
