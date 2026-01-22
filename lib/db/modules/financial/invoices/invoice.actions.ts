@@ -1865,10 +1865,10 @@ export async function createClientOpeningBalance(
             : 'Preluare Sold Datorat (Istoric)',
           quantity: 1,
           unitOfMeasure: 'buc',
-          unitPrice: absoluteAmount,
-          lineValue: absoluteAmount,
+          unitPrice: isNegative ? -absoluteAmount : absoluteAmount,
+          lineValue: isNegative ? -absoluteAmount : absoluteAmount,
           vatRateDetails: { rate: 0, value: 0 },
-          lineTotal: absoluteAmount,
+          lineTotal: isNegative ? -absoluteAmount : absoluteAmount,
 
           // Câmpuri Tehnice Obligatorii
           isManualEntry: true,
@@ -1934,7 +1934,7 @@ export async function createClientOpeningBalance(
             },
 
             paidAmount: 0,
-            remainingAmount: absoluteAmount,
+            remainingAmount: isNegative ? -absoluteAmount : absoluteAmount,
           },
         ],
         { session },

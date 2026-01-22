@@ -158,9 +158,13 @@ export function ClientLedgerTable({
                 </TableCell>
 
                 <TableCell className='text-right font-medium text-red-600'>
+                  {/* Afișăm orice valoare din debit (pozitivă sau negativă), atâta timp cât nu e 0 */}
                   {entry.debit !== 0 ? formatCurrency(entry.debit) : '—'}
                 </TableCell>
+
+                {/* 2. COLOANA CREDIT (Încasat) */}
                 <TableCell className='text-right font-medium text-green-600'>
+                  {/* Afișăm doar dacă există o încasare reală (Credit) */}
                   {entry.credit !== 0
                     ? formatCurrency(Math.abs(entry.credit))
                     : '—'}

@@ -76,7 +76,7 @@ export function OpeningBalanceDialog({
       date: new Date('2025-12-31'),
     },
   })
-
+// 
   const onSubmit = (data: CreateOpeningBalanceInput) => {
     // Aici facem conversia semnului
     const finalAmount =
