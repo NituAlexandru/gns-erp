@@ -311,9 +311,13 @@ export function InvoiceForm({
       try {
         const clientData = await getClientById(clientId)
         setSelectedClient(clientData)
+
+        const isPerson = clientData.clientType === 'Persoana fizica'
+
         setValue('clientSnapshot', {
           name: clientData.name,
           cui: clientData.vatId || clientData.cnp || '',
+          cnp: isPerson ? clientData.cnp || '' : '',
           regCom: clientData.nrRegComert || '',
           address: {
             judet: clientData.address.judet,

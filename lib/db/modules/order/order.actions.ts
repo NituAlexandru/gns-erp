@@ -233,6 +233,18 @@ export async function createOrder(
 
     const validatedData = CreateOrderInputSchema.parse(data)
 
+    if (validatedData.clientSnapshot.cui) {
+      validatedData.clientSnapshot.cui = validatedData.clientSnapshot.cui
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '')
+    }
+    if (validatedData.clientSnapshot.cnp) {
+      validatedData.clientSnapshot.cnp = validatedData.clientSnapshot.cnp
+        .trim()
+        .replace(/\s+/g, '')
+    }
+
     const { processedLineItems, finalTotals } = processOrderData(
       validatedData.lineItems,
     )
@@ -334,6 +346,19 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
 
     // 1. Procesăm datele brute
     const validatedData = CreateOrderInputSchema.parse(newData)
+
+    if (validatedData.clientSnapshot.cui) {
+      validatedData.clientSnapshot.cui = validatedData.clientSnapshot.cui
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '')
+    }
+    if (validatedData.clientSnapshot.cnp) {
+      validatedData.clientSnapshot.cnp = validatedData.clientSnapshot.cnp
+        .trim()
+        .replace(/\s+/g, '')
+    }
+
     const { processedLineItems: rawNewItems, finalTotals: newFinalTotals } =
       processOrderData(validatedData.lineItems)
 

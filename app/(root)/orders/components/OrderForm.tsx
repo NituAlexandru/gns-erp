@@ -62,7 +62,7 @@ export function OrderForm({
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [initialDataForm, setInitialDataForm] = useState<InitialData | null>(
-    null
+    null,
   )
   const [isLoadingData, setIsLoadingData] = useState(true)
   const [isClientLoading, setIsClientLoading] = useState(false)
@@ -117,7 +117,7 @@ export function OrderForm({
                 packagingUnit: item.packagingUnit,
                 packagingQuantity: item.packagingQuantity,
                 isPerDelivery: item.isPerDelivery,
-              }) as OrderLineItemInput
+              }) as OrderLineItemInput,
           ),
           deliveryType: initialOrderData.deliveryType,
           estimatedVehicleType: initialOrderData.estimatedVehicleType,
@@ -138,7 +138,7 @@ export function OrderForm({
               if (fullClient) setSelectedClient(fullClient)
             })
             .catch((err) =>
-              console.error('Error fetching client for edit:', err)
+              console.error('Error fetching client for edit:', err),
             )
             .finally(() => setIsClientLoading(false))
         } else {
@@ -180,10 +180,13 @@ export function OrderForm({
 
       methods.setValue('clientId', client?._id || '')
       if (client) {
+        const isPerson = client.clientType === 'Persoana fizica'
+
         methods.setValue('clientSnapshot', {
           name: client.name,
-          cui: client.vatId ?? '',
-          regCom: client.nrRegComert ?? '',
+          cui: !isPerson ? client.vatId || '' : '',
+          cnp: isPerson ? client.cnp || '' : '',
+          regCom: !isPerson ? client.nrRegComert || '' : '',
           address: `${client.address.strada}, ${client.address.localitate}`,
           judet: client.address.judet,
           bank: client.bankAccountLei?.bankName ?? '',
@@ -202,7 +205,7 @@ export function OrderForm({
         methods.resetField('deliveryAddressId')
       }
     },
-    [methods, isEditing, initialOrderData]
+    [methods, isEditing, initialOrderData],
   )
 
   const handleAddressSelect = useCallback(
@@ -216,7 +219,7 @@ export function OrderForm({
         methods.resetField('deliveryAddressId')
       }
     },
-    [methods]
+    [methods],
   )
 
   const prepareSubmissionData = async (data: CreateOrderInput) => {
@@ -228,7 +231,7 @@ export function OrderForm({
       selectedAddress?.distanceInKm && enrichedData.estimatedVehicleType
         ? await calculateShippingCost(
             enrichedData.estimatedVehicleType,
-            selectedAddress.distanceInKm
+            selectedAddress.distanceInKm,
           )
         : 0
     enrichedData.recommendedShippingCost = round2(finalShippingCost)
@@ -343,7 +346,7 @@ export function OrderForm({
 
       if (!updateResult.success) {
         throw new Error(
-          updateResult.message || 'Eroare la salvarea preliminară.'
+          updateResult.message || 'Eroare la salvarea preliminară.',
         )
       }
 
