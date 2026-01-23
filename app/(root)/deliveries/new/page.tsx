@@ -6,6 +6,7 @@ import { getDeliveriesByOrderId } from '@/lib/db/modules/deliveries/delivery.act
 import { IDelivery } from '@/lib/db/modules/deliveries/delivery.model'
 import { ORDER_STATUS_MAP } from '@/lib/db/modules/order/constants'
 import { OrderStatusKey } from '@/lib/db/modules/order/types'
+import { connectToDatabase } from '@/lib/db'
 
 // Funcția Helper de Serializare
 function sanitizeForClient<T>(data: T): T {
@@ -24,6 +25,8 @@ interface CreateDeliveryPageProps {
 export default async function CreateDeliveryPage({
   searchParams,
 }: CreateDeliveryPageProps) {
+  await connectToDatabase()
+
   const params = await searchParams
   const { orderId } = params
 

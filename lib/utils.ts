@@ -21,7 +21,7 @@ export function formUrlQuery({
       url: window.location.pathname,
       query: currentUrl,
     },
-    { skipNull: true }
+    { skipNull: true },
   )
 }
 export function cn(...inputs: ClassValue[]) {
@@ -124,15 +124,15 @@ export const formatDateTime = (dateString: Date) => {
   }
   const formattedDateTime: string = new Date(dateString).toLocaleString(
     'ro-RO',
-    dateTimeOptions
+    dateTimeOptions,
   )
   const formattedDate: string = new Date(dateString).toLocaleString(
     'ro-RO',
-    dateOptions
+    dateOptions,
   )
   const formattedTime: string = new Date(dateString).toLocaleString(
     'ro-RO',
-    timeOptions
+    timeOptions,
   )
   return {
     dateTime: formattedDateTime,
@@ -261,4 +261,8 @@ export function sanitizeForClient<T>(data: T): T {
     // (deși în cazul datelor server -> client, asta ar putea crăpa clientul)
     return data as T
   }
+}
+// --- NOU: Funcția pentru Regex Escape ---
+export function escapeRegex(text: string) {
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')
 }

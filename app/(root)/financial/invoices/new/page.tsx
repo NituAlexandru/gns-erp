@@ -4,8 +4,11 @@ import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbe
 import { SeriesDTO } from '@/lib/db/modules/numbering/types'
 import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 import { getActiveServices } from '@/lib/db/modules/setting/services/service.actions'
+import { connectToDatabase } from '@/lib/db'
 
 export default async function NewInvoicePage() {
+  await connectToDatabase()
+
   const companySettings = await getSetting()
 
   if (!companySettings) {
@@ -19,15 +22,15 @@ export default async function NewInvoicePage() {
 
   const invoiceSeries = JSON.parse(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    JSON.stringify(await getActiveSeriesForDocumentType('Factura' as any))
+    JSON.stringify(await getActiveSeriesForDocumentType('Factura' as any)),
   ) as SeriesDTO[]
 
   const vatRatesResult = await getVatRates()
   const vatRates = JSON.parse(
-    JSON.stringify(vatRatesResult.data || [])
+    JSON.stringify(vatRatesResult.data || []),
   ) as typeof vatRatesResult.data
   const servicesResult = JSON.parse(
-    JSON.stringify(await getActiveServices('Serviciu'))
+    JSON.stringify(await getActiveServices('Serviciu')),
   )
 
   return (

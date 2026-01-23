@@ -3,13 +3,14 @@ import { connectToDatabase } from '@/lib/db'
 import Order, { IOrder } from '@/lib/db/modules/order/order.model'
 import mongoose from 'mongoose'
 import { PAGE_SIZE } from '@/lib/constants'
+import { escapeRegex } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   try {
     await connectToDatabase()
 
     const { searchParams } = new URL(request.url)
-    const q = searchParams.get('q')
+    const qRaw = searchParams.get('q')
     const status = searchParams.get('status')
     const page = Number(searchParams.get('page')) || 1
 
@@ -34,7 +35,9 @@ export async function GET(request: NextRequest) {
 
     const aggregationPipeline: mongoose.PipelineStage[] = []
 
-    if (q) {
+    if (qRaw) {
+      const q = escapeRegex(qRaw)
+
       aggregationPipeline.push({
         $lookup: {
           from: 'clients',

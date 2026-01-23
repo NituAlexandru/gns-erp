@@ -8,6 +8,7 @@ import { getActiveServices } from '@/lib/db/modules/setting/services/service.act
 import { getInvoiceById } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { redirect } from 'next/navigation'
 import { InvoiceInput } from '@/lib/db/modules/financial/invoices/invoice.types'
+import { connectToDatabase } from '@/lib/db'
 
 interface InvoiceEditPageProps {
   params: Promise<{
@@ -18,6 +19,8 @@ interface InvoiceEditPageProps {
 export default async function EditInvoicePage({
   params: paramsPromise,
 }: InvoiceEditPageProps) {
+  await connectToDatabase()
+
   const params = await paramsPromise
   // 1. Preluăm datele facturii existente
   const invoiceResult = await getInvoiceById(params.id)
@@ -50,7 +53,7 @@ export default async function EditInvoicePage({
   }
 
   const invoiceSeries = (await getActiveSeriesForDocumentType(
-    'Factura' as unknown as DocumentType
+    'Factura' as unknown as DocumentType,
   )) as SeriesDTO[]
 
   const vatRatesResult = await getVatRates()

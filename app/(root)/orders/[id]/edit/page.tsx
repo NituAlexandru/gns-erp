@@ -2,6 +2,7 @@ import { getOrderById } from '@/lib/db/modules/order/order.actions'
 import { OrderForm } from '../../components/OrderForm'
 import { notFound } from 'next/navigation'
 import { Types } from 'mongoose'
+import { connectToDatabase } from '@/lib/db'
 
 interface EditOrderPageProps {
   params: Promise<{ id: string }>
@@ -10,6 +11,8 @@ interface EditOrderPageProps {
 export default async function EditOrderPage({
   params: paramsPromise,
 }: EditOrderPageProps) {
+  await connectToDatabase()
+
   const params = await paramsPromise
   const orderId = params.id
 
