@@ -29,6 +29,7 @@ import { IOrderLineItem } from '../deliveries/types'
 import { subHours } from 'date-fns'
 import DeliveryModel from '../deliveries/delivery.model'
 import DeliveryNoteModel from '../financial/delivery-notes/delivery-note.model'
+import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -81,6 +82,7 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
   const totals = getInitialOrderTotals()
 
   const processedLineItems = lineItems.map((item) => {
+    const codeFromConfig = getEFacturaUomCode(item.unitOfMeasure)
     const lineValue = round2(item.priceAtTimeOfOrder * Number(item.quantity))
     const lineVatValue = round2(item.vatRateDetails.value)
     const lineTotal = round2(lineValue + lineVatValue)
@@ -134,6 +136,7 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
 
     return {
       ...item,
+      unitOfMeasureCode: codeFromConfig || item.unitOfMeasureCode,
       productBarcode: item.productBarcode,
       lineValue,
       lineVatValue,
