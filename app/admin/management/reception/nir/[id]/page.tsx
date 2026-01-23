@@ -469,7 +469,7 @@ export default function NirPage({ params }: Props) {
                   </TableCell>
                   <TableCell className='text-right text-xs text-muted-foreground font-mono py-2'>
                     {formatMoney(
-                      nir.totals.transportSubtotal + nir.totals.transportVat
+                      nir.totals.transportSubtotal + nir.totals.transportVat,
                     )}
                   </TableCell>
                 </TableRow>

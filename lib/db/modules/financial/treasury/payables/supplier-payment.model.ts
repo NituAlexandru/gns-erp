@@ -33,8 +33,6 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
     referenceDocument: {
       type: String,
       index: true,
-      unique: false,
-      sparse: true,
     },
     notes: { type: String },
     status: {

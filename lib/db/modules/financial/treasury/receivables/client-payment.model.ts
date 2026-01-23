@@ -23,8 +23,6 @@ const ClientPaymentSchema = new Schema<IClientPaymentDoc>(
     referenceDocument: {
       type: String,
       index: true,
-      unique: false,
-      sparse: true,
     },
     notes: { type: String },
     status: {

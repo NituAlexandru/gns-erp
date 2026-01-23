@@ -113,3 +113,10 @@ MongooseError: Connection operation buffering timed out after 10000ms
 - NU MA LASA SA ADAUG LINIE CU MINUS, SI AM FACTURI CU DISCOUNT
 - La facturile introduse manual in plăti furnizori ma obliga sa bag serie
 - conturi trezorerii
+
+- err plati 2026-01-23 12:01:54.195 [error] MongooseError: Connection operation buffering timed out after 10000ms
+    at async o (.next/server/chunks/ssr/lib_db_modules_financial_treasury_payables_216b3597._.js:1:9211)
+    at async m (.next/server/chunks/ssr/_ebff8bfa._.js:1:7719)
+    at async p (.next/server/chunks/ssr/_ebff8bfa._.js:2:2712) {
+  digest: '3315555243'
+}
