@@ -100,3 +100,16 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - De preluat codul UIT si soferul / masina / remorca pe factura
 - Printare multiplă facturi iesire
 - scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina
+- adminii nu au btn de anulare confirmare aviz.
+- eroare la anularea facturii
+
+MongooseError: Connection operation buffering timed out after 10000ms
+    at async ak (.next/server/chunks/ssr/lib_db_modules_financial_invoices_invoice_actions_ts_774dc161._.js:1:43999)
+    at async m (.next/server/chunks/ssr/_ee09442e._.js:1:7721)
+    at async p (.next/server/chunks/ssr/_ee09442e._.js:2:2712) {
+  digest: '1694255533'
+}
+
+- NU MA LASA SA ADAUG LINIE CU MINUS, SI AM FACTURI CU DISCOUNT
+- La facturile introduse manual in plăti furnizori ma obliga sa bag serie
+- conturi trezorerii

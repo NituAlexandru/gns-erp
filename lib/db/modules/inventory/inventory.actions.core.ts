@@ -402,13 +402,14 @@ export async function reverseStockMovementsByReference(
           if (existingBatch) {
             existingBatch.quantity += breakdown.quantity
           } else {
+            const safeMovementId = breakdown.movementId || new Types.ObjectId()
             // Re-creăm lotul dacă a fost epuizat între timp
             inventoryItem.batches.push({
               _id: new Types.ObjectId(),
               quantity: breakdown.quantity,
               unitCost: breakdown.unitCost,
               entryDate: breakdown.entryDate,
-              movementId: breakdown.movementId as Types.ObjectId,
+              movementId: safeMovementId as Types.ObjectId,
               supplierId: breakdown.supplierId,
               supplierName: breakdown.supplierName,
               qualityDetails: breakdown.qualityDetails,

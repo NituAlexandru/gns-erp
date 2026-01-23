@@ -174,12 +174,28 @@ export function SupplierLedgerTable({ supplierId }: SupplierLedgerTableProps) {
                   >
                     {entry.dueDate ? formatDate(new Date(entry.dueDate)) : '—'}
                   </TableCell>
-                  
+
                   <TableCell
                     className='text-muted-foreground max-w-[200px] truncate'
                     title={entry.details}
                   >
-                    {entry.details}
+                    {/* 🔥 MODIFICARE: Logica de afișare pentru Sold Inițial (copiată de la Client) */}
+                    {entry.documentNumber.startsWith('INIT-F') ? (
+                      // Dacă avem valoare pozitivă pe Credit => Datorie (Credit)
+                      // Dacă avem valoare negativă pe Credit => Avans (Debit)
+                      Number(entry.credit) > 0 ? (
+                        <span className='font-medium text-foreground'>
+                          Sold Inițial - Credit
+                        </span>
+                      ) : (
+                        <span className='font-medium text-foreground'>
+                          Sold Inițial - Debit
+                        </span>
+                      )
+                    ) : (
+                      // Pentru orice alt document afișăm detaliile din DB
+                      entry.details
+                    )}
                   </TableCell>
 
                   <TableCell className='text-right font-medium text-green-600'>
