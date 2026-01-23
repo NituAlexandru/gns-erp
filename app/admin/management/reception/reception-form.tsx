@@ -442,12 +442,28 @@ export function ReceptionForm({
       // 3) Valoarea mărfii FĂRĂ TVA (produse + ambalaje) + transport (TOT în RON)
       const expectedNoVatRON = round2(summaryTotals.grandTotal + transportTotal)
 
-      // 4) Comparație strictă (după rotunjire)
-      if (invoicesTotalNoVatRON !== expectedNoVatRON) {
+      // 1. Calculăm Costul Intern (Net) din formular
+      const internalTransportVal = (dataNow.deliveries || []).reduce(
+        (sum, d) => {
+          if ((d as any).isInternal || d.transportType === 'INTERN') {
+            return sum + Number(d.transportCost || 0)
+          }
+          return sum
+        },
+        0,
+      )
+
+      // 2. Modificăm condiția: Adunăm internalTransportVal la facturi
+      if (
+        round2(invoicesTotalNoVatRON + internalTransportVal) !==
+        expectedNoVatRON
+      ) {
         toast.error('Verificare eșuată', {
-          description: `Suma facturilor fără TVA (${formatCurrency(
+          description: `Suma facturilor (${formatCurrency(
             invoicesTotalNoVatRON,
-          )}) trebuie să fie egală cu (valoarea mărfii + transport) (${formatCurrency(
+          )}) + Cost Intern (${formatCurrency(
+            internalTransportVal,
+          )}) trebuie să fie egală cu Total Recepție (${formatCurrency(
             expectedNoVatRON,
           )}).`,
           duration: 8000,
