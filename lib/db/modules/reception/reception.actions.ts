@@ -291,7 +291,7 @@ export async function confirmReception({
 }): Promise<ActionResultWithData<PopulatedReception>> {
   await connectToDatabase()
 
-  console.time('EXECUTION_TIMER')
+  // console.time('EXECUTION_TIMER')
   // console.log('1. [START] confirmReception a pornit')
 
   const initialData = await ReceptionModel.findById(receptionId).lean()

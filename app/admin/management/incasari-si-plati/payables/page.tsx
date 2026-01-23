@@ -13,8 +13,11 @@ import {
   getAnafLogs,
 } from '@/lib/db/modules/setting/efactura/anaf.actions'
 import { PAGE_SIZE } from '@/lib/constants'
+import { connectToDatabase } from '@/lib/db'
 
 export default async function PayablesPage() {
+  await connectToDatabase()
+
   const [
     suppliersResult,
     invoicesResult,

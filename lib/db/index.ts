@@ -15,18 +15,27 @@ export const connectToDatabase = async (
 ) => {
   if (cached.conn) {
     // Mesaj pentru conexiunea din cache
-    console.log('🟢 [DB] Folosesc conexiunea existentă (CACHE). /db/index.ts')
+    // console.log('🟢 [DB] Folosesc conexiunea existentă (CACHE). /db/index.ts')
     return cached.conn
   }
 
   if (!MONGODB_ERP_URI) throw new Error('MONGODB_ERP_URI is missing')
 
   if (!cached.promise) {
-    console.log('🟡 [DB] Se inițiază o conexiune NOUĂ.../db/index.ts')
+    // console.log('🟡 [DB] Se inițiază o conexiune NOUĂ.../db/index.ts')
 
-    cached.promise = mongoose.connect(MONGODB_ERP_URI).then((mongoose) => {
-      return mongoose
-    })
+    const opts = {
+      bufferCommands: true, // Păstrăm buffering pentru siguranță
+      maxPoolSize: 10, // Mărim pool-ul (default e 5).
+      serverSelectionTimeoutMS: 10000, // Timp de așteptare pentru server
+      socketTimeoutMS: 20000, // Timeout pentru operațiuni lungi
+    }
+
+    cached.promise = mongoose
+      .connect(MONGODB_ERP_URI, opts)
+      .then((mongoose) => {
+        return mongoose
+      })
   }
 
   try {
