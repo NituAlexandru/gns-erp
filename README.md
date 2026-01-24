@@ -84,40 +84,28 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 - FACUT - factura split, trebuie sa bata pe sumele totale conform cotelor, nu fiecare rand + adresa de livrare. factura split, bate pe sumele totale conform cotelor, nu fiecare rand.
 
+# Rezolvate in weekend
+
+- err de 1 ban la receptii = adaugat marja de 0.03 bani la receptii
+- nir - de scos costul de transport = rezolvat
+
 # Foarte important
 
-- err de 1 ban la receptii + nir si fise client. urgent
+- fise client
+- lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
+- adminii nu au btn de anulare confirmare aviz.
 - comanda si factura adminul trebuie sa poata sa vanda si sub pretul minim
+- De preluat codul UIT si soferul / masina / remorca pe factura
+- scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina + de adaugat trezorerii + TBI bank
 - de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
-- nir - de scos costul de transport
 - aspect factura - de verificat la fact mai mari de o pagina
 - solduri + fisa client
 - paletii storno
 - la facturi de la funizori, sa poata fi cautate dupa furnizori (incasari si plati)
 - la produse in aplicatie, sa se afiseze cate buc sunt la palet
-- lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
 - La facturi, când modific ceva aș vrea să rămână la aceeași pagină - cu factura modificată
 - LA PRODUSE, CAND CAUT UN PRODUS SA IMI RAMANA ACEL PRODUS , NU SA DISPARA CAND DAU BACK
-- De preluat codul UIT si soferul / masina / remorca pe factura
 - Printare multiplă facturi iesire
-- scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina
-- adminii nu au btn de anulare confirmare aviz.
 - eroare la anularea facturii
-
-MongooseError: Connection operation buffering timed out after 10000ms
-    at async ak (.next/server/chunks/ssr/lib_db_modules_financial_invoices_invoice_actions_ts_774dc161._.js:1:43999)
-    at async m (.next/server/chunks/ssr/_ee09442e._.js:1:7721)
-    at async p (.next/server/chunks/ssr/_ee09442e._.js:2:2712) {
-  digest: '1694255533'
-}
-
 - NU MA LASA SA ADAUG LINIE CU MINUS, SI AM FACTURI CU DISCOUNT
 - La facturile introduse manual in plăti furnizori ma obliga sa bag serie
-- conturi trezorerii
-
-- err plati 2026-01-23 12:01:54.195 [error] MongooseError: Connection operation buffering timed out after 10000ms
-    at async o (.next/server/chunks/ssr/lib_db_modules_financial_treasury_payables_216b3597._.js:1:9211)
-    at async m (.next/server/chunks/ssr/_ebff8bfa._.js:1:7719)
-    at async p (.next/server/chunks/ssr/_ebff8bfa._.js:2:2712) {
-  digest: '3315555243'
-}

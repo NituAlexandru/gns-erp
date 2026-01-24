@@ -45,16 +45,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   // AJUSTARE LĂȚIMI PENTRU 100% WIDTH
-  colNr: { width: '3%', textAlign: 'center' },
-  colName: { width: '25%', textAlign: 'left', paddingLeft: 4 }, // Mai lat pentru nume pe un rând
-  colUm: { width: '4%', textAlign: 'center' },
-  colQty: { width: '5%', textAlign: 'right', paddingRight: 2 },
-  colDiff: { width: '5%', textAlign: 'right', paddingRight: 2 },
-  colPrice: { width: '8%', textAlign: 'right', paddingRight: 2 },
-  colValue: { width: '9%', textAlign: 'right', paddingRight: 2 },
+  colNr: { width: '4%', textAlign: 'center' },
+  colName: { width: '33%', textAlign: 'left', paddingLeft: 4 }, // Mai lat pentru nume pe un rând
+  colUm: { width: '5%', textAlign: 'center' },
+  colQty: { width: '7%', textAlign: 'right', paddingRight: 2 },
+  colDiff: { width: '6%', textAlign: 'right', paddingRight: 2 },
+  colPrice: { width: '10%', textAlign: 'right', paddingRight: 2 },
+  colValue: { width: '10%', textAlign: 'right', paddingRight: 2 },
   colVat: { width: '8%', textAlign: 'right', paddingRight: 2 },
-  colTotal: { width: '9%', textAlign: 'right', paddingRight: 4 },
-  text: { fontSize: 6, color: '#1e293b' }, // Font ușor redus pentru a acomoda precizia de 6 zecimale
+  colTotal: { width: '10%', textAlign: 'right', paddingRight: 4 },
+  text: { fontSize: 7, color: '#1e293b' }, // Font ușor redus pentru a acomoda precizia de 6 zecimale
   bold: { fontWeight: 'bold' },
 })
 
@@ -67,7 +67,7 @@ export const PdfNirTable = ({ items }: { items: any[] }) => {
       vat: acc.vat + (item.lineVatValue || 0),
       total: acc.total + (item.total || 0),
     }),
-    { qtyDoc: 0, qtyRec: 0, value: 0, vat: 0, total: 0 }
+    { qtyDoc: 0, qtyRec: 0, value: 0, vat: 0, total: 0 },
   )
 
   return (
@@ -87,12 +87,6 @@ export const PdfNirTable = ({ items }: { items: any[] }) => {
         </Text>
         <Text style={[styles.colDiff, styles.text, styles.bold]}>
           Diferențe
-        </Text>
-        <Text style={[styles.colPrice, styles.text, styles.bold]}>
-          Preț achiz.
-        </Text>
-        <Text style={[styles.colPrice, styles.text, styles.bold]}>
-          Cost distribuit transp.
         </Text>
         <Text style={[styles.colPrice, styles.text, styles.bold]}>
           Preț unitar de intrare
@@ -129,13 +123,6 @@ export const PdfNirTable = ({ items }: { items: any[] }) => {
           <Text style={[styles.colPrice, styles.text]}>
             {formatCurrency(item.invoicePricePerUnit)}
           </Text>
-          <Text style={[styles.colPrice, styles.text]}>
-            {formatPrice(item.distributedTransportCostPerUnit)}
-          </Text>
-          <Text style={[styles.colPrice, styles.text, styles.bold]}>
-            {formatPrice(item.landedCostPerUnit)}
-          </Text>
-
           <Text style={[styles.colValue, styles.text]}>
             {formatCurrency(item.lineValue)}
           </Text>
@@ -151,7 +138,7 @@ export const PdfNirTable = ({ items }: { items: any[] }) => {
       <View style={styles.footerRow}>
         <Text
           style={[
-            { width: '28%' },
+            { width: '42%' },
             styles.text,
             styles.bold,
             { textAlign: 'right', paddingRight: 10 },
@@ -159,14 +146,13 @@ export const PdfNirTable = ({ items }: { items: any[] }) => {
         >
           TOTAL PAGINA:
         </Text>
-        <View style={{ width: '4%' }} />
         <Text style={[styles.colQty, styles.text, styles.bold]}>
           {totals.qtyDoc.toFixed(2)}
         </Text>
         <Text style={[styles.colQty, styles.text, styles.bold]}>
           {totals.qtyRec.toFixed(2)}
         </Text>
-        <View style={{ width: '29%' }} />
+        <View style={{ width: '16%' }} />
         <Text style={[styles.colValue, styles.text, styles.bold]}>
           {formatCurrency(totals.value)}
         </Text>

@@ -327,30 +327,41 @@ export default function NirPage({ params }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent className='space-y-3'>
+            {/* 1. Total Marfă */}
             <div className='flex justify-between text-sm'>
               <span className='text-muted-foreground'>Total Marfă (Net):</span>
               <span>{formatMoney(nir.totals.productsSubtotal)}</span>
             </div>
+
+            {/* 2. Total Ambalaje */}
             <div className='flex justify-between text-sm'>
               <span className='text-muted-foreground'>
                 Total Ambalaje (Net):
               </span>
               <span>{formatMoney(nir.totals.packagingSubtotal)}</span>
             </div>
-            <div className='flex justify-between text-sm'>
-              <span className='text-muted-foreground'>
-                Transport Distribuit:
-              </span>
-              <span>{formatMoney(nir.totals.transportSubtotal)}</span>
-            </div>
+
             <Separator />
+
+            {/* 3. Valoare Intrare Stoc (Marfă + Ambalaje) - FĂRĂ TRANSPORT */}
             <div className='flex justify-between text-sm font-bold'>
-              <span> Valoare Intrare Stoc:</span>
-              <span> {formatMoney(nir.totals.totalEntryValue)}</span>
+              <span> Valoare Intrare Stoc (Net):</span>
+              <span>
+                {formatMoney(
+                  nir.totals.productsSubtotal + nir.totals.packagingSubtotal,
+                )}
+              </span>
             </div>
+
+            {/* 4. Total Factură (Scădem tot transportul: Net + TVA) */}
             <div className='flex justify-between text-sm font-bold'>
               <span>Total Factură (Cu TVA):</span>
-              <span>{formatMoney(nir.totals.grandTotal)}</span>
+              <span>
+                {formatMoney(
+                  nir.totals.grandTotal -
+                    (nir.totals.transportSubtotal + nir.totals.transportVat),
+                )}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -380,18 +391,20 @@ export default function NirPage({ params }: Props) {
               <TableRow>
                 <TableHead className='w-[40px]'>#</TableHead>
                 <TableHead>Denumire Articol</TableHead>
-                <TableHead className='text-center'>Cantitate</TableHead>
-                <TableHead className='text-right'>Preț Fact.</TableHead>
-                <TableHead className='text-right'>Transp. Distribuit</TableHead>
+                <TableHead className='text-center w-[50px]'>U.M.</TableHead>
+                <TableHead className='text-right'>Cant. Doc.</TableHead>
+                <TableHead className='text-right'>Cant. Recepț.</TableHead>
+                <TableHead className='text-right'>Diferențe</TableHead>
                 <TableHead className='text-right font-bold'>
-                  Preț Achiziție
+                  Preț Unitar
                 </TableHead>
                 <TableHead className='text-right text-muted-foreground'>
-                  Valoare Netă
+                  Valoare Net
                 </TableHead>
-                <TableHead className='text-right'>
-                  Valoare Brută (cu TVA)
+                <TableHead className='text-right text-muted-foreground'>
+                  TVA
                 </TableHead>
+                <TableHead className='text-right'>Total</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -400,6 +413,8 @@ export default function NirPage({ params }: Props) {
                   <TableCell className='font-medium py-0.5 text-xs text-muted-foreground'>
                     {index + 1}
                   </TableCell>
+
+                  {/* Denumire + Cod + Tip */}
                   <TableCell className='py-0.5'>
                     <div className='flex flex-col'>
                       <span className='font-medium'>{item.productName}</span>
@@ -411,107 +426,104 @@ export default function NirPage({ params }: Props) {
                             ? 'Ambalaj'
                             : 'Marfă'}
                         </span>
-                        {item.quantityDifference !== 0 && (
-                          <>
-                            <span>|</span>
-                            <span
-                              className={`font-bold ${
-                                item.quantityDifference < 0
-                                  ? 'text-red-600'
-                                  : 'text-green-600'
-                              }`}
-                            >
-                              {item.quantityDifference < 0 ? 'Minus:' : 'Plus:'}{' '}
-                              {Math.abs(item.quantityDifference)}{' '}
-                              {item.unitMeasure}
-                            </span>
-                          </>
-                        )}
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className='text-center py-0.5'>
-                    <Badge variant='secondary' className='font-mono'>
-                      {formatNumber(item.quantity)} {item.unitMeasure}
-                    </Badge>
+
+                  {/* U.M. */}
+                  <TableCell className='text-center text-xs text-muted-foreground py-0.5'>
+                    {item.unitMeasure}
                   </TableCell>
+
+                  {/* Cantitate Document */}
                   <TableCell className='text-right font-mono py-0.5'>
+                    {formatNumber(item.documentQuantity)}
+                  </TableCell>
+
+                  {/* Cantitate Recepționată */}
+                  <TableCell className='text-right font-mono font-bold py-0.5'>
+                    {formatNumber(item.quantity)}
+                  </TableCell>
+
+                  {/* Diferențe */}
+                  <TableCell className='text-right font-mono py-0.5'>
+                    <span
+                      className={`${
+                        item.quantityDifference !== 0
+                          ? item.quantityDifference < 0
+                            ? 'text-red-600 font-bold'
+                            : 'text-green-600 font-bold'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {formatNumber(item.quantityDifference)}
+                    </span>
+                  </TableCell>
+
+                  {/* Preț Unitar (Factură) */}
+                  <TableCell className='text-right font-mono font-bold py-0.5'>
                     {formatMoney(item.invoicePricePerUnit)}
                   </TableCell>
-                  <TableCell className='text-right font-mono text-muted-foreground py-0.5'>
-                    {item.distributedTransportCostPerUnit > 0
-                      ? `+${formatMoney(item.distributedTransportCostPerUnit)}`
-                      : '-'}
-                  </TableCell>
-                  <TableCell className='text-right font-mono font-bold py-0.5'>
-                    {formatMoney(item.landedCostPerUnit)}
-                  </TableCell>
+
+                  {/* Valoare Net */}
                   <TableCell className='text-right font-mono text-muted-foreground py-0.5'>
                     {formatMoney(item.lineValue)}
                   </TableCell>
+
+                  {/* TVA */}
+                  <TableCell className='text-right font-mono text-muted-foreground py-0.5'>
+                    {formatMoney(item.lineVatValue)}
+                  </TableCell>
+
+                  {/* Total */}
                   <TableCell className='text-right font-mono font-medium py-0.5'>
                     {formatMoney(item.lineTotal)}
                   </TableCell>
                 </TableRow>
               ))}
 
-              {/* Rând Transport */}
-              {nir.totals.transportSubtotal > 0 && (
-                <TableRow className=' border-t border-dashed'>
-                  <TableCell
-                    colSpan={6}
-                    className='text-right text-xs text-muted-foreground py-2 italic'
-                  >
-                    Cost Transport:
-                  </TableCell>
-                  <TableCell className='text-right text-xs text-muted-foreground font-mono py-2'>
-                    {formatMoney(nir.totals.transportSubtotal)}
-                  </TableCell>
-                  <TableCell className='text-right text-xs text-muted-foreground font-mono py-2'>
-                    {formatMoney(
-                      nir.totals.transportSubtotal + nir.totals.transportVat,
-                    )}
-                  </TableCell>
-                </TableRow>
-              )}
-
               {/* Rânduri Totaluri */}
               <TableRow className=' border-t-1'>
                 <TableCell
-                  colSpan={6}
+                  colSpan={8}
                   className='text-right font-medium text-slate-600 py-2'
                 >
                   Total Net (Fără TVA):
                 </TableCell>
                 <TableCell className='text-right font-bold text-slate-700 font-mono py-2'>
-                  {formatMoney(nir.totals.subtotal)}
+                  {formatMoney(
+                    nir.totals.subtotal - nir.totals.transportSubtotal,
+                  )}
                 </TableCell>
                 <TableCell className='py-2'></TableCell>
               </TableRow>
 
               <TableRow className=' border-none'>
                 <TableCell
-                  colSpan={6}
+                  colSpan={8}
                   className='text-right font-medium text-slate-600 py-1'
                 >
                   Total TVA:
                 </TableCell>
                 <TableCell className='text-right font-bold text-slate-700 font-mono py-2'>
-                  {formatMoney(nir.totals.vatTotal)}
+                  {formatMoney(nir.totals.vatTotal - nir.totals.transportVat)}
                 </TableCell>
                 <TableCell className='py-2'></TableCell>
               </TableRow>
 
               <TableRow className='bg-slate-900 hover:bg-slate-900 border-t border-slate-800'>
                 <TableCell
-                  colSpan={6}
+                  colSpan={8}
                   className='text-right font-bold text-white py-3'
                 >
                   TOTAL GENERAL DE PLATĂ (CU TVA):
                 </TableCell>
                 <TableCell className='py-3'></TableCell>
                 <TableCell className='text-right font-bold text-green-400 text-lg font-mono py-3 pr-4'>
-                  {formatMoney(nir.totals.grandTotal)}
+                  {formatMoney(
+                    nir.totals.grandTotal -
+                      (nir.totals.transportSubtotal + nir.totals.transportVat),
+                  )}
                 </TableCell>
               </TableRow>
             </TableBody>

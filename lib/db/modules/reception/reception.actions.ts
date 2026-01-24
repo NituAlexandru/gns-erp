@@ -454,11 +454,13 @@ export async function confirmReception({
 
       const expectedNoVatRON = round2(merchandiseTotalRON + transportTotalRON)
 
-      if (
-        round2(invoicesTotalRON + internalTransportVal) !== expectedNoVatRON
-      ) {
+      const difference = Math.abs(
+        round2(invoicesTotalRON + internalTransportVal) - expectedNoVatRON,
+      )
+
+      if (difference > 0.03) {
         throw new Error(
-          `Total facturi (${invoicesTotalRON} RON) + Transport Intern (${internalTransportVal} RON) ≠ Total marfă + transport (${expectedNoVatRON} RON).`,
+          `Total facturi (${invoicesTotalRON} RON) + Transport Intern (${internalTransportVal} RON) ≠ Total marfă + transport (${expectedNoVatRON} RON). Diferență: ${difference.toFixed(4)}`,
         )
       }
 

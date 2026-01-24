@@ -7,13 +7,13 @@ export const mapNirToPdfData = (nir: NirDTO): PdfDocumentData => {
   const docInvoices = nir.invoices
     ?.map(
       (i) =>
-        `Factura ${i.series || ''} ${i.number} / ${new Date(i.date).toLocaleDateString('ro-RO')}`
+        `Factura ${i.series || ''} ${i.number} / ${new Date(i.date).toLocaleDateString('ro-RO')}`,
     )
     .join(', ')
   const docDeliveries = nir.deliveries
     ?.map(
       (d) =>
-        `Aviz ${d.dispatchNoteSeries || ''} ${d.dispatchNoteNumber} / ${new Date(d.dispatchNoteDate).toLocaleDateString('ro-RO')}`
+        `Aviz ${d.dispatchNoteSeries || ''} ${d.dispatchNoteNumber} / ${new Date(d.dispatchNoteDate).toLocaleDateString('ro-RO')}`,
     )
     .join(', ')
 
@@ -49,17 +49,19 @@ export const mapNirToPdfData = (nir: NirDTO): PdfDocumentData => {
       diffQty: item.quantityDifference,
       invoicePricePerUnit: item.invoicePricePerUnit,
       distributedTransportCostPerUnit: item.distributedTransportCostPerUnit,
-      landedCostPerUnit: item.landedCostPerUnit,
+      // landedCostPerUnit: item.landedCostPerUnit,
       vatRate: item.vatRate,
       lineValue: item.lineValue,
       lineVatValue: item.lineVatValue,
       total: item.lineTotal,
     })),
     totals: {
-      subtotal: nir.totals.subtotal,
-      vatTotal: nir.totals.vatTotal,
-      grandTotal: nir.totals.grandTotal,
-      transportValue: nir.totals.transportSubtotal,
+      subtotal: nir.totals.subtotal - nir.totals.transportSubtotal, // Scădem transportul din Net
+      vatTotal: nir.totals.vatTotal - nir.totals.transportVat, // Scădem transportul din TVA
+      grandTotal:
+        nir.totals.grandTotal -
+        (nir.totals.transportSubtotal + nir.totals.transportVat), // Scădem transportul din Brut
+      transportValue: 0, // Îl facem 0 ca să nu mai apară nicăieri
       currency: 'RON',
     },
     logistic: {

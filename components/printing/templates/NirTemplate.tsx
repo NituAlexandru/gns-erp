@@ -97,18 +97,7 @@ export const NirTemplate = ({ data }: { data: any }) => (
           >
             Total Net (fără TVA): {formatCurrency(data.totals.subtotal)}
           </Text>
-          {data.totals.transportValue > 0 && (
-            <Text
-              style={{
-                fontSize: 7,
-                color: '#64748b',
-                textAlign: 'right',
-                marginTop: 0,
-              }}
-            >
-              Din care Transport: {formatCurrency(data.totals.transportValue)}
-            </Text>
-          )}
+
           <Text style={{ fontSize: 9, fontWeight: 'bold', textAlign: 'right' }}>
             TOTAL GENERAL (cu TVA): {formatCurrency(data.totals.grandTotal)}
           </Text>

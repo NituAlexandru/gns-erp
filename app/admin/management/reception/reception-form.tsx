@@ -298,20 +298,18 @@ export function ReceptionForm({
 
     // Validare 1: Net Facturi vs Total Intrare Net (Strict la 2 zecimale)
     const isBalancedNoVat =
-      Math.round(
-        (calculatedInvoicesNoVatRON + internalTransportTotal + Number.EPSILON) *
-          100,
-      ) === Math.round((totalIntrareNet + Number.EPSILON) * 100)
+      Math.abs(
+        calculatedInvoicesNoVatRON + internalTransportTotal - totalIntrareNet,
+      ) <= 0.03
 
-    // Validare 2: Brut Facturi vs Total General Brut (Strict la 2 zecimale)
+    // Validare 2: Brut Facturi vs Total General Brut (Cu toleranță 0.03)
     const isBalancedWithVat =
-      Math.round(
-        (calculatedInvoicesGrossRON +
+      Math.abs(
+        calculatedInvoicesGrossRON +
           internalTransportTotal +
-          internalTransportVat +
-          Number.EPSILON) *
-          100,
-      ) === Math.round((totalGeneralCalculated + Number.EPSILON) * 100)
+          internalTransportVat -
+          totalGeneralCalculated,
+      ) <= 0.03
 
     // --- Distribuire cost transport (Logica existenta) ---
     const productsToProcess = (watchedData.products || []).map((p, i) => ({
@@ -454,10 +452,11 @@ export function ReceptionForm({
       )
 
       // 2. Modificăm condiția: Adunăm internalTransportVal la facturi
-      if (
-        round2(invoicesTotalNoVatRON + internalTransportVal) !==
-        expectedNoVatRON
-      ) {
+      const difference = Math.abs(
+        round2(invoicesTotalNoVatRON + internalTransportVal) - expectedNoVatRON,
+      )
+
+      if (difference > 0.03) {
         toast.error('Verificare eșuată', {
           description: `Suma facturilor (${formatCurrency(
             invoicesTotalNoVatRON,
