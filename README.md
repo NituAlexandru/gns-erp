@@ -86,8 +86,9 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # Foarte important
 
+- err de 1 ban la receptii + nir si fise client. urgent
+- comanda si factura adminul trebuie sa poata sa vanda si sub pretul minim
 - de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
-- comanda adminul trebuie sa poata sa vanda si sub pretul minim
 - nir - de scos costul de transport
 - aspect factura - de verificat la fact mai mari de o pagina
 - solduri + fisa client

@@ -126,7 +126,12 @@ export const buildAnafXml = ({
     const finalDescription = descriptionExtension.trim()
 
     // 3. Pregătim variabilele standard
-    const quantity = Number(item.quantity.toFixed(2))
+
+    // const quantity = Number(item.quantity.toFixed(2))
+    // FIX BR-27: Dacă prețul e negativ, mutăm minusul la cantitate
+    const quantity = Number(
+      (item.unitPrice < 0 ? -item.quantity : item.quantity).toFixed(2),
+    )
     const lineValue = Number(item.lineValue.toFixed(2))
     const vatRate = item.vatRateDetails.rate
     const vatValue = Number(item.vatRateDetails.value.toFixed(2))
@@ -181,7 +186,8 @@ export const buildAnafXml = ({
       },
       'cac:Price': {
         'cbc:PriceAmount': {
-          '#text': Number(item.unitPrice.toFixed(4)),
+          // '#text': Number(item.unitPrice.toFixed(4)),
+          '#text': Number(Math.abs(item.unitPrice).toFixed(4)),
           '@_currencyID': invoice.companySnapshot.currency,
         },
       },
