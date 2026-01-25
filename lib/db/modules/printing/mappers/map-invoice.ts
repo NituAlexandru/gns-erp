@@ -2,7 +2,7 @@ import { PopulatedInvoice } from '../../financial/invoices/invoice.types'
 import { PdfDocumentData } from '../printing.types'
 
 export function mapInvoiceToPdfData(
-  invoice: PopulatedInvoice
+  invoice: PopulatedInvoice,
 ): PdfDocumentData {
   const items = invoice.items.map((item: any, i: number) => {
     let smartDesc = ''
@@ -12,7 +12,7 @@ export function mapInvoiceToPdfData(
 
       // 1. Găsim opțiunea curentă
       const currentOption = item.packagingOptions.find(
-        (opt: any) => opt.unitName.toLowerCase() === currentUom
+        (opt: any) => opt.unitName.toLowerCase() === currentUom,
       )
 
       if (currentOption) {
@@ -20,7 +20,7 @@ export function mapInvoiceToPdfData(
         const candidates = item.packagingOptions
           .filter(
             (opt: any) =>
-              opt.baseUnitEquivalent < currentOption.baseUnitEquivalent
+              opt.baseUnitEquivalent < currentOption.baseUnitEquivalent,
           )
           .sort((a: any, b: any) => b.baseUnitEquivalent - a.baseUnitEquivalent)
 
@@ -71,6 +71,7 @@ export function mapInvoiceToPdfData(
     date: new Date(invoice.invoiceDate).toISOString(),
     dueDate: new Date(invoice.dueDate).toISOString(),
     notes: invoice.notes,
+    uitCode: invoice.uitCode,
     // --- MAPARE FURNIZOR ---
     supplier: {
       name: invoice.companySnapshot.name,

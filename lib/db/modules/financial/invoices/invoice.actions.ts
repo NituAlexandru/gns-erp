@@ -320,7 +320,7 @@ export async function createInvoice(
         _id: { $in: data.sourceDeliveryNotes },
       })
         .select(
-          'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId items salesAgentId salesAgentSnapshot',
+          'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId items salesAgentId salesAgentSnapshot driverName vehicleNumber vehicleType trailerNumber uitCode',
         )
         .lean()
         .session(session)
@@ -340,10 +340,14 @@ export async function createInvoice(
       }
 
       const orderNumbers = [
-        ...new Set(sourceNotes.map((n) => n.orderNumberSnapshot)),
+        ...new Set(
+          sourceNotes.map((n) => n.orderNumberSnapshot).filter(Boolean),
+        ),
       ]
       const deliveryNumbers = [
-        ...new Set(sourceNotes.map((n) => n.deliveryNumberSnapshot)),
+        ...new Set(
+          sourceNotes.map((n) => n.deliveryNumberSnapshot).filter(Boolean),
+        ),
       ]
       const deliveryNoteNumbers = [
         ...new Set(sourceNotes.map((n) => `${n.seriesName}-${n.noteNumber}`)),
@@ -352,6 +356,28 @@ export async function createInvoice(
       const relatedDeliveryIds = [
         ...new Set(sourceNotes.map((n) => n.deliveryId)),
       ]
+
+      // (Colectare date logistice din avize)
+      const allDrivers = [
+        ...new Set(sourceNotes.map((n) => n.driverName).filter(Boolean)),
+      ].join(' / ')
+      const allVehicles = [
+        ...new Set(sourceNotes.map((n) => n.vehicleNumber).filter(Boolean)),
+      ].join(' / ')
+      const allTrailers = [
+        ...new Set(sourceNotes.map((n) => n.trailerNumber).filter(Boolean)),
+      ].join(' / ')
+      const allUITs = [
+        ...new Set(sourceNotes.map((n) => n.uitCode).filter(Boolean)),
+      ].join(', ')
+
+      // Pregătim textul pentru note (Serie-Nr (Data), Serie-Nr (Data))
+      const detailsAvize = sourceNotes
+        .map(
+          (n) =>
+            `${n.seriesName}-${n.noteNumber} (${n.createdAt ? format(new Date(n.createdAt), 'dd.MM.yyyy') : ''})`,
+        )
+        .join(', ')
 
       const logisticSnapshots = {
         orderNumbers: orderNumbers,
@@ -401,13 +427,16 @@ export async function createInvoice(
             eFacturaStatus: 'PENDING',
             salesAgentId: agentId,
             salesAgentSnapshot: agentSnapshot,
-            driverName: data.driverName,
-            vehicleNumber: data.vehicleNumber,
+            driverName: data.driverName || allDrivers,
+            vehicleNumber: data.vehicleNumber || allVehicles,
             vehicleType: data.vehicleType,
-            trailerNumber: data.trailerNumber,
+            trailerNumber: data.trailerNumber || allTrailers,
+            uitCode: data.uitCode || allUITs,
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
-            notes: data.notes,
+            notes:
+              data.notes ||
+              `Factură generată din Avizele: ${detailsAvize}, aferent Comenzilor: ${orderNumbers.join(', ')}.`,
             orderNotesSnapshot: data.orderNotesSnapshot,
             deliveryNotesSnapshot: data.deliveryNotesSnapshot,
           },
@@ -719,6 +748,7 @@ export async function createInvoiceFromSingleNote(
         vehicleNumber: note.vehicleNumber,
         vehicleType: note.vehicleType,
         trailerNumber: note.trailerNumber,
+        uitCode: note.uitCode,
         deliveryAddressId: note.deliveryAddressId.toString(),
         deliveryAddress: {
           judet: note.deliveryAddress.judet,
@@ -787,6 +817,7 @@ export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
       .select(
         'clientId clientSnapshot deliveryAddressId deliveryAddress ' +
           'salesAgentId salesAgentSnapshot ' +
+          'driverName vehicleNumber vehicleType trailerNumber uitCode ' +
           'items totals',
       )
       .lean()
@@ -803,6 +834,11 @@ export async function getLinesFromInvoices(invoiceIds: string[]): Promise<
       deliveryAddress: firstInvoice.deliveryAddress,
       salesAgentId: firstInvoice.salesAgentId.toString(),
       salesAgentSnapshot: firstInvoice.salesAgentSnapshot,
+      driverName: firstInvoice.driverName,
+      vehicleNumber: firstInvoice.vehicleNumber,
+      vehicleType: firstInvoice.vehicleType,
+      trailerNumber: firstInvoice.trailerNumber,
+      uitCode: firstInvoice.uitCode,
     }
 
     const stornoLines: InvoiceLineInput[] = []
@@ -1643,6 +1679,11 @@ export async function updateInvoice(
         sourceDeliveryNotes: validatedData.sourceDeliveryNotes.map(
           (id) => new Types.ObjectId(id),
         ),
+        driverName: validatedData.driverName,
+        vehicleNumber: validatedData.vehicleNumber,
+        vehicleType: validatedData.vehicleType,
+        trailerNumber: validatedData.trailerNumber,
+        uitCode: validatedData.uitCode,
       })
 
       updatedInvoice = await originalInvoice.save({ session })

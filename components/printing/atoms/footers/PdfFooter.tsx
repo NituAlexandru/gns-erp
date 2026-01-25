@@ -180,121 +180,145 @@ export const PdfFooter: React.FC<Props> = ({ data }) => {
   const grandTotal = data.totals?.grandTotal || 0
 
   return (
-    <View style={styles.footerContainer} wrap={false}>
-      {/* 1. SECTIUNEA DE SUS */}
-      <View style={styles.topSection}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={{ fontSize: 7 }}>
-            <Text style={styles.bold}>Întocmit de: </Text>
-            {data.issuerName || 'Genesis'}
-          </Text>
-          {/* Note Document (Afișate dacă există) */}
-          {(data as any).notes && (
-            <Text
-              style={{ fontSize: 7, marginLeft: 4, color: '#475569', flex: 1 }}
-            >
-              <Text style={styles.bold}> | Nota: </Text>
-              {(data as any).notes}
-            </Text>
-          )}
-        </View>
-        {data.logistic?.deliveryNoteNumber && (
-          <Text style={{ fontSize: 7, marginTop: 1 }}>
-            <Text style={styles.bold}>Factură generată din Aviz: </Text>
-            {data.logistic.deliveryNoteNumber}
-          </Text>
-        )}
-        <Text style={styles.legalText}>
-          <Text style={styles.bold}>Observații:</Text> Prezenta factură ține loc
-          de contract în cazul în care între părți nu a fost încheiat un
-          contract. În vederea întocmirii documentelor financiar-contabile,
-          clientul este de acord cu prelucrarea datelor personale conform Legii
-          nr. 190/2018.
-        </Text>
-      </View>
-
-      {/* 2. SECTIUNEA DE JOS */}
-      <View style={styles.bottomSection}>
-        {/* COL 1: Legal Disclaimer */}
-        <View style={styles.colLegal}>
+    <View wrap={false} style={{ marginTop: 10 }}>
+      {data.uitCode && (
+        <View style={{ marginBottom: 4, paddingLeft: 4 }}>
           <Text
-            style={[styles.legalText, { textAlign: 'center', fontSize: 5 }]}
+            style={{
+              fontSize: 8,
+              fontWeight: 'bold',
+              color: PDF_COLORS.primary,
+            }}
           >
-            Factura valabilă fără semnătură și ștampilă cf. art. 319 alin. (29)
-            din Lg. 227/2015
+            COD UIT: <Text style={{ color: '#000' }}>{data.uitCode}</Text>
           </Text>
         </View>
-
-        {/* COL 2: Date Expediție (Stilizat ca Detalii Document din Header) */}
-        <View style={styles.colExpedition}>
-          <Text style={styles.sectionLabelFooter}>Date privind expediția</Text>
-
-          {delegateName && (
-            <Text style={styles.expeditionDetails}>
-              <Text style={styles.boldDetail}>Nume delegat:</Text>{' '}
-              {delegateName}
+      )}
+      <View style={styles.footerContainer} wrap={false}>
+        {/* 1. SECTIUNEA DE SUS */}
+        <View style={styles.topSection}>
+          <View
+            style={{ flexDirection: 'row', justifyContent: 'space-between' }}
+          >
+            <Text style={{ fontSize: 7 }}>
+              <Text style={styles.bold}>Agent: </Text>
+              {data.issuerName || 'Genesis'}
+            </Text>
+            {/* Note Document (Afișate dacă există) */}
+            {(data as any).notes && (
+              <Text
+                style={{
+                  fontSize: 7,
+                  marginLeft: 4,
+                  color: '#475569',
+                  flex: 1,
+                }}
+              >
+                <Text style={styles.bold}> | Nota: </Text>
+                {(data as any).notes}
+              </Text>
+            )}
+          </View>
+          {data.logistic?.deliveryNoteNumber && (
+            <Text style={{ fontSize: 7, marginTop: 0 }}>
+              <Text style={styles.bold}>Factură generată din Aviz: </Text>
+              {data.logistic.deliveryNoteNumber}
             </Text>
           )}
-
-          {delegateVehicle && (
-            <Text style={styles.expeditionDetails}>
-              <Text style={styles.boldDetail}>Mijloc transp.:</Text>{' '}
-              {delegateVehicle}
-            </Text>
-          )}
-
-          {delegateTrailer && (
-            <Text style={styles.expeditionDetails}>
-              <Text style={styles.boldDetail}>Remorca:</Text> {delegateTrailer}
-            </Text>
-          )}
-
-          {formattedAddress && (
-            <Text style={styles.expeditionDetails}>
-              <Text style={styles.boldDetail}>Adresa livrare:</Text>{' '}
-              {formattedAddress}
-            </Text>
-          )}
-
-          <Text style={styles.expeditionDetails}>
-            <Text style={styles.boldDetail}>Data expedierii:</Text>{' '}
-            {new Date().toLocaleDateString('ro-RO')}
-          </Text>
-
-          <Text style={[styles.expeditionDetails, { marginTop: 4 }]}>
-            <Text style={styles.boldDetail}>Semnătură:</Text>{' '}
-            _____________________
+          <Text style={styles.legalText}>
+            <Text style={styles.bold}>Observații:</Text> Prezenta factură ține
+            loc de contract în cazul în care între părți nu a fost încheiat un
+            contract. În vederea întocmirii documentelor financiar-contabile,
+            clientul este de acord cu prelucrarea datelor personale conform
+            Legii nr. 190/2018.
           </Text>
         </View>
-
-        {/* COL 3: Totaluri + Semnătură Client */}
-        <View style={styles.colTotals}>
-          {/* Total Net | Total TVA */}
-          <View style={styles.totalsGrid}>
-            <View style={[styles.totalBox, styles.totalBoxBorder]}>
-              <Text style={styles.totalLabelSmall}>Total Net:</Text>
-              <Text style={styles.totalValueSmall}>{fmt(subtotal)} Lei</Text>
-            </View>
-            <View style={styles.totalBox}>
-              <Text style={styles.totalLabelSmall}>Total TVA:</Text>
-              <Text style={styles.totalValueSmall}>{fmt(vatTotal)} Lei</Text>
-            </View>
+        {/* 2. SECTIUNEA DE JOS */}
+        <View style={styles.bottomSection}>
+          {/* COL 1: Legal Disclaimer */}
+          <View style={styles.colLegal}>
+            <Text
+              style={[styles.legalText, { textAlign: 'center', fontSize: 5 }]}
+            >
+              Factura valabilă fără semnătură și ștampilă cf. art. 319 alin.
+              (29) din Lg. 227/2015
+            </Text>
           </View>
 
-          {/* TOTAL DE PLATĂ */}
-          <View style={styles.grandTotalRow}>
-            <Text style={styles.grandTotalLabel}>TOTAL DE PLATĂ</Text>
-            <Text style={styles.grandTotalValue}>{fmt(grandTotal)} RON</Text>
+          {/* COL 2: Date Expediție (Stilizat ca Detalii Document din Header) */}
+          <View style={styles.colExpedition}>
+            <Text style={styles.sectionLabelFooter}>
+              Date privind expediția
+            </Text>
+
+            {delegateName && (
+              <Text style={styles.expeditionDetails}>
+                <Text style={styles.boldDetail}>Nume delegat:</Text>{' '}
+                {delegateName}
+              </Text>
+            )}
+
+            {delegateVehicle && (
+              <Text style={styles.expeditionDetails}>
+                <Text style={styles.boldDetail}>Mijloc transp.:</Text>{' '}
+                {delegateVehicle}
+              </Text>
+            )}
+
+            {delegateTrailer && (
+              <Text style={styles.expeditionDetails}>
+                <Text style={styles.boldDetail}>Remorca:</Text>{' '}
+                {delegateTrailer}
+              </Text>
+            )}
+
+            {formattedAddress && (
+              <Text style={styles.expeditionDetails}>
+                <Text style={styles.boldDetail}>Adresa livrare:</Text>{' '}
+                {formattedAddress}
+              </Text>
+            )}
+
+            <Text style={styles.expeditionDetails}>
+              <Text style={styles.boldDetail}>Data expedierii:</Text>{' '}
+              {new Date().toLocaleDateString('ro-RO')}
+            </Text>
+
+            <Text style={[styles.expeditionDetails, { marginTop: 4 }]}>
+              <Text style={styles.boldDetail}>Semnătură:</Text>{' '}
+              _____________________
+            </Text>
           </View>
 
-          {/* Semnătura de primire */}
-          <View style={styles.clientSignatureSection}>
-            <Text style={{ fontSize: 7, fontWeight: 'bold' }}>
-              Semnătura de primire
-            </Text>
-            <Text style={{ fontSize: 5, color: PDF_COLORS.textMuted }}>
-              (Beneficiar)
-            </Text>
+          {/* COL 3: Totaluri + Semnătură Client */}
+          <View style={styles.colTotals}>
+            {/* Total Net | Total TVA */}
+            <View style={styles.totalsGrid}>
+              <View style={[styles.totalBox, styles.totalBoxBorder]}>
+                <Text style={styles.totalLabelSmall}>Total Net:</Text>
+                <Text style={styles.totalValueSmall}>{fmt(subtotal)} Lei</Text>
+              </View>
+              <View style={styles.totalBox}>
+                <Text style={styles.totalLabelSmall}>Total TVA:</Text>
+                <Text style={styles.totalValueSmall}>{fmt(vatTotal)} Lei</Text>
+              </View>
+            </View>
+
+            {/* TOTAL DE PLATĂ */}
+            <View style={styles.grandTotalRow}>
+              <Text style={styles.grandTotalLabel}>TOTAL DE PLATĂ</Text>
+              <Text style={styles.grandTotalValue}>{fmt(grandTotal)} RON</Text>
+            </View>
+
+            {/* Semnătura de primire */}
+            <View style={styles.clientSignatureSection}>
+              <Text style={{ fontSize: 7, fontWeight: 'bold' }}>
+                Semnătura de primire
+              </Text>
+              <Text style={{ fontSize: 5, color: PDF_COLORS.textMuted }}>
+                (Beneficiar)
+              </Text>
+            </View>
           </View>
         </View>
       </View>

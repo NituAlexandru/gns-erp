@@ -60,6 +60,7 @@ export interface IInvoiceDoc extends Document {
   vehicleNumber?: string
   vehicleType?: string
   trailerNumber?: string
+  uitCode?: string
   deliveryAddressId: Types.ObjectId
   deliveryAddress: ClientSnapshot['address']
   logisticSnapshots: {
@@ -92,7 +93,7 @@ const FiscalAddressSubSchema = new Schema(
     persoanaContact: { type: String },
     telefonContact: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const CompanySnapshotSubSchema = new Schema<CompanySnapshot>(
@@ -107,7 +108,7 @@ const CompanySnapshotSubSchema = new Schema<CompanySnapshot>(
     iban: { type: String, required: true },
     currency: { type: String, required: true },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const ClientSnapshotSubSchema = new Schema<ClientSnapshot>(
@@ -120,7 +121,7 @@ const ClientSnapshotSubSchema = new Schema<ClientSnapshot>(
     bank: { type: String },
     iban: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const InvoiceLineSubSchema = new Schema<InvoiceLineInput>(
@@ -168,7 +169,7 @@ const InvoiceLineSubSchema = new Schema<InvoiceLineInput>(
       required: false,
     },
   },
-  { _id: true }
+  { _id: true },
 ) // Permitem _id pe linii
 
 const InvoiceTotalsSubSchema = new Schema<InvoiceTotals>(
@@ -210,7 +211,7 @@ const InvoiceTotalsSubSchema = new Schema<InvoiceTotals>(
     totalProfit: { type: Number, default: 0 },
     profitMargin: { type: Number, default: 0 },
   },
-  { _id: false }
+  { _id: false },
 )
 
 // --- Schema Principală a Facturii ---
@@ -274,6 +275,7 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
     vehicleNumber: { type: String },
     vehicleType: { type: String },
     trailerNumber: { type: String },
+    uitCode: { type: String },
     notes: { type: String },
     orderNotesSnapshot: { type: String },
     deliveryNotesSnapshot: { type: String },
@@ -306,7 +308,7 @@ const InvoiceSchema = new Schema<IInvoiceDoc>(
       index: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 InvoiceSchema.pre<IInvoiceDoc>('save', function (next) {
@@ -362,7 +364,7 @@ InvoiceSchema.pre<IInvoiceDoc>('save', function (next) {
 // Index compus pentru unicitatea Seriei+Numărului
 InvoiceSchema.index(
   { seriesName: 1, sequenceNumber: 1, year: 1 },
-  { unique: true }
+  { unique: true },
 )
 
 const InvoiceModel: Model<IInvoiceDoc> =

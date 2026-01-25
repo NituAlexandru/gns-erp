@@ -87,10 +87,10 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - fise client = creat fisa client si furnizor
 - adminii nu au btn de anulare confirmare aviz. = adaugate
 - comanda si factura adminul trebuie sa poata sa vanda si sub pretul minim =rezolvat
+- De preluat codul UIT si soferul / masina / remorca pe factura
 
 # Foarte important
 
-- De preluat codul UIT si soferul / masina / remorca pe factura
 - solduri
 - lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
 - scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina + de adaugat trezorerii + TBI bank

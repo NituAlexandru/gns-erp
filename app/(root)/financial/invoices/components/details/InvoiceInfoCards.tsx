@@ -123,12 +123,12 @@ export function InvoiceInfoCards({ invoice }: InvoiceInfoCardsProps) {
             <DetailRow
               icon={User2}
               label='Pers. Contact:'
-              value={`${invoice.deliveryAddress.persoanaContact}`}
+              value={invoice.deliveryAddress.persoanaContact || '-'}
             />
             <DetailRow
               icon={Phone}
               label='Nr. Telefon:'
-              value={`${invoice.deliveryAddress.telefonContact}`}
+              value={invoice.deliveryAddress.telefonContact || '-'}
             />
             <Separator />
             <DetailRow
@@ -167,7 +167,7 @@ export function InvoiceInfoCards({ invoice }: InvoiceInfoCardsProps) {
                 icon={Calendar}
                 label='Data:'
                 value={new Date(invoice.invoiceDate).toLocaleDateString(
-                  'ro-RO'
+                  'ro-RO',
                 )}
               />
             </div>
@@ -241,6 +241,15 @@ export function InvoiceInfoCards({ invoice }: InvoiceInfoCardsProps) {
               icon={Truck}
               label='Remorca:'
               value={invoice.trailerNumber || '-'}
+            />
+            <DetailRow
+              icon={FileText}
+              label='Cod UIT (e-Transport):'
+              value={
+                <span className='font-mono font-bold text-primary'>
+                  {invoice.uitCode || '-'}
+                </span>
+              }
             />
             <DetailRow
               icon={Calendar}

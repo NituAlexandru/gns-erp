@@ -42,7 +42,7 @@ export const ClientSnapshotSchema = z.object({
   cui: z.string().optional(),
   regCom: z.string().optional(),
   cnp: z.string().optional(),
-  address: FiscalAddressSchema, 
+  address: FiscalAddressSchema,
   bank: z.string().optional(),
   iban: z.string().optional(),
 })
@@ -74,7 +74,7 @@ export const InvoiceLineSchema = z.object({
       z.object({
         unitName: z.string(),
         baseUnitEquivalent: z.number(),
-      })
+      }),
     )
     .optional()
     .default([]),
@@ -173,6 +173,7 @@ export const InvoiceInputSchema = z.object({
   vehicleNumber: z.string().optional(),
   vehicleType: z.string().optional(),
   trailerNumber: z.string().optional(),
+  uitCode: z.string().optional(),
   paidAmount: z.number().optional(),
   remainingAmount: z.number().optional(),
   advanceScope: z.enum(ADVANCE_SCOPES).optional(),
