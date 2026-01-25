@@ -97,7 +97,7 @@ export function OrderItemsManager({
   const [itemPopoverOpen, setItemPopoverOpen] = useState(false)
   const [itemSearchTerm, setItemSearchTerm] = useState('')
   const [itemSearchResults, setItemSearchResults] = useState<SearchedProduct[]>(
-    []
+    [],
   )
   const [isLoadingItems, setIsLoadingItems] = useState(false)
   const debouncedItemSearch = useDebounce(itemSearchTerm, 300)
@@ -142,7 +142,7 @@ export function OrderItemsManager({
             (newMinPrice) => ({
               index,
               newMinPrice: Number(newMinPrice.toFixed(2)),
-            })
+            }),
           )
         }
         return Promise.resolve(null)
@@ -200,7 +200,7 @@ export function OrderItemsManager({
 
       if (!fullData) {
         toast.error(
-          'Detaliile complete ale articolului nu au putut fi încărcate.'
+          'Detaliile complete ale articolului nu au putut fi încărcate.',
         )
         setIsAddingItem(false)
         return
@@ -208,7 +208,7 @@ export function OrderItemsManager({
 
       const unformattedMinPrice = await calculateMinimumPrice(
         item._id,
-        deliveryMethod
+        deliveryMethod,
       )
       const minPrice = Number(unformattedMinPrice.toFixed(2))
 
@@ -249,7 +249,7 @@ export function OrderItemsManager({
 
       const initialUnit = getUnitPreference(
         fullData._id.toString(),
-        fullData.unit
+        fullData.unit,
       )
 
       const newItem: OrderLineItemInput = {
@@ -295,7 +295,7 @@ export function OrderItemsManager({
 
     if (!effectiveVat) {
       toast.error(
-        `Nu s-a găsit o cotă de TVA validă pentru serviciul "${service.name}".`
+        `Nu s-a găsit o cotă de TVA validă pentru serviciul "${service.name}".`,
       )
       return
     }
@@ -313,7 +313,7 @@ export function OrderItemsManager({
     // Dacă am preluat costul calculat, anunțăm utilizatorul (doar informativ)
     if (service.isPerDelivery && recommendedCost > 0) {
       toast.info(
-        `Cost intern actualizat la: ${formatCurrency(finalCost)} (Calculat pe distanță)`
+        `Cost intern actualizat la: ${formatCurrency(finalCost)} (Calculat pe distanță)`,
       )
     }
 
@@ -369,7 +369,7 @@ export function OrderItemsManager({
   const filteredPermits = useMemo(() => {
     if (!permitSearchTerm) return permits
     return permits.filter((p) =>
-      p.name.toLowerCase().includes(permitSearchTerm.toLowerCase())
+      p.name.toLowerCase().includes(permitSearchTerm.toLowerCase()),
     )
   }, [permits, permitSearchTerm])
 

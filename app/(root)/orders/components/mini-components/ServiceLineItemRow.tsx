@@ -27,6 +27,7 @@ export function ServiceLineItemRow({
   vatRates,
   remove,
   itemData,
+  isAdmin,
 }: ServiceLineItemRowProps) {
   const { control, setValue } = useFormContext()
 
@@ -42,7 +43,7 @@ export function ServiceLineItemRow({
   const [minimumPrice] = useState(
     minimumSalePrice !== undefined && minimumSalePrice !== null
       ? minimumSalePrice
-      : priceAtTimeOfOrder
+      : priceAtTimeOfOrder,
   )
 
   const vatRate = vatRateDetails?.rate || 0
@@ -119,10 +120,17 @@ export function ServiceLineItemRow({
                   if (!isNaN(numValue)) {
                     // Verifică dacă prețul este sub minim
                     if (numValue < minimumPrice) {
-                      numValue = minimumPrice
-                      toast.info(
-                        `Prețul pentru "${productName}" a fost ajustat la minimul acceptat.`
-                      )
+                      if (isAdmin) {
+                        toast.warning(
+                          `Preț setat sub minim (${formatCurrency(minimumPrice)}). Permis pentru Admin.`,
+                        )
+                      } else {
+                        // USER: Resetăm forțat la minim
+                        numValue = minimumPrice
+                        toast.info(
+                          `Prețul pentru "${productName}" a fost ajustat la minimul acceptat.`,
+                        )
+                      }
                     }
 
                     setValue(`lineItems.${index}.priceAtTimeOfOrder`, numValue)

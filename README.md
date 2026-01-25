@@ -63,7 +63,6 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 - verifica advanceScope
 
-
 # Pag produs - generala
 
 - de verificat btn de edit / sterge sa fie conditionate doar pt admin.
@@ -85,16 +84,15 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 - err de 1 ban la receptii = adaugat marja de 0.03 bani la receptii
 - nir - de scos costul de transport = rezolvat
-- fise client
+- fise client = creat fisa client si furnizor
+- adminii nu au btn de anulare confirmare aviz. = adaugate
+- comanda si factura adminul trebuie sa poata sa vanda si sub pretul minim =rezolvat
 
 # Foarte important
 
-
-- lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
-- solduri
-- adminii nu au btn de anulare confirmare aviz.
-- comanda si factura adminul trebuie sa poata sa vanda si sub pretul minim
 - De preluat codul UIT si soferul / masina / remorca pe factura
+- solduri
+- lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
 - scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina + de adaugat trezorerii + TBI bank
 - de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
 - aspect factura - de verificat la fact mai mari de o pagina

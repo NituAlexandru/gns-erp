@@ -19,6 +19,7 @@ interface InvoiceFormProductRowProps {
   itemData: InvoiceLineInput
   remove: (index: number) => void
   isVatDisabled: boolean
+  isAdmin: boolean
 }
 
 export function InvoiceFormProductRow({
@@ -26,6 +27,7 @@ export function InvoiceFormProductRow({
   itemData,
   remove,
   isVatDisabled,
+  isAdmin,
 }: InvoiceFormProductRowProps) {
   const { control, setValue, watch } = useFormContext<InvoiceInput>()
   const watchedInvoiceType = watch('invoiceType')
@@ -47,7 +49,7 @@ export function InvoiceFormProductRow({
   } = itemData
 
   const rowMinimumPrice = useMemo(() => {
-    return round2(minimumSalePrice * conversionFactor || 1)
+    return round2((minimumSalePrice || 0) * (conversionFactor || 1))
   }, [minimumSalePrice, conversionFactor])
 
   useEffect(() => {
@@ -164,7 +166,7 @@ export function InvoiceFormProductRow({
                       // Validare: nu poți returna mai mult decât a fost facturat
                       if (positiveVal > originalQtyAbs) {
                         toast.error(
-                          `Nu poți stornare mai mult (${positiveVal}) decât factura originală (${originalQtyAbs}).`
+                          `Nu poți stornare mai mult (${positiveVal}) decât factura originală (${originalQtyAbs}).`,
                         )
                         field.onChange(itemData.quantity) // Reset la maximul permis
                       } else {
@@ -202,9 +204,11 @@ export function InvoiceFormProductRow({
           defaultValue={itemData.unitPrice}
           render={({ field }) => (
             <div className='relative '>
-              {!isStornoRow && rowMinimumPrice > 0 && (
-                <p className='absolute bottom-9 left-0 text-xs text-muted-foreground text-center w-full'>
-                  Min: {formatCurrency(rowMinimumPrice)}
+              {!isStornoRow && (
+                <p className='absolute bottom-10 left-0 w-full text-center text-[11px] font-bold text-red-600 leading-none'>
+                  {rowMinimumPrice > 0
+                    ? `Min: ${formatCurrency(rowMinimumPrice)}`
+                    : 'Nu are preț Min.'}
                 </p>
               )}
               <Input
@@ -217,19 +221,32 @@ export function InvoiceFormProductRow({
                 }
                 onBlur={(e) => {
                   let numValue = parseFloat(e.target.value)
-                  if (!isNaN(numValue)) {
-                    if (numValue < rowMinimumPrice) {
+
+                  // 1. Dacă userul a șters tot sau a scris prostii -> Punem 0.
+                  // NU punem rowMinimumPrice (adică am scos fallback-ul nedorit).
+                  if (isNaN(numValue)) {
+                    field.onChange(0)
+                    return
+                  }
+
+                  // 2. Validăm DOAR dacă există un minim real (> 0)
+                  // ȘI dacă prețul introdus e mai mic decât el.
+                  if (rowMinimumPrice > 0 && numValue < rowMinimumPrice) {
+                    if (isAdmin) {
+                      toast.warning(
+                        `Preț sub suma minima de (${formatCurrency(rowMinimumPrice)}). Permis doar pentru Admin.`,
+                      )
+                      // Adminul e lăsat în pace, numValue rămâne cât a scris el
+                    } else {
                       numValue = rowMinimumPrice
                       toast.info(
-                        `Prețul a fost ajustat la minimul de ${formatCurrency(
-                          numValue
-                        )}.`
+                        `Prețul a fost corectat la minimul de ${formatCurrency(rowMinimumPrice)}.`,
                       )
                     }
-                    field.onChange(numValue)
-                  } else {
-                    field.onChange(rowMinimumPrice)
                   }
+
+                  // 3. Salvăm valoarea finală
+                  field.onChange(numValue)
                 }}
                 className='w-full text-right'
               />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useMemo } from 'react'
+import { useEffect, useRef, useMemo, useState } from 'react'
 import { useFormContext, Controller, useWatch } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -12,12 +12,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Trash2 } from 'lucide-react'
+import { LockKeyhole, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUnitConversion } from '@/hooks/use-unit-conversion'
 import { formatCurrency } from '@/lib/utils'
 import { OrderLineItemRowProps } from './OrderLineItemRow'
 import { OrderLineItemInput } from '@/lib/db/modules/order/types'
+import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 type UnitOption = {
   unitName: string
@@ -33,8 +40,10 @@ export function ProductLineItemRow({
   vatRates,
   remove,
   itemData,
+  isAdmin,
 }: ProductLineItemRowProps) {
   const { control, setValue, getValues } = useFormContext()
+  const [isUmConfirmed, setIsUmConfirmed] = useState(false)
 
   const {
     productId,
@@ -55,7 +64,7 @@ export function ProductLineItemRow({
       unit: baseUnit || '',
       packagingOptions: packagingOptions || [],
     }),
-    [productId, baseUnit, packagingOptions]
+    [productId, baseUnit, packagingOptions],
   )
 
   const { handleUnitChange, allUnits, convertedPrice, conversionFactor } =
@@ -76,10 +85,7 @@ export function ProductLineItemRow({
   }, [unitOfMeasureFromForm, handleUnitChange])
 
   useEffect(() => {
-    if (
-      conversionFactor !== prevConversionFactor.current &&
-      prevConversionFactor.current !== 1
-    ) {
+    if (conversionFactor !== prevConversionFactor.current) {
       const path = `lineItems.${index}.priceAtTimeOfOrder` as const
       const currentPrice = Number(getValues(path) ?? 0)
       const prev = prevConversionFactor.current || 1
@@ -90,7 +96,7 @@ export function ProductLineItemRow({
       setValue(path, finalPrice, { shouldDirty: true })
     }
     prevConversionFactor.current = conversionFactor || 1
-  }, [conversionFactor, index, getValues, setValue])
+  }, [conversionFactor, index, getValues, setValue, unitOfMeasureFromForm])
 
   useEffect(() => {
     if (!convertedPrice || convertedPrice <= 0) return
@@ -98,23 +104,31 @@ export function ProductLineItemRow({
     const currentPrice = Number(getValues(path) ?? 0)
     const formattedMinPrice = Number(convertedPrice.toFixed(2))
 
-    if (currentPrice < formattedMinPrice) {
+    if (!isAdmin && currentPrice < formattedMinPrice) {
       setValue(path, formattedMinPrice, { shouldDirty: true })
 
       const selectedUnitFromForm = getValues(`lineItems.${index}.unitOfMeasure`)
       if (productName && selectedUnitFromForm) {
         toast.info(
-          `Prețul pentru "${productName}" a fost ajustat la noul minim pentru ${selectedUnitFromForm}.`
+          `Prețul pentru "${productName}" a fost ajustat la noul minim pentru ${selectedUnitFromForm}.`,
         )
       }
     }
-  }, [convertedPrice, index, getValues, setValue, productName])
+  }, [
+    convertedPrice,
+    index,
+    getValues,
+    setValue,
+    productName,
+    isAdmin,
+    unitOfMeasureFromForm,
+  ])
 
   useEffect(() => {
     const vatRate = vatRateDetails?.rate || 0
     const lineSubtotal = priceAtTimeOfOrder * quantity
     const calculatedVatValue = Number(
-      ((vatRate / 100) * lineSubtotal).toFixed(2)
+      ((vatRate / 100) * lineSubtotal).toFixed(2),
     )
 
     if (vatRateDetails?.value !== calculatedVatValue) {
@@ -143,54 +157,86 @@ export function ProductLineItemRow({
     <TableRow>
       <TableCell className='font-medium w-full '>{productName}</TableCell>
 
+      {/* --- COL CANTITATE --- */}
       <TableCell>
-        <Controller
-          name={`lineItems.${index}.quantity`}
-          control={control}
-          defaultValue={1}
-          render={({ field }) => (
-            <Input
-              {...field}
-              type='number'
-              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-              onBlur={(e) => {
-                const numValue = parseFloat(e.target.value)
-                if (!isNaN(numValue)) {
-                  field.onChange(numValue.toFixed(2))
-                }
-              }}
-              className='min-w-[100px]'
-            />
+        <div className='relative w-full'>
+          {!isUmConfirmed && (
+            <div className='absolute bottom-full left-0 mb-1 w-full text-center text-[12px] font-bold text-destructive animate-pulse whitespace-nowrap pointer-events-none'>
+              Confirmă U.M. →
+            </div>
           )}
-        />
+
+          <Controller
+            name={`lineItems.${index}.quantity`}
+            control={control}
+            defaultValue={1}
+            render={({ field }) => (
+              <>
+                <Input
+                  {...field}
+                  type='number'
+                  disabled={!isUmConfirmed}
+                  onChange={(e) =>
+                    field.onChange(parseFloat(e.target.value) || 0)
+                  }
+                  onBlur={(e) => {
+                    const val = parseFloat(e.target.value)
+                    if (!isNaN(val)) field.onChange(val.toFixed(2))
+                  }}
+                  className={`min-w-[100px] ${!isUmConfirmed ? 'cursor-not-allowed bg-muted text-muted-foreground' : ''}`}
+                />
+
+                {!isUmConfirmed && (
+                  <LockKeyhole className='absolute right-2 top-2.5 h-4 w-4 text-destructive opacity-70' />
+                )}
+              </>
+            )}
+          />
+        </div>
       </TableCell>
 
       <TableCell className='w-[120px] py-3'>
         <Controller
           name={`lineItems.${index}.unitOfMeasure`}
           control={control}
-          render={({ field }) => (
-            <Select
-              onValueChange={(value) => {
-                field.onChange(value)
-                handleUnitChange(value)
-              }}
-              value={field.value}
-            >
-              <SelectTrigger className='min-w-[100px]'>
-                <SelectValue placeholder='Selectează...' />
-              </SelectTrigger>
-              <SelectContent>
-                {(allUnits || []).map((unitOption: UnitOption) => (
-                  <SelectItem
-                    key={unitOption.unitName}
-                    value={unitOption.unitName}
-                  >
-                    {unitOption.unitName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          render={({ field, fieldState }) => (
+            <div className='flex flex-col'>
+              <Select
+                onOpenChange={() => setIsUmConfirmed(true)}
+                onValueChange={(value) => {
+                  field.onChange(value)
+                  handleUnitChange(value)
+                  const code = getEFacturaUomCode(value)
+                  setValue(`lineItems.${index}.unitOfMeasureCode`, code)
+                  setIsUmConfirmed(true)
+                }}
+                value={field.value}
+              >
+                <SelectTrigger
+                  className={`min-w-[100px] ${fieldState.invalid ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                >
+                  <SelectValue placeholder='Selectează...' />
+                </SelectTrigger>
+
+                <SelectContent>
+                  {(allUnits || []).map((unitOption: UnitOption) => (
+                    <SelectItem
+                      key={unitOption.unitName}
+                      value={unitOption.unitName}
+                    >
+                      {unitOption.unitName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* MODIFICAREA 3: Afișezi mesajul de eroare sub dropdown */}
+              {fieldState.error && (
+                <span className='text-[10px] text-red-500 font-medium mt-1'>
+                  Selectează UM
+                </span>
+              )}
+            </div>
           )}
         />
       </TableCell>
@@ -222,11 +268,20 @@ export function ProductLineItemRow({
                   const formattedMinPrice = Number(convertedPrice.toFixed(2))
 
                   if (!isNaN(numValue)) {
+                    // MODIFICARE: Verificăm rolul
                     if (numValue < formattedMinPrice) {
-                      numValue = formattedMinPrice
-                      toast.info(
-                        `Prețul a fost ajustat la minimul de ${formatCurrency(formattedMinPrice)}.`
-                      )
+                      if (isAdmin) {
+                        // Daca e ADMIN -> Permitem, dar dăm un avertisment galben
+                        toast.warning(
+                          `Preț setat sub limita minimă (${formatCurrency(formattedMinPrice)}). Permis pentru Admin.`,
+                        )
+                      } else {
+                        // Daca NU e Admin -> Resetăm la minim
+                        numValue = formattedMinPrice
+                        toast.info(
+                          `Prețul a fost ajustat la minimul de ${formatCurrency(formattedMinPrice)}.`,
+                        )
+                      }
                     }
                     field.onChange(numValue.toFixed(2))
                   } else {

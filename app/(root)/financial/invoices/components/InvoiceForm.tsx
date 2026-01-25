@@ -61,6 +61,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
+import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 
 interface InvoiceFormProps {
   initialData: (Partial<InvoiceInput> & { _id?: string }) | null
@@ -78,6 +79,11 @@ export function InvoiceForm({
   services,
 }: InvoiceFormProps) {
   const { data: session } = useSession()
+  const isAdmin = session?.user?.role
+    ? SUPER_ADMIN_ROLES.some(
+        (role) => role.toLowerCase() === session.user.role.toLowerCase(),
+      )
+    : false
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(
@@ -988,6 +994,7 @@ export function InvoiceForm({
             loadedStornoSources={loadedStornoSources}
             onRemoveStornoSource={handleRemoveStornoSource}
             isVatDisabled={watchedVatCategory !== 'S'}
+            isAdmin={isAdmin}
           />
 
           <div className='flex gap-2'>

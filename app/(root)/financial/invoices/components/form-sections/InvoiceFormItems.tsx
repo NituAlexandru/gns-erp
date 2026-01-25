@@ -46,6 +46,7 @@ interface InvoiceFormItemsProps {
   onRemoveStornoSource: (invoiceId: string) => void
   onShowStornoProductModal: () => void
   isVatDisabled: boolean
+  isAdmin: boolean
 }
 
 export function InvoiceFormItems({
@@ -61,6 +62,7 @@ export function InvoiceFormItems({
   onRemoveStornoSource,
   onShowStornoProductModal,
   isVatDisabled,
+  isAdmin,
 }: InvoiceFormItemsProps) {
   const form = useFormContext<InvoiceInput>()
   const totals = form.watch('totals')
@@ -507,6 +509,7 @@ export function InvoiceFormItems({
                     itemData={item}
                     remove={remove}
                     isVatDisabled={isVatDisabled}
+                    isAdmin={isAdmin}
                   />
                 )
               }

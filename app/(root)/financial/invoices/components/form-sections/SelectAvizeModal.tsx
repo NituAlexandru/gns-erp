@@ -45,7 +45,7 @@ export function SelectAvizeModal({
       if (result.success && result.data) {
         // --- 3. FILTREAZĂ REZULTATELE ---
         const filteredAvize = result.data.filter(
-          (note) => !alreadyLoadedNoteIds.includes(note._id.toString())
+          (note) => !alreadyLoadedNoteIds.includes(note._id.toString()),
         )
         setAvize(filteredAvize) // Setează lista deja filtrată
         // --- SFÂRȘIT MODIFICARE ---
@@ -72,7 +72,7 @@ export function SelectAvizeModal({
 
   const handleConfirmClick = () => {
     const selectedNotes = avize.filter((note) =>
-      selectedIds.has(note._id.toString())
+      selectedIds.has(note._id.toString()),
     )
     onConfirm(selectedNotes)
     onClose()
@@ -111,7 +111,7 @@ export function SelectAvizeModal({
                   key={noteId}
                   className={cn(
                     'flex items-center space-x-4 rounded-md border p-4 cursor-pointer',
-                    isSelected && 'border-primary ring-1 ring-primary'
+                    isSelected && 'border-primary ring-1 ring-primary',
                   )}
                   onClick={() => handleToggleSelect(noteId)}
                 >
@@ -119,6 +119,7 @@ export function SelectAvizeModal({
                     checked={isSelected}
                     onCheckedChange={() => handleToggleSelect(noteId)}
                     aria-label={`Selectează aviz ${note.noteNumber}`}
+                    className='pointer-events-none'
                   />
                   <div className='flex-1 grid grid-cols-3 gap-4 text-sm'>
                     <div className='font-semibold'>
