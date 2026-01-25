@@ -76,7 +76,9 @@ export function DeliveryNotesList({
 
   const { data: session } = useSession()
   const userRole = session?.user?.role || ''
-  const isSuperAdmin = SUPER_ADMIN_ROLES.includes(userRole)
+  const isSuperAdmin = SUPER_ADMIN_ROLES.some(
+    (role) => role.toLowerCase() === userRole.toLowerCase().trim(),
+  )
 
   const [notes, setNotes] = useState<DeliveryNoteDTO[]>(initialData.data)
   const [totalPages, setTotalPages] = useState(initialData.totalPages)
