@@ -25,6 +25,7 @@ interface PdfHeaderProps {
     accompanyingDocs?: string
     carNumber?: string
     driverName?: string
+    currentBalance?: number
   }
   title: string
 }
@@ -232,9 +233,6 @@ export const PdfHeader: React.FC<PdfHeaderProps> = ({
           <Text style={[styles.sectionLabel, { textAlign: 'center' }]}>
             Detalii Document
           </Text>
-
-          {/* Conținutul de detalii îl centrăm manual aici, sau îl lăsăm stânga */}
-          {/* Dacă vrei ca textul de sub titlu să fie centrat: */}
           <View style={{ width: '100%', paddingLeft: 30 }}>
             {docTypeLabel && (
               <Text
@@ -249,14 +247,54 @@ export const PdfHeader: React.FC<PdfHeaderProps> = ({
                 {docTypeLabel}
               </Text>
             )}
-            <Text style={styles.details}>
-              <Text style={styles.bold}>Serie:</Text> {meta.series}{' '}
-              <Text style={styles.bold}>Număr:</Text> {meta.number}
-            </Text>
+            {(meta.series || meta.number) && (
+              <Text style={styles.details}>
+                <Text style={styles.bold}>Serie:</Text> {meta.series}{' '}
+                <Text style={styles.bold}>Număr:</Text> {meta.number}
+              </Text>
+            )}
+
             <Text style={styles.details}>
               <Text style={styles.bold}>Data Emiterii:</Text>{' '}
               {formatData(meta.date)}
             </Text>
+            {meta.currentBalance !== undefined && (
+              <View
+                style={{
+                  marginTop: 5,
+                  padding: 6,
+                  backgroundColor: '#f8fafc',
+                  borderWidth: 1,
+                  borderColor: '#e2e8f0',
+                  borderRadius: 4,
+                  alignItems: 'flex-start',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 6,
+                    color: '#64748b',
+                    textTransform: 'uppercase',
+                    marginBottom: 2,
+                  }}
+                >
+                  SOLD ACTUAL
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    color: meta.currentBalance > 0 ? '#dc2626' : '#16a34a',
+                  }}
+                >
+                  {new Intl.NumberFormat('ro-RO', {
+                    style: 'currency',
+                    currency: 'RON',
+                  }).format(meta.currentBalance)}
+                </Text>
+              </View>
+            )}
+
             {meta.dueDate && (
               <Text style={styles.details}>
                 <Text style={styles.bold}>Dată Scadență:</Text>{' '}

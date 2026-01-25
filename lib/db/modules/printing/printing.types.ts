@@ -69,7 +69,14 @@ export interface PdfTotals {
 // Interfața Generic DTO pentru Printare
 // Orice document (Invoice, Nir, etc) va fi convertit în asta.
 export interface PdfDocumentData {
-  type: 'INVOICE' | 'NOTICE' | 'RECEIPT' | 'DELIVERY_NOTE' | 'NIR'
+  type:
+    | 'INVOICE'
+    | 'NOTICE'
+    | 'RECEIPT'
+    | 'DELIVERY_NOTE'
+    | 'NIR'
+    | 'CLIENT_LEDGER'
+    | 'SUPPLIER_LEDGER'
   series: string
   number: string
   date: string
@@ -110,4 +117,21 @@ export interface PdfDocumentData {
   items: PdfLineItem[]
   totals: PdfTotals
   status?: string
+  ledgerData?: {
+    summary: {
+      initialBalance: number
+      totalDebit: number
+      totalCredit: number
+      finalBalance: number
+    }
+    entries: {
+      date: string
+      documentNumber: string
+      details: string
+      debit: number
+      credit: number
+      balance: number
+      dueDate?: string
+    }[]
+  }
 }

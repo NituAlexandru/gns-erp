@@ -15,6 +15,8 @@ import { Loader2, AlertCircle } from 'lucide-react'
 import { DeliveryNoteTemplate } from './templates/DeliveryNoteTemplate'
 import { NirTemplate } from './templates/NirTemplate'
 import { ReceiptTemplate } from './templates/ReceiptTemplate'
+import { ClientLedgerTemplate } from './templates/ClientLedgerTemplate'
+import { SupplierLedgerTemplate } from './templates/SupplierLedgerTemplate'
 
 export interface PdfPreviewModalProps {
   isOpen: boolean
@@ -40,6 +42,10 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
         return <NirTemplate data={data} />
       case 'RECEIPT':
         return <ReceiptTemplate data={data} />
+      case 'CLIENT_LEDGER':
+        return <ClientLedgerTemplate data={data} />
+      case 'SUPPLIER_LEDGER':
+        return <SupplierLedgerTemplate data={data} />
       default:
         return null
     }

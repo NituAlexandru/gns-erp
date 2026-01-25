@@ -4,10 +4,14 @@ import { useState } from 'react'
 import { IClientSummary } from '@/lib/db/modules/client/summary/client-summary.model'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { AlertTriangle, Edit2, Lock, Unlock } from 'lucide-react'
+import { AlertTriangle, Edit2, Lock, Printer, Unlock } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { SetCreditLimitModal } from './[id]/[slug]/SetCreditLimitModal'
 import { LOCKING_STATUS } from '@/lib/db/modules/client/summary/client-summary.constants'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { getPrintData } from '@/lib/db/modules/printing/printing.actions'
+import { toast } from 'sonner'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface ClientSummaryCardProps {
   summary: IClientSummary
@@ -23,7 +27,9 @@ export default function ClientSummaryCard({
   isAdmin,
 }: ClientSummaryCardProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
-
+  const [isPdfOpen, setIsPdfOpen] = useState(false)
+  const [pdfData, setPdfData] = useState<PdfDocumentData | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
   // --- Logica pentru Cardul 1 (Sold) ---
   const isOverdue = summary.outstandingBalance > 0
   const soldTitle = isOverdue ? 'Sold Restant' : 'Sold Curent (Avans)'
@@ -58,16 +64,51 @@ export default function ClientSummaryCard({
       : 'Excepție manuală'
   }
 
+  const handlePrintLedger = async () => {
+    setIsGeneratingPdf(true)
+    setIsPdfOpen(true) // Deschidem modalul imediat cu loading state
+
+    try {
+      const result = await getPrintData(clientId, 'CLIENT_LEDGER' as any) // Cast as any temporar pana se actualizeaza tipurile in tot proiectul sau modifica tipul in functie
+      if (result.success) {
+        setPdfData(result.data)
+      } else {
+        toast.error('Eroare', { description: result.message })
+        setIsPdfOpen(false)
+      }
+    } catch (e) {
+      toast.error('Eroare server la generarea PDF')
+      setIsPdfOpen(false)
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
+
   return (
     <>
+      <PdfPreviewModal
+        isOpen={isPdfOpen}
+        onClose={() => setIsPdfOpen(false)}
+        data={pdfData}
+        isLoading={isGeneratingPdf}
+      />
       <div className='p-2 rounded-lg border'>
         <h2 className='text-lg font-semibold mb-2'>Sumar Financiar</h2>
 
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 w-full'>
           {/* 1. Sold Curent / Restant (Modificat) */}
           <Card>
-            <CardHeader>
+            <CardHeader className='flex flex-row items-center justify-between pb-2 space-y-0'>
               <CardTitle className='text-sm font-medium'>{soldTitle}</CardTitle>
+              <Button
+                variant='ghost'
+                size='icon'
+                className='h-6 w-6 text-muted-foreground hover:text-foreground'
+                onClick={handlePrintLedger}
+                title='Printează Fișa Client'
+              >
+                <Printer className='h-4 w-4' />
+              </Button>
             </CardHeader>
             <CardContent>
               {/* Soldul Operațional (Mare) */}

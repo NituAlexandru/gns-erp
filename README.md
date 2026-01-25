@@ -63,9 +63,6 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 - verifica advanceScope
 
-# Produse admin
-
-- bug la search - de verificat APIUL nu aduce toat einfo
 
 # Pag produs - generala
 
@@ -88,18 +85,19 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 - err de 1 ban la receptii = adaugat marja de 0.03 bani la receptii
 - nir - de scos costul de transport = rezolvat
+- fise client
 
 # Foarte important
 
-- fise client
+
 - lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
+- solduri
 - adminii nu au btn de anulare confirmare aviz.
 - comanda si factura adminul trebuie sa poata sa vanda si sub pretul minim
 - De preluat codul UIT si soferul / masina / remorca pe factura
 - scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina + de adaugat trezorerii + TBI bank
 - de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
 - aspect factura - de verificat la fact mai mari de o pagina
-- solduri + fisa client
 - paletii storno
 - la facturi de la funizori, sa poata fi cautate dupa furnizori (incasari si plati)
 - la produse in aplicatie, sa se afiseze cate buc sunt la palet
