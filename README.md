@@ -80,15 +80,6 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 - FACUT - factura split, trebuie sa bata pe sumele totale conform cotelor, nu fiecare rand + adresa de livrare. factura split, bate pe sumele totale conform cotelor, nu fiecare rand.
 
-# Rezolvate in weekend
-
-- err de 1 ban la receptii = adaugat marja de 0.03 bani la receptii
-- nir - de scos costul de transport = rezolvat
-- fise client = creat fisa client si furnizor
-- adminii nu au btn de anulare confirmare aviz. = adaugate
-- comanda si factura adminul trebuie sa poata sa vanda si sub pretul minim =rezolvat
-- De preluat codul UIT si soferul / masina / remorca pe factura
-
 # Foarte important
 
 - solduri
