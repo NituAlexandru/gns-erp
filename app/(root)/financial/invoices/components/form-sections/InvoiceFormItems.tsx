@@ -297,8 +297,8 @@ export function InvoiceFormItems({
             <p className='text-muted-foreground'>
               Acesta este un formular de <strong>Stornare</strong>. Poți anula
               (storna) doar linii din facturi care au fost deja finalizate (cu
-              statusul <strong>Aprobat</strong> sau <strong>Plătit</strong>).{' '}
-              <br />
+              statusul <strong>Aprobat</strong>, <strong>Plătit</strong> sau{' '}
+              <strong>Partial Plătit)</strong>. <br />
               <span>
                 (Facturile cu statusul <strong>Creată</strong> trebuie anulate
                 sau editate, nu stornate.)

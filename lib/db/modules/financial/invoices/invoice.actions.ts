@@ -201,7 +201,7 @@ export async function getStornoSourceInvoices(
       deliveryAddressId: new Types.ObjectId(deliveryAddressId),
       invoiceType: 'STANDARD',
       // Stornăm doar facturi finalizate (Aprobate sau Plătite)
-      status: { $in: ['APPROVED', 'PAID'] },
+      status: { $in: ['APPROVED', 'PARTIAL_PAID', 'PAID'] },
       seriesName: { $nin: ['INIT-C', 'INIT-AMB'] },
 
       // --- Logica Cheie ---
@@ -1111,7 +1111,7 @@ export async function getStornableProductsList(
             clientId: validClientId,
             deliveryAddressId: validAddressId,
             seriesName: { $nin: ['INIT-C'] },
-            status: { $in: ['APPROVED', 'PAID'] }, // <-- Asta e cheia!
+            status: { $in: ['APPROVED', 'PARTIAL_PAID', 'PAID'] }, // <-- Asta e cheia!
           },
         },
         // --- Faza 2: "Sparge" facturile în linii individuale ---
@@ -1221,7 +1221,7 @@ export async function generateStornoLinesForQuantity(
           clientId: validClientId,
           deliveryAddressId: validAddressId,
           seriesName: { $nin: ['INIT-C'] },
-          status: { $in: ['APPROVED', 'PAID'] },
+          status: { $in: ['APPROVED', 'PARTIAL_PAID', 'PAID'] },
         },
       },
       // Sortează facturile (FIFO)

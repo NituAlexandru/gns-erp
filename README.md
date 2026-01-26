@@ -83,12 +83,13 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 # Foarte important
 
 - solduri
+- bug lista livrari la filtre
 - lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
 - scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina + de adaugat trezorerii + TBI bank
 - de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
 - aspect factura - de verificat la fact mai mari de o pagina
 - paletii storno
-- la facturi de la funizori, sa poata fi cautate dupa furnizori (incasari si plati)
+
 - la produse in aplicatie, sa se afiseze cate buc sunt la palet
 - La facturi, când modific ceva aș vrea să rămână la aceeași pagină - cu factura modificată
 - LA PRODUSE, CAND CAUT UN PRODUS SA IMI RAMANA ACEL PRODUS , NU SA DISPARA CAND DAU BACK
@@ -96,3 +97,12 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - eroare la anularea facturii
 - NU MA LASA SA ADAUG LINIE CU MINUS, SI AM FACTURI CU DISCOUNT
 - La facturile introduse manual in plăti furnizori ma obliga sa bag serie
+
+# Incasari & Plati
+
+- de scos proformele din lista de alocari!
+- la facturi de la funizori, sa poata fi cautate dupa furnizori (incasari si plati)
+- adaugare alte monezi, EUR, USD
+- filtre, cautare dupa client, incasari totale/zi
+- in modalele de adaugare, afisare sold pana la data (selectabila data)
+- afisare facturi restante la fel ca in modalul de plati
