@@ -42,6 +42,7 @@ type PaymentActionResult = {
 export async function createClientPayment(
   data: CreateClientPaymentInput,
 ): Promise<PaymentActionResult> {
+  await connectToDatabase()
   const session = await startSession()
   let newPaymentDoc: IClientPaymentDoc | null = null
   const allocationDetails: AllocationDetail[] = []
@@ -205,6 +206,7 @@ export async function getClientPayments() {
 export async function cancelClientPayment(
   paymentId: string,
 ): Promise<{ success: boolean; message: string }> {
+  await connectToDatabase()
   const session = await startSession()
 
   // Variabilă pentru a ține minte clientul ca să-i recalculăm soldul la final
