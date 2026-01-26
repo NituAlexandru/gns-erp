@@ -14,9 +14,13 @@ export const connectToDatabase = async (
   MONGODB_ERP_URI = process.env.MONGODB_ERP_URI,
 ) => {
   if (cached.conn) {
-    // Mesaj pentru conexiunea din cache
-    // console.log('🟢 [DB] Folosesc conexiunea existentă (CACHE). /db/index.ts')
-    return cached.conn
+    // Verificăm dacă conexiunea e vie (1 = connected)
+    if (cached.conn.connection.readyState === 1) {
+      return cached.conn
+    }
+    // Dacă e moartă, o aruncăm la gunoi ca să se creeze una nouă mai jos
+    cached.conn = null
+    cached.promise = null
   }
 
   if (!MONGODB_ERP_URI) throw new Error('MONGODB_ERP_URI is missing')
@@ -28,7 +32,8 @@ export const connectToDatabase = async (
       bufferCommands: true, // Păstrăm buffering pentru siguranță
       maxPoolSize: 10, // Mărim pool-ul (default e 5).
       serverSelectionTimeoutMS: 10000, // Timp de așteptare pentru server
-      socketTimeoutMS: 20000, // Timeout pentru operațiuni lungi
+      socketTimeoutMS: 60000, // Timeout pentru operațiuni lungi
+      family: 4,
     }
 
     cached.promise = mongoose

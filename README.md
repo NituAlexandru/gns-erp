@@ -83,13 +83,14 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 # Foarte important
 
 - solduri
+- bug comanda aprovizionare, nu se creaza comanda.
 - bug lista livrari la filtre
 - lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
 - scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina + de adaugat trezorerii + TBI bank
 - de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
 - aspect factura - de verificat la fact mai mari de o pagina
 - paletii storno
-
+- la miscari de stoc cauta doar dupa nume produs, de adaugat si codul.
 - la produse in aplicatie, sa se afiseze cate buc sunt la palet
 - La facturi, când modific ceva aș vrea să rămână la aceeași pagină - cu factura modificată
 - LA PRODUSE, CAND CAUT UN PRODUS SA IMI RAMANA ACEL PRODUS , NU SA DISPARA CAND DAU BACK

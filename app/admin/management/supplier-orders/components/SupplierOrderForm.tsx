@@ -251,20 +251,20 @@ export function SupplierOrderForm({
 
     // Căutăm în state-ul existent
     const selectedAddr = supplierDetails?.loadingAddresses?.find(
-      (a: any) => a._id === addressId
+      (a: any) => a._id === addressId,
     )
 
     if (selectedAddr) {
       if (selectedAddr.distanceInKm) {
         form.setValue(
           'transportDetails.distanceInKm',
-          selectedAddr.distanceInKm
+          selectedAddr.distanceInKm,
         )
       }
       if (selectedAddr.travelTimeInMinutes) {
         form.setValue(
           'transportDetails.travelTimeInMinutes',
-          selectedAddr.travelTimeInMinutes
+          selectedAddr.travelTimeInMinutes,
         )
       }
     }
@@ -281,7 +281,7 @@ export function SupplierOrderForm({
     const fetchDetails = async () => {
       try {
         const details = (await getFullSupplierDetails(
-          selectedSupplierId
+          selectedSupplierId,
         )) as unknown as IFullSupplierDetails
         setSupplierDetails(details)
 
@@ -297,7 +297,7 @@ export function SupplierOrderForm({
           if (addr.travelTimeInMinutes) {
             form.setValue(
               'transportDetails.travelTimeInMinutes',
-              addr.travelTimeInMinutes
+              addr.travelTimeInMinutes,
             )
           }
         } else {
@@ -314,12 +314,12 @@ export function SupplierOrderForm({
   }, [selectedSupplierId, form])
 
   const activeLoadingAddress = supplierDetails?.loadingAddresses?.find(
-    (a) => a._id === selectedLoadingAddressId
+    (a) => a._id === selectedLoadingAddressId,
   )
 
   async function onSubmit(
     data: SupplierOrderCreateInput,
-    targetStatus: SupplierOrderStatus // 'DRAFT' | 'CONFIRMED'
+    targetStatus: SupplierOrderStatus, // 'DRAFT' | 'CONFIRMED'
   ) {
     startTransition(async () => {
       // Injectăm statusul dorit în payload
@@ -336,7 +336,7 @@ export function SupplierOrderForm({
         toast.success(
           targetStatus === 'DRAFT'
             ? 'Ciorna a fost salvată.'
-            : 'Comanda a fost confirmată.'
+            : 'Comanda a fost confirmată.',
         )
         router.push('/admin/management/supplier-orders')
       } else {
@@ -364,7 +364,7 @@ export function SupplierOrderForm({
                     {initialData.supplierOrderDate
                       ? ' - ' +
                         new Date(
-                          initialData.supplierOrderDate
+                          initialData.supplierOrderDate,
                         ).toLocaleDateString('ro-RO')
                       : ''}
                     )
@@ -479,7 +479,7 @@ export function SupplierOrderForm({
                             <Clock className='h-3.5 w-3.5 text-orange-500' />
                             <span className='text-xs font-semibold'>
                               {formatMinutes(
-                                activeLoadingAddress.travelTimeInMinutes
+                                activeLoadingAddress.travelTimeInMinutes,
                               )}
                             </span>
                           </div>
@@ -536,7 +536,7 @@ export function SupplierOrderForm({
                             variant={'outline'}
                             className={cn(
                               'w-full pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
+                              !field.value && 'text-muted-foreground',
                             )}
                           >
                             {field.value ? (
@@ -640,7 +640,24 @@ export function SupplierOrderForm({
             type='button'
             variant='outline'
             disabled={isPending}
-            onClick={form.handleSubmit((data) => onSubmit(data, 'DRAFT'))}
+            onClick={form.handleSubmit(
+              (data) => onSubmit(data, 'DRAFT'),
+              (errors) => {
+                // AICI ESTE FIX-UL: Gestionăm erorile de validare
+                console.error('Validation errors:', errors)
+                // Verificăm dacă există eroare globală (de la .refine)
+                if (errors.root || (errors as any)['']) {
+                  toast.error('Validare eșuată', {
+                    description:
+                      'Comanda trebuie să conțină cel puțin un produs sau un ambalaj.',
+                  })
+                } else {
+                  toast.error('Validare eșuată', {
+                    description: 'Verifică câmpurile marcate cu roșu.',
+                  })
+                }
+              },
+            )}
           >
             {isPending ? 'Se procesează...' : 'Salvează Ciornă'}
           </Button>
@@ -649,7 +666,21 @@ export function SupplierOrderForm({
           <Button
             type='button'
             disabled={isPending}
-            onClick={form.handleSubmit((data) => onSubmit(data, 'CONFIRMED'))}
+            onClick={form.handleSubmit(
+              (data) => onSubmit(data, 'CONFIRMED'),
+              (errors) => {
+                if (errors.root || (errors as any)['']) {
+                  toast.error('Validare eșuată', {
+                    description:
+                      'Comanda trebuie să conțină cel puțin un produs sau un ambalaj.',
+                  })
+                } else {
+                  toast.error('Validare eșuată', {
+                    description: 'Verifică câmpurile marcate cu roșu.',
+                  })
+                }
+              },
+            )}
             className='bg-red-500 hover:bg-red-600'
           >
             {isPending
