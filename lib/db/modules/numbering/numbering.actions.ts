@@ -7,7 +7,7 @@ import Series, { ISeries } from './series.model'
 
 export async function generateNextDocumentNumber(
   seriesName: string,
-  options: { session?: ClientSession } = {}
+  options: { session?: ClientSession } = {},
 ): Promise<number> {
   try {
     await connectToDatabase()
@@ -26,7 +26,7 @@ export async function generateNextDocumentNumber(
         new: true,
         upsert: true,
         session: options.session,
-      }
+      },
     )
 
     if (!counter) {
@@ -39,11 +39,11 @@ export async function generateNextDocumentNumber(
 
     if (error instanceof Error) {
       throw new Error(
-        `Failed to generate next document number: ${error.message}`
+        `Failed to generate next document number: ${error.message}`,
       )
     } else {
       throw new Error(
-        'An unknown error occurred while generating document number.'
+        'An unknown error occurred while generating document number.',
       )
     }
   }
@@ -54,13 +54,13 @@ export async function generateNextDocumentNumber(
  * Folosește `generateNextDocumentNumber` pentru a obține secvența anuală.
  */
 async function getNextOrderSequence(
-  options: { session?: ClientSession } = {}
+  options: { session?: ClientSession } = {},
 ): Promise<number> {
   const currentYear = new Date().getFullYear()
   const counter = await DocumentCounter.findOneAndUpdate(
     { seriesName: 'ORDER', year: currentYear },
     { $inc: { currentNumber: 1 } },
-    { new: true, upsert: true, session: options.session }
+    { new: true, upsert: true, session: options.session },
   )
   if (!counter) {
     throw new Error('Nu s-a putut genera numărul secvențial pentru comandă.')
@@ -68,8 +68,9 @@ async function getNextOrderSequence(
   return counter.currentNumber
 }
 export async function generateOrderNumber(
-  options: { session?: ClientSession } = {}
+  options: { session?: ClientSession } = {},
 ): Promise<string> {
+  await connectToDatabase()
   const nextSequence = await getNextOrderSequence(options)
   const now = new Date()
   const datePrefix = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
@@ -82,17 +83,17 @@ export async function generateOrderNumber(
  * Funcționează identic cu getNextOrderSequence, dar pe cheia 'SUPPLIER_ORDER'.
  */
 async function getNextSupplierOrderSequence(
-  options: { session?: ClientSession } = {}
+  options: { session?: ClientSession } = {},
 ): Promise<number> {
   const currentYear = new Date().getFullYear()
   const counter = await DocumentCounter.findOneAndUpdate(
     { seriesName: 'SUPPLIER_ORDER', year: currentYear },
     { $inc: { currentNumber: 1 } },
-    { new: true, upsert: true, session: options.session }
+    { new: true, upsert: true, session: options.session },
   )
   if (!counter) {
     throw new Error(
-      'Nu s-a putut genera numărul secvențial pentru comanda furnizor.'
+      'Nu s-a putut genera numărul secvențial pentru comanda furnizor.',
     )
   }
   return counter.currentNumber
@@ -103,8 +104,9 @@ async function getNextSupplierOrderSequence(
  * Format: XXXXYYYYMMDD (Secvență + Dată).
  */
 export async function generateSupplierOrderNumber(
-  options: { session?: ClientSession } = {}
+  options: { session?: ClientSession } = {},
 ): Promise<string> {
+  await connectToDatabase()
   const nextSequence = await getNextSupplierOrderSequence(options)
   const now = new Date()
   // Format Data: YYYYMMDD
@@ -117,13 +119,13 @@ export async function generateSupplierOrderNumber(
 
 // --- FUNCȚII PENTRU LIVRĂRI ---
 async function getNextDeliverySequence(
-  options: { session?: ClientSession } = {}
+  options: { session?: ClientSession } = {},
 ): Promise<number> {
   const currentYear = new Date().getFullYear()
   const counter = await DocumentCounter.findOneAndUpdate(
     { seriesName: 'DELIVERY', year: currentYear },
     { $inc: { currentNumber: 1 } },
-    { new: true, upsert: true, session: options.session }
+    { new: true, upsert: true, session: options.session },
   )
   if (!counter) {
     throw new Error('Nu s-a putut genera numărul secvențial pentru livrare.')
@@ -133,8 +135,9 @@ async function getNextDeliverySequence(
 
 export async function generateDeliveryNumber(
   orderNumber: string, // Primim numărul comenzii ca parametru
-  options: { session?: ClientSession } = {}
+  options: { session?: ClientSession } = {},
 ): Promise<string> {
+  await connectToDatabase()
   const nextSequence = await getNextDeliverySequence(options)
   // Padăm la 5 cifre
   const paddedSequence = String(nextSequence).padStart(5, '0')
@@ -146,7 +149,7 @@ export async function generateDeliveryNumber(
  * Ex: getActiveSeriesForDocumentType('Aviz')
  */
 export async function getActiveSeriesForDocumentType(
-  documentType: ISeries['documentType']
+  documentType: ISeries['documentType'],
 ) {
   await connectToDatabase()
 
