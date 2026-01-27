@@ -22,8 +22,12 @@ import Supplier from '../../../suppliers/supplier.model'
 import BudgetCategoryModel from '../budgeting/budget-category.model'
 import { PopulatedSupplierPayment } from '@/app/admin/management/incasari-si-plati/payables/components/SupplierAllocationModal'
 import { SupplierPaymentStatus } from './supplier-payment.constants'
-import { CLIENT_DETAIL_PAGE_SIZE, PAGE_SIZE } from '@/lib/constants'
+import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
 import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
+import {
+  getNextPaymentNumberPreview,
+  incrementPaymentNumber,
+} from '../../../numbering/payment-numbering.actions'
 
 type AllocationDetail = { invoiceNumber: string; allocatedAmount: number }
 
@@ -84,6 +88,12 @@ export async function createSupplierPayment(
 
       const validatedData = CreateSupplierPaymentFormSchema.parse(data)
       const totalAmount = Number(validatedData.totalAmount)
+
+      const expectedAutoNumber = await getNextPaymentNumberPreview()
+
+      if (validatedData.paymentNumber === expectedAutoNumber) {
+        await incrementPaymentNumber()
+      }
 
       // --- Construim Snapshot-ul de Buget (cu string-uri) ---
       let budgetSnapshotForValidation: z.infer<
@@ -246,27 +256,82 @@ export async function createSupplierPayment(
 // aduce toate platile, indiferent de furnizor
 export async function getSupplierPayments(
   page: number = 1,
-  limit: number = PAGE_SIZE,
+  limit: number = PAYABLES_PAGE_SIZE,
+  filters?: {
+    q?: string
+    status?: string
+    from?: string
+    to?: string
+  },
 ): Promise<
-  SupplierPaymentsPage & { success: boolean; totalCurrentYear?: number }
+  SupplierPaymentsPage & {
+    success: boolean
+    totalCurrentYear?: number
+    summaryTotal: number
+  }
 > {
   try {
     await connectToDatabase()
     const skip = (page - 1) * limit
     const startOfYear = new Date(new Date().getFullYear(), 0, 1)
 
-    const [payments, total, totalCurrentYear] = await Promise.all([
-      SupplierPaymentModel.find()
+    const query: any = {}
+
+    // ... (Logica de filtre QUERY rămâne la fel ca înainte) ...
+    if (filters?.q) {
+      const regex = new RegExp(filters.q, 'i')
+      const matchingSuppliers = await Supplier.find({ name: regex }).select(
+        '_id',
+      )
+      const supplierIds = matchingSuppliers.map((s) => s._id)
+      query.$or = [
+        { paymentNumber: regex },
+        { seriesName: regex },
+        { supplierId: { $in: supplierIds } },
+      ]
+    }
+    if (filters?.status && filters.status !== 'ALL') {
+      query.status = filters.status
+    }
+    // Excludem plățile ANULATE din total (opțional, dar recomandat contabil)
+    if (!filters?.status || filters.status === 'ALL') {
+      query.status = { $ne: 'ANULATA' }
+    }
+
+    if (filters?.from || filters?.to) {
+      query.paymentDate = {}
+      if (filters.from) query.paymentDate.$gte = new Date(filters.from)
+      if (filters.to) {
+        const toDate = new Date(filters.to)
+        toDate.setHours(23, 59, 59, 999)
+        query.paymentDate.$lte = toDate
+      }
+    }
+
+    const [payments, total, totalCurrentYear, statsResult] = await Promise.all([
+      SupplierPaymentModel.find(query)
         .populate({ path: 'supplierId', select: 'name' })
         .sort({ paymentDate: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
-      SupplierPaymentModel.countDocuments(),
+      SupplierPaymentModel.countDocuments(query),
       SupplierPaymentModel.countDocuments({
         paymentDate: { $gte: startOfYear },
       }),
+      // --- AGREGARE SUMA ---
+      SupplierPaymentModel.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalValue: { $sum: '$totalAmount' },
+          },
+        },
+      ]),
     ])
+
+    const summaryTotal = statsResult.length > 0 ? statsResult[0].totalValue : 0
 
     return {
       success: true,
@@ -274,6 +339,7 @@ export async function getSupplierPayments(
       totalPages: Math.ceil(total / limit),
       total: total,
       totalCurrentYear: totalCurrentYear,
+      summaryTotal: summaryTotal, // <--- Noua sumă
     }
   } catch (error) {
     console.error('❌ Eroare getSupplierPayments:', error)
@@ -283,6 +349,7 @@ export async function getSupplierPayments(
       totalPages: 0,
       total: 0,
       totalCurrentYear: 0,
+      summaryTotal: 0,
     }
   }
 }
@@ -438,7 +505,7 @@ export async function getPaymentsForSupplier(
     }
 
     const objectId = new Types.ObjectId(supplierId)
-    const limit = CLIENT_DETAIL_PAGE_SIZE
+    const limit = PAYABLES_PAGE_SIZE
     const skip = (page - 1) * limit
 
     const queryConditions = {

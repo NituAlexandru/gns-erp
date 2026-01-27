@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
+import { useState } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation' // <-- Importuri noi
 import {
   Table,
   TableBody,
@@ -17,110 +18,129 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal } from 'lucide-react' // Scos AlertCircle nefolosit
-import {
-  getSupplierInvoices,
-  SupplierInvoiceListItem,
-} from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
+import { MoreHorizontal, Loader2 } from 'lucide-react'
+import { SupplierInvoiceListItem } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 import { SUPPLIER_INVOICE_STATUS_MAP } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.constants'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
+import { useSession } from 'next-auth/react'
+import { createSupplierCompensationPayment } from '@/lib/db/modules/financial/treasury/payables/supplier-allocation.actions'
+import { toast } from 'sonner'
 
 interface SupplierInvoicesTableProps {
-  initialData: {
+  // Acum primim datele gata filtrate/paginate de la server
+  data: {
     data: SupplierInvoiceListItem[]
     totalPages: number
     total: number
   }
-  onOpenCreatePayment: (supplierId: string) => void
+  onOpenCreatePayment: (supplierId: string, invoiceId?: string) => void
   onOpenDetailsSheet: (invoiceId: string) => void
 }
 
 export function SupplierInvoicesTable({
-  initialData,
+  data,
   onOpenCreatePayment,
   onOpenDetailsSheet,
 }: SupplierInvoicesTableProps) {
-  const [invoices, setInvoices] = useState<SupplierInvoiceListItem[]>(
-    initialData.data
-  )
-  const [totalPages, setTotalPages] = useState(initialData.totalPages)
-  const [page, setPage] = useState(1)
-  const [isPending, startTransition] = useTransition()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const { data: session } = useSession()
+
+  // Citim pagina curentă din URL (default 1)
+  const currentPage = Number(searchParams.get('page')) || 1
+  const [isPending, setIsPending] = useState(false)
+  const [processingId, setProcessingId] = useState<string | null>(null)
+
+  // Funcție pentru schimbarea paginii în URL
+  const handlePageChange = (newPage: number) => {
+    setIsPending(true)
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
+    setIsPending(false)
+  }
+
+  const handleCompensate = async (invoice: SupplierInvoiceListItem) => {
+    if (!session?.user?.id) {
+      toast.error('Eroare de autentificare.')
+      return
+    }
+
+    setProcessingId(invoice._id)
+    try {
+      const result = await createSupplierCompensationPayment(
+        invoice._id,
+        session.user.id,
+        session.user.name || 'Operator',
+      )
+
+      if (result.success) {
+        toast.success(result.message)
+        router.refresh() // Actualizăm lista (factura va dispărea sau va deveni plătită)
+      } else {
+        toast.error('Eroare:', { description: result.message })
+      }
+    } catch {
+      toast.error('A apărut o eroare neașteptată.')
+    } finally {
+      setProcessingId(null)
+    }
+  }
 
   const isNew = (dateInput?: string | Date) => {
     if (!dateInput) return false
-
     const createdTime = new Date(dateInput).getTime()
     const currentTime = new Date().getTime()
-
-    // Definim fereastra de timp pentru "NOU" (24 ore în milisecunde)
     const timeWindow = 24 * 60 * 60 * 1000
-
-    // Este nou dacă diferența dintre ACUM și CREARE este mai mică de 24h
     return currentTime - createdTime < timeWindow
   }
 
-  // Fix useEffect deps: scoatem 'invoices' din deps, lăsăm doar page
-  useEffect(() => {
-    if (page === 1) return
-
-    startTransition(async () => {
-      // 2. MODIFICĂ AICI (înlocuiește 20 cu PAGE_SIZE)
-      const result = await getSupplierInvoices(page, PAGE_SIZE)
-
-      if (result.success) {
-        setInvoices(result.data)
-        setTotalPages(result.totalPages)
-      }
-    })
-  }, [page])
-
   return (
-    // 1. Containerul principal ocupă tot spațiul (h-full) și e flex vertical
     <div className='flex flex-col h-full'>
-      {/* 2. Wrapper-ul tabelului ocupă spațiul rămas (flex-1) și are scroll (overflow-auto) */}
       <div className='rounded-md border flex-1 overflow-auto min-h-0 relative'>
-        <Table>
+        <table className='w-full caption-bottom text-sm text-left'>
           <TableHeader className='sticky top-0 z-10 bg-background shadow-sm'>
             <TableRow className='bg-muted/50 hover:bg-muted/50'>
-              <TableHead className='w-[50px]'>#</TableHead>
-              <TableHead>Serie / Număr</TableHead>
-              <TableHead>Furnizor</TableHead>
-              <TableHead>Data Facturii</TableHead>
-              <TableHead>Scadența</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className='text-right'>Total</TableHead>
-              <TableHead className='w-[50px]'></TableHead>
+              <TableHead className='w-[50px] py-1'>#</TableHead>
+              <TableHead className='py-1'>Serie / Număr</TableHead>
+              <TableHead className='py-1'>Furnizor</TableHead>
+              <TableHead className='py-1'>Data Facturii</TableHead>
+              <TableHead className='py-1'>Scadența</TableHead>
+              <TableHead className='py-1'>Status</TableHead>
+              <TableHead className='text-right py-1'>Total</TableHead>
+              <TableHead className='w-[50px] py-1'></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isPending ? (
-              <TableRow>
-                <TableCell colSpan={8} className='h-24 text-center'>
-                  Se încarcă...
-                </TableCell>
-              </TableRow>
-            ) : invoices.length === 0 ? (
+            {/* Nu mai avem loading pe fetch intern, doar pe navigare */}
+            {data.data.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={8}
                   className='h-24 text-center text-muted-foreground'
                 >
-                  Nu există facturi.
+                  Nu există facturi conform filtrelor.
                 </TableCell>
               </TableRow>
             ) : (
-              invoices.map((inv, index) => {
+              data.data.map((inv, index) => {
                 const showNewBadge = isNew(inv.createdAt || inv.invoiceDate)
+                const globalIndex =
+                  (currentPage - 1) * PAYABLES_PAGE_SIZE + index + 1
+
+                const isCompensatable =
+                  inv.remainingAmount < 0 || inv.invoiceType === 'STORNO'
+                // -----------------------------------------------------------
 
                 return (
                   <TableRow key={inv._id} className='hover:bg-muted/50'>
-                    <TableCell className='font-medium text-muted-foreground'>
-                      {(page - 1) * PAGE_SIZE + index + 1}
+                    <TableCell className='font-medium text-muted-foreground py-1'>
+                      {globalIndex}
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className='py-1'>
                       <div className='flex items-center gap-2'>
                         <span className='font-medium uppercase'>
                           {inv.invoiceSeries} - {inv.invoiceNumber}
@@ -136,15 +156,15 @@ export function SupplierInvoicesTable({
                       </div>
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className='py-1'>
                       {inv.supplierId?.name || 'Furnizor Necunoscut'}
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className='py-1'>
                       {formatDateTime(new Date(inv.invoiceDate)).dateOnly}
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className='py-1'>
                       <span
                         className={
                           new Date(inv.dueDate) < new Date() &&
@@ -157,7 +177,7 @@ export function SupplierInvoicesTable({
                       </span>
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className='py-1'>
                       <Badge
                         variant={
                           SUPPLIER_INVOICE_STATUS_MAP[inv.status]?.variant ||
@@ -168,11 +188,30 @@ export function SupplierInvoicesTable({
                       </Badge>
                     </TableCell>
 
-                    <TableCell className='text-right font-medium'>
-                      {formatCurrency(inv.totals.grandTotal)}
+                    <TableCell className='text-right font-medium py-1'>
+                      {(() => {
+                        // 1. Determinăm valoarea reală de afișat
+                        let displayValue = inv.totals.grandTotal
+                        const isStornoType = inv.invoiceType === 'STORNO'
+                        const isNegativeValue = inv.totals.grandTotal < 0
+
+                        // Dacă e tip STORNO dar valoarea e pozitivă -> o afișăm ca negativă
+                        if (isStornoType && !isNegativeValue) {
+                          displayValue = -inv.totals.grandTotal
+                        }
+
+                        // 2. Determinăm culoarea (orice e negativ e roșu)
+                        const isRed = displayValue < 0
+
+                        return (
+                          <span className={isRed ? 'text-red-600' : ''}>
+                            {formatCurrency(displayValue)}
+                          </span>
+                        )
+                      })()}
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className='py-1'>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant='ghost' className='h-8 w-8 p-0'>
@@ -186,15 +225,36 @@ export function SupplierInvoicesTable({
                             Vezi Detalii
                           </DropdownMenuItem>
 
+                          {/* LOGICA NOUĂ AICI */}
                           {inv.status !== 'PLATITA' && (
-                            <DropdownMenuItem
-                              onClick={() =>
-                                inv.supplierId &&
-                                onOpenCreatePayment(inv.supplierId._id)
-                              }
-                            >
-                              Înregistrează Plată
-                            </DropdownMenuItem>
+                            <>
+                              {/* Folosim variabila definită mai sus: isCompensatable */}
+                              {isCompensatable ? (
+                                <DropdownMenuItem
+                                  onClick={() => handleCompensate(inv)}
+                                  disabled={processingId === inv._id}
+                                  className='text-red-500 focus:text-red-600 focus:bg-red-50 cursor-pointer'
+                                >
+                                  {processingId === inv._id ? (
+                                    <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                                  ) : null}
+                                  Genereaza Compensare
+                                </DropdownMenuItem>
+                              ) : (
+                                /* 2. Dacă e factură normală (Pozitivă) -> Arătăm butonul de Plată */
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    inv.supplierId &&
+                                    onOpenCreatePayment(
+                                      inv.supplierId._id,
+                                      inv._id,
+                                    )
+                                  }
+                                >
+                                  Înregistrează Plată
+                                </DropdownMenuItem>
+                              )}
+                            </>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -204,29 +264,38 @@ export function SupplierInvoicesTable({
               })
             )}
           </TableBody>
-        </Table>
+        </table>
       </div>
 
-      {totalPages > 1 && (
+      {/* Paginare Sincronizată cu URL-ul */}
+      {data.totalPages > 1 && (
         <div className='flex items-center justify-center gap-2 py-4 border-t bg-background shrink-0'>
           <Button
             variant='outline'
             size='sm'
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
-            Anterior
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Anterior'
+            )}
           </Button>
           <span className='text-sm text-muted-foreground'>
-            Pagina {page} din {totalPages || 1}
+            Pagina {currentPage} din {data.totalPages}
           </span>
           <Button
             variant='outline'
             size='sm'
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= data.totalPages || isPending}
           >
-            Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Următor'
+            )}
           </Button>
         </div>
       )}

@@ -1,6 +1,6 @@
 'use server'
 
-import mongoose, { startSession, Types } from 'mongoose'
+import mongoose, { FilterQuery, startSession, Types } from 'mongoose'
 import { auth } from '@/auth'
 import SupplierInvoiceModel from './supplier-invoice.model'
 import {
@@ -16,7 +16,7 @@ import { ISettingInput } from '../../../setting/types'
 import { connectToDatabase } from '@/lib/db'
 import Supplier from '../../../suppliers/supplier.model'
 import { SupplierInvoiceStatus } from './supplier-invoice.constants'
-import { CLIENT_DETAIL_PAGE_SIZE, PAGE_SIZE } from '@/lib/constants'
+import { CLIENT_DETAIL_PAGE_SIZE, PAYABLES_PAGE_SIZE } from '@/lib/constants'
 import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 import NirModel from '../../nir/nir.model'
 import { generateNextDocumentNumber } from '../../../numbering/numbering.actions'
@@ -39,6 +39,8 @@ export interface SupplierInvoiceListItem {
   invoiceDate: Date
   dueDate: Date
   status: SupplierInvoiceStatus
+  invoiceType: string
+  remainingAmount: number
   totals: {
     grandTotal: number
   }
@@ -167,7 +169,13 @@ export async function createSupplierInvoice(
 
 export async function getSupplierInvoices(
   page: number = 1,
-  limit: number = PAGE_SIZE,
+  limit: number = PAYABLES_PAGE_SIZE,
+  filters?: {
+    q?: string
+    status?: string
+    from?: string
+    to?: string
+  },
 ) {
   try {
     await connectToDatabase()
@@ -175,9 +183,41 @@ export async function getSupplierInvoices(
     const skip = (page - 1) * limit
     const startOfYear = new Date(new Date().getFullYear(), 0, 1)
 
-    const query = { invoiceSeries: { $ne: 'INIT-F' } }
+    // 1. Construim Query-ul (LA FEL CA ÎNAINTE)
+    const query: FilterQuery<typeof SupplierInvoiceModel> = {
+      invoiceSeries: { $ne: 'INIT-F' },
+    }
 
-    const [invoices, total, totalCurrentYear] = await Promise.all([
+    if (filters?.q) {
+      const regex = new RegExp(filters.q, 'i')
+      const matchingSuppliers = await Supplier.find({ name: regex }).select(
+        '_id',
+      )
+      const supplierIds = matchingSuppliers.map((s) => s._id)
+
+      query.$or = [
+        { invoiceNumber: regex },
+        { invoiceSeries: regex },
+        { supplierId: { $in: supplierIds } },
+      ]
+    }
+
+    if (filters?.status && filters.status !== 'ALL') {
+      query.status = filters.status
+    }
+
+    if (filters?.from || filters?.to) {
+      query.invoiceDate = {}
+      if (filters.from) query.invoiceDate.$gte = new Date(filters.from)
+      if (filters.to) {
+        const toDate = new Date(filters.to)
+        toDate.setHours(23, 59, 59, 999)
+        query.invoiceDate.$lte = toDate
+      }
+    }
+
+    // 2. Executăm Query-urile PARALEL (Inclusiv Agregarea pentru Total)
+    const [invoices, total, totalCurrentYear, statsResult] = await Promise.all([
       SupplierInvoiceModel.find(query)
         .populate({
           path: 'supplierId',
@@ -192,16 +232,41 @@ export async function getSupplierInvoices(
       SupplierInvoiceModel.countDocuments({
         invoiceDate: { $gte: startOfYear },
       }),
+      SupplierInvoiceModel.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalValue: {
+              $sum: {
+                $cond: {
+                  if: {
+                    $and: [
+                      { $eq: ['$invoiceType', 'STORNO'] }, // E marcat ca STORNO
+                      { $gt: ['$totals.grandTotal', 0] }, // ȘI valoarea e pozitivă (ex: ARTOIL, LEROY)
+                    ],
+                  },
+                  then: { $multiply: ['$totals.grandTotal', -1] }, // O facem negativă
+                  else: '$totals.grandTotal', // Altfel o luăm așa cum e (ex: SOCERAM care e deja negativ)
+                },
+              },
+            },
+          },
+        },
+      ]),
     ])
 
     const normalizedInvoices = JSON.parse(JSON.stringify(invoices))
+    // Luăm suma din rezultatul agregării (sau 0 dacă nu sunt rezultate)
+    const summaryTotal = statsResult.length > 0 ? statsResult[0].totalValue : 0
 
     return {
       success: true,
-      data: normalizedInvoices,
+      data: normalizedInvoices as SupplierInvoiceListItem[],
       totalPages: Math.ceil(total / limit),
       total: total,
       totalCurrentYear: totalCurrentYear,
+      summaryTotal: summaryTotal, // <--- Trimitem suma calculată
     }
   } catch (error) {
     console.error('❌ Eroare getSupplierInvoices:', error)
@@ -211,6 +276,7 @@ export async function getSupplierInvoices(
       totalPages: 0,
       total: 0,
       totalCurrentYear: 0,
+      summaryTotal: 0,
     }
   }
 }

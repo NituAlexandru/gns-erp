@@ -82,6 +82,7 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # Foarte important
 
+- scot nota interna compensare din fisa
 - solduri
 - bug comanda aprovizionare, nu se creaza comanda.
 - bug lista livrari la filtre

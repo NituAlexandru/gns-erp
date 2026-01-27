@@ -52,7 +52,7 @@ export function SupplierAllocationModal({
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [allocations, setAllocations] = useState<PopulatedSupplierAllocation[]>(
-    []
+    [],
   )
   const [invoices, setInvoices] = useState<UnpaidSupplierInvoice[]>([])
 
@@ -172,6 +172,7 @@ export function SupplierAllocationModal({
                   invoices={invoices}
                   payment={latestPayment}
                   onManualAllocateClick={setManualAllocInvoice}
+                  onSuccess={refreshData}
                 />
               </div>
             </div>

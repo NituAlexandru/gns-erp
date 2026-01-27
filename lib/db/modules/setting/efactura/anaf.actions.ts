@@ -17,7 +17,7 @@ import { ISupplierDoc } from '../../suppliers/types'
 import AdmZip from 'adm-zip'
 import { getNoCachedSetting } from '../setting.actions'
 import { XMLParser } from 'fast-xml-parser'
-import { ANAF_SYNC_LOOKBACK_DAYS, PAGE_SIZE } from '@/lib/constants'
+import { ANAF_SYNC_LOOKBACK_DAYS, PAYABLES_PAGE_SIZE } from '@/lib/constants'
 
 // --- HELPER AUTH CHECK ---
 async function checkAdmin() {
@@ -604,30 +604,40 @@ function parseAnafDate(str: string): Date {
 // GET INBOX MESSAGES from eFactura ---
 export async function getAnafInboxErrors(
   page: number = 1,
-  limit: number = PAGE_SIZE,
+  limit: number = PAYABLES_PAGE_SIZE,
+  statusFilter?: string, // Opțional: filtrare după status procesare
 ) {
   await connectToDatabase()
 
   const skip = (page - 1) * limit
   const startOfYear = new Date(new Date().getFullYear(), 0, 1)
 
-  // Query de bază (doar neprocesate)
-  const baseQuery = { processing_status: { $ne: 'COMPLETED' } }
+  // Query de bază
+  const query: any = {}
 
-  // Query pentru an curent
-  const currentYearQuery = {
+  if (statusFilter && statusFilter !== 'ALL') {
+    query.processing_status = statusFilter
+  } else {
+    // Default: arătăm tot ce NU e completed, sau putem arăta tot dacă userul vrea istoric
+    // Dacă vrei comportamentul vechi (doar erori/neprocesate):
+    if (!statusFilter) query.processing_status = { $ne: 'COMPLETED' }
+  }
+
+  // Pentru numărătoarea globală (badge roșu), păstrăm logica strictă (doar probleme)
+  const errorsQuery = { processing_status: { $ne: 'COMPLETED' } }
+  const currentYearErrorsQuery = {
     processing_status: { $ne: 'COMPLETED' },
     data_creare: { $gte: startOfYear },
   }
 
   const [messages, total, totalCurrentYear] = await Promise.all([
-    AnafMessage.find(baseQuery) // Tabelul arată tot ce e neprocesat, indiferent de an
+    AnafMessage.find(query)
       .sort({ data_creare: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
-    AnafMessage.countDocuments(baseQuery),
-    AnafMessage.countDocuments(currentYearQuery), // Badge doar pe anul curent
+    AnafMessage.countDocuments(query), // Total conform filtrului curent
+    AnafMessage.countDocuments(currentYearErrorsQuery), // Badge-ul rămâne consistent (doar erori an curent)
   ])
 
   return {
@@ -638,15 +648,24 @@ export async function getAnafInboxErrors(
   }
 }
 // 2. Logs Paginat
-export async function getAnafLogs(page: number = 1, limit: number = PAGE_SIZE) {
+export async function getAnafLogs(
+  page: number = 1,
+  limit: number = PAYABLES_PAGE_SIZE,
+  typeFilter?: string, // Opțional: filtrare după tip (ERROR, INFO, SUCCESS)
+) {
   await connectToDatabase()
 
   const skip = (page - 1) * limit
   const startOfYear = new Date(new Date().getFullYear(), 0, 1)
 
+  const query: any = {}
+  if (typeFilter && typeFilter !== 'ALL') {
+    query.type = typeFilter
+  }
+
   const [logs, total, totalCurrentYear] = await Promise.all([
-    AnafLog.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-    AnafLog.countDocuments({}),
+    AnafLog.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    AnafLog.countDocuments(query),
     AnafLog.countDocuments({ createdAt: { $gte: startOfYear } }),
   ])
 

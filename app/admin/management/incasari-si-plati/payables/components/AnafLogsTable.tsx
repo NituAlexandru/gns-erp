@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -11,13 +12,13 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Loader2 } from 'lucide-react'
 import {
   AnafLogType,
   ANAF_LOG_TYPE_MAP,
   ANAF_ACTION_MAP,
 } from '@/lib/db/modules/setting/efactura/anaf.constants'
-import { getAnafLogs } from '@/lib/db/modules/setting/efactura/anaf.actions'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
 
 interface LogItem {
   _id: string
@@ -28,32 +29,32 @@ interface LogItem {
 }
 
 interface AnafLogsTableProps {
-  initialData: {
+  data: {
     data: LogItem[]
     totalPages: number
     total: number
   }
 }
 
-export function AnafLogsTable({ initialData }: AnafLogsTableProps) {
-  const [logs, setLogs] = useState(initialData.data)
-  const [totalPages, setTotalPages] = useState(initialData.totalPages)
-  const [page, setPage] = useState(1)
-  const [isPending, startTransition] = useTransition()
+export function AnafLogsTable({ data }: AnafLogsTableProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const currentPage = Number(searchParams.get('page')) || 1
+  const [isPending, setIsPending] = useState(false)
 
-  useEffect(() => {
-    if (page === 1) return
-    startTransition(async () => {
-      const result = await getAnafLogs(page, PAGE_SIZE)
-      setLogs(result.data)
-      setTotalPages(result.totalPages)
-    })
-  }, [page])
+  const handlePageChange = (newPage: number) => {
+    setIsPending(true)
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
+    setIsPending(false)
+  }
 
   return (
     <div className='flex flex-col h-full'>
       <div className='rounded-md border flex-1 overflow-auto min-h-0 relative'>
-        <Table>
+        <table className='w-full caption-bottom text-sm text-left'>
           <TableHeader className='sticky top-0 z-10 bg-background shadow-sm'>
             <TableRow className='bg-muted/50'>
               <TableHead className='w-[50px]'>#</TableHead>
@@ -64,36 +65,29 @@ export function AnafLogsTable({ initialData }: AnafLogsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isPending ? (
-              <TableRow>
-                <TableCell colSpan={5} className='h-24 text-center'>
-                  Se încarcă...
-                </TableCell>
-              </TableRow>
-            ) : logs.length === 0 ? (
+            {data.data.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={5}
-                  className='text-center h-24 text-muted-foreground'
+                  className='text-center h-24 text-muted-foreground py-1'
                 >
-                  Nu există loguri înregistrate.
+                  Nu există loguri conform filtrelor.
                 </TableCell>
               </TableRow>
             ) : (
-              logs.map((log, index) => {
-                // Luăm configurarea pentru tipul de log (succes/eroare etc)
+              data.data.map((log, index) => {
                 const typeConfig = ANAF_LOG_TYPE_MAP[log.type] || {
                   label: log.type,
                   variant: 'secondary',
                 }
-
-                // Traducem acțiunea sau afișăm codul original dacă nu e în mapă
                 const actionLabel = ANAF_ACTION_MAP[log.action] || log.action
+                const globalIndex =
+                  (currentPage - 1) * PAYABLES_PAGE_SIZE + index + 1
 
                 return (
                   <TableRow key={log._id} className='hover:bg-muted/50'>
-                    <TableCell className='font-medium text-muted-foreground text-xs py-4'>
-                      {(page - 1) * PAGE_SIZE + index + 1}
+                    <TableCell className='font-medium py-1 text-muted-foreground text-xs'>
+                      {globalIndex}
                     </TableCell>
                     <TableCell>
                       {new Date(log.createdAt).toLocaleString('ro-RO')}
@@ -114,30 +108,38 @@ export function AnafLogsTable({ initialData }: AnafLogsTableProps) {
               })
             )}
           </TableBody>
-        </Table>
+        </table>
       </div>
 
       {/* Paginare */}
-      {totalPages > 1 && (
+      {data.totalPages > 1 && (
         <div className='flex items-center justify-center gap-2 py-4 border-t bg-background shrink-0'>
           <Button
             variant='outline'
             size='sm'
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
-            Anterior
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Anterior'
+            )}
           </Button>
           <span className='text-sm text-muted-foreground'>
-            Pagina {page} din {totalPages || 1}
+            Pagina {currentPage} din {data.totalPages}
           </span>
           <Button
             variant='outline'
             size='sm'
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= data.totalPages || isPending}
           >
-            Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Următor'
+            )}
           </Button>
         </div>
       )}

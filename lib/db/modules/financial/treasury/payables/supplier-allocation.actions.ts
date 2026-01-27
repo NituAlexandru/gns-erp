@@ -26,7 +26,7 @@ export type PopulatedInvoiceAllocationHistory = Awaited<
 >['data'][number]
 
 export async function createManualSupplierAllocation(
-  data: CreateSupplierAllocationInput
+  data: CreateSupplierAllocationInput,
 ): Promise<AllocationActionResult> {
   const session = await startSession()
   let newAllocation: ISupplierAllocationDoc | null = null
@@ -69,12 +69,12 @@ export async function createManualSupplierAllocation(
       const roundedAmount = round2(amountAllocated)
       if (roundedAmount > round2(payment.unallocatedAmount)) {
         throw new Error(
-          `Suma de alocat (${roundedAmount}) este mai mare decât suma nealocată din plată (${payment.unallocatedAmount}).`
+          `Suma de alocat (${roundedAmount}) este mai mare decât suma nealocată din plată (${payment.unallocatedAmount}).`,
         )
       }
       if (roundedAmount > round2(invoice.remainingAmount)) {
         throw new Error(
-          `Suma de alocat (${roundedAmount}) este mai mare decât restul de plată al facturii furnizor (${invoice.remainingAmount}).`
+          `Suma de alocat (${roundedAmount}) este mai mare decât restul de plată al facturii furnizor (${invoice.remainingAmount}).`,
         )
       }
 
@@ -90,12 +90,12 @@ export async function createManualSupplierAllocation(
             createdByName: userName,
           },
         ],
-        { session }
+        { session },
       )
 
       // 5. Actualizare Plată (Model 4)
       payment.unallocatedAmount = round2(
-        payment.unallocatedAmount - roundedAmount
+        payment.unallocatedAmount - roundedAmount,
       )
 
       await payment.save({ session })
@@ -105,7 +105,7 @@ export async function createManualSupplierAllocation(
           await recalculateSupplierSummary(
             supplierIdToRecalc,
             'auto-recalc',
-            true
+            true,
           )
         } catch (err) {
           console.error(err)
@@ -158,7 +158,7 @@ export async function createManualSupplierAllocation(
  * Șterge o alocare a unei plăți către furnizor.
  */
 export async function deleteSupplierAllocation(
-  allocationId: string
+  allocationId: string,
 ): Promise<Omit<AllocationActionResult, 'data'>> {
   const session = await startSession()
   let supplierIdToRevalidate: string | null = null
@@ -183,15 +183,15 @@ export async function deleteSupplierAllocation(
 
       // 3. Găsește documentele părinte
       const payment = await SupplierPaymentModel.findById(
-        allocation.paymentId
+        allocation.paymentId,
       ).session(session)
       const invoice = await SupplierInvoiceModel.findById(
-        allocation.invoiceId
+        allocation.invoiceId,
       ).session(session)
 
       if (!payment || !invoice) {
         throw new Error(
-          'Date corupte. Factura sau Plata aferentă nu au fost găsite.'
+          'Date corupte. Factura sau Plata aferentă nu au fost găsite.',
         )
       }
 
@@ -204,14 +204,14 @@ export async function deleteSupplierAllocation(
 
       // 4. Reversează actualizarea pe Plată (Model 4)
       payment.unallocatedAmount = round2(
-        payment.unallocatedAmount + amountToReverse
+        payment.unallocatedAmount + amountToReverse,
       )
       await payment.save({ session })
 
       // 5. Reversează actualizarea pe Factură Furnizor (Model 3)
       invoice.paidAmount = round2(invoice.paidAmount - amountToReverse)
       invoice.remainingAmount = round2(
-        invoice.remainingAmount + amountToReverse
+        invoice.remainingAmount + amountToReverse,
       )
 
       // --- MODIFICARE: Folosim statusurile corecte la reversare ---
@@ -231,7 +231,7 @@ export async function deleteSupplierAllocation(
           await recalculateSupplierSummary(
             supplierIdToRecalc,
             'auto-recalc',
-            true
+            true,
           )
         } catch (err) {
           console.error(err)
@@ -240,7 +240,7 @@ export async function deleteSupplierAllocation(
 
       // 6. Șterge Alocarea (Model 5)
       await SupplierAllocationModel.findByIdAndDelete(allocationId).session(
-        session
+        session,
       )
     })
 
@@ -297,21 +297,39 @@ export async function getAllocationsForSupplierPayment(paymentId: string) {
 }
 
 // --- FUNCȚIA 2: PENTRU A VEDEA CE FACTURI FURNIZOR SE POT PLĂTI ---
-export async function getUnpaidSupplierInvoices(supplierId: string) {
+export async function getUnpaidSupplierInvoices(
+  supplierId: string,
+  includeStorno: boolean = false, // Default: ASCUNDE storno și negative
+) {
   try {
     await connectToDatabase()
     if (!Types.ObjectId.isValid(supplierId)) {
       throw new Error('ID Furnizor invalid.')
     }
 
-    const invoices = await SupplierInvoiceModel.find({
+    // Construim query-ul de bază
+    const query: any = {
       supplierId: new Types.ObjectId(supplierId),
+      // Luăm doar ce nu e plătit complet
       status: { $in: ['NEPLATITA', 'PARTIAL_PLATITA'] },
-      remainingAmount: { $gt: 0 },
-    })
-      .sort({ dueDate: 1 }) // Ordonăm FIFO
+    }
+
+    if (!includeStorno) {
+      // REGULA DE AUR:
+      // 1. Excludem explicit tipul STORNO (chiar dacă are sumă pozitivă din greșeală)
+      query.invoiceType = { $ne: 'STORNO' }
+
+      // 2. Excludem orice sumă negativă (chiar dacă e tip STANDARD, ex: din SPV)
+      query.remainingAmount = { $gt: 0 }
+    } else {
+      // Dacă vrem să vedem TOT (inclusiv storno), luăm tot ce nu e 0
+      query.remainingAmount = { $ne: 0 }
+    }
+
+    const invoices = await SupplierInvoiceModel.find(query)
+      .sort({ dueDate: 1 }) // Ordonăm FIFO (Scadență)
       .select(
-        'invoiceNumber invoiceSeries dueDate remainingAmount totals.grandTotal'
+        'invoiceNumber invoiceSeries invoiceDate dueDate remainingAmount totals.grandTotal invoiceType',
       )
       .lean()
 
@@ -354,5 +372,123 @@ export async function getInvoiceAllocationHistory(invoiceId: string) {
   } catch (error) {
     console.error('❌ Eroare getInvoiceAllocationHistory:', error)
     return { success: false, data: [], message: (error as Error).message }
+  }
+}
+
+/**
+ * COMPENSARE AUTOMATĂ (STINGERE FACTURĂ NEGATIVĂ)
+ * Transformă o factură de retur/storno (negativă) într-o "Plată" disponibilă (pozitivă).
+ */
+export async function createSupplierCompensationPayment(
+  invoiceId: string,
+  userId: string,
+  userName: string,
+): Promise<{ success: boolean; message: string }> {
+  const session = await startSession()
+  let supplierIdToRecalc = ''
+
+  try {
+    await session.withTransaction(async (session) => {
+      // 1. Găsim factura negativă (Storno/Retur)
+      const invoice =
+        await SupplierInvoiceModel.findById(invoiceId).session(session)
+      if (!invoice) throw new Error('Factura furnizor nu a fost găsită.')
+
+      supplierIdToRecalc = invoice.supplierId.toString()
+
+      // Verificăm dacă e într-adevăr negativă (rest de plată < 0)
+      const isStornoType = invoice.invoiceType === 'STORNO'
+      const isNegativeValue = invoice.remainingAmount < 0
+
+      // Dacă NU e negativă ȘI nici NU e storno, atunci dăm eroare.
+      if (!isNegativeValue && !isStornoType) {
+        throw new Error(
+          'Această funcție este doar pentru facturi negative sau de tip STORNO.',
+        )
+      }
+
+      // Luăm valoarea absolută (pozitivă) pentru a crea plata.
+      // Math.abs transformă -100 în 100, și lasă 100 ca 100.
+      const absAmount = Math.abs(invoice.remainingAmount)
+
+      // 2. Creăm "Plata" de Compensare
+      // Aceasta va fi sursa banilor virtuali pentru a plăti alte facturi
+      const [compensationPayment] = await SupplierPaymentModel.create(
+        [
+          {
+            supplierId: invoice.supplierId,
+            paymentNumber: `COMP-${invoice.invoiceNumber}`,
+            seriesName: 'INTERNA',
+            paymentDate: new Date(),
+            paymentMethod: 'COMPENSARE', // Metodă specială
+            totalAmount: 0, // Nu au ieșit bani din bancă
+            unallocatedAmount: 0, // O setăm imediat mai jos
+            referenceDocument: `Compensare Factura seria ${invoice.invoiceSeries} nr. ${invoice.invoiceNumber}`,
+            status: 'NEALOCATA',
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+          },
+        ],
+        { session },
+      )
+
+      // 3. Creăm alocarea negativă (Legăm plata de factura storno)
+      // Asta "stinge" factura negativă.
+      await SupplierAllocationModel.create(
+        [
+          {
+            paymentId: compensationPayment._id,
+            invoiceId: invoice._id,
+            amountAllocated: absAmount, // Folosim absAmount (valoarea pozitivă), nu invoice.remainingAmount
+            allocationDate: new Date(),
+            createdBy: new Types.ObjectId(userId),
+            createdByName: userName,
+          },
+        ],
+        { session },
+      )
+
+      // 4. Actualizăm "Plata" (Sursa de fonduri)
+      // Matematica: unallocated = total(0) - allocated(-100) = +100
+      compensationPayment.unallocatedAmount = absAmount
+      await compensationPayment.save({ session })
+
+      // 5. Închidem factura storno
+      // Matematica: remaining = -100 - (-100) = 0
+      invoice.paidAmount = round2(invoice.paidAmount + invoice.remainingAmount)
+      invoice.remainingAmount = 0
+      invoice.status = 'PLATITA'
+      await invoice.save({ session })
+    })
+
+    await session.endSession()
+
+    // --- RECALCULARE SOLD FURNIZOR ---
+    if (supplierIdToRecalc) {
+      try {
+        await recalculateSupplierSummary(
+          supplierIdToRecalc,
+          'auto-recalc',
+          true,
+        )
+      } catch (err) {
+        console.error('Eroare recalculare sold (supplier compensation):', err)
+      }
+    }
+
+    // Revalidăm căile pentru a actualiza UI-ul
+    revalidatePath('/admin/management/incasari-si-plati/payables')
+    revalidatePath(`/suppliers/${supplierIdToRecalc}`)
+
+    return {
+      success: true,
+      message:
+        'Compensarea a fost creată cu succes. Aveți acum o sumă disponibilă la "Plăți" pentru alocare.',
+    }
+  } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction()
+    await session.endSession()
+    console.error('Eroare createSupplierCompensationPayment:', error)
+    return { success: false, message: (error as Error).message }
   }
 }

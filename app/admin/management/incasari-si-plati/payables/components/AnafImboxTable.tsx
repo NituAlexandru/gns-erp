@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
+import { useState } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -9,32 +10,25 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Loader2, RefreshCw, Eye } from 'lucide-react'
 import {
-  RefreshCw,
-  AlertCircle,
-  CheckCircle2,
-  Eye,
-  Loader2,
-  UserPlus,
-} from 'lucide-react'
-import { toast } from 'sonner'
-import Link from 'next/link'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { AnafProcessingStatus } from '@/lib/db/modules/setting/efactura/anaf.constants'
 import {
   retryProcessMessage,
   previewAnafInvoice,
-  getAnafInboxErrors,
 } from '@/lib/db/modules/setting/efactura/anaf.actions'
-import {
-  AnafProcessingStatus,
-  ANAF_PROCESSING_STATUS_MAP,
-} from '@/lib/db/modules/setting/efactura/anaf.constants'
-import { AnafPreviewModal } from './AnafPreviewModal'
-import { ParsedAnafInvoice } from '@/lib/db/modules/setting/efactura/anaf.types'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
+import { toast } from 'sonner'
 
-interface InboxMessage {
+// Definim tipul direct aici sau îl importăm
+interface InboxErrorItem {
   _id: string
   data_creare: string
   cui_emitent: string
@@ -44,238 +38,208 @@ interface InboxMessage {
 }
 
 interface AnafInboxTableProps {
-  initialData: {
-    data: InboxMessage[]
+  data: {
+    data: InboxErrorItem[]
     totalPages: number
     total: number
   }
 }
 
-export function AnafInboxTable({ initialData }: AnafInboxTableProps) {
-  const [messages, setMessages] = useState(initialData.data)
-  const [totalPages, setTotalPages] = useState(initialData.totalPages)
-  const [page, setPage] = useState(1)
-  const [isPending, startTransition] = useTransition()
+export function AnafInboxTable({ data }: AnafInboxTableProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const currentPage = Number(searchParams.get('page')) || 1
 
-  // State pentru Preview
-  const [previewData, setPreviewData] = useState<ParsedAnafInvoice | null>(null)
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
-  const [loadingPreviewId, setLoadingPreviewId] = useState<string | null>(null)
+  const [isNavigating, setIsNavigating] = useState(false)
+  const [processingId, setProcessingId] = useState<string | null>(null)
 
-  // Fetch la schimbarea paginii
-  useEffect(() => {
-    if (page === 1) return
-    startTransition(async () => {
-      const result = await getAnafInboxErrors(page, PAGE_SIZE)
-      setMessages(result.data)
-      setTotalPages(result.totalPages)
-    })
-  }, [page])
-
-  // Handler Retry
-  const handleRetry = (id: string) => {
-    toast.loading('Se procesează...', { id: 'retry-toast' })
-    startTransition(async () => {
-      const result = await retryProcessMessage(id)
-      if (result.success) {
-        toast.success('Factura a fost importată cu succes!', {
-          id: 'retry-toast',
-        })
-        // Reîmprospătăm lista local (sau am putea reface fetch-ul)
-        setMessages((prev) => prev.filter((m) => m._id !== id))
-      } else {
-        toast.error('Eroare la procesare', {
-          id: 'retry-toast',
-          description: result.error,
-        })
-      }
-    })
+  const handlePageChange = (newPage: number) => {
+    setIsNavigating(true)
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
+    setIsNavigating(false)
   }
 
-  // Handler Preview
-  const handlePreview = async (id: string) => {
-    setLoadingPreviewId(id)
+  // Handler pentru reîncercare procesare
+  const handleRetry = async (id: string) => {
+    setProcessingId(id)
     try {
-      const result = await previewAnafInvoice(id)
-      if (result.success && result.data) {
-        setPreviewData(result.data)
-        setIsPreviewOpen(true)
+      const res = await retryProcessMessage(id)
+      if (res.success) {
+        toast.success('Mesaj procesat cu succes! S-a creat factura.')
+        router.refresh()
       } else {
-        toast.error(result.error || 'Nu s-a putut încărca previzualizarea.')
+        toast.error(`Eroare: ${res.error}`)
+      }
+    } catch (e) {
+      toast.error('Eroare de conexiune.')
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  // Handler pentru preview (doar console log momentan sau implementare viitoare)
+  const handlePreview = async (id: string) => {
+    setProcessingId(id)
+    try {
+      const res = await previewAnafInvoice(id)
+      if (res.success) {
+        console.log('Preview Data:', res.data)
+        toast.info('Verifică consola browserului pentru structura XML (Debug).')
+      } else {
+        toast.error(res.error)
       }
     } catch {
-      toast.error('Eroare conexiune.')
+      toast.error('Eroare preview.')
     } finally {
-      setLoadingPreviewId(null)
+      setProcessingId(null)
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return <Badge variant='success'>Procesat</Badge>
+      case 'UNPROCESSED':
+        return <Badge variant='secondary'>Nou</Badge>
+      case 'ERROR_NO_SUPPLIER':
+        return <Badge variant='destructive'>Lipsă Furnizor</Badge>
+      default:
+        return <Badge variant='destructive'>Eroare</Badge>
     }
   }
 
   return (
     <div className='flex flex-col h-full'>
-      {/* Wrapper tabel cu scroll intern */}
       <div className='rounded-md border flex-1 overflow-auto min-h-0 relative'>
-        <Table>
+        <table className='w-full caption-bottom text-sm text-left'>
           <TableHeader className='sticky top-0 z-10 bg-background shadow-sm'>
-            <TableRow className='bg-muted/50 hover:bg-muted/50'>
+            <TableRow className='bg-muted/50'>
               <TableHead className='w-[50px]'>#</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>CUI Emitent</TableHead>
-              <TableHead>Titlu Mesaj</TableHead>
+              <TableHead>Dată Mesaj</TableHead>
+              <TableHead>Emitent (CUI)</TableHead>
+              <TableHead>Titlu / Detalii</TableHead>
               <TableHead>Status Procesare</TableHead>
-              <TableHead>Eroare / Detalii</TableHead>
-              <TableHead className='text-right'>Acțiuni</TableHead>
+              <TableHead className='w-[50px]'>Act.</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isPending ? (
-              <TableRow>
-                <TableCell colSpan={6} className='h-24 text-center'>
-                  Se încarcă...
-                </TableCell>
-              </TableRow>
-            ) : messages.length === 0 ? (
+            {data.data.length === 0 ? (
               <TableRow>
                 <TableCell
                   colSpan={6}
-                  className='text-center h-26 text-muted-foreground'
+                  className='text-center h-24 text-muted-foreground py-1'
                 >
-                  <div className='flex flex-col items-center justify-center gap-2'>
-                    <CheckCircle2 className='h-8 w-8 text-green-500' />
-                    <p>Toate mesajele au fost procesate cu succes.</p>
-                  </div>
+                  Nu există mesaje neprocesate.
                 </TableCell>
               </TableRow>
             ) : (
-              messages.map((msg, index) => {
-                const statusInfo = ANAF_PROCESSING_STATUS_MAP[
-                  msg.processing_status
-                ] || { label: msg.processing_status, variant: 'outline' }
+              data.data.map((msg, index) => {
+                const globalIndex =
+                  (currentPage - 1) * PAYABLES_PAGE_SIZE + index + 1
+                const isBusy = processingId === msg._id
 
                 return (
                   <TableRow key={msg._id} className='hover:bg-muted/50'>
                     <TableCell className='font-medium text-muted-foreground text-xs py-1'>
-                      {(page - 1) * PAGE_SIZE + index + 1}
+                      {globalIndex}
                     </TableCell>
-                    <TableCell className='font-medium py-1'>
+                    <TableCell className='text-sm py-1'>
                       {new Date(msg.data_creare).toLocaleDateString('ro-RO')}
-                      <div className='text-xs text-muted-foreground'>
-                        {new Date(msg.data_creare).toLocaleTimeString('ro-RO', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </div>
                     </TableCell>
-                    <TableCell className='font-mono'>
+                    <TableCell className='font-mono text-xs py-1'>
                       {msg.cui_emitent}
                     </TableCell>
-                    <TableCell
-                      className='max-w-[250px] truncate'
-                      title={msg.titlu}
-                    >
-                      {msg.titlu}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusInfo.variant}>
-                        {statusInfo.label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className='max-w-[300px] text-sm text-red-600'>
+                    <TableCell className='py-1'>
+                      <div
+                        className='text-sm font-medium truncate max-w-[300px]'
+                        title={msg.titlu}
+                      >
+                        {msg.titlu}
+                      </div>
                       {msg.processing_error && (
-                        <div className='flex items-start gap-1'>
-                          <AlertCircle className='h-4 w-4 mt-0.5 shrink-0' />
-                          <span
-                            className='truncate'
-                            title={msg.processing_error}
-                          >
-                            {msg.processing_error}
-                          </span>
+                        <div
+                          className='text-xs text-red-600 mt-1 truncate max-w-[300px]'
+                          title={msg.processing_error}
+                        >
+                          Eroare: {msg.processing_error}
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className='text-right'>
-                      <div className='flex justify-end gap-2 items-center'>
-                        {/* BUTON ADĂUGARE FURNIZOR */}
-                        {msg.processing_status === 'ERROR_NO_SUPPLIER' && (
+                    <TableCell className='py-1'>
+                      {getStatusBadge(msg.processing_status)}
+                    </TableCell>
+                    <TableCell className='py-1'>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button
-                            size='sm'
                             variant='ghost'
-                            className='text-red-600 hover:text-red-700 hover:bg-orange-50'
-                            asChild
-                            title='Adaugă Furnizor'
+                            size='icon'
+                            className='h-8 w-8'
+                            disabled={isBusy}
                           >
-                            <Link href='/admin/management/suppliers/new'>
-                              <UserPlus className='h-4 w-4' />
-                            </Link>
+                            {isBusy ? (
+                              <Loader2 className='h-4 w-4 animate-spin' />
+                            ) : (
+                              <RefreshCw className='h-4 w-4' />
+                            )}
                           </Button>
-                        )}
-
-                        {/* Buton Preview */}
-                        <Button
-                          size='sm'
-                          variant='ghost'
-                          title='Previzualizare'
-                          disabled={loadingPreviewId === msg._id}
-                          onClick={() => handlePreview(msg._id)}
-                        >
-                          {loadingPreviewId === msg._id ? (
-                            <Loader2 className='h-4 w-4 animate-spin' />
-                          ) : (
-                            <Eye className='h-4 w-4' />
-                          )}
-                        </Button>
-
-                        {/* Buton Retry */}
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          disabled={isPending}
-                          onClick={() => handleRetry(msg._id)}
-                        >
-                          <RefreshCw
-                            className={`h-3.5 w-3.5 mr-2 ${isPending ? 'animate-spin' : ''}`}
-                          />
-                          Reîncearcă
-                        </Button>
-                      </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align='end'>
+                          <DropdownMenuItem
+                            onClick={() => handleRetry(msg._id)}
+                          >
+                            Reîncearcă Procesarea
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handlePreview(msg._id)}
+                          >
+                            <Eye className='mr-2 h-4 w-4' /> Debug XML
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 )
               })
             )}
           </TableBody>
-        </Table>
+        </table>
       </div>
 
-      {/* Paginare */}
-      {(totalPages > 1 || true) && (
+      {data.totalPages > 1 && (
         <div className='flex items-center justify-center gap-2 py-4 border-t bg-background shrink-0'>
           <Button
             variant='outline'
             size='sm'
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isNavigating}
           >
-            Anterior
+            {isNavigating ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Anterior'
+            )}
           </Button>
           <span className='text-sm text-muted-foreground'>
-            Pagina {page} din {totalPages || 1}
+            Pagina {currentPage} din {data.totalPages}
           </span>
           <Button
             variant='outline'
             size='sm'
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= data.totalPages || isNavigating}
           >
-            Următor
+            {isNavigating ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Următor'
+            )}
           </Button>
         </div>
       )}
-
-      <AnafPreviewModal
-        isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
-        data={previewData}
-      />
     </div>
   )
 }

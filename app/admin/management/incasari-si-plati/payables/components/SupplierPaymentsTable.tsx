@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation' // <-- Importuri noi
 import {
   Table,
   TableBody,
@@ -28,20 +29,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { getSupplierPayments } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.actions'
 import { cancelSupplierPayment } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.actions'
 import { SUPPLIER_PAYMENT_STATUS_MAP } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.constants'
 import { PopulatedSupplierPayment } from './SupplierAllocationModal'
-import { formatCurrency, formatDateTime } from '@/lib/utils' // <--- ACUM O FOLOSIM
-import { PAGE_SIZE } from '@/lib/constants'
+import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
 import { getPaymentMethodName } from '@/lib/db/modules/setting/efactura/anaf.constants'
 
 const FALLBACK_STATUS = { name: 'Necunoscut', variant: 'outline' } as const
 
 interface SupplierPaymentsTableProps {
-  initialData: {
+  // Primim datele direct de la server
+  data: {
     data: PopulatedSupplierPayment[]
     totalPages: number
     total: number
@@ -50,29 +50,28 @@ interface SupplierPaymentsTableProps {
 }
 
 export function SupplierPaymentsTable({
-  initialData,
+  data,
   onOpenAllocationModal,
 }: SupplierPaymentsTableProps) {
   const router = useRouter()
-  const [payments, setPayments] = useState(initialData.data)
-  const [totalPages, setTotalPages] = useState(initialData.totalPages)
-  const [page, setPage] = useState(1)
-  const [isPending, startTransition] = useTransition()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
 
+  const currentPage = Number(searchParams.get('page')) || 1
+  const [isPending, setIsPending] = useState(false)
+
+  // State local doar pentru acțiunea de anulare (nu afectează navigarea)
   const [paymentToCancel, setPaymentToCancel] =
     useState<PopulatedSupplierPayment | null>(null)
   const [isCanceling, setIsCanceling] = useState(false)
 
-  useEffect(() => {
-    if (page === 1) return
-    startTransition(async () => {
-      const result = await getSupplierPayments(page, PAGE_SIZE)
-      if (result.success) {
-        setPayments(result.data)
-        setTotalPages(result.totalPages)
-      }
-    })
-  }, [page])
+  const handlePageChange = (newPage: number) => {
+    setIsPending(true)
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
+    setIsPending(false)
+  }
 
   const handleConfirmCancel = async () => {
     if (!paymentToCancel) return
@@ -81,7 +80,7 @@ export function SupplierPaymentsTable({
       const result = await cancelSupplierPayment(paymentToCancel._id)
       if (result.success) {
         toast.success(result.message)
-        router.refresh()
+        router.refresh() // Reîmprospătăm datele
       } else {
         toast.error(result.message)
       }
@@ -96,73 +95,76 @@ export function SupplierPaymentsTable({
   return (
     <div className='flex flex-col h-full'>
       <div className='rounded-md border flex-1 overflow-auto min-h-0 relative'>
-        <Table>
+        <table className='w-full caption-bottom text-sm text-left'>
           <TableHeader className='sticky top-0 z-10 bg-background shadow-sm'>
             <TableRow className='bg-muted/50 hover:bg-muted/50'>
-              <TableHead className='w-[50px]'>#</TableHead>
-              <TableHead>Plată (Serie - Nr.)</TableHead>
-              <TableHead>Furnizor</TableHead>
-              <TableHead>Dată</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className='text-right'>Sumă Totală</TableHead>
-              <TableHead className='text-right'>Sumă Nealocată</TableHead>
-              <TableHead className='w-[50px]'></TableHead>
+              <TableHead className='w-[50px] py-1'>#</TableHead>
+              <TableHead className='py-1'>Plată (Serie - Nr.)</TableHead>
+              <TableHead className='py-1'>Furnizor</TableHead>
+              <TableHead className='py-1'>Dată</TableHead>
+              <TableHead className='py-1'>Status</TableHead>
+              <TableHead className='text-right py-1'>Sumă Totală</TableHead>
+              <TableHead className='text-right py-1'>Sumă Nealocată</TableHead>
+              <TableHead className='w-[50px] py-1'></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isPending ? (
-              <TableRow>
-                <TableCell colSpan={7} className='h-24 text-center'>
-                  Se încarcă...
-                </TableCell>
-              </TableRow>
-            ) : payments.length === 0 ? (
+            {data.data.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
-                  className='h-24 text-center text-muted-foreground'
+                  colSpan={8}
+                  className='h-24 text-center text-muted-foreground py-1'
                 >
-                  Nu există plăți.
+                  Nu există plăți conform filtrelor.
                 </TableCell>
               </TableRow>
             ) : (
-              payments.map((payment, index) => {
+              data.data.map((payment, index) => {
                 const statusInfo =
                   SUPPLIER_PAYMENT_STATUS_MAP[payment.status] || FALLBACK_STATUS
                 const isCancelable = payment.status === 'NEALOCATA'
                 const isAllocationsViewable = payment.status !== 'ANULATA'
+                const globalIndex =
+                  (currentPage - 1) * PAYABLES_PAGE_SIZE + index + 1
 
                 return (
                   <TableRow key={payment._id} className='hover:bg-muted/50'>
                     <TableCell className='font-medium text-muted-foreground py-1'>
-                      {(page - 1) * PAGE_SIZE + index + 1}
+                      {globalIndex}
                     </TableCell>
-                    <TableCell className='font-medium py-[7px]'>
-                      {payment.seriesName?.toUpperCase() || ''} -{' '}
-                      {payment.paymentNumber || 'N/A'}
+                    <TableCell className='font-medium py-0.5'>
+                      {/* Logică de afișare Serie/Număr */}
+                      {(() => {
+                        const series = payment.seriesName?.toUpperCase()
+                        const number = payment.paymentNumber || 'N/A'
+
+                        // Dacă avem serie, o afișăm cu liniuță. Dacă nu, afișăm doar numărul.
+                        return series ? `${series} - ${number}` : number
+                      })()}
+
                       <div className='text-[10px] text-muted-foreground'>
                         {getPaymentMethodName(payment.paymentMethod)}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='py-1'>
                       {payment.supplierId?.name || 'Furnizor Șters'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='py-1'>
                       {formatDateTime(new Date(payment.paymentDate)).dateOnly}
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className='py-1'>
                       <Badge variant={statusInfo.variant}>
                         {statusInfo.name}
                       </Badge>
                     </TableCell>
-                    <TableCell className='text-right font-medium'>
+                    <TableCell className='text-right font-medium py-1'>
                       {formatCurrency(payment.totalAmount)}
                     </TableCell>
-                    <TableCell className='text-right text-red-600 font-medium'>
+                    <TableCell className='text-right text-red-600 font-medium py-1'>
                       {formatCurrency(payment.unallocatedAmount)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='py-1'>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant='ghost' className='h-7 w-8 p-0'>
@@ -191,35 +193,43 @@ export function SupplierPaymentsTable({
               })
             )}
           </TableBody>
-        </Table>
+        </table>
       </div>
 
       {/* Paginare */}
-      {totalPages > 0 && (
+      {data.totalPages > 1 && (
         <div className='flex items-center justify-center gap-2 py-4 border-t bg-background shrink-0'>
           <Button
             variant='outline'
             size='sm'
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
-            Anterior
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Anterior'
+            )}
           </Button>
           <span className='text-sm text-muted-foreground'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {data.totalPages}
           </span>
           <Button
             variant='outline'
             size='sm'
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= data.totalPages || isPending}
           >
-            Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Următor'
+            )}
           </Button>
         </div>
       )}
 
-      {/* Alert Dialog Anulare */}
+      {/* Alert Dialog Anulare (Rămâne neschimbat) */}
       <AlertDialog
         open={!!paymentToCancel}
         onOpenChange={(open) => !open && setPaymentToCancel(null)}
