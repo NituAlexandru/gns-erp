@@ -21,6 +21,7 @@ import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-
 import NirModel from '../../nir/nir.model'
 import { generateNextDocumentNumber } from '../../../numbering/numbering.actions'
 import { CreateOpeningBalanceInput } from '../../initial-balance/initial-balance.validator'
+import SupplierAllocationModel from './supplier-allocation.model'
 
 type SupplierInvoiceActionResult = {
   success: boolean
@@ -49,6 +50,7 @@ export interface SupplierInvoiceListItem {
     _id: string
     name: string
   } | null
+  eFacturaXMLId?: string
 }
 
 export type SupplierInvoicesPage = {
@@ -583,5 +585,171 @@ export async function createSupplierOpeningBalance(
     return { success: false, message: (error as Error).message }
   } finally {
     await session.endSession()
+  }
+}
+
+export async function updateSupplierInvoice(
+  invoiceId: string,
+  data: CreateSupplierInvoiceInput,
+): Promise<SupplierInvoiceActionResult> {
+  const session = await startSession()
+  let updatedInvoice: ISupplierInvoiceDoc | null = null
+
+  try {
+    updatedInvoice = await session.withTransaction(async (session) => {
+      // 1. Auth
+      const authSession = await auth()
+      if (!authSession?.user?.id) throw new Error('Utilizator neautentificat.')
+
+      // 2. Găsire Factură
+      const existingInvoice =
+        await SupplierInvoiceModel.findById(invoiceId).session(session)
+      if (!existingInvoice) throw new Error('Factura nu a fost găsită.')
+
+      // 3. GUARD: E-Factura
+      if (existingInvoice.eFacturaXMLId) {
+        throw new Error('Nu puteți modifica o factură importată din e-Factura.')
+      }
+
+      if (
+        existingInvoice.status === 'PLATITA' ||
+        existingInvoice.status === 'PARTIAL_PLATITA'
+      ) {
+        throw new Error(
+          'Nu puteți modifica o factură plătită sau parțial plătită. Vă rugăm să anulați plățile (alocările) aferente înainte de a modifica factura.',
+        )
+      }
+
+      // 4. GUARD: Alocări (Plăți)
+      // Verificăm dacă există vreo alocare legată de această factură
+      const allocationCount = await SupplierAllocationModel.countDocuments({
+        invoiceId: existingInvoice._id,
+      }).session(session)
+
+      if (allocationCount > 0) {
+        throw new Error(
+          'Factura are plăți alocate. Ștergeți alocările (plățile) înainte de a modifica factura.',
+        )
+      }
+
+      // 5. Pregătire date noi
+      const validatedData = CreateSupplierInvoiceSchema.parse(data)
+
+      // Reconstruim snapshot-ul companiei (doar pentru siguranță, deși ar trebui să fie la fel)
+      const companySettings = await getSetting()
+      if (!companySettings) throw new Error('Setările companiei lipsesc.')
+      const ourCompanySnapshot = buildCompanySnapshot(companySettings)
+
+      // 6. Update
+      existingInvoice.supplierId = new Types.ObjectId(validatedData.supplierId)
+      existingInvoice.supplierSnapshot = validatedData.supplierSnapshot
+      existingInvoice.invoiceType = validatedData.invoiceType
+      existingInvoice.invoiceSeries = validatedData.invoiceSeries
+      existingInvoice.invoiceNumber = validatedData.invoiceNumber
+      existingInvoice.invoiceDate = validatedData.invoiceDate
+      existingInvoice.dueDate = validatedData.dueDate
+      existingInvoice.items = validatedData.items as any
+      existingInvoice.totals = validatedData.totals
+      existingInvoice.notes = validatedData.notes
+      existingInvoice.ourCompanySnapshot = ourCompanySnapshot
+      // Recalculăm statusul și remaining amount (fiindcă nu avem plăți, remaining = grandTotal)
+      existingInvoice.paidAmount = 0
+      existingInvoice.remainingAmount = validatedData.totals.grandTotal
+      existingInvoice.status = 'NEPLATITA'
+
+      await existingInvoice.save({ session })
+
+      return existingInvoice
+    })
+
+    await session.endSession()
+
+    if (updatedInvoice) {
+      await recalculateSupplierSummary(
+        (updatedInvoice as ISupplierInvoiceDoc).supplierId.toString(),
+        'auto-recalc',
+        true,
+      )
+    }
+
+    revalidatePath('/admin/management/incasari-si-plati/payables/facturi')
+    revalidatePath(`/financial/invoices/${invoiceId}`)
+
+    return {
+      success: true,
+      message: 'Factura a fost actualizată cu succes.',
+    }
+  } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction()
+    await session.endSession()
+    console.error('❌ Eroare updateSupplierInvoice:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+/**
+ * ȘTERGERE FACTURĂ MANUALĂ
+ */
+export async function deleteSupplierInvoice(
+  invoiceId: string,
+): Promise<{ success: boolean; message: string }> {
+  const session = await startSession()
+  let supplierIdToRecalc = ''
+
+  try {
+    await session.withTransaction(async (session) => {
+      // 1. Auth
+      const authSession = await auth()
+      if (!authSession?.user?.id) throw new Error('Utilizator neautentificat.')
+
+      // 2. Găsire
+      const invoice =
+        await SupplierInvoiceModel.findById(invoiceId).session(session)
+      if (!invoice) throw new Error('Factura nu a fost găsită.')
+
+      supplierIdToRecalc = invoice.supplierId.toString()
+
+      // 3. GUARD: E-Factura
+      if (invoice.eFacturaXMLId) {
+        throw new Error('Nu puteți șterge o factură importată din e-Factura.')
+      }
+
+      if (
+        invoice.status === 'PLATITA' ||
+        invoice.status === 'PARTIAL_PLATITA'
+      ) {
+        throw new Error(
+          'Nu puteți șterge o factură plătită sau parțial plătită. Vă rugăm să anulați plățile (alocările) aferente înainte de a șterge factura.',
+        )
+      }
+
+      // 4. GUARD: Alocări
+      const allocationCount = await SupplierAllocationModel.countDocuments({
+        invoiceId: invoice._id,
+      }).session(session)
+
+      if (allocationCount > 0) {
+        throw new Error(
+          'Factura are plăți alocate. Ștergeți alocările înainte de a șterge factura.',
+        )
+      }
+
+      // 5. Delete
+      await SupplierInvoiceModel.findByIdAndDelete(invoiceId).session(session)
+    })
+
+    await session.endSession()
+
+    if (supplierIdToRecalc) {
+      await recalculateSupplierSummary(supplierIdToRecalc, 'auto-recalc', true)
+    }
+
+    revalidatePath('/admin/management/incasari-si-plati/payables/facturi')
+
+    return { success: true, message: 'Factura a fost ștearsă cu succes.' }
+  } catch (error) {
+    if (session.inTransaction()) await session.abortTransaction()
+    await session.endSession()
+    console.error('❌ Eroare deleteSupplierInvoice:', error)
+    return { success: false, message: (error as Error).message }
   }
 }

@@ -34,6 +34,8 @@ interface SupplierInvoicesTableProps {
   onOpenCreatePayment: (supplierId: string, invoiceId?: string) => void
   onOpenDetailsSheet: (invoiceId: string) => void
   currentUser?: { id: string; name?: string | null }
+  onEdit: (invoiceId: string) => void
+  onDelete: (invoiceId: string) => void
 }
 
 export function SupplierInvoicesTable({
@@ -41,6 +43,8 @@ export function SupplierInvoicesTable({
   onOpenCreatePayment,
   onOpenDetailsSheet,
   currentUser,
+  onEdit,
+  onDelete,
 }: SupplierInvoicesTableProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -70,13 +74,13 @@ export function SupplierInvoicesTable({
     try {
       const result = await createSupplierCompensationPayment(
         invoice._id,
-        currentUser.id, 
-        currentUser.name || 'Operator', 
+        currentUser.id,
+        currentUser.name || 'Operator',
       )
 
       if (result.success) {
         toast.success(result.message)
-        router.refresh() // Actualizăm lista (factura va dispărea sau va deveni plătită)
+        router.refresh() 
       } else {
         toast.error('Eroare:', { description: result.message })
       }
@@ -219,10 +223,26 @@ export function SupplierInvoicesTable({
                         <DropdownMenuContent align='end'>
                           <DropdownMenuItem
                             onClick={() => onOpenDetailsSheet(inv._id)}
+                            className='cursor-pointer'
                           >
                             Vezi Detalii
                           </DropdownMenuItem>
-
+                          {!inv.eFacturaXMLId && (
+                            <DropdownMenuItem
+                              onClick={() => onEdit(inv._id)}
+                              className='cursor-pointer'
+                            >
+                              Editează Factura
+                            </DropdownMenuItem>
+                          )}
+                          {!inv.eFacturaXMLId && (
+                            <DropdownMenuItem
+                              onClick={() => onDelete(inv._id)}
+                              className='text-red-600 focus:text-red-600 cursor-pointer'
+                            >
+                              Șterge Factura
+                            </DropdownMenuItem>
+                          )}
                           {/* LOGICA NOUĂ AICI */}
                           {inv.status !== 'PLATITA' && (
                             <>
@@ -241,6 +261,7 @@ export function SupplierInvoicesTable({
                               ) : (
                                 /* 2. Dacă e factură normală (Pozitivă) -> Arătăm butonul de Plată */
                                 <DropdownMenuItem
+                                  className='cursor-pointer'
                                   onClick={() =>
                                     inv.supplierId &&
                                     onOpenCreatePayment(

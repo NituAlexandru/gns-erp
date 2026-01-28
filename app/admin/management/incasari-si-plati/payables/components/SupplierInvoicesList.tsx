@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState } from 'react'
@@ -44,10 +43,12 @@ export interface SupplierInvoicesListProps {
   invoices: Invoice[]
   onOpenCreatePayment: (supplierId: string) => void
   onOpenAllocationModal: (payment: PopulatedSupplierPayment) => void
-  onOpenDetailsSheet: (invoiceId: string | null) => void 
+  onOpenDetailsSheet: (invoiceId: string | null) => void
+  onEdit: (invoiceId: string) => void
+  onDelete: (invoiceId: string) => void
 }
 
-// CORECTAT: Adaugă corpul funcției formatDate
+// Adaugă corpul funcției formatDate
 function formatDate(dateString: Date | string) {
   return new Date(dateString).toLocaleDateString('ro-RO', {
     day: '2-digit',
@@ -62,7 +63,9 @@ export function SupplierInvoicesList({
   invoices,
   onOpenCreatePayment,
   onOpenAllocationModal,
-  onOpenDetailsSheet, 
+  onOpenDetailsSheet,
+  onEdit,
+  onDelete,
 }: SupplierInvoicesListProps) {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
 
@@ -92,14 +95,14 @@ export function SupplierInvoicesList({
         // Cazul 1: Există o plată nealocată -> Deschide sheet-ul de alocare
         toast.info(
           'S-a găsit o plată nealocată. Te rog să aloci suma dorită.',
-          { duration: 5000 }
+          { duration: 5000 },
         )
         onOpenAllocationModal(result.payment)
       } else {
         // Cazul 2: Nu există plată nealocată -> Deschide sheet-ul de creare plată
         toast.info(
           'Nu există plăți nealocate. Te rog să creezi o plată nouă.',
-          { duration: 5000 }
+          { duration: 5000 },
         )
         onOpenCreatePayment(supplierId)
       }
@@ -201,6 +204,15 @@ export function SupplierInvoicesList({
                           <DropdownMenuItem disabled>
                             Anulează Factură
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onEdit(invoice._id)}>
+                            Editează Factura
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => onDelete(invoice._id)}
+                            className='text-red-600 focus:text-red-600 cursor-pointer'
+                          >
+                            Șterge Factura
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -211,7 +223,6 @@ export function SupplierInvoicesList({
           </Table>
         </CardContent>
       </Card>
-
     </>
   )
 }

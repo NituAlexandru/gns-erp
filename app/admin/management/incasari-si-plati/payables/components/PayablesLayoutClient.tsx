@@ -29,7 +29,6 @@ interface PayablesLayoutClientProps {
   vatRates: VatRateDTO[]
   defaultVatRate: VatRateDTO | null
   budgetCategoriesFlat: BudgetCategoryDTO[]
-  // Date pentru Badge-uri (numere) - le primim din server layout
   counts: {
     invoices: number
     payments: number

@@ -19,7 +19,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Loader2 } from 'lucide-react'
 import { formatCurrency, round2 } from '@/lib/utils'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
-import { createSupplierInvoice } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
+// --- IMPORT NOU ---
+import {
+  createSupplierInvoice,
+  updateSupplierInvoice,
+} from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 import {
   CreateSupplierInvoiceSchema,
   SupplierSnapshotSchema,
@@ -60,6 +64,7 @@ interface CreateSupplierInvoiceFormProps {
   onFormSubmit: () => void
   vatRates: VatRateDTO[]
   defaultVatRate: VatRateDTO | null
+  initialData?: InvoiceFormValues & { _id: string }
 }
 
 export function CreateSupplierInvoiceForm({
@@ -67,19 +72,35 @@ export function CreateSupplierInvoiceForm({
   onFormSubmit,
   vatRates,
   defaultVatRate,
+  initialData,
 }: CreateSupplierInvoiceFormProps) {
   const form = useForm<InvoiceFormValues>({
     resolver: zodResolver(FormInputSchema),
-    defaultValues: {
-      supplierId: '',
-      invoiceType: 'STANDARD',
-      invoiceSeries: '',
-      invoiceNumber: '',
-      invoiceDate: new Date(),
-      dueDate: new Date(),
-      items: [],
-      notes: '',
-    },
+    defaultValues: initialData
+      ? {
+          supplierId:
+            typeof initialData.supplierId === 'object' &&
+            initialData.supplierId !== null
+              ? (initialData.supplierId as any)._id
+              : initialData.supplierId,
+          invoiceType: initialData.invoiceType,
+          invoiceSeries: initialData.invoiceSeries,
+          invoiceNumber: initialData.invoiceNumber,
+          invoiceDate: new Date(initialData.invoiceDate),
+          dueDate: new Date(initialData.dueDate),
+          items: initialData.items,
+          notes: initialData.notes || '',
+        }
+      : {
+          supplierId: '',
+          invoiceType: 'STANDARD',
+          invoiceSeries: '',
+          invoiceNumber: '',
+          invoiceDate: new Date(),
+          dueDate: new Date(),
+          items: [],
+          notes: '',
+        },
   })
 
   const { isSubmitting } = form.formState
@@ -87,10 +108,12 @@ export function CreateSupplierInvoiceForm({
   const watchedItems = useWatch({ control, name: 'items' })
 
   // Definim stările pentru totalurile vizuale
+  // Inițializăm stările corect dacă suntem pe EDIT
   const [subtotal, setSubtotal] = useState(0)
   const [vatTotal, setVatTotal] = useState(0)
   const [grandTotal, setGrandTotal] = useState(0)
 
+  // --- USE EFFECT PENTRU CALCUL TOTALURI ---
   useEffect(() => {
     if (!watchedItems) return
     let totalSubtotal = 0
@@ -106,7 +129,6 @@ export function CreateSupplierInvoiceForm({
     })
     const grandTotal = round2(totalSubtotal + totalVat)
 
-    // Setăm stările locale, nu valorile formularului
     setSubtotal(totalSubtotal)
     setVatTotal(totalVat)
     setGrandTotal(grandTotal)
@@ -118,14 +140,12 @@ export function CreateSupplierInvoiceForm({
       <div className='flex items-center justify-center h-full p-8 text-center'>
         <p className='text-lg font-semibold text-red-500'>
           Eroare Critică: Cota TVA implicită nu este setată în sistem.
-          <br />
-          Factura nu poate fi creată. Vă rugăm contactați un administrator.
         </p>
       </div>
     )
   }
 
-  // Funcția onSubmit (primește DOAR datele din FormInputSchema)
+  // Funcția onSubmit
   async function onSubmit(data: InvoiceFormValues) {
     try {
       const selectedSupplier = suppliers.find((s) => s._id === data.supplierId)
@@ -159,7 +179,7 @@ export function CreateSupplierInvoiceForm({
       const finalItems = data.items.map((item) => {
         const lineValue = round2((item.quantity || 0) * (item.unitPrice || 0))
         const vatValue = round2(
-          lineValue * ((item.vatRateDetails.rate || 0) / 100)
+          lineValue * ((item.vatRateDetails.rate || 0) / 100),
         )
         return {
           ...item,
@@ -192,7 +212,7 @@ export function CreateSupplierInvoiceForm({
         supplierSnapshot: supplierSnapshot,
       }
 
-      // Validare finală (folosind schema completă de backend)
+      // Validare finală
       const validation = CreateSupplierInvoiceSchema.safeParse(payload)
       if (!validation.success) {
         console.error('Eroare validare payload final:', validation.error.errors)
@@ -200,7 +220,15 @@ export function CreateSupplierInvoiceForm({
         return
       }
 
-      const result = await createSupplierInvoice(validation.data)
+      let result
+      if (initialData) {
+        // Suntem pe EDIT
+        result = await updateSupplierInvoice(initialData._id, validation.data)
+      } else {
+        // Suntem pe CREATE
+        result = await createSupplierInvoice(validation.data)
+      }
+
       if (result.success) {
         toast.success(result.message)
         onFormSubmit()
@@ -217,7 +245,7 @@ export function CreateSupplierInvoiceForm({
 
   // Funcția onInvalid
   const onInvalid = (errors: FieldErrors<InvoiceFormValues>) => {
-    console.error('--- VALIDARE EȘUATĂ (FORMULAR BLOCAT) ---', errors)
+    console.error('--- VALIDARE EȘUATĂ ---', errors)
     toast.error('Formularul conține erori. Verificați datele introduse.')
   }
 
@@ -230,7 +258,6 @@ export function CreateSupplierInvoiceForm({
         onSubmit={form.handleSubmit(onSubmit, onInvalid)}
         className='space-y-6'
       >
-        {/* Grupa 1 & 2: Furnizor, Serie și Număr (50/25/25) */}
         <div className='grid grid-cols-1 gap-x-4 gap-y-6 md:grid-cols-5'>
           <FormField
             control={control}
@@ -310,7 +337,6 @@ export function CreateSupplierInvoiceForm({
           />
         </div>
 
-        {/* Grupa 3: Calendare și Notițe/Totaluri (3 coloane, înălțime fixă) */}
         <div className='grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3'>
           <FormField
             control={control}
@@ -391,7 +417,6 @@ export function CreateSupplierInvoiceForm({
           </div>
         </div>
 
-        {/* Grupa 4: Liniile de factură */}
         <SupplierInvoiceLineEditor
           control={control}
           unitsOfMeasure={UNITS as unknown as string[]}
@@ -400,12 +425,12 @@ export function CreateSupplierInvoiceForm({
         />
         <FormMessage>{form.formState.errors.items?.root?.message}</FormMessage>
 
-        {/* Grupa 5: Butonul */}
+        {/* --- MODIFICARE AICI: BUTONUL --- */}
         <Button type='submit' disabled={isSubmitting} className='w-full'>
           {isSubmitting ? (
             <Loader2 className='mr-2 h-4 w-4 animate-spin' />
           ) : null}
-          Salvează Factura
+          {initialData ? 'Actualizează Factura' : 'Salvează Factura'}
         </Button>
       </form>
     </Form>
