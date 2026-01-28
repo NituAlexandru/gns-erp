@@ -14,9 +14,18 @@ export function PublicReceivablesListWrapper({
 }: WrapperProps) {
   const handleOpenModalDummy = () => {}
 
+  const formattedData = {
+    data: payments,
+    pagination: {
+      total: payments.length,
+      page: 1,
+      totalPages: 1,
+    },
+  }
+
   return (
     <ReceivablesList
-      payments={payments}
+      data={formattedData}
       isAdmin={isAdmin}
       onOpenAllocationModal={handleOpenModalDummy}
     />

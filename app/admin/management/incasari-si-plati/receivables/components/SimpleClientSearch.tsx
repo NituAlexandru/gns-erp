@@ -13,16 +13,16 @@ import { useEffect, useState } from 'react'
 interface SimpleClientSearchProps {
   value: string
   onChange: (value: string) => void
-  initialClientName?: string
+  defaultName?: string
 }
 
 export function SimpleClientSearch({
   value,
   onChange,
-  initialClientName = '',
+  defaultName = '',
 }: SimpleClientSearchProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedName, setSelectedName] = useState(initialClientName)
+  const [selectedName, setSelectedName] = useState(defaultName)
   const [results, setResults] = useState<SearchedClient[]>([])
   const [isFocused, setIsFocused] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -52,11 +52,11 @@ export function SimpleClientSearch({
     if (!value) {
       setSelectedName('')
     } else {
-      if (initialClientName) {
-        setSelectedName(initialClientName)
+      if (defaultName) {
+        setSelectedName(defaultName)
       }
     }
-  }, [value, initialClientName])
+  }, [value, defaultName])
 
   const handleSelect = (client: SearchedClient) => {
     onChange(client._id)

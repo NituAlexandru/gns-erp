@@ -1,6 +1,6 @@
 'use server'
 
-import { startSession, Types } from 'mongoose'
+import { PipelineStage, startSession, Types } from 'mongoose'
 import { auth } from '@/auth'
 import InvoiceModel from '../../../financial/invoices/invoice.model'
 import ClientPaymentModel from './client-payment.model'
@@ -16,6 +16,12 @@ import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
 import ClientModel from '../../../client/client.model'
 import { recalculateClientSummary } from '../../../client/summary/client-summary.actions'
+import { RECEIVABLES_PAGE_SIZE } from '@/lib/constants'
+import {
+  getNextReceiptNumberPreview,
+  incrementReceiptNumber,
+} from '../../../numbering/receipt-numbering.actions'
+import { getInvoiceById } from '../../invoices/invoice.actions'
 
 type PopulatedClientPayment = ClientPaymentDTO & {
   clientId: {
@@ -57,6 +63,14 @@ export async function createClientPayment(
 
       const validatedData = CreateClientPaymentSchema.parse(data)
 
+      // --- LOGICĂ NUMEROTARE AUTOMATĂ ---
+      const expectedAutoNumber = await getNextReceiptNumberPreview()
+
+      // Dacă userul a păstrat numărul propus, incrementăm contorul
+      if (validatedData.paymentNumber === expectedAutoNumber) {
+        await incrementReceiptNumber()
+      }
+
       // 3. Crearea Încasării
       const [newPayment] = await ClientPaymentModel.create(
         [
@@ -79,29 +93,44 @@ export async function createClientPayment(
         return newPayment
       }
 
-      // 4. LOGICA DE ALOCARE AUTOMATĂ (FIFO)
+      // 4. LOGICA DE ALOCARE (HIBRIDĂ: SELECTATE -> FIFO)
+
+      // A. Luăm facturile eligibile
       const invoicesToPay = await InvoiceModel.find({
         clientId: validatedData.clientId,
         status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
         remainingAmount: { $gt: 0 },
         seriesName: { $ne: 'INIT-AMB' },
+        invoiceType: { $ne: 'PROFORMA' },
       })
-        .sort({ dueDate: 1 })
+        .sort({ dueDate: 1, _id: 1 })
         .session(session)
 
+      // B. RE-SORTARE INTELIGENTĂ
+      const selectedIds = validatedData.selectedInvoiceIds || []
+
+      if (selectedIds.length > 0) {
+        invoicesToPay.sort((a, b) => {
+          const isASelected = selectedIds.includes(a._id.toString())
+          const isBSelected = selectedIds.includes(b._id.toString())
+
+          if (isASelected && !isBSelected) return -1
+          if (!isASelected && isBSelected) return 1
+          return 0
+        })
+      }
+
+      // C. DISTRIBUIREA BANILOR
       for (const invoice of invoicesToPay) {
-        if (currentUnallocated <= 0) {
-          break
-        }
+        if (currentUnallocated <= 0) break
 
         const remainingOnInvoice = invoice.remainingAmount
-        let amountToAllocate = 0
 
-        if (currentUnallocated >= remainingOnInvoice) {
-          amountToAllocate = remainingOnInvoice
-        } else {
-          amountToAllocate = currentUnallocated
-        }
+        // Luăm minimul dintre ce am, și ce trebuie plătit
+        let amountToAllocate = Math.min(
+          invoice.remainingAmount,
+          currentUnallocated,
+        )
 
         amountToAllocate = round2(amountToAllocate)
 
@@ -180,27 +209,142 @@ export async function createClientPayment(
     return { success: false, message: (error as Error).message }
   }
 }
-
-export async function getClientPayments() {
+export async function getClientPayments(
+  page = 1,
+  limit = RECEIVABLES_PAGE_SIZE,
+  filters?: {
+    search?: string
+    status?: string // 'ALL', 'NEALOCATA', 'ALOCAT_COMPLET', etc.
+    from?: string
+    to?: string
+  },
+) {
   try {
     await connectToDatabase()
 
-    const payments = await ClientPaymentModel.find()
-      .populate({
-        path: 'clientId',
-        model: ClientModel,
-        select: 'name',
+    const skip = (page - 1) * limit
+    const pipeline: PipelineStage[] = []
+
+    // 1. CONSTRUIRE FILTRE DE BAZĂ ($match)
+    // Începem cu un match gol și adăugăm condiții
+    const matchStage: any = {}
+
+    // --- FILTRU STATUS ---
+    if (filters?.status && filters.status !== 'ALL') {
+      matchStage.status = filters.status
+    }
+
+    // --- FILTRU DATĂ (Payment Date) ---
+    if (filters?.from || filters?.to) {
+      matchStage.paymentDate = {}
+      if (filters.from) {
+        matchStage.paymentDate.$gte = new Date(filters.from)
+      }
+      if (filters.to) {
+        const toDate = new Date(filters.to)
+        toDate.setHours(23, 59, 59, 999)
+        matchStage.paymentDate.$lte = toDate
+      }
+    }
+
+    // Adăugăm stagiul doar dacă avem filtre
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage })
+    }
+
+    // 2. LOOKUP CLIENT
+    pipeline.push({
+      $lookup: {
+        from: 'clients',
+        localField: 'clientId',
+        foreignField: '_id',
+        as: 'clientDoc',
+      },
+    })
+
+    pipeline.push({
+      $unwind: { path: '$clientDoc', preserveNullAndEmptyArrays: true },
+    })
+
+    // 3. FILTRU CĂUTARE TEXT
+    if (filters?.search) {
+      const searchRegex = { $regex: filters.search, $options: 'i' }
+      pipeline.push({
+        $match: {
+          $or: [
+            { paymentNumber: searchRegex },
+            { seriesName: searchRegex },
+            { 'clientDoc.name': searchRegex },
+            { referenceDocument: searchRegex },
+          ],
+        },
       })
-      .sort({ paymentDate: -1 })
-      .lean()
+    }
+
+    // 4. FACET
+    pipeline.push({
+      $facet: {
+        totalCount: [{ $count: 'count' }],
+        summary: [
+          {
+            $group: {
+              _id: null,
+              totalCollected: { $sum: '$totalAmount' },
+            },
+          },
+        ],
+        data: [
+          { $sort: { paymentDate: -1, _id: -1 } }, // Cele mai recente primele
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              paymentNumber: 1,
+              seriesName: 1,
+              paymentDate: 1,
+              totalAmount: 1,
+              unallocatedAmount: 1,
+              status: 1,
+              paymentMethod: 1,
+              referenceDocument: 1,
+              clientId: {
+                _id: '$clientDoc._id',
+                name: '$clientDoc.name',
+              },
+            },
+          },
+        ],
+      },
+    })
+
+    const result = await ClientPaymentModel.aggregate(pipeline)
+    const facetResult = result[0]
+
+    const data = facetResult.data || []
+    const totalItems = facetResult.totalCount[0]?.count || 0
+    const summaryTotal = facetResult.summary[0]?.totalCollected || 0
+    const totalPages = Math.ceil(totalItems / limit)
 
     return {
       success: true,
-      data: JSON.parse(JSON.stringify(payments)),
+      data: JSON.parse(JSON.stringify(data)),
+      summaryTotal,
+      pagination: {
+        total: totalItems,
+        page,
+        totalPages,
+      },
     }
   } catch (error) {
     console.error('❌ Eroare getClientPayments:', error)
-    return { success: false, data: [] }
+    return {
+      success: false,
+      data: [],
+      summaryTotal: 0,
+      message: (error as Error).message,
+      pagination: { total: 0, page: 1, totalPages: 0 },
+    }
   }
 }
 export async function cancelClientPayment(
@@ -311,5 +455,77 @@ export async function getClientPaymentById(
   } catch (error) {
     console.error('❌ Eroare getClientPaymentById:', error)
     return { success: false, data: null, message: (error as Error).message }
+  }
+}
+export async function getReceivablesCounts() {
+  try {
+    await connectToDatabase()
+
+    const [invoicesCount, receiptsCount] = await Promise.all([
+      // 1. Numărăm Facturile Neîncasate (Criterii identice cu lista)
+      InvoiceModel.countDocuments({
+        invoiceType: { $ne: 'PROFORMA' },
+        status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
+        remainingAmount: { $ne: 0 },
+        seriesName: { $ne: 'INIT-AMB' },
+      }),
+
+      // 2. Numărăm Încasările (Total)
+      ClientPaymentModel.countDocuments({}),
+    ])
+
+    return {
+      invoices: invoicesCount,
+      receipts: receiptsCount,
+    }
+  } catch (error) {
+    console.error('Err getReceivablesCounts:', error)
+    return { invoices: 0, receipts: 0 }
+  }
+}
+export async function getInvoiceWithAllocations(invoiceId: string) {
+  // 1. Refolosim funcția ta pentru a lua factura
+  const invoiceResult = await getInvoiceById(invoiceId)
+
+  if (!invoiceResult.success || !invoiceResult.data) {
+    return {
+      success: false,
+      message: invoiceResult.message || 'Factura nu a fost găsită.',
+    }
+  }
+
+  try {
+    await connectToDatabase()
+
+    // 2. Luăm separat alocările (plățile) pentru această factură
+    // Asta lipsea din funcția originală
+    const allocations = await PaymentAllocationModel.find({
+      invoiceId: new Types.ObjectId(invoiceId),
+    })
+      .populate(
+        'paymentId',
+        'seriesName paymentNumber paymentDate paymentMethod',
+      )
+      .sort({ createdAt: -1 })
+      .lean()
+
+    // 3. Returnăm ambele seturi de date
+    return {
+      success: true,
+      data: {
+        invoice: invoiceResult.data, // Datele din funcția ta
+        allocations: JSON.parse(JSON.stringify(allocations)), // Alocările pentru tabelul de jos
+      },
+    }
+  } catch (error) {
+    console.error('Eroare la preluarea alocărilor:', error)
+    // Chiar dacă crapă alocările, măcar returnăm factura ca să se vadă ceva
+    return {
+      success: true,
+      data: {
+        invoice: invoiceResult.data,
+        allocations: [],
+      },
+    }
   }
 }

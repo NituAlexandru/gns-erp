@@ -82,9 +82,10 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # Foarte important
 
+- pe facturile split nu se preia CODUL UIT, de verificat adresa de livrare, se preia prima de la fiecare client in parte. nu cea selectata.
+- bug comanda, cand se deschide formul de edit, se incarca un pret aiurea, nu cel salvat.
 - scot nota interna compensare din fisa
 - solduri
-- bug comanda aprovizionare, nu se creaza comanda.
 - bug lista livrari la filtre
 - lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
 - scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina + de adaugat trezorerii + TBI bank

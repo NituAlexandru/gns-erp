@@ -161,33 +161,59 @@ export async function createSupplierPayment(
         { session },
       )
 
-      // ... (Logica de alocare ) ...
+      // (Logica de alocare ) ...
       let currentUnallocated = newPayment.totalAmount
       if (currentUnallocated <= 0) {
         return newPayment
       }
+
       const invoicesToPay = await SupplierInvoiceModel.find({
         supplierId: validatedData.supplierId,
         status: { $in: ['NEPLATITA', 'PARTIAL_PLATITA'] },
         remainingAmount: { $gt: 0 },
       })
-        .sort({ dueDate: 1 })
+        .sort({ dueDate: 1, _id: 1 }) // Ordonare implicită FIFO
         .session(session)
+
+      // B. RE-SORTARE INTELIGENTĂ (Selected First)
+      const selectedIds = validatedData.selectedInvoiceIds || []
+
+      if (selectedIds.length > 0) {
+        invoicesToPay.sort((a, b) => {
+          const isASelected = selectedIds.includes(a._id.toString())
+          const isBSelected = selectedIds.includes(b._id.toString())
+
+          // Regula 1: A e selectată, B nu -> A primul (-1)
+          if (isASelected && !isBSelected) return -1
+
+          // Regula 2: B e selectată, A nu -> B primul (1)
+          if (!isASelected && isBSelected) return 1
+
+          // Regula 3: Egale -> Păstrăm ordinea cronologică
+          return 0
+        })
+      }
+
+      // C. DISTRIBUIRE BANI
       for (const invoice of invoicesToPay) {
         if (currentUnallocated <= 0) break
+
         const remainingOnInvoice = invoice.remainingAmount
-        let amountToAllocate = 0
-        if (currentUnallocated >= remainingOnInvoice) {
-          amountToAllocate = remainingOnInvoice
-        } else {
-          amountToAllocate = currentUnallocated
-        }
+
+        // Luăm minimul dintre ce am și ce trebuie plătit
+        let amountToAllocate = Math.min(remainingOnInvoice, currentUnallocated)
+
         amountToAllocate = round2(amountToAllocate)
+
         if (amountToAllocate <= 0) continue
+
+        // Detalii pentru UI
         allocationDetails.push({
           invoiceNumber: `${invoice.invoiceSeries || ''}-${invoice.invoiceNumber || ''}`,
           allocatedAmount: amountToAllocate,
         })
+
+        // 1. Creăm Alocarea
         await SupplierAllocationModel.create(
           [
             {
@@ -201,10 +227,13 @@ export async function createSupplierPayment(
           ],
           { session },
         )
+
+        // 2. Actualizăm Factura
         invoice.paidAmount = round2(invoice.paidAmount + amountToAllocate)
         invoice.remainingAmount = round2(
           invoice.remainingAmount - amountToAllocate,
         )
+
         if (invoice.remainingAmount <= 0.001) {
           invoice.status = 'PLATITA'
           invoice.remainingAmount = 0
@@ -212,8 +241,12 @@ export async function createSupplierPayment(
           invoice.status = 'PARTIAL_PLATITA'
         }
         await invoice.save({ session })
+
+        // 3. Scădem banii
         currentUnallocated = round2(currentUnallocated - amountToAllocate)
       }
+
+      // Actualizăm plata finală
       newPayment.unallocatedAmount = currentUnallocated
       return await newPayment.save({ session })
     })
@@ -311,7 +344,7 @@ export async function getSupplierPayments(
     const [payments, total, totalCurrentYear, statsResult] = await Promise.all([
       SupplierPaymentModel.find(query)
         .populate({ path: 'supplierId', select: 'name' })
-        .sort({ paymentDate: -1 })
+        .sort({ paymentDate: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -520,7 +553,7 @@ export async function getPaymentsForSupplier(
 
     const payments = await SupplierPaymentModel.find(queryConditions)
       .populate({ path: 'supplierId', select: 'name' })
-      .sort({ paymentDate: -1 })
+      .sort({ paymentDate: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .lean()

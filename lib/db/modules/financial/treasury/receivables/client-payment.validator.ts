@@ -15,4 +15,5 @@ export const CreateClientPaymentSchema = z.object({
   paymentNumber: z.string().min(1, 'Numărul documentului este obligatoriu.'),
   referenceDocument: z.string().optional().default(''),
   notes: z.string().optional(),
+  selectedInvoiceIds: z.array(z.string()).optional(),
 })

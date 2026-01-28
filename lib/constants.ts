@@ -412,6 +412,7 @@ export const AVAILABLE_DELIVERY_DATES = [
 export const CHUNK_SIZE = 7 // Afișăm 7 ansambluri pe rând
 export const ADMIN_PAGE_SIZE = 14
 export const PAYABLES_PAGE_SIZE = 15
+export const RECEIVABLES_PAGE_SIZE = 15
 export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 13)
 export const MOVEMENTS_PAGE_SIZE = 16
 export const CLIENT_DETAIL_PAGE_SIZE = Number(

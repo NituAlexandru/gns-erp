@@ -109,9 +109,7 @@ export function CreateSupplierPaymentForm({
         // 2. Setăm suma totală cu restul de plată al acelei facturi
         setValue('totalAmount', round2(targetInvoice.remainingAmount))
 
-        // Opțional: Putem seta și o notiță automată
-        // setValue('notes', `Plată pentru factura ${targetInvoice.invoiceNumber}`)
-      }
+       }
     }
   }, [allInvoices, initialInvoiceId, setValue])
 
@@ -134,8 +132,7 @@ export function CreateSupplierPaymentForm({
         console.error(error)
       } finally {
         setLoadingInvoices(false)
-        // Resetăm selecția și filtrele la schimbarea furnizorului
-        setSelectedInvoiceIds([])
+       setSelectedInvoiceIds([])
         setValue('totalAmount', 0)
       }
     }
@@ -247,7 +244,12 @@ export function CreateSupplierPaymentForm({
   // Submit Logic (Existent)
   async function onSubmit(data: FormValues) {
     try {
-      const result = await createSupplierPayment(data)
+      const payload = {
+        ...data,
+        selectedInvoiceIds: selectedInvoiceIds,
+      }
+      const result = await createSupplierPayment(payload)
+
       if (result.success) {
         if (result.allocationDetails && result.allocationDetails.length > 0) {
           toast.success('Plată salvată și alocată automat!', {
@@ -514,7 +516,7 @@ export function CreateSupplierPaymentForm({
                   className='h-20 text-xs resize-none bg-muted/30 text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 font-mono'
                 />
                 <Button
-                  type='button' 
+                  type='button'
                   variant='outline'
                   size='icon'
                   className='h-20 w-12 shrink-0 border-dashed hover:border-solid hover:bg-muted'
@@ -587,7 +589,7 @@ export function CreateSupplierPaymentForm({
                       </span>
                     </div>
                   </div>
-            
+
                   <div className='max-h-[1000px] overflow-y-auto border rounded-md bg-background'>
                     <Table>
                       <TableHeader>
@@ -607,9 +609,7 @@ export function CreateSupplierPaymentForm({
                             />
                           </TableHead>
                           <TableHead className='py-1'>Factură</TableHead>
-                        
                           <TableHead className='py-1'>Data Fact.</TableHead>
-                  
                           <TableHead className='py-1'>Scadență</TableHead>
                           <TableHead className='text-right py-1'>
                             Rest Plată
@@ -649,16 +649,12 @@ export function CreateSupplierPaymentForm({
                                   : ''}
                                 {inv.invoiceNumber}
                               </TableCell>
-
-                          
                               <TableCell className='py-1 text-muted-foreground'>
                                 {
                                   formatDateTime(new Date(inv.invoiceDate))
                                     .dateOnly
                                 }
                               </TableCell>
-                         
-
                               <TableCell
                                 className={cn(
                                   'py-1',

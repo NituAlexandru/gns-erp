@@ -1,10 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
-  Table,
-  TableBody,
+    TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -12,13 +11,13 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Eye, MoreHorizontal, Trash2, Loader2 } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { Eye, MoreHorizontal, Trash2, Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,32 +33,49 @@ import { PopulatedClientPayment } from '@/lib/db/modules/financial/treasury/rece
 import { CLIENT_PAYMENT_STATUS_MAP } from '@/lib/db/modules/financial/treasury/receivables/client-payment.constants'
 import { cancelClientPayment } from '@/lib/db/modules/financial/treasury/receivables/client-payment.actions'
 import { toast } from 'sonner'
-import { useRouter } from 'next/navigation'
+import { RECEIVABLES_PAGE_SIZE } from '@/lib/constants'
 
-type SetAllocationPayment = (payment: PopulatedClientPayment) => void
-
+// Tipul pentru datele paginate primite de la server
 interface ReceivablesListProps {
-  payments: PopulatedClientPayment[]
+  data: {
+    data: PopulatedClientPayment[]
+    pagination: {
+      total: number
+      page: number
+      totalPages: number
+    }
+  }
   isAdmin: boolean
-  onOpenAllocationModal: SetAllocationPayment
+  onOpenAllocationModal: (payment: PopulatedClientPayment) => void
 }
 
 const FALLBACK_STATUS = { name: 'Necunoscut', variant: 'secondary' } as const
 
 export function ReceivablesList({
-  payments,
+  data,
   isAdmin,
   onOpenAllocationModal,
 }: ReceivablesListProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [paymentToCancel, setPaymentToCancel] =
     useState<PopulatedClientPayment | null>(null)
   const [isCanceling, setIsCanceling] = useState(false)
+  const [isPending, setIsPending] = useState(false)
 
-  const handleViewAllocations = (payment: PopulatedClientPayment) => {
-    onOpenAllocationModal(payment)
+  const currentPage = Number(searchParams.get('page')) || 1
+
+  // Navigare Pagină
+  const handlePageChange = (newPage: number) => {
+    setIsPending(true)
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
+    setIsPending(false)
   }
 
+  // Acțiune Anulare
   const handleConfirmCancel = async () => {
     if (!paymentToCancel) return
 
@@ -82,84 +98,105 @@ export function ReceivablesList({
   }
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Istoric Încasări</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
+    <div className='flex flex-col h-full'>
+      <div className='rounded-md border flex-1 overflow-auto min-h-0 relative '>
+        <table className='w-full caption-bottom text-sm text-left'>
+          <TableHeader className='sticky top-0 z-10 bg-muted/50 shadow-sm backdrop-blur-sm'>
+            <TableRow className='hover:bg-transparent'>
+              <TableHead className='w-[50px] py-1'>#</TableHead>
+              <TableHead className='py-1'>Serie / Nr. Doc.</TableHead>
+              <TableHead className='py-1'>Client</TableHead>
+              <TableHead className='py-1'>Data Plată</TableHead>
+              <TableHead className='text-right py-1'>Total Încasat</TableHead>
+              <TableHead className='text-right py-1'>Nealocat</TableHead>
+              <TableHead className='py-1'>Status</TableHead>
+              {isAdmin && <TableHead className='w-[50px] py-1'></TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.data.length === 0 ? (
               <TableRow>
-                <TableHead>Serie - Nr. Doc.</TableHead>
-                <TableHead>Client</TableHead>
-                <TableHead>Dată Plată</TableHead>
-                <TableHead className='text-right'>
-                  Sumă Totală Încasată
-                </TableHead>
-                <TableHead className='text-right'>Sumă Nealocată</TableHead>
-                <TableHead>Status</TableHead>
-                {isAdmin && (
-                  <TableHead className='text-right'>Acțiuni</TableHead>
-                )}
+                <TableCell
+                  colSpan={isAdmin ? 8 : 7}
+                  className='h-32 text-center text-muted-foreground'
+                >
+                  Nu există încasări înregistrate conform filtrelor.
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payments.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={isAdmin ? 7 : 6}
-                    className='text-center text-muted-foreground'
-                  >
-                    Nu există încasări înregistrate.
-                  </TableCell>
-                </TableRow>
-              )}
-              {payments.map((payment) => {
+            ) : (
+              data.data.map((payment, index) => {
+                const globalIndex =
+                  (currentPage - 1) * RECEIVABLES_PAGE_SIZE + index + 1
                 const statusInfo =
                   CLIENT_PAYMENT_STATUS_MAP[payment.status] || FALLBACK_STATUS
 
                 const isAllocationsViewable = payment.status !== 'ANULATA'
-                const isCancelable = payment.status === 'NEALOCATA'
+                const isCancelable = payment.status === 'NEALOCATA' // Doar dacă nu s-a folosit niciun ban
 
                 return (
-                  <TableRow key={payment._id}>
-                    <TableCell className='font-medium uppercase'>
-                      {payment.seriesName || ''} - {payment.paymentNumber}
+                  <TableRow
+                    key={payment._id}
+                    className='hover:bg-muted/30 group transition-colors'
+                  >
+                    <TableCell className='font-medium text-muted-foreground py-1'>
+                      {globalIndex}
                     </TableCell>
-                    <TableCell>{payment.clientId?.name || 'N/A'}</TableCell>
-                    <TableCell>
+
+                    <TableCell className='py-1 font-medium uppercase'>
+                      {payment.seriesName ? `${payment.seriesName} - ` : ''}
+                      {payment.paymentNumber}
+                    </TableCell>
+
+                    <TableCell className='py-1'>
+                      {payment.clientId?.name || 'N/A'}
+                    </TableCell>
+
+                    <TableCell className='py-1 text-muted-foreground'>
                       {formatDateTime(new Date(payment.paymentDate)).dateOnly}
                     </TableCell>
-                    <TableCell className='text-right'>
+
+                    <TableCell className='text-right py-1'>
                       {formatCurrency(payment.totalAmount)}
                     </TableCell>
-                    <TableCell className='text-right font-bold'>
-                      {formatCurrency(payment.unallocatedAmount)}
+
+                    <TableCell className='text-right font-bold py-1'>
+                      <span
+                        className={
+                          payment.unallocatedAmount > 0
+                            ? 'text-green-600'
+                            : 'text-muted-foreground'
+                        }
+                      >
+                        {formatCurrency(payment.unallocatedAmount)}
+                      </span>
                     </TableCell>
-                    <TableCell>
+
+                    <TableCell className='py-1'>
                       <Badge variant={statusInfo.variant}>
                         {statusInfo.name}
                       </Badge>
                     </TableCell>
+
                     {isAdmin && (
-                      <TableCell className='text-right'>
+                      <TableCell className='py-1'>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant='ghost' size='icon'>
+                            <Button variant='ghost' className='h-8 w-8 p-0'>
+                              <span className='sr-only'>Deschide meniu</span>
                               <MoreHorizontal className='h-4 w-4' />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align='end'>
                             <DropdownMenuItem
-                              onClick={() => handleViewAllocations(payment)}
+                              onClick={() => onOpenAllocationModal(payment)}
                               disabled={!isAllocationsViewable}
+                              className='cursor-pointer'
                             >
                               <Eye className='mr-2 h-4 w-4' />
-                              Gestionează Alocările
+                              Vezi / Modifică Alocările
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              className='text-red-600'
+                              className='text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer'
                               onClick={() => setPaymentToCancel(payment)}
                               disabled={!isCancelable}
                             >
@@ -172,12 +209,46 @@ export function ReceivablesList({
                     )}
                   </TableRow>
                 )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              })
+            )}
+          </TableBody>
+        </table>
+      </div>
 
+      {/* FOOTER PAGINARE (Sincronizat cu URL) */}
+      {data.pagination.totalPages > 1 && (
+        <div className='flex items-center justify-center gap-2 py-3 border-t bg-background shrink-0'>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
+          >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Anterior'
+            )}
+          </Button>
+          <span className='text-sm text-muted-foreground'>
+            Pagina {currentPage} din {data.pagination.totalPages}
+          </span>
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= data.pagination.totalPages || isPending}
+          >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin' />
+            ) : (
+              'Următor'
+            )}
+          </Button>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMARE ANULARE */}
       <AlertDialog
         open={!!paymentToCancel}
         onOpenChange={(open) => !open && setPaymentToCancel(null)}
@@ -214,6 +285,6 @@ export function ReceivablesList({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   )
 }

@@ -5,6 +5,7 @@ import { SupplierInvoiceListWrapper } from './SupplierInvoiceListWrapper'
 import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
 import { PayablesSummaryCard } from '../components/PayablesSummaryCard'
 import { IBudgetCategoryTree } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.types'
+import { auth } from '@/auth'
 
 function buildBudgetTree(flatCats: any[]): IBudgetCategoryTree[] {
   if (!flatCats || flatCats.length === 0) return []
@@ -47,6 +48,7 @@ export default async function InvoicesPage({
     to?: string
   }>
 }) {
+  const session = await auth()
   const params = await searchParams
   const page = Number(params.page) || 1
 
@@ -79,6 +81,11 @@ export default async function InvoicesPage({
           initialData={invoicesData}
           suppliers={suppliersRes.data}
           budgetCategories={budgetTree}
+          currentUser={
+            session?.user?.id
+              ? { id: session.user.id, name: session.user.name }
+              : undefined
+          }
         />
       </div>
     </div>

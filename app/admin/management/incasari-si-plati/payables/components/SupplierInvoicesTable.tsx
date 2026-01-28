@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation' // <-- Importuri noi
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -23,12 +22,10 @@ import { SupplierInvoiceListItem } from '@/lib/db/modules/financial/treasury/pay
 import { SUPPLIER_INVOICE_STATUS_MAP } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.constants'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
-import { useSession } from 'next-auth/react'
 import { createSupplierCompensationPayment } from '@/lib/db/modules/financial/treasury/payables/supplier-allocation.actions'
 import { toast } from 'sonner'
 
 interface SupplierInvoicesTableProps {
-  // Acum primim datele gata filtrate/paginate de la server
   data: {
     data: SupplierInvoiceListItem[]
     totalPages: number
@@ -36,17 +33,18 @@ interface SupplierInvoicesTableProps {
   }
   onOpenCreatePayment: (supplierId: string, invoiceId?: string) => void
   onOpenDetailsSheet: (invoiceId: string) => void
+  currentUser?: { id: string; name?: string | null }
 }
 
 export function SupplierInvoicesTable({
   data,
   onOpenCreatePayment,
   onOpenDetailsSheet,
+  currentUser,
 }: SupplierInvoicesTableProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const { data: session } = useSession()
 
   // Citim pagina curentă din URL (default 1)
   const currentPage = Number(searchParams.get('page')) || 1
@@ -63,8 +61,8 @@ export function SupplierInvoicesTable({
   }
 
   const handleCompensate = async (invoice: SupplierInvoiceListItem) => {
-    if (!session?.user?.id) {
-      toast.error('Eroare de autentificare.')
+    if (!currentUser?.id) {
+      toast.error('Eroare: Utilizator neidentificat.')
       return
     }
 
@@ -72,8 +70,8 @@ export function SupplierInvoicesTable({
     try {
       const result = await createSupplierCompensationPayment(
         invoice._id,
-        session.user.id,
-        session.user.name || 'Operator',
+        currentUser.id, 
+        currentUser.name || 'Operator', 
       )
 
       if (result.success) {

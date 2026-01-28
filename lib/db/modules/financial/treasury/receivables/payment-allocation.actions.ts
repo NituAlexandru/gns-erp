@@ -1,6 +1,6 @@
 'use server'
 
-import { startSession, Types } from 'mongoose'
+import { PipelineStage, startSession, Types } from 'mongoose'
 import { auth } from '@/auth'
 import InvoiceModel from '../../../financial/invoices/invoice.model'
 import ClientPaymentModel from './client-payment.model'
@@ -15,6 +15,8 @@ import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
 import { ClientPaymentDTO, IClientPaymentDoc } from './client-payment.types'
 import { recalculateClientSummary } from '../../../client/summary/client-summary.actions'
+import ClientModel from '../../../client/client.model'
+import { RECEIVABLES_PAGE_SIZE } from '@/lib/constants'
 
 // Tipul de răspuns pentru acțiunile de alocare
 type AllocationActionResult = {
@@ -36,7 +38,7 @@ export type PopulatedAllocation = IPaymentAllocationDoc & {
  * Leagă o sumă dintr-o Încasare (ClientPayment) de o Factură (Invoice).
  */
 export async function createManualAllocation(
-  data: CreatePaymentAllocationInput
+  data: CreatePaymentAllocationInput,
 ): Promise<{
   success: boolean
   message: string
@@ -102,12 +104,12 @@ export async function createManualAllocation(
             createdByName: userName,
           },
         ],
-        { session }
+        { session },
       )
 
       // 2. Actualizare Încasare
       payment.unallocatedAmount = round2(
-        payment.unallocatedAmount - roundedAmount
+        payment.unallocatedAmount - roundedAmount,
       )
       const savedPayment = await payment.save({ session })
 
@@ -141,7 +143,7 @@ export async function createManualAllocation(
     revalidatePath('/clients')
 
     const populatedAllocation = await PaymentAllocationModel.findById(
-      (newAllocation as IPaymentAllocationDoc)._id
+      (newAllocation as IPaymentAllocationDoc)._id,
     )
       .populate({
         path: 'invoiceId',
@@ -154,7 +156,7 @@ export async function createManualAllocation(
       success: true,
       message: 'Alocarea a fost salvată cu succes.',
       data: JSON.parse(
-        JSON.stringify(populatedAllocation)
+        JSON.stringify(populatedAllocation),
       ) as PopulatedAllocation,
       updatedPayment: JSON.parse(JSON.stringify(updatedPaymentDoc)),
     }
@@ -171,7 +173,7 @@ export async function createManualAllocation(
  * Șterge o alocare specifică.
  */
 export async function deleteAllocation(
-  allocationId: string
+  allocationId: string,
 ): Promise<Omit<AllocationActionResult, 'data'>> {
   const session = await startSession()
 
@@ -192,16 +194,16 @@ export async function deleteAllocation(
       const amountToReverse = allocation.amountAllocated
 
       const payment = await ClientPaymentModel.findById(
-        allocation.paymentId
+        allocation.paymentId,
       ).session(session)
 
       const invoice = await InvoiceModel.findById(allocation.invoiceId).session(
-        session
+        session,
       )
 
       if (!payment || !invoice) {
         throw new Error(
-          'Date corupte. Factura sau Încasarea aferentă nu au fost găsite.'
+          'Date corupte. Factura sau Încasarea aferentă nu au fost găsite.',
         )
       }
 
@@ -214,21 +216,21 @@ export async function deleteAllocation(
 
       // Reversează actualizarea pe Încasare
       payment.unallocatedAmount = round2(
-        payment.unallocatedAmount + amountToReverse
+        payment.unallocatedAmount + amountToReverse,
       )
       await payment.save({ session })
 
       // Reversează actualizarea pe Factură
       invoice.paidAmount = round2(invoice.paidAmount - amountToReverse)
       invoice.remainingAmount = round2(
-        invoice.remainingAmount + amountToReverse
+        invoice.remainingAmount + amountToReverse,
       )
 
       await invoice.save({ session })
 
       // Șterge Alocarea
       await PaymentAllocationModel.findByIdAndDelete(allocationId).session(
-        session
+        session,
       )
     })
 
@@ -303,12 +305,13 @@ export async function getUnpaidInvoicesByClient(clientId: string) {
       clientId: new Types.ObjectId(clientId),
       status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
       remainingAmount: { $ne: 0 },
+      invoiceType: { $ne: 'PROFORMA' },
       seriesName: { $ne: 'INIT-AMB' },
     })
-      .sort({ dueDate: 1 }) // Ordonăm FIFO
       .select(
-        'invoiceNumber seriesName dueDate remainingAmount totals.grandTotal'
+        '_id seriesName invoiceNumber invoiceDate dueDate totalAmount remainingAmount status',
       )
+      .sort({ dueDate: 1 })
       .lean()
 
     return {
@@ -350,7 +353,7 @@ export async function getAllocationsForInvoice(invoiceId: string) {
 export async function createCompensationPayment(
   invoiceId: string,
   userId: string,
-  userName: string
+  userName: string,
 ): Promise<{ success: boolean; message: string }> {
   const session = await startSession()
 
@@ -368,7 +371,7 @@ export async function createCompensationPayment(
 
       if (invoice.remainingAmount >= 0) {
         throw new Error(
-          'Această funcție este doar pentru facturi negative (Discount/Storno).'
+          'Această funcție este doar pentru facturi negative (Discount/Storno).',
         )
       }
 
@@ -391,7 +394,7 @@ export async function createCompensationPayment(
             createdByName: userName,
           },
         ],
-        { session }
+        { session },
       )
 
       // 3. Creăm alocarea negativă
@@ -406,7 +409,7 @@ export async function createCompensationPayment(
             createdByName: userName,
           },
         ],
-        { session }
+        { session },
       )
 
       // 4. Actualizăm "Încasarea"
@@ -446,5 +449,149 @@ export async function createCompensationPayment(
     await session.endSession()
     console.error('Eroare createCompensation:', error)
     return { success: false, message: (error as Error).message }
+  }
+}
+export async function getAllUnpaidInvoices(
+  page = 1,
+  limit = RECEIVABLES_PAGE_SIZE,
+  filters?: {
+    search?: string
+    status?: string // 'ALL', 'APPROVED', 'PARTIAL_PAID'
+    from?: string // 'YYYY-MM-DD'
+    to?: string // 'YYYY-MM-DD'
+  },
+) {
+  try {
+    await connectToDatabase()
+
+    const skip = (page - 1) * limit
+    const pipeline: PipelineStage[] = []
+
+    // 1. CONSTRUIRE FILTRE ($match)
+    const matchStage: any = {
+      // Reguli de bază: Fără Proforme, Fără Ambalaje
+      invoiceType: { $ne: 'PROFORMA' },
+      seriesName: { $ne: 'INIT-AMB' },
+      // Important: Trebuie să mai aibă rest de plată (altfel nu apare în lista de încasări)
+      remainingAmount: { $ne: 0 },
+    }
+
+    // --- FILTRU STATUS ---
+    if (filters?.status && filters.status !== 'ALL') {
+      // Dacă userul a ales un status specific (ex: doar PARTIAL_PAID)
+      matchStage.status = filters.status
+    } else {
+      // Default (ALL): Arătăm tot ce e valid de încasat
+      matchStage.status = { $in: ['APPROVED', 'PARTIAL_PAID'] }
+    }
+
+    // --- FILTRU DATĂ (Invoice Date) ---
+    if (filters?.from || filters?.to) {
+      matchStage.invoiceDate = {}
+      if (filters.from) {
+        matchStage.invoiceDate.$gte = new Date(filters.from)
+      }
+      if (filters.to) {
+        // Setăm ora la sfârșitul zilei pentru 'to' (23:59:59)
+        const toDate = new Date(filters.to)
+        toDate.setHours(23, 59, 59, 999)
+        matchStage.invoiceDate.$lte = toDate
+      }
+    }
+
+    pipeline.push({ $match: matchStage })
+
+    // 2. LOOKUP CLIENT
+    pipeline.push({
+      $lookup: {
+        from: 'clients',
+        localField: 'clientId',
+        foreignField: '_id',
+        as: 'clientDoc',
+      },
+    })
+
+    pipeline.push({
+      $unwind: { path: '$clientDoc', preserveNullAndEmptyArrays: true },
+    })
+
+    // 3. FILTRU CĂUTARE TEXT
+    if (filters?.search) {
+      const searchRegex = { $regex: filters.search, $options: 'i' }
+      pipeline.push({
+        $match: {
+          $or: [
+            { invoiceNumber: searchRegex },
+            { seriesName: searchRegex },
+            { 'clientDoc.name': searchRegex },
+          ],
+        },
+      })
+    }
+
+    // 4. FACET (Date + Totaluri)
+    pipeline.push({
+      $facet: {
+        totalCount: [{ $count: 'count' }],
+        summary: [
+          {
+            $group: {
+              _id: null,
+              totalRemaining: { $sum: '$remainingAmount' },
+            },
+          },
+        ],
+        data: [
+          { $sort: { dueDate: 1, _id: 1 } }, // FIFO vizual
+          { $skip: skip },
+          { $limit: limit },
+          {
+            $project: {
+              _id: 1,
+              seriesName: 1,
+              invoiceNumber: 1,
+              invoiceDate: 1,
+              dueDate: 1,
+              status: 1,
+              remainingAmount: 1,
+              'totals.grandTotal': 1,
+              clientId: {
+                _id: '$clientDoc._id',
+                name: '$clientDoc.name',
+              },
+              invoiceType: 1,
+            },
+          },
+        ],
+      },
+    })
+
+    const result = await InvoiceModel.aggregate(pipeline)
+    const facetResult = result[0]
+
+    const data = facetResult.data || []
+    const totalItems = facetResult.totalCount[0]?.count || 0
+    const summaryTotal = facetResult.summary[0]?.totalRemaining || 0
+    const totalPages = Math.ceil(totalItems / limit)
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(data)),
+      summaryTotal,
+      pagination: {
+        total: totalItems,
+        page,
+        totalPages,
+      },
+    }
+  } catch (error) {
+    console.error('❌ Eroare getAllUnpaidInvoices:', error)
+    return {
+      success: false,
+      data: [],
+      summaryTotal: 0,
+      message: (error as Error).message,
+      pagination: { total: 0, page: 1, totalPages: 0 },
+    }
   }
 }

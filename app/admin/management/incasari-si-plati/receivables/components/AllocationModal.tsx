@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
-
 import { PopulatedClientPayment as PopulatedClientPaymentType } from '@/lib/db/modules/financial/treasury/receivables/client-payment.types'
 import {
   PopulatedAllocation as PopulatedAllocationType,
@@ -23,10 +22,8 @@ import {
 } from '@/lib/db/modules/financial/treasury/receivables/payment-allocation.actions'
 import { getClientPaymentById } from '@/lib/db/modules/financial/treasury/receivables/client-payment.actions'
 import { AllocationList } from './AllocationList'
-import { UnpaidInvoiceList } from './UnpaidInvoiceList'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-
 export type PopulatedClientPayment = PopulatedClientPaymentType
 export type PopulatedAllocation = PopulatedAllocationType
 export type UnpaidInvoice = UnpaidInvoiceType
@@ -50,10 +47,19 @@ export function AllocationModal({
     useState<PopulatedClientPayment | null>(payment)
 
   useEffect(() => {
+    // Încărcăm date doar dacă avem un payment activ
     if (payment) {
       const fetchData = async () => {
-        setIsLoading(true)
+        // Loader doar la schimbarea ID-ului (evităm flash-uri la update sume)
+        const isNewPayment = !latestPayment || latestPayment._id !== payment._id
 
+        if (isNewPayment) {
+          setIsLoading(true)
+          setAllocations([])
+          setInvoices([])
+        }
+
+        // 1. Fetch Payment (pentru sume actualizate)
         const paymentResult = await getClientPaymentById(payment._id)
         let currentPaymentData: PopulatedClientPayment
 
@@ -61,13 +67,12 @@ export function AllocationModal({
           currentPaymentData = paymentResult.data
           setLatestPayment(currentPaymentData)
         } else {
-          toast.error('Eroare la reîncărcarea încasării.', {
-            description: paymentResult.message || 'Datele pot fi incorecte.',
-          })
+          toast.error('Eroare la reîncărcarea încasării.')
           currentPaymentData = payment
           setLatestPayment(payment)
         }
 
+        // 2. Fetch Alocări și Facturi
         const [allocationsResult, invoicesResult] = await Promise.all([
           getAllocationsForPayment(currentPaymentData._id),
           getUnpaidInvoicesByClient(currentPaymentData.clientId._id),
@@ -78,19 +83,15 @@ export function AllocationModal({
         }
         if (invoicesResult.success) {
           setInvoices(invoicesResult.data as UnpaidInvoice[])
-        } else {
-          toast.error('Nu s-au putut prelua facturile neplătite.', {
-            description: invoicesResult.message || 'Eroare necunoscută',
-          })
         }
-        setIsLoading(false)
+
+        if (isNewPayment) {
+          setIsLoading(false)
+        }
       }
       fetchData()
-    } else {
-      setLatestPayment(null)
-      setAllocations([])
-      setInvoices([])
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [payment])
 
   const refreshData = async () => {
@@ -121,10 +122,10 @@ export function AllocationModal({
     setIsLoading(false)
   }
 
-  const isOpen = !!latestPayment
+  const isOpen = !!payment
 
   const handleAllocationSuccess = async (
-    updatedPayment?: PopulatedClientPayment
+    updatedPayment?: PopulatedClientPayment,
   ) => {
     // 1. Actualizăm plata INSTANT cu ce am primit de la server
     if (updatedPayment) {
@@ -133,14 +134,13 @@ export function AllocationModal({
           ({
             ...updatedPayment,
             clientId: prev?.clientId || { _id: '', name: '' },
-          }) as PopulatedClientPayment
+          }) as PopulatedClientPayment,
       )
     }
 
     // 2. Reîmprospătăm DOAR listele de alocări și facturi, NU și plata (dacă o avem deja)
     setIsLoading(true)
     const [allocationsResult, invoicesResult] = await Promise.all([
-      // NU mai apelăm getClientPaymentById aici dacă avem updatedPayment
       getAllocationsForPayment(updatedPayment?._id || latestPayment!._id),
       getUnpaidInvoicesByClient(latestPayment!.clientId._id),
     ])
@@ -150,7 +150,6 @@ export function AllocationModal({
     if (invoicesResult.success)
       setInvoices(invoicesResult.data as UnpaidInvoice[])
 
-    // Dacă NU am primit updatedPayment (ex: delete allocation), atunci facem refresh complet
     if (!updatedPayment && latestPayment) {
       const paymentRes = await getClientPaymentById(latestPayment._id)
       if (paymentRes.success && paymentRes.data)
@@ -197,12 +196,12 @@ export function AllocationModal({
               {isAdmin && (
                 <div className='space-y-4'>
                   <h3 className='font-semibold'>Facturi Disponibile</h3>
-                  <UnpaidInvoiceList
+                  {/* <UnpaidInvoiceList
                     key={`${latestPayment?._id}-${latestPayment?.unallocatedAmount}-${invoices.length}`}
                     invoices={invoices}
                     payment={latestPayment}
                     onAllocationCreated={handleAllocationSuccess}
-                  />
+                  /> */}
                 </div>
               )}
             </div>

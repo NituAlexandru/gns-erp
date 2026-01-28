@@ -35,4 +35,5 @@ export const CreateSupplierPaymentFormSchema =
   }).extend({
     mainCategoryId: MongoId.optional(),
     subCategoryId: MongoId.optional(),
+    selectedInvoiceIds: z.array(z.string()).optional(),
   })

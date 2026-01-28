@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PlusCircle } from 'lucide-react'
+import { ReceivablesFilterBar } from './ReceivablesFilterBar'
 import { CreateClientPaymentForm } from './CreateClientPaymentForm'
 
 interface ReceivablesLayoutClientProps {
@@ -31,13 +32,12 @@ export function ReceivablesLayoutClient({
   const router = useRouter()
   const pathname = usePathname()
 
-  // --- DETERMINE ACTIVE TAB BASED ON URL ---
+  // --- DETERMINARE TAB ACTIV ---
   const activeTab = useMemo(() => {
-    if (pathname.includes('/incasari')) return 'receipts'
-    return 'invoices' // Default: Invoices
+    if (pathname.includes('/receivables/incasari')) return 'receipts'
+    return 'invoices'
   }, [pathname])
 
-  // --- MODAL STATE ---
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [preselectedClientId, setPreselectedClientId] = useState<
     string | undefined
@@ -63,7 +63,7 @@ export function ReceivablesLayoutClient({
         </div>
         <div className='flex items-center gap-2'>
           <Button
-            className='gap-2 '
+            className='gap-2'
             onClick={() => {
               setPreselectedClientId(undefined)
               setPaymentModalOpen(true)
@@ -75,16 +75,17 @@ export function ReceivablesLayoutClient({
         </div>
       </div>
 
-      {/* 2. TABS AS NAVIGATION */}
+      {/* 2. TABURI + FILTRE */}
       <div className='flex-1 flex flex-col overflow-hidden p-0 mt-0'>
-        <div className='flex gap-10 items-end border-b'>
-          <div className='mb-[-1px]'>
+        <div className='flex gap-10 items-center mb-0 mt-0'>
+          {/* GRUP TABURI */}
+          <div>
             <Tabs value={activeTab} className='w-full'>
-              <TabsList className='bg-transparent h-auto p-0 gap-4'>
+              <TabsList className='bg-transparent h-auto p-0 gap-1'>
                 <Link href='/admin/management/incasari-si-plati/receivables/facturi'>
                   <TabsTrigger
                     value='invoices'
-                    className='rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 cursor-pointer font-medium'
+                    className='border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-1 cursor-pointer'
                   >
                     Facturi
                     <Badge variant='secondary' className='ml-2'>
@@ -96,7 +97,7 @@ export function ReceivablesLayoutClient({
                 <Link href='/admin/management/incasari-si-plati/receivables/incasari'>
                   <TabsTrigger
                     value='receipts'
-                    className='rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 cursor-pointer font-medium'
+                    className='border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-1 cursor-pointer'
                   >
                     Încasări
                     <Badge variant='secondary' className='ml-2'>
@@ -107,15 +108,18 @@ export function ReceivablesLayoutClient({
               </TabsList>
             </Tabs>
           </div>
+
+          {/* BARA FILTRE */}
+          <ReceivablesFilterBar />
         </div>
 
-        {/* 3. SPECIFIC PAGE CONTENT */}
-        <div className='flex-1 overflow-hidden pt-4 bg-background'>
+        {/* 3. CONȚINUTUL PAGINII */}
+        <div className='flex-1 overflow-hidden pt-0 bg-background'>
           {children}
         </div>
       </div>
 
-      {/* 4. GLOBAL MODALS */}
+      {/* 4. MODALE */}
       <Sheet open={paymentModalOpen} onOpenChange={setPaymentModalOpen}>
         <SheetContent
           side='right'

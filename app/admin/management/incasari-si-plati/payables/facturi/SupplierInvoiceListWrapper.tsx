@@ -16,12 +16,14 @@ interface WrapperProps {
   initialData: any
   suppliers?: any[]
   budgetCategories?: any[]
+  currentUser?: { id: string; name?: string | null }
 }
 
 export function SupplierInvoiceListWrapper({
   initialData,
   suppliers = [],
   budgetCategories = [],
+  currentUser,
 }: WrapperProps) {
   const [invoiceToView, setInvoiceToView] = useState<string | null>(null)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
@@ -52,6 +54,7 @@ export function SupplierInvoiceListWrapper({
         data={initialData}
         onOpenDetailsSheet={setInvoiceToView}
         onOpenCreatePayment={handleOpenPayment}
+        currentUser={currentUser}
       />
 
       {/* Modal Detalii Factură */}

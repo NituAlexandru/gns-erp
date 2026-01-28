@@ -203,7 +203,11 @@ export async function getSupplierInvoices(
     }
 
     if (filters?.status && filters.status !== 'ALL') {
-      query.status = filters.status
+      if (filters.status === 'STORNO') {
+        query.invoiceType = 'STORNO'
+      } else {
+        query.status = filters.status
+      }
     }
 
     if (filters?.from || filters?.to) {
@@ -224,7 +228,7 @@ export async function getSupplierInvoices(
           model: Supplier,
           select: 'name',
         })
-        .sort({ invoiceDate: -1 })
+        .sort({ invoiceDate: -1, _id: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -340,7 +344,7 @@ export async function getInvoicesForSupplier(
       .select(
         'invoiceSeries invoiceNumber invoiceDate dueDate status totals.grandTotal',
       )
-      .sort({ invoiceDate: -1 })
+      .sort({ invoiceDate: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .lean()
