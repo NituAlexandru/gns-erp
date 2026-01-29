@@ -78,10 +78,12 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # De urmarit / testat
 
-- FACUT - factura split, trebuie sa bata pe sumele totale conform cotelor, nu fiecare rand + adresa de livrare. factura split, bate pe sumele totale conform cotelor, nu fiecare rand.
+- FACUT - factura split, adresa de livrare tot nu se salveaza corect si nici codul UIT nu se salveaza pe ele.
+- comanda, cand se modifica comanda nu se incarca preturile corecte (conversia cu 3 UM? sau toate? de verificat) - bug la ProductLineItemRow si la produse - de verificat in continuare daca s-a rezolvat
 
 # Foarte important
 
+- fisa client - LM FINANCIAL CONTA SERVICES S.R.L. bug sume 0
 - pe facturile split nu se preia CODUL UIT, de verificat adresa de livrare, se preia prima de la fiecare client in parte. nu cea selectata.
 - bug comanda, cand se deschide formul de edit, se incarca un pret aiurea, nu cel salvat.
 - scot nota interna compensare din fisa

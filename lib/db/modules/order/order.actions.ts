@@ -174,6 +174,8 @@ function processOrderData(lineItems: CreateOrderInput['lineItems']) {
 }
 
 export async function getOrderFormInitialData() {
+  await connectToDatabase()
+
   try {
     const [shippingRatesResult, vatRatesResult, services, permits] =
       await Promise.all([
@@ -222,6 +224,7 @@ export async function createOrder(
   data: CreateOrderInput,
   status: 'DRAFT' | 'CONFIRMED',
 ) {
+  await connectToDatabase()
   const session = await startSession()
   session.startTransaction()
 
@@ -307,8 +310,8 @@ export async function createOrder(
     await session.endSession()
   }
 }
-
 export async function updateOrder(orderId: string, newData: CreateOrderInput) {
+  await connectToDatabase()
   const session = await startSession()
   session.startTransaction()
 
@@ -509,6 +512,7 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
   }
 }
 export async function cancelOrder(orderId: string) {
+  await connectToDatabase()
   const session = await startSession()
   session.startTransaction()
 
@@ -633,6 +637,7 @@ export async function getOrderById(
 }
 
 export async function confirmOrder(orderId: string) {
+  await connectToDatabase()
   const session = await startSession()
   session.startTransaction()
 

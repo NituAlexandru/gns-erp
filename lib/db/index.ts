@@ -30,9 +30,9 @@ export const connectToDatabase = async (
 
     const opts = {
       bufferCommands: true, // Păstrăm buffering pentru siguranță
-      maxPoolSize: 10, // Mărim pool-ul (default e 5).
-      serverSelectionTimeoutMS: 10000, // Timp de așteptare pentru server
-      socketTimeoutMS: 60000, // Timeout pentru operațiuni lungi
+      maxPoolSize: 5, 
+      serverSelectionTimeoutMS: 5000, // Timp de așteptare pentru server
+      socketTimeoutMS: 30000, // Timeout pentru operațiuni lungi
       family: 4,
     }
 

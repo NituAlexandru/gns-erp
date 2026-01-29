@@ -98,6 +98,7 @@ function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
 export async function createSupplierInvoice(
   data: CreateSupplierInvoiceInput,
 ): Promise<SupplierInvoiceActionResult> {
+  await connectToDatabase()
   const session = await startSession()
   let newInvoice: ISupplierInvoiceDoc | null = null
 
@@ -451,6 +452,7 @@ export async function getReceptionsForSupplier(
 export async function createSupplierOpeningBalance(
   data: CreateOpeningBalanceInput,
 ): Promise<{ success: boolean; message: string }> {
+  await connectToDatabase()
   const session = await startSession()
 
   try {
@@ -592,10 +594,12 @@ export async function updateSupplierInvoice(
   invoiceId: string,
   data: CreateSupplierInvoiceInput,
 ): Promise<SupplierInvoiceActionResult> {
+  await connectToDatabase() // 1. Conectare sigură la început
   const session = await startSession()
   let updatedInvoice: ISupplierInvoiceDoc | null = null
 
   try {
+    // Începem blocul TRY. Aici punem tranzacția.
     updatedInvoice = await session.withTransaction(async (session) => {
       // 1. Auth
       const authSession = await auth()
@@ -621,7 +625,6 @@ export async function updateSupplierInvoice(
       }
 
       // 4. GUARD: Alocări (Plăți)
-      // Verificăm dacă există vreo alocare legată de această factură
       const allocationCount = await SupplierAllocationModel.countDocuments({
         invoiceId: existingInvoice._id,
       }).session(session)
@@ -635,7 +638,6 @@ export async function updateSupplierInvoice(
       // 5. Pregătire date noi
       const validatedData = CreateSupplierInvoiceSchema.parse(data)
 
-      // Reconstruim snapshot-ul companiei (doar pentru siguranță, deși ar trebui să fie la fel)
       const companySettings = await getSetting()
       if (!companySettings) throw new Error('Setările companiei lipsesc.')
       const ourCompanySnapshot = buildCompanySnapshot(companySettings)
@@ -652,7 +654,7 @@ export async function updateSupplierInvoice(
       existingInvoice.totals = validatedData.totals
       existingInvoice.notes = validatedData.notes
       existingInvoice.ourCompanySnapshot = ourCompanySnapshot
-      // Recalculăm statusul și remaining amount (fiindcă nu avem plăți, remaining = grandTotal)
+
       existingInvoice.paidAmount = 0
       existingInvoice.remainingAmount = validatedData.totals.grandTotal
       existingInvoice.status = 'NEPLATITA'
@@ -661,29 +663,31 @@ export async function updateSupplierInvoice(
 
       return existingInvoice
     })
-
+  } catch (error) {
+    console.error('❌ Eroare updateSupplierInvoice:', error)
+    return { success: false, message: (error as Error).message }
+  } finally {
     await session.endSession()
+  }
 
-    if (updatedInvoice) {
+  if (updatedInvoice) {
+    try {
       await recalculateSupplierSummary(
         (updatedInvoice as ISupplierInvoiceDoc).supplierId.toString(),
         'auto-recalc',
         true,
       )
+    } catch (recalcError) {
+      console.error('Eroare la recalculare sold după update:', recalcError)
     }
+  }
 
-    revalidatePath('/admin/management/incasari-si-plati/payables/facturi')
-    revalidatePath(`/financial/invoices/${invoiceId}`)
+  revalidatePath('/admin/management/incasari-si-plati/payables/facturi')
+  revalidatePath(`/financial/invoices/${invoiceId}`)
 
-    return {
-      success: true,
-      message: 'Factura a fost actualizată cu succes.',
-    }
-  } catch (error) {
-    if (session.inTransaction()) await session.abortTransaction()
-    await session.endSession()
-    console.error('❌ Eroare updateSupplierInvoice:', error)
-    return { success: false, message: (error as Error).message }
+  return {
+    success: true,
+    message: 'Factura a fost actualizată cu succes.',
   }
 }
 /**
@@ -692,6 +696,7 @@ export async function updateSupplierInvoice(
 export async function deleteSupplierInvoice(
   invoiceId: string,
 ): Promise<{ success: boolean; message: string }> {
+  await connectToDatabase()
   const session = await startSession()
   let supplierIdToRecalc = ''
 
