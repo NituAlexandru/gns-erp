@@ -19,12 +19,6 @@ import { formatCurrency } from '@/lib/utils'
 import { OrderLineItemRowProps } from './OrderLineItemRow'
 import { OrderLineItemInput } from '@/lib/db/modules/order/types'
 import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 type UnitOption = {
   unitName: string
@@ -45,6 +39,7 @@ export function ProductLineItemRow({
   const { control, setValue, getValues } = useFormContext()
   const [isUmConfirmed, setIsUmConfirmed] = useState(false)
 
+  // 1. EXTRAGEM DATELE PRIMA DATĂ (Ca să fie disponibile pentru funcții)
   const {
     productId,
     priceAtTimeOfOrder = 0,
@@ -52,11 +47,26 @@ export function ProductLineItemRow({
     vatRateDetails,
     productName,
     baseUnit,
-    packagingOptions,
+    packagingOptions, // Aici e cheia: vine din OrderLineItem, nu direct din Product
     minimumSalePrice = 0,
+    unitOfMeasure,
   } = itemData || {}
 
-  const prevConversionFactor = useRef(1)
+  // 2. DEFINIM FUNCȚIA ACUM (Când are acces la variabilele de mai sus)
+  const getInitialFactor = () => {
+    // Safety check: dacă nu avem date, plecăm de la 1
+    if (!unitOfMeasure || !baseUnit || unitOfMeasure === baseUnit) return 1
+
+    // Căutăm în options (care există pe OrderLineItem)
+    const option = packagingOptions?.find(
+      (opt: any) => opt.unitName === unitOfMeasure,
+    )
+    return option ? option.baseUnitEquivalent : 1
+  }
+
+  // 3. INIȚIALIZĂM REF-ul CU REZULTATUL FUNCȚIEI
+  // Acest cod rulează o singură dată la mount.
+  const prevConversionFactor = useRef(getInitialFactor())
 
   const itemForHook = useMemo(
     () => ({
@@ -78,33 +88,56 @@ export function ProductLineItemRow({
     name: `lineItems.${index}.unitOfMeasure`,
   })
 
+  // Sincronizare inițială hook
+  useEffect(() => {
+    if (unitOfMeasureFromForm && handleUnitChange) {
+      handleUnitChange(unitOfMeasureFromForm)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Detectare schimbare manuală dropdown
   useEffect(() => {
     if (unitOfMeasureFromForm && handleUnitChange) {
       handleUnitChange(unitOfMeasureFromForm)
     }
   }, [unitOfMeasureFromForm, handleUnitChange])
 
+  // --- LOGICA DE PREȚ (FIXATĂ) ---
   useEffect(() => {
-    if (conversionFactor !== prevConversionFactor.current) {
+    // Verificăm dacă factorul s-a schimbat față de ce știam noi (referința)
+    if (conversionFactor && conversionFactor !== prevConversionFactor.current) {
       const path = `lineItems.${index}.priceAtTimeOfOrder` as const
       const currentPrice = Number(getValues(path) ?? 0)
+
       const prev = prevConversionFactor.current || 1
+      if (prev === 0) return // Safety
+
       const priceInBaseUnit = currentPrice / prev
       const nextFactor = conversionFactor || 1
+
       const newConvertedPrice = priceInBaseUnit * nextFactor
       const finalPrice = Number(newConvertedPrice.toFixed(2))
-      setValue(path, finalPrice, { shouldDirty: true })
-    }
-    prevConversionFactor.current = conversionFactor || 1
-  }, [conversionFactor, index, getValues, setValue, unitOfMeasureFromForm])
 
+      // Aplicăm noul preț
+      setValue(path, finalPrice, { shouldDirty: true })
+
+      // Actualizăm referința
+      prevConversionFactor.current = nextFactor
+    } else if (conversionFactor) {
+      // Dacă sunt egale (la încărcare), sincronizăm referința preventiv
+      prevConversionFactor.current = conversionFactor
+    }
+  }, [conversionFactor, index, getValues, setValue])
+
+  // Validare preț minim
   useEffect(() => {
     if (!convertedPrice || convertedPrice <= 0) return
     const path = `lineItems.${index}.priceAtTimeOfOrder` as const
     const currentPrice = Number(getValues(path) ?? 0)
     const formattedMinPrice = Number(convertedPrice.toFixed(2))
-
-    if (!isAdmin && currentPrice < formattedMinPrice) {
+    
+    if (!isAdmin && currentPrice < formattedMinPrice - 0.01) {
       setValue(path, formattedMinPrice, { shouldDirty: true })
 
       const selectedUnitFromForm = getValues(`lineItems.${index}.unitOfMeasure`)
@@ -157,7 +190,6 @@ export function ProductLineItemRow({
     <TableRow>
       <TableCell className='font-medium w-full '>{productName}</TableCell>
 
-      {/* --- COL CANTITATE --- */}
       <TableCell>
         <div className='relative w-full'>
           {!isUmConfirmed && (
@@ -230,7 +262,6 @@ export function ProductLineItemRow({
                 </SelectContent>
               </Select>
 
-              {/* MODIFICAREA 3: Afișezi mesajul de eroare sub dropdown */}
               {fieldState.error && (
                 <span className='text-[10px] text-red-500 font-medium mt-1'>
                   Selectează UM
@@ -268,15 +299,12 @@ export function ProductLineItemRow({
                   const formattedMinPrice = Number(convertedPrice.toFixed(2))
 
                   if (!isNaN(numValue)) {
-                    // MODIFICARE: Verificăm rolul
                     if (numValue < formattedMinPrice) {
                       if (isAdmin) {
-                        // Daca e ADMIN -> Permitem, dar dăm un avertisment galben
                         toast.warning(
                           `Preț setat sub limita minimă (${formatCurrency(formattedMinPrice)}). Permis pentru Admin.`,
                         )
                       } else {
-                        // Daca NU e Admin -> Resetăm la minim
                         numValue = formattedMinPrice
                         toast.info(
                           `Prețul a fost ajustat la minimul de ${formatCurrency(formattedMinPrice)}.`,
