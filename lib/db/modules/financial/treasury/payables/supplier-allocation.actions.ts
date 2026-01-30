@@ -214,7 +214,7 @@ export async function deleteSupplierAllocation(
         invoice.remainingAmount + amountToReverse,
       )
 
-      // --- MODIFICARE: Folosim statusurile corecte la reversare ---
+      // ---  Folosim statusurile corecte la reversare ---
       if (invoice.status === 'PLATITA') {
         invoice.status =
           invoice.paidAmount > 0 ? 'PARTIAL_PLATITA' : 'NEPLATITA'

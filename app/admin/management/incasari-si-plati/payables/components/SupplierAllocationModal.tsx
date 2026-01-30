@@ -55,12 +55,12 @@ export function SupplierAllocationModal({
     [],
   )
   const [invoices, setInvoices] = useState<UnpaidSupplierInvoice[]>([])
-
   const [latestPayment, setLatestPayment] =
     useState<PopulatedSupplierPayment | null>(payment)
-
   const [manualAllocInvoice, setManualAllocInvoice] =
     useState<UnpaidSupplierInvoice | null>(null)
+
+  const isCompensationPayment = latestPayment?.paymentMethod === 'COMPENSARE'
 
   useEffect(() => {
     if (payment) {
@@ -134,7 +134,6 @@ export function SupplierAllocationModal({
   const isOpen = !!latestPayment
 
   return (
-    // Fragmentul este necesar pentru a ține ambele modale
     <>
       <Sheet open={isOpen} onOpenChange={(open) => !open && handleCloseAll()}>
         {/* Folosim latestPayment peste tot în JSX */}
@@ -162,6 +161,7 @@ export function SupplierAllocationModal({
                 <SupplierAllocationList
                   allocations={allocations}
                   onAllocationDeleted={refreshData}
+                  parentPayment={latestPayment}
                 />
               </div>
 
