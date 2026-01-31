@@ -29,7 +29,7 @@ import '../suppliers/supplier.model'
 export async function getInventoryLedger(
   stockableItemId: string,
   location?: string,
-  page: number = 1
+  page: number = 1,
 ) {
   await connectToDatabase()
   const limit = 50 // Afișăm 50 de rânduri pe pagină în fișa de magazie
@@ -63,7 +63,7 @@ export async function getInventoryLedger(
 
 export async function getCurrentStock(
   stockableItemId: string,
-  locations?: string[]
+  locations?: string[],
 ) {
   await connectToDatabase()
   const filter: FilterQuery<IInventoryItemDoc> = {
@@ -80,7 +80,7 @@ export async function getCurrentStock(
   for (const doc of docs) {
     const locationTotal = doc.batches.reduce(
       (sum, batch) => sum + batch.quantity,
-      0
+      0,
     )
     byLocation[doc.location] = (byLocation[doc.location] || 0) + locationTotal
     grandTotal += locationTotal
@@ -167,7 +167,7 @@ const getPackagingOptionsPipeline = (): mongoose.PipelineStage[] => [
 
 export async function getAggregatedStockStatus(
   query: string = '',
-  page: number = 1
+  page: number = 1,
 ): Promise<{
   data: AggregatedStockItem[]
   totalPages: number
@@ -178,8 +178,7 @@ export async function getAggregatedStockStatus(
 
     const skip = (page - 1) * MOVEMENTS_PAGE_SIZE
 
-    // 1. FILTRARE PRELIMINARĂ (Folosind indexii rapizi)
-    // Căutăm direct în InventoryItems înainte de a grupa, pentru viteză maximă.
+    // 1. FILTRARE
     const matchStage: mongoose.FilterQuery<IInventoryItemDoc> = {}
 
     if (query && query.trim() !== '') {
@@ -190,34 +189,71 @@ export async function getAggregatedStockStatus(
     const pipeline: mongoose.PipelineStage[] = [
       { $match: matchStage },
 
-      // 2. GRUPARE (Agregare pe Articol - SUMA TUTUROR LOCAȚIILOR)
+      // 2. GRUPARE (Calculăm sumele doar pentru stocul pozitiv)
       {
         $group: {
-          _id: '$stockableItem', // ID-ul produsului
+          _id: '$stockableItem',
 
-          // Calculăm totalurile din câmpurile deja calculate pe fiecare locație
+          // Păstrăm totalurile contabile reale (inclusiv negativ)
           totalStock: { $sum: '$totalStock' },
           totalReserved: { $sum: '$quantityReserved' },
 
-          // Luăm detaliile statice din primul document găsit (sunt identice peste tot)
-          // Folosim câmpurile denormalizate pentru a evita lookup-ul prematur
+          // --- LOGICA PENTRU MEDIE PONDERATĂ ---
+          // Adunăm valoarea (cantitate * preț) DOAR dacă stocul e > 0
+          positiveStockValue: {
+            $sum: {
+              $cond: [
+                { $gt: ['$totalStock', 0] },
+                { $multiply: ['$totalStock', '$averageCost'] },
+                0,
+              ],
+            },
+          },
+          // Adunăm cantitatea DOAR dacă stocul e > 0
+          positiveStockQuantity: {
+            $sum: {
+              $cond: [{ $gt: ['$totalStock', 0] }, '$totalStock', 0],
+            },
+          },
+
+          // --- LOGICA PENTRU MIN/MAX/LAST ---
+          // Min Price: Ignorăm 0. Dacă e > 0 îl luăm, altfel null ($min ignoră null)
+          minPrice: {
+            $min: {
+              $cond: [
+                { $gt: ['$minPurchasePrice', 0] },
+                '$minPurchasePrice',
+                null,
+              ],
+            },
+          },
+          maxPrice: { $max: '$maxPurchasePrice' },
+          lastPrice: { $max: '$lastPurchasePrice' }, // Folosim max ca aproximare pentru ultimul preț valid
+
+          // Date statice
           name: { $first: '$searchableName' },
           productCode: { $first: '$searchableCode' },
           unit: { $first: '$unitMeasure' },
           itemType: { $first: '$stockableItemType' },
-
-          // Pentru prețuri, facem o medie simplă a mediilor (sau min/max global)
-          averageCost: { $avg: '$averageCost' },
-          minPrice: { $min: '$minPurchasePrice' },
-          maxPrice: { $max: '$maxPurchasePrice' },
-          lastPrice: { $last: '$lastPurchasePrice' }, // Aproximativ ultimul preț
         },
       },
 
-      // 3. SORTARE (După numele agregat)
+      // 3. CALCUL FINAL PREȚ MEDIU (AddFields)
+      {
+        $addFields: {
+          calculatedWeightedAverage: {
+            $cond: [
+              { $gt: ['$positiveStockQuantity', 0] }, // Avem stoc pozitiv?
+              { $divide: ['$positiveStockValue', '$positiveStockQuantity'] }, // DA: Împărțim valoare la cantitate
+              0, // NU: Prețul e 0 (Fallback-ul de care vorbeam)
+            ],
+          },
+        },
+      },
+
       { $sort: { name: 1 } },
 
-      // 4. PAGINARE & LOOKUPS (Facet - doar pentru pagina curentă)
+      // 4. PAGINARE & LOOKUPS (Această parte e identică cu ce aveai, doar mapăm prețul la final)
       {
         $facet: {
           metadata: [{ $count: 'total' }],
@@ -225,14 +261,11 @@ export async function getAggregatedStockStatus(
             { $skip: skip },
             { $limit: MOVEMENTS_PAGE_SIZE },
 
-            // --- LOOKUPS (Doar pentru cele 10 rezultate finale) ---
-            // Necesar pentru packagingOptions
-
             // Lookup Produs
             {
               $lookup: {
                 from: 'erpproducts',
-                localField: '_id', // _id este stockableItem
+                localField: '_id',
                 foreignField: '_id',
                 as: 'productDetails',
               },
@@ -260,7 +293,7 @@ export async function getAggregatedStockStatus(
               },
             },
 
-            // Lookup Palet (pentru calcul conversie)
+            // Lookup Palet
             {
               $lookup: {
                 from: 'packagings',
@@ -276,12 +309,10 @@ export async function getAggregatedStockStatus(
               },
             },
 
-            // --- PROIECTARE FINALĂ ---
+            // PROIECTARE FINALĂ
             {
               $project: {
-                _id: 1, // ID produs
-
-                // Date din grupare (rapide)
+                _id: 1,
                 name: { $ifNull: ['$name', 'Necunoscut'] },
                 productCode: { $ifNull: ['$productCode', ''] },
                 unit: { $ifNull: ['$unit', '-'] },
@@ -292,12 +323,14 @@ export async function getAggregatedStockStatus(
                   $subtract: ['$totalStock', '$totalReserved'],
                 },
 
-                averageCost: 1,
-                minPrice: 1,
+                // AICI E SCHIMBAREA: Mapăm averageCost la valoarea calculată mai sus
+                averageCost: '$calculatedWeightedAverage',
+
+                // Dacă minPrice a fost null (doar 0-uri), îl afișăm ca 0
+                minPrice: { $ifNull: ['$minPrice', 0] },
                 maxPrice: 1,
                 lastPrice: 1,
 
-                // Normalizare itemType pentru frontend ('Produs' / 'Ambalaj')
                 itemType: {
                   $cond: {
                     if: { $eq: ['$itemType', 'ERPProduct'] },
@@ -306,14 +339,13 @@ export async function getAggregatedStockStatus(
                   },
                 },
 
-                // Reconstrucția logicii pentru packagingOptions
+                // Packaging Options (Neschimbat)
                 packagingOptions: {
                   $cond: {
                     if: { $eq: ['$itemType', 'ERPProduct'] },
                     then: {
                       $filter: {
                         input: [
-                          // Opțiunea 1: Bax
                           {
                             $cond: {
                               if: {
@@ -327,7 +359,6 @@ export async function getAggregatedStockStatus(
                               else: null,
                             },
                           },
-                          // Opțiunea 2: Palet
                           {
                             $cond: {
                               if: {
@@ -393,7 +424,7 @@ export async function getAggregatedStockStatus(
 export async function getStockByLocation(
   locationId: InventoryLocation,
   query: string = '',
-  page: number = 1
+  page: number = 1,
 ): Promise<{
   data: AggregatedStockItem[]
   totalPages: number
@@ -600,7 +631,7 @@ export async function getStockByLocation(
 }
 export async function getStockMovements(
   filters: MovementsFiltersState,
-  page: number = 1
+  page: number = 1,
 ) {
   try {
     await connectToDatabase()
@@ -788,7 +819,7 @@ export async function getStockMovements(
 }
 
 export async function getStockMovementDetails(
-  movementId: string
+  movementId: string,
 ): Promise<StockMovementDetails | null> {
   try {
     await connectToDatabase()
@@ -829,7 +860,7 @@ export async function getStockMovementDetails(
     // Dacă tipul mișcării este unul de ieșire (ex: DIRECT_SALE, DELIVERY_FULL_TRUCK)
     else if (OUT_TYPES.has(type) && movement.referenceId) {
       referenceDetails = await DeliveryNoteModel.findById(
-        movement.referenceId
+        movement.referenceId,
       ).lean()
     }
 
@@ -850,7 +881,7 @@ export async function getStockMovementDetails(
 }
 
 export async function getProductStockDetails(
-  productId: string
+  productId: string,
 ): Promise<ProductStockDetails | null> {
   try {
     await connectToDatabase()
@@ -880,7 +911,7 @@ export async function getProductStockDetails(
           ...packagingDetails,
           locations: inventoryEntries,
           packagingOptions: [],
-        })
+        }),
       )
     }
 
@@ -894,21 +925,21 @@ export async function getProductStockDetails(
     for (const entry of inventoryEntries) {
       entry.batches.sort(
         (a, b) =>
-          new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime()
+          new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime(),
       )
     }
 
     const result = { ...itemDetails, locations: inventoryEntries }
 
     result.packagingOptions = result.packagingOptions.filter(
-      (opt: PackagingOption) => opt && opt.unitName && opt.baseUnitEquivalent
+      (opt: PackagingOption) => opt && opt.unitName && opt.baseUnitEquivalent,
     )
 
     return JSON.parse(JSON.stringify(result))
   } catch (error) {
     console.error(
       'Eroare la preluarea detaliilor de stoc pentru produs:',
-      error
+      error,
     )
     return null
   }

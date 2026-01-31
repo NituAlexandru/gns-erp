@@ -39,7 +39,7 @@ export function MovementsFilters({
 
   const handleUpdate = <K extends keyof MovementsFiltersState>(
     key: K,
-    value: MovementsFiltersState[K]
+    value: MovementsFiltersState[K],
   ) => {
     setFilters((prev) => ({ ...prev, [key]: value }))
   }

@@ -34,12 +34,12 @@ interface StockTableProps {
 
 export function StockTable({ initialStockData }: StockTableProps) {
   const [stockData, setStockData] = useState<AggregatedStockItem[]>(
-    initialStockData?.data || []
+    initialStockData?.data || [],
   )
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(
-    initialStockData?.totalPages || 1
+    initialStockData?.totalPages || 1,
   )
   const [totalDocs, setTotalDocs] = useState(initialStockData?.totalDocs || 0)
   const [searchQuery, setSearchQuery] = useState('')
@@ -50,17 +50,17 @@ export function StockTable({ initialStockData }: StockTableProps) {
       }
       try {
         const savedPreferences = window.localStorage.getItem(
-          'stockUnitPreferences'
+          'stockUnitPreferences',
         )
         return savedPreferences ? JSON.parse(savedPreferences) : {}
       } catch (error) {
         console.error(
           'Failed to parse unit preferences from localStorage',
-          error
+          error,
         )
         return {}
       }
-    }
+    },
   )
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export function StockTable({ initialStockData }: StockTableProps) {
       try {
         window.localStorage.setItem(
           'stockUnitPreferences',
-          JSON.stringify(selectedUnits)
+          JSON.stringify(selectedUnits),
         )
       } catch (error) {
         console.error('Failed to save unit preferences to localStorage', error)
@@ -140,7 +140,6 @@ export function StockTable({ initialStockData }: StockTableProps) {
                     Preț Mediu Ponderat
                   </TableHead>
                   <TableHead className='text-right'>Ultimul Preț</TableHead>
-                  {/* COLOANELE SUNT SEPARATE, EXACT CUM AI CERUT */}
                   <TableHead className='text-right'>Preț Min</TableHead>
                   <TableHead className='text-right'>Preț Max</TableHead>
                   <TableHead className='text-right'>Stoc Total</TableHead>
@@ -161,13 +160,13 @@ export function StockTable({ initialStockData }: StockTableProps) {
                     const allUnits = [
                       { unitName: item.unit, baseUnitEquivalent: 1 },
                       ...(item.packagingOptions || []).filter(
-                        (p) => p.unitName !== item.unit
+                        (p) => p.unitName !== item.unit,
                       ),
                     ]
                     const selectedUnitName =
                       selectedUnits[item._id] || item.unit
                     const selectedConversion = allUnits.find(
-                      (u) => u.unitName === selectedUnitName
+                      (u) => u.unitName === selectedUnitName,
                     )
                     const conversionFactor =
                       selectedConversion?.baseUnitEquivalent ?? 1
