@@ -163,20 +163,35 @@ export function StockByLocationTable({
             <Table>
               <TableHeader className='sticky top-0 bg-background z-20 shadow-sm'>
                 <TableRow>
-                  <TableHead className='w-[120px]'>Cod Produs</TableHead>
-                  <TableHead className='min-w-[200px]'>Nume Produs</TableHead>
-                  <TableHead className='text-right'>Preț Mediu</TableHead>
-                  <TableHead className='text-right'>Ultimul Preț</TableHead>
-                  <TableHead className='text-right'>Preț Min</TableHead>
-                  <TableHead className='text-right'>Preț Max</TableHead>
-                  <TableHead className='text-right font-bold'>
+                  {/* HEADER STYLING MATCHED: text-[10px] pe mic, text-sm/p-4 pe 2xl */}
+                  <TableHead className='text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
+                    Cod Produs
+                  </TableHead>
+                  <TableHead className='text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
+                    Nume Produs
+                  </TableHead>
+                  <TableHead className='text-right text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
+                    Preț Mediu
+                  </TableHead>
+                  <TableHead className='text-right text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
+                    Ultimul Preț
+                  </TableHead>
+                  <TableHead className='text-right text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
+                    Preț Min
+                  </TableHead>
+                  <TableHead className='text-right text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
+                    Preț Max
+                  </TableHead>
+                  <TableHead className='text-right font-bold text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
                     Stoc Total
                   </TableHead>
-                  <TableHead className='text-right'>Rezervat</TableHead>
-                  <TableHead className='text-right font-bold text-green-600'>
+                  <TableHead className='text-right text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
+                    Rezervat
+                  </TableHead>
+                  <TableHead className='text-right font-bold text-green-600 text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12'>
                     Disponibil
                   </TableHead>
-                  <TableHead className='w-[140px] text-center'>
+                  <TableHead className='w-[90px] text-center text-[10px] px-1 h-8 2xl:text-sm 2xl:p-4 2xl:h-12 2xl:w-[120px]'>
                     Unitate
                   </TableHead>
                 </TableRow>
@@ -213,8 +228,12 @@ export function StockByLocationTable({
                     const pmax = (item.maxPrice ?? 0) * factor
 
                     return (
-                      <TableRow key={item._id} className='hover:bg-muted/50'>
-                        <TableCell className='font-mono text-xs py-0'>
+                      <TableRow
+                        key={item._id}
+                        className='hover:bg-muted/50 border-b'
+                      >
+                        {/* COD PRODUS */}
+                        <TableCell className='font-mono text-[10px] py-0 px-1 h-8 lg:text-xs 2xl:text-sm 2xl:py-0 2xl:px-2'>
                           <Link
                             href={`/admin/management/inventory/stock/details/${item._id}`}
                             className='underline hover:text-primary'
@@ -222,51 +241,65 @@ export function StockByLocationTable({
                             {item.productCode || '-'}
                           </Link>
                         </TableCell>
-                        <TableCell className='font-medium py-0'>
+
+                        {/* NUME PRODUS */}
+                        <TableCell className='text-[10px] py-0 px-1 lg:text-xs 2xl:text-sm 2xl:py-0 2xl:px-2'>
                           <Link
                             href={`/admin/management/inventory/stock/details/${item._id}`}
-                            className='hover:underline block truncate max-w-[350px]'
+                            className='hover:underline block truncate max-w-[120px] lg:max-w-[200px] 2xl:max-w-[350px]'
                             title={item.name}
                           >
                             {item.name}
                           </Link>
                         </TableCell>
-                        <TableCell className='text-right text-muted-foreground py-0'>
+
+                        {/* PRETURI */}
+                        <TableCell className='text-right text-muted-foreground text-[10px] py-0 px-1 lg:text-xs 2xl:text-sm 2xl:py-0 2xl:px-2'>
                           {formatCurrency(avg)}
                         </TableCell>
-                        <TableCell className='text-right text-yellow-600 dark:text-yellow-500 py-0'>
+                        <TableCell className='text-right text-yellow-600 dark:text-yellow-500 text-[10px] py-0 px-1 lg:text-xs 2xl:text-sm 2xl:py-0 2xl:px-2'>
                           {formatCurrency(last)}
                         </TableCell>
-                        <TableCell className='text-right text-red-500 py-0'>
+                        <TableCell className='text-right text-red-500 text-[10px] py-0 px-1 lg:text-xs 2xl:text-sm 2xl:py-0 2xl:px-2'>
                           {formatCurrency(pmin)}
                         </TableCell>
-                        <TableCell className='text-right text-green-500 py-0'>
+                        <TableCell className='text-right text-green-500 text-[10px] py-0 px-1 lg:text-xs 2xl:text-sm 2xl:py-0 2xl:px-2'>
                           {formatCurrency(pmax)}
                         </TableCell>
-                        <TableCell className='text-right font-semibold py-0'>
+
+                        {/* STOCURI */}
+                        <TableCell className='text-right font-semibold text-[10px] py-0 px-1 lg:text-xs 2xl:text-sm 2xl:py-0 2xl:px-2'>
                           {convertedTotal.toFixed(2)}
                         </TableCell>
-                        <TableCell className='text-right text-orange-500 py-0'>
+                        <TableCell className='text-right text-orange-500 text-[10px] py-0 px-1 lg:text-xs 2xl:text-sm 2xl:py-0 2xl:px-2'>
                           {convertedReserved.toFixed(2)}
                         </TableCell>
+
+                        {/* DISPONIBIL - Stil identic cu StockTable */}
                         <TableCell
-                          className={`text-right font-bold text-lg py-0 ${item.availableStock >= 0 ? 'text-green-600' : 'text-destructive'}`}
+                          className={`text-right font-bold py-0 px-1 text-xs 2xl:text-base 2xl:py-0 2xl:px-1 ${item.availableStock >= 0 ? 'text-green-600' : 'text-destructive'}`}
                         >
                           {convertedAvailable.toFixed(2)}
                         </TableCell>
-                        <TableCell className='py-0'>
+
+                        {/* SELECTOR UM */}
+                        <TableCell className='py-0 px-1 2xl:py-0 2xl:px-2'>
                           <Select
                             value={selectedUnitName}
                             onValueChange={(newUnit) =>
                               handleUnitChange(item._id, newUnit)
                             }
                           >
-                            <SelectTrigger className='h-7 w-full text-xs'>
+                            <SelectTrigger className='h-6 text-[10px] px-1 w-full lg:h-7 lg:text-xs 2xl:h-7 2xl:text-xs 2xl:py-[-1px]'>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {allUnits.map((u) => (
-                                <SelectItem key={u.unitName} value={u.unitName}>
+                                <SelectItem
+                                  key={u.unitName}
+                                  value={u.unitName}
+                                  className='text-xs'
+                                >
                                   {u.unitName}
                                 </SelectItem>
                               ))}

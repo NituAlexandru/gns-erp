@@ -133,15 +133,18 @@ export default function StockMovementsPage() {
     <div className='h-[calc(100vh-6rem)] flex flex-col border-1 p-4 rounded-2xl'>
       <div className='flex justify-between items-center mb-1'>
         <div>
-          <h3 className='font-bold pt-1'>Mișcări Stoc (Jurnal)</h3>
+          <h3 className='font-bold pt-1 text-sm lg:text-xs 2xl:text-base'>
+            Mișcări Stoc (Jurnal)
+          </h3>
           {totalDocs > 0 && (
-            <span className='text-xs text-muted-foreground ml-1'>
+            <span className='text-[10px] md:text-sm lg:text-xs text-muted-foreground '>
               ({totalDocs} înregistrări)
             </span>
           )}
         </div>
         {totals && (
-          <div className='hidden xl:flex items-center gap-4 text-sm px-4 border-l h-8'>
+          <div className=' lg:flex items-center gap-2 px-2 border-l border-border 2xl:gap-4 2xl:px-4'>
+            {' '}
             {/* --- TOTAL INTRĂRI --- */}
             <div className='flex flex-col items-center gap-0 text-green-600'>
               <span className='text-xs font-semibold uppercase'>
@@ -186,9 +189,7 @@ export default function StockMovementsPage() {
                 </div>
               )}
             </div>
-
             <div className='w-px h-4 bg-border mx-1'></div>
-
             {/* --- TOTAL IEȘIRI --- */}
             <div className='flex flex-col items-center gap-0 text-red-600'>
               <span className='text-xs font-semibold uppercase'>
@@ -247,18 +248,38 @@ export default function StockMovementsPage() {
             <Table>
               <TableHeader className='sticky top-0 bg-background z-20 shadow-sm'>
                 <TableRow>
-                  <TableHead className='w-[75px]'>Cod Produs</TableHead>
-                  <TableHead className='w-[140px]'>Dată</TableHead>
-                  <TableHead className='w-[100px]'>Tip</TableHead>
-                  <TableHead className='w-[150px]'>Detalii</TableHead>
-                  <TableHead className='max-w-[250px]'>Produs</TableHead>
+                  <TableHead className='w-[50px] xl:w-[75px] text-[10px] lg:text-xs 2xl:text-base'>
+                    Cod
+                  </TableHead>
+                  <TableHead className='w-[140px] text-[10px] lg:text-xs 2xl:text-base'>
+                    Dată
+                  </TableHead>
+                  <TableHead className='w-[100px] text-[10px] lg:text-xs 2xl:text-base'>
+                    Tip
+                  </TableHead>
+                  <TableHead className='w-[150px] text-[10px] lg:text-xs 2xl:text-base'>
+                    Detalii
+                  </TableHead>
+                  <TableHead className='max-w-[250px] text-[10px] lg:text-xs 2xl:text-base'>
+                    Produs
+                  </TableHead>
                   <TableHead>Partener</TableHead>
-                  <TableHead className='text-right'>Cantitate</TableHead>
+                  <TableHead className='text-right text-[10px] lg:text-xs 2xl:text-base'>
+                    Cantitate
+                  </TableHead>
                   <TableHead>UM</TableHead>
-                  <TableHead className='text-right'>Preț Unitar</TableHead>
-                  <TableHead className='text-right'>Valoare</TableHead>
-                  <TableHead>Locație</TableHead>
-                  <TableHead>Operator</TableHead>
+                  <TableHead className='text-right text-[10px] lg:text-xs 2xl:text-base'>
+                    Preț Unitar
+                  </TableHead>
+                  <TableHead className='text-right text-[10px] lg:text-xs 2xl:text-base'>
+                    Valoare
+                  </TableHead>
+                  <TableHead className='text-[10px] lg:text-xs 2xl:text-base'>
+                    Locație
+                  </TableHead>
+                  <TableHead className='text-[10px] lg:text-xs 2xl:text-base'>
+                    Operator
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -303,7 +324,7 @@ export default function StockMovementsPage() {
                           </Link>
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell className='text-[10px] lg:text-[12px] 2xl:text-xs'>
                           {movement.timestamp
                             ? format(
                                 new Date(movement.timestamp),
@@ -317,7 +338,7 @@ export default function StockMovementsPage() {
                           <Badge
                             variant={isMovementIn ? 'outline' : 'default'}
                             className={cn(
-                              'font-bold text-[10px]',
+                              'font-bold text-[10px] max-w-[50px]',
                               isMovementIn
                                 ? ' border-green-200 bg-green-600'
                                 : '',
@@ -331,7 +352,7 @@ export default function StockMovementsPage() {
                           {movementTypeName}
                         </TableCell>
 
-                        <TableCell className='max-w-[250px]'>
+                        <TableCell className='max-w-[150px] xl:max-w-[180px] 3xl:max-w-[220px] text-xs'>
                           <div className='flex items-center gap-1 group relative'>
                             <span
                               className='truncate font-medium block'
@@ -342,20 +363,23 @@ export default function StockMovementsPage() {
                           </div>
                         </TableCell>
 
-                        <TableCell className='text-sm max-w-[250px]'>
+                        <TableCell className='text-xs 3xl:text-sm max-w-[130px] 2xl:max-w-[180px] truncate'>
                           {partnerName}
                         </TableCell>
 
                         {/* 1. CELULA CANTITATE */}
-                        <TableCell className='text-right align-top py-1'>
+                        <TableCell className='text-right align-center py-1 lg:py-0 xl:py-1.5 2xl:py-2'>
                           <div className='flex flex-col gap-0'>
                             {/* Cantitate Principală */}
-                            <span className='font-bold text-xs leading-none'>
+                            <span className='font-bold text-xs xl:text-sm leading-none'>
                               {movement.quantity.toFixed(2)}
                             </span>
                             {/* Cantități Convertite */}
                             {movement.packagingOptions?.map((opt, idx) => (
-                              <span key={idx} className='text-xs leading-none'>
+                              <span
+                                key={idx}
+                                className='font-bold text-xs xl:text-sm leading-none'
+                              >
                                 {(
                                   movement.quantity / opt.baseUnitEquivalent
                                 ).toFixed(2)}
@@ -365,15 +389,18 @@ export default function StockMovementsPage() {
                         </TableCell>
 
                         {/* 2. CELULA UM */}
-                        <TableCell className='align-top py-1'>
+                        <TableCell className='align-center py-1 lg:py-0'>
                           <div className='flex flex-col gap-0'>
                             {/* UM Principală */}
-                            <span className='text-xs leading-none'>
+                            <span className='text-xs xl:text-sm leading-none'>
                               {movement.unitMeasure || '-'}
                             </span>
                             {/* UM Convertite */}
                             {movement.packagingOptions?.map((opt, idx) => (
-                              <span key={idx} className='text-xs leading-none'>
+                              <span
+                                key={idx}
+                                className='text-xs xl:text-sm leading-none'
+                              >
                                 {opt.unitName}
                               </span>
                             ))}
@@ -381,10 +408,10 @@ export default function StockMovementsPage() {
                         </TableCell>
 
                         {/* 3. CELULA PREȚ UNITAR (Aici facem conversia prin ÎNMULȚIRE) */}
-                        <TableCell className='text-right align-top py-1'>
+                        <TableCell className='text-right align-center py-1 lg:py-0 xl:py-0.5'>
                           <div className='flex flex-col gap-0'>
                             {/* Preț Principal */}
-                            <span className='font-mono text-xs leading-none'>
+                            <span className='font-mono text-xs xl:text-sm  leading-none'>
                               {movement.unitCost
                                 ? formatCurrency(movement.unitCost)
                                 : '-'}
@@ -399,7 +426,7 @@ export default function StockMovementsPage() {
                               return (
                                 <span
                                   key={idx}
-                                  className='font-mono text-xs leading-none'
+                                  className='font-mono text-xs xl:text-sm leading-none'
                                 >
                                   {movement.unitCost
                                     ? formatCurrency(convertedPrice)
@@ -411,7 +438,7 @@ export default function StockMovementsPage() {
                         </TableCell>
 
                         {/* Coloana Valoare Totală */}
-                        <TableCell className='text-right font-bold font-mono'>
+                        <TableCell className='text-right font-bold text-xs xl:text-sm 2xl:text-xs font-mono lg:py-0'>
                           {movement.lineCost
                             ? formatCurrency(movement.lineCost)
                             : '-'}

@@ -1,5 +1,3 @@
-// app/admin/management/inventory/inventory-nav.tsx
-
 'use client'
 
 import Link from 'next/link'
@@ -21,7 +19,6 @@ import {
 import { InventoryLocation } from '@/lib/db/modules/inventory/types'
 import { ReactNode } from 'react'
 
-// Harta cu iconițe, definită local în componenta de UI
 const locationIcons: Record<InventoryLocation, ReactNode> = {
   DEPOZIT: <Warehouse size={16} />,
   IN_TRANZIT: <Truck size={16} />,
@@ -36,8 +33,8 @@ export function InventoryNav() {
 
   return (
     <aside>
-      <h1 className='text-xl font-bold'>Gestiune Stocuri</h1>
-      <nav className='flex flex-col gap-2 mt-4'>
+      <h1 className='text-lg font-bold 2xl:text-xl'>Gestiune Stocuri</h1>
+      <nav className='flex p-0 flex-col gap-1 mt-2 2xl:gap-2 2xl:mt-4'>
         <Button
           asChild
           variant={
@@ -45,17 +42,17 @@ export function InventoryNav() {
               ? 'secondary'
               : 'ghost'
           }
-          className='justify-start gap-2'
+          className='justify-start h-8 text-xs px-2 gap-1 2xl:h-10 2xl:text-sm 2xl:px-4 2xl:gap-2'
         >
           <Link href='/admin/management/inventory/stock'>
             <Combine size={16} />
-            Stoc Total Agregat
+            Stoc Total
           </Link>
         </Button>
-
-        <p className='text-sm text-muted-foreground mt-4 px-2'>
+        <p className='text-xs text-muted-foreground mt-2 px-0 2xl:text-sm 2xl:mt-4 2xl:px-2'>
           Stocuri pe Locații
         </p>
+
         {INVENTORY_LOCATIONS.map((locationId) => (
           <Button
             asChild
@@ -65,16 +62,19 @@ export function InventoryNav() {
                 ? 'secondary'
                 : 'ghost'
             }
-            className='justify-start gap-2'
+            className='justify-start h-8 text-[10px] md:text-xs px-0 gap-1 2xl:h-8 2xl:text-sm 2xl:px-1 2xl:gap-1'
           >
-            <Link href={`/admin/management/inventory/stock/${locationId}`}>
+            <Link
+              href={`/admin/management/inventory/stock/${locationId}`}
+              className='ml-0'
+            >
               {locationIcons[locationId]}
               {LOCATION_NAMES_MAP[locationId]}
             </Link>
           </Button>
         ))}
 
-        <hr className='my-2' />
+        <hr className='my-1 2xl:my-2' />
 
         <Button
           asChild
@@ -83,11 +83,11 @@ export function InventoryNav() {
               ? 'secondary'
               : 'ghost'
           }
-          className='justify-start gap-2'
+          className='justify-start h-8 text-xs px-2 gap-1 2xl:h-10 xl:text-sm 2xl:px-4 2xl:gap-2'
         >
           <Link href='/admin/management/inventory/movements'>
             <Boxes size={16} />
-            Mișcări Stoc (Jurnal)
+            Mișcări Stoc
           </Link>
         </Button>
       </nav>
