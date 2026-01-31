@@ -414,7 +414,8 @@ export const ADMIN_PAGE_SIZE = 14
 export const PAYABLES_PAGE_SIZE = 15
 export const RECEIVABLES_PAGE_SIZE = 15
 export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 13)
-export const MOVEMENTS_PAGE_SIZE = 16
+export const MOVEMENTS_PAGE_SIZE = 15
+export const STOCK_PAGE_SIZE = 17
 export const CLIENT_DETAIL_PAGE_SIZE = Number(
   process.env.CLIENT_DETAIL_PAGE_SIZE || 10,
 )

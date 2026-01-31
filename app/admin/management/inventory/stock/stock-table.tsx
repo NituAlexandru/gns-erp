@@ -10,7 +10,7 @@ import {
   TableBody,
   TableCell,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button' // Adaugat pentru paginare
+import { Button } from '@/components/ui/button'
 import { getAggregatedStockStatus } from '@/lib/db/modules/inventory/inventory.actions.read'
 import { AggregatedStockItem } from '@/lib/db/modules/inventory/types'
 import { formatCurrency } from '@/lib/utils'
@@ -23,26 +23,37 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 interface StockTableProps {
   initialStockData: {
     data: AggregatedStockItem[]
     totalPages: number
     totalDocs: number
+    totals: { totalValue: number }
   }
 }
 
 export function StockTable({ initialStockData }: StockTableProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const searchQuery = searchParams.get('q') || ''
+  const page = Number(searchParams.get('page')) || 1
   const [stockData, setStockData] = useState<AggregatedStockItem[]>(
     initialStockData?.data || [],
   )
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(
     initialStockData?.totalPages || 1,
   )
   const [totalDocs, setTotalDocs] = useState(initialStockData?.totalDocs || 0)
-  const [searchQuery, setSearchQuery] = useState('')
+
+  // State pentru totaluri (Valoare)
+  const [totals, setTotals] = useState(
+    initialStockData?.totals || { totalValue: 0 },
+  )
+
   const [selectedUnits, setSelectedUnits] = useState<{ [key: string]: string }>(
     () => {
       if (typeof window === 'undefined') {
@@ -79,11 +90,11 @@ export function StockTable({ initialStockData }: StockTableProps) {
   const fetchStock = useCallback(async () => {
     setLoading(true)
     try {
-      // Apelam functia care suporta acum paginarea
       const res = await getAggregatedStockStatus(searchQuery, page)
       setStockData(res.data)
       setTotalPages(res.totalPages || 1)
       setTotalDocs(res.totalDocs || 0)
+      setTotals(res.totals || { totalValue: 0 })
     } catch (error) {
       console.error('Failed to fetch stock:', error)
       setStockData([])
@@ -92,10 +103,21 @@ export function StockTable({ initialStockData }: StockTableProps) {
     }
   }, [searchQuery, page])
 
-  // Reset pagina la cautare
   const handleSearchChange = (query: string) => {
-    setSearchQuery(query)
-    setPage(1)
+    const params = new URLSearchParams(searchParams.toString())
+    if (query) {
+      params.set('q', query)
+    } else {
+      params.delete('q')
+    }
+    params.set('page', '1') // Reset pagina
+    router.replace(`${pathname}?${params.toString()}`)
+  }
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
   }
 
   useEffect(() => {
@@ -108,18 +130,28 @@ export function StockTable({ initialStockData }: StockTableProps) {
 
   return (
     <div className='h-[calc(100vh-7rem)] flex flex-col border p-4 rounded-2xl '>
-      {/* HEADER ZONA */}
+      {/* HEADER */}
       <div className='flex justify-between items-center mb-2'>
-        <div>
+        <div className='flex flex-col'>
           <h3 className='font-bold pt-1'>Stoc Total Agregat</h3>
-          {totalDocs > 0 && (
-            <span className='text-xs text-muted-foreground ml-1'>
-              ({totalDocs} produse)
+          <div className='flex gap-4 text-sm mt-1'>
+            <span className='text-muted-foreground'>
+              Produse:{' '}
+              <span className='font-medium text-foreground'>{totalDocs}</span>
             </span>
-          )}
+            <span className='text-muted-foreground'>
+              Valoare Stoc:{' '}
+              <span className='font-bold text-green-600'>
+                {formatCurrency(totals.totalValue)}
+              </span>
+            </span>
+          </div>
         </div>
         <div className='w-[400px]'>
-          <StockSearchFilter onSearchChange={handleSearchChange} />
+          <StockSearchFilter
+            onSearchChange={handleSearchChange}
+            defaultValue={searchQuery}
+          />
         </div>
       </div>
 
@@ -129,7 +161,7 @@ export function StockTable({ initialStockData }: StockTableProps) {
         </div>
       ) : (
         <>
-          {/* TABEL WRAPPER - SCROLLABLE */}
+          {/* TABEL WRAPPER  */}
           <div className='overflow-auto flex-1 border rounded-md relative'>
             <Table>
               <TableHeader className='sticky top-0 bg-background z-20 shadow-sm'>
@@ -202,7 +234,7 @@ export function StockTable({ initialStockData }: StockTableProps) {
                         <TableCell className='py-0'>
                           <Link
                             href={`/admin/management/inventory/stock/details/${item._id}`}
-                            className='hover:underline block truncate max-w-[250px]'
+                            className='hover:underline block truncate max-w-[400px]'
                             title={item.name}
                           >
                             {item.name}
@@ -267,7 +299,7 @@ export function StockTable({ initialStockData }: StockTableProps) {
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => handlePageChange(Math.max(1, page - 1))}
                 disabled={page === 1}
               >
                 <ChevronLeft className='h-4 w-4 mr-1' />
@@ -276,7 +308,7 @@ export function StockTable({ initialStockData }: StockTableProps) {
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
                 disabled={page === totalPages}
               >
                 Următor

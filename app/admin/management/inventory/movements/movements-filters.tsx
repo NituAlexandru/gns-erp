@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -18,6 +18,8 @@ import {
 } from '@/lib/db/modules/inventory/constants'
 import { DateRange } from 'react-day-picker'
 import { DatePickerWithRange } from '@/components/ui/date-range-picker'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { format, parseISO, subDays } from 'date-fns'
 
 export type MovementsFiltersState = {
   q: string
@@ -26,61 +28,96 @@ export type MovementsFiltersState = {
   dateRange: DateRange | undefined
 }
 
-interface MovementsFiltersProps {
-  initialState: MovementsFiltersState
-  onFilterChange: (filters: MovementsFiltersState) => void
-}
+export function MovementsFilters() {
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const { replace } = useRouter()
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('q') || '')
+  const initialDateRange: DateRange | undefined =
+    searchParams.get('from') && searchParams.get('to')
+      ? {
+          from: parseISO(searchParams.get('from')!),
+          to: parseISO(searchParams.get('to')!),
+        }
+      : {
+          from: subDays(new Date(), 30),
+          to: new Date(),
+        }
 
-export function MovementsFilters({
-  initialState,
-  onFilterChange,
-}: MovementsFiltersProps) {
-  const [filters, setFilters] = useState(initialState)
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(
+    initialDateRange,
+  )
 
-  const handleUpdate = <K extends keyof MovementsFiltersState>(
-    key: K,
-    value: MovementsFiltersState[K],
-  ) => {
-    setFilters((prev) => ({ ...prev, [key]: value }))
+  const updateURL = (key: string, value: string | null) => {
+    const params = new URLSearchParams(searchParams)
+
+    params.set('page', '1')
+
+    if (value && value !== 'ALL') {
+      params.set(key, value)
+    } else {
+      params.delete(key)
+    }
+    replace(`${pathname}?${params.toString()}`)
+  }
+
+  // Debounce pentru Search Text (q)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchTerm !== (searchParams.get('q') || '')) {
+        updateURL('q', searchTerm)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm])
+
+  // Handler pentru Date Range
+  const handleDateChange = (range: DateRange | undefined) => {
+    setDateRange(range)
+    const params = new URLSearchParams(searchParams)
+    params.set('page', '1')
+
+    if (range?.from) {
+      params.set('from', format(range.from, 'yyyy-MM-dd'))
+    } else {
+      params.delete('from')
+    }
+
+    if (range?.to) {
+      params.set('to', format(range.to, 'yyyy-MM-dd'))
+    } else {
+      params.delete('to')
+    }
+
+    replace(`${pathname}?${params.toString()}`)
   }
 
   const handleReset = () => {
-    const resetState = {
-      ...filters,
-      q: '',
-      location: 'ALL',
-      type: 'ALL',
-    }
-    setFilters(resetState)
-    onFilterChange(resetState)
+    setSearchTerm('')
+    setDateRange({
+      from: subDays(new Date(), 30),
+      to: new Date(),
+    })
+    replace(pathname)
   }
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onFilterChange(filters)
-    }, 700)
-    return () => clearTimeout(timer)
-  }, [filters, onFilterChange])
-
   return (
-    <div className='flex items-end gap-4 pb-4'>
+    <div className='flex items-end gap-4 flex-wrap'>
       <div>
-        <DatePickerWithRange
-          date={filters.dateRange}
-          onDateChange={(newDate) => handleUpdate('dateRange', newDate)}
-        />
+        <DatePickerWithRange date={dateRange} onDateChange={handleDateChange} />
       </div>
-      <div className='flex-grow min-w-[250px]'>
+      <div className='flex-grow min-w-[275px]'>
         <Input
-          placeholder='Cauta nume produs sau furnizor'
-          value={filters.q}
-          onChange={(e) => handleUpdate('q', e.target.value)}
+          placeholder='Cauta cod, nume produs sau furnizor...'
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
       <div>
         <Select
-          value={filters.location}
-          onValueChange={(value) => handleUpdate('location', value)}
+          value={searchParams.get('location') || 'ALL'}
+          onValueChange={(value) => updateURL('location', value)}
         >
           <SelectTrigger className='w-[170px]'>
             <SelectValue placeholder='Toate locațiile' />
@@ -97,8 +134,8 @@ export function MovementsFilters({
       </div>
       <div>
         <Select
-          value={filters.type}
-          onValueChange={(value) => handleUpdate('type', value)}
+          value={searchParams.get('type') || 'ALL'}
+          onValueChange={(value) => updateURL('type', value)}
         >
           <SelectTrigger className='w-[170px]'>
             <SelectValue placeholder='Toate tipurile' />
