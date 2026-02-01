@@ -5,6 +5,7 @@ import ERPProductModel from '@/lib/db/modules/product/product.model'
 import type { PipelineStage, Types } from 'mongoose'
 import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
 import { IAdminCatalogItem, IAdminCatalogPage } from './types'
+import { CategoryModel } from '../category'
 
 type DefaultMarkups = {
   markupDirectDeliveryPrice?: number
@@ -34,12 +35,32 @@ type RawAdminCatalogDoc = {
 export async function getAdminCatalogPage({
   page = 1,
   limit = ADMIN_PRODUCT_PAGE_SIZE,
+  category,
+  q,
 }: {
   page?: number
   limit?: number
+  category?: string
+  q?: string
 }): Promise<IAdminCatalogPage> {
   await connectToDatabase()
   const skip = (page - 1) * limit
+
+  const categoryIds: Types.ObjectId[] = []
+  if (category) {
+    const catDoc = await CategoryModel.findById(category).lean()
+    if (catDoc) {
+      categoryIds.push(catDoc._id as unknown as Types.ObjectId)
+      if (!catDoc.mainCategory) {
+        const subCats = await CategoryModel.find({ mainCategory: catDoc._id })
+          .select('_id')
+          .lean()
+        subCats.forEach((sc) =>
+          categoryIds.push(sc._id as unknown as Types.ObjectId),
+        )
+      }
+    }
+  }
 
   const agg: PipelineStage[] = [
     {
@@ -53,6 +74,8 @@ export async function getAdminCatalogPage({
         isPublished: 1,
         createdAt: 1,
         unit: 1,
+        category: 1,
+        suppliers: 1,
         packagingUnit: 1,
         packagingQuantity: 1,
         itemsPerPallet: 1,
@@ -73,12 +96,37 @@ export async function getAdminCatalogPage({
               isPublished: 1,
               createdAt: 1,
               unit: '$packagingUnit',
+              category: 1,
+              suppliers: 1,
               packagingUnit: null,
               packagingQuantity: null,
               itemsPerPallet: { $ifNull: ['$itemsPerPallet', 0] },
             },
           },
         ],
+      },
+    },
+    {
+      $lookup: {
+        from: 'suppliers',
+        localField: 'suppliers.supplier',
+        foreignField: '_id',
+        as: 'resolvedSuppliers',
+      },
+    },
+    {
+      $match: {
+        ...(categoryIds.length > 0 ? { category: { $in: categoryIds } } : {}),
+        ...(q
+          ? {
+              $or: [
+                { name: { $regex: q, $options: 'i' } },
+                { productCode: { $regex: q, $options: 'i' } },
+                { barCode: { $regex: q, $options: 'i' } },
+                { 'resolvedSuppliers.name': { $regex: q, $options: 'i' } },
+              ],
+            }
+          : {}),
       },
     },
     {
@@ -170,7 +218,6 @@ export async function getAdminCatalogPage({
     barCode: doc.barCode ?? null,
     createdAt: doc.createdAt,
     isPublished: doc.isPublished ?? false,
-    // Câmpuri lipsă adăugate:
     totalStock: doc.totalStock,
     unit: doc.unit,
     packagingOptions: doc.packagingOptions,

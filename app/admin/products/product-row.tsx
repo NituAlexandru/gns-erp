@@ -28,6 +28,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { MoreHorizontal, Save } from 'lucide-react'
 
 type RowState = {
   direct: number
@@ -42,7 +43,7 @@ interface ProductRowProps {
     id: string,
     key: keyof RowState,
     val: number,
-    fallback: RowState
+    fallback: RowState,
   ) => void
   onUpdate: (id: string) => void
   dirtyRows: Record<string, boolean>
@@ -97,30 +98,35 @@ export function ProductRow({
   const retailPrice = convertedPrice * (1 + rowVals.retail / 100)
 
   return (
-    <TableRow className='hover:bg-muted/50'>
-      <TableCell>{item.productCode}</TableCell>
-      <TableCell className='p-0 h-10 w-12'>
+    <TableRow className='hover:bg-muted/50 border-b'>
+       <TableCell className='text-[10px] p-0 py-0.5 lg:py-1.5 2xl:py-1 h-auto lg:text-xs xl:text-sm font-mono'>
+        {item.productCode}
+      </TableCell>
+
+      <TableCell className='p-0 py-0.5 lg:py-1.5 2xl:py-1 w-8 h-8 xl:w-16 xl:h-12'>
         {item.image ? (
-          <Image
-            src={item.image}
-            alt={item.name}
-            priority
-            width={45}
-            height={45}
-            style={{ width: '45px', height: '45px' }}
-            className='ml-3 object-contain'
-          />
+          <div className='relative w-[30px] h-[30px] ml-1 lg:w-[45px] lg:h-[45px] lg:ml-3'>
+            <Image
+              src={item.image}
+              alt={item.name}
+              fill
+              className='object-contain'
+            />
+          </div>
         ) : (
-          '-'
+          <span className='text-[10px] ml-1 lg:ml-3 lg:text-xs xl:text-sm'>
+            -
+          </span>
         )}
       </TableCell>
-      <TableCell>
+
+      <TableCell className='p-0 py-0.5 lg:py-1.5 2xl:py-1 max-w-[100px] lg:max-w-[150px] xl:max-w-[200px] 2xl:max-w-[220px] 3xl:max-w-[350px]'>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <Link
                 href={`/catalog-produse/${item._id}/${toSlug(item.name)}`}
-                className='block max-w-[350px] truncate'
+                className='block truncate text-[10px] xl:text-xs 2xl:text-sm'
               >
                 {item.name}
               </Link>
@@ -131,36 +137,54 @@ export function ProductRow({
           </Tooltip>
         </TooltipProvider>
       </TableCell>
-      <TableCell>{formatCurrency(convertedPrice)}</TableCell>
-      <TableCell>
+
+      {/* PREȚ INTRARE */}
+      <TableCell className='text-[10px] text-right p-0 pr-1 py-0.5 lg:py-1.5 2xl:py-1 lg:text-xs 2xl:text-sm  whitespace-nowrap'>
+        {formatCurrency(convertedPrice)}
+      </TableCell>
+
+      {/* UM SELECT: Foarte compact pe mobil */}
+      <TableCell className='p-0 py-0.5 lg:py-1.5 2xl:py-1 '>
         <Select value={selectedUnit} onValueChange={handleUnitChange}>
-          <SelectTrigger className='w-[100px] h-8 p-2 text-sm cursor-pointer'>
+          <SelectTrigger className='w-[65px] h-6 text-[10px] px-1 lg:w-[80px] xl:w-[100px] lg:h-8 lg:p-2 lg:text-xs xl:text-sm cursor-pointer'>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {allUnits.map((u) => (
-              <SelectItem key={u.unitName} value={u.unitName}>
+              <SelectItem
+                key={u.unitName}
+                value={u.unitName}
+                className='text-xs lg:text-xs xl:text-sm cursor-pointer'
+              >
                 {u.unitName}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </TableCell>
-      <TableCell className='font-bold text-right'>
+
+      {/* STOC */}
+      <TableCell className='font-bold text-left text-[10px] p-0 py-0.5 lg:py-1.5 2xl:py-1 xl:text-xs 2xl:text-sm '>
         {convertedStock.toFixed(2)}
       </TableCell>
-      <TableCell className='text-right'>
+
+      {/* Direct */}
+      <TableCell className='text-right p-0 py-0.5 xl:py-1 border-l-2 border-border'>
         <Input
           type='number'
           value={String(rowVals.direct)}
           onChange={(e) =>
             onMarkupChange(item._id, 'direct', Number(e.target.value), fallback)
           }
-          className='w-20'
+          className='w-12 h-6 text-[10px] px-1 lg:w-14 xl:w-20 lg:h-9 lg:text-xs xl:text-sm lg:px-3 text-right ml-auto mr-1'
         />
       </TableCell>
-      <TableCell>{formatCurrency(directPrice)}</TableCell>
-      <TableCell className='text-right'>
+      <TableCell className='text-[10px] text-left p-0 py-0.5 lg:py-1.5 2xl:py-1 lg:text-xs xl:text-sm  whitespace-nowrap'>
+        {formatCurrency(directPrice)}
+      </TableCell>
+
+      {/* Full Truck */}
+      <TableCell className='text-right p-0 py-0.5 xl:py-1 border-l-2 border-border'>
         <Input
           type='number'
           value={String(rowVals.fullTruck)}
@@ -169,14 +193,18 @@ export function ProductRow({
               item._id,
               'fullTruck',
               Number(e.target.value),
-              fallback
+              fallback,
             )
           }
-          className='w-20'
+          className='w-12 h-6 text-[10px] px-1 lg:w-14 xl:w-20 lg:h-9 lg:text-xs xl:text-sm lg:px-3 text-right ml-auto mr-1'
         />
       </TableCell>
-      <TableCell>{formatCurrency(fullTruckPrice)}</TableCell>
-      <TableCell className='text-right'>
+      <TableCell className='text-[10px] p-0 py-0.5 lg:py-1.5 2xl:py-1 lg:text-xs xl:text-sm  whitespace-nowrap text-left'>
+        {formatCurrency(fullTruckPrice)}
+      </TableCell>
+
+      {/* Small Biz */}
+      <TableCell className='text-right p-0 py-0.5 xl:py-1 border-l-2 border-border'>
         <Input
           type='number'
           value={String(rowVals.smallBiz)}
@@ -185,25 +213,33 @@ export function ProductRow({
               item._id,
               'smallBiz',
               Number(e.target.value),
-              fallback
+              fallback,
             )
           }
-          className='w-20'
+          className='w-12 h-6 text-[10px] px-1 lg:w-14 xl:w-20 lg:h-9 lg:text-xs xl:text-sm lg:px-3 text-right ml-auto mr-1'
         />
       </TableCell>
-      <TableCell>{formatCurrency(smallBizPrice)}</TableCell>
-      <TableCell className='text-right'>
+      <TableCell className='text-[10px] p-0 py-0.5 lg:py-1.5 2xl:py-1 lg:text-xs xl:text-sm  whitespace-nowrap text-left'>
+        {formatCurrency(smallBizPrice)}
+      </TableCell>
+
+      {/* Retail */}
+      <TableCell className='text-left p-0 py-0.5 xl:py-1 border-l-2 border-border'>
         <Input
           type='number'
           value={String(rowVals.retail)}
           onChange={(e) =>
             onMarkupChange(item._id, 'retail', Number(e.target.value), fallback)
           }
-          className='w-20'
+          className='w-12 h-6 text-[10px] px-1 lg:w-14 xl:w-20 lg:h-9 lg:text-xs xl:text-sm lg:px-3 text-right ml-auto mr-1'
         />
       </TableCell>
-      <TableCell>{formatCurrency(retailPrice)}</TableCell>
-      <TableCell>
+      <TableCell className='text-[10px] p-0 py-0.5 lg:py-1.5 2xl:py-1 lg:text-xs xl:text-sm  whitespace-nowrap text-left'>
+        {formatCurrency(retailPrice)}
+      </TableCell>
+
+      {/* STATUS */}
+      <TableCell className='text-[10px] p-0 py-0.5 lg:py-1.5 2xl:py-1 lg:text-xs xl:text-sm  text-center'>
         {item.isPublished ? (
           <span className='text-green-500'>Activ</span>
         ) : (
@@ -211,25 +247,33 @@ export function ProductRow({
         )}
       </TableCell>
 
-      <TableCell>
+      {/* BUTON SALVEAZĂ: h-6 text-[10px] */}
+      <TableCell className='p-0 py-0.5 lg:py-1.5 2xl:py-1 '>
         <Button
           size='sm'
           variant={dirtyRows[item._id] ? 'default' : 'outline'}
           onClick={() => onUpdate(item._id)}
+          className='h-6 text-[10px] px-2 xl:h-9 2xl:text-sm xl:px-4'
         >
-          Salvează
+          <Save className='w-3 h-3' />
         </Button>
       </TableCell>
-      <TableCell>
+
+      {/* BUTON ACȚIUNI: h-6 text-[10px] */}
+      <TableCell className='p-0 py-0.5 lg:py-1.5 2xl:py-1 '>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant='outline' size='sm'>
-              Acțiuni
+            <Button
+              variant='outline'
+              size='sm'
+              className='h-6 text-[10px] px-2 xl:h-9 2xl:text-sm xl:px-4'
+            >
+              <MoreHorizontal className='w-3 h-3' />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
             <DropdownMenuItem
-              className='cursor-pointer hover:bg-muted/50'
+              className='cursor-pointer text-xs lg:text-xs xl:text-sm'
               onSelect={() =>
                 router.push(`/catalog-produse/${item._id}/${toSlug(item.name)}`)
               }
@@ -237,7 +281,7 @@ export function ProductRow({
               Vizualizează
             </DropdownMenuItem>
             <DropdownMenuItem
-              className='cursor-pointer hover:bg-muted/50'
+              className='cursor-pointer text-xs lg:text-xs xl:text-sm'
               onSelect={() =>
                 router.push(`/admin/management/products/${item._id}/edit`)
               }
@@ -246,7 +290,7 @@ export function ProductRow({
             </DropdownMenuItem>
             {item.isPublished ? (
               <DropdownMenuItem
-                className='cursor-pointer hover:bg-muted/50'
+                className='cursor-pointer text-xs lg:text-xs xl:text-sm'
                 onSelect={() => {
                   setDeactivateTarget(item)
                   setDeactivateOpen(true)
@@ -256,7 +300,7 @@ export function ProductRow({
               </DropdownMenuItem>
             ) : (
               <DropdownMenuItem
-                className='cursor-pointer hover:bg-muted/50'
+                className='cursor-pointer text-xs lg:text-xs xl:text-sm'
                 onSelect={() => {
                   setActivateTarget(item)
                   setActivateOpen(true)
@@ -266,7 +310,7 @@ export function ProductRow({
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
-              className='cursor-pointer hover:bg-muted/50'
+              className='cursor-pointer text-xs lg:text-xs xl:text-sm'
               onSelect={() => {
                 setDeleteTarget(item)
                 setDeleteOpen(true)

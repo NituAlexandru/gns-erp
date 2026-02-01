@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useEffect, useState, useTransition } from 'react'
+import React, { useEffect, useState, useTransition, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableHeader,
@@ -15,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { AdminProductSearchResult } from '@/lib/db/modules/product/types'
 import { updateProductMarkup } from '@/lib/db/modules/product/product.actions'
-import { ADMIN_PRODUCT_PAGE_SIZE } from '@/lib/db/modules/product/constants'
 import { toast } from 'sonner'
 import {
   AlertDialog,
@@ -29,6 +28,19 @@ import {
 import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
 import { ProductRow } from './product-row'
 import { IAdminCatalogItem } from '@/lib/db/modules/catalog/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+
+interface CategoryOption {
+  _id: string
+  name: string
+  mainCategory?: string | { _id: string }
+}
 
 type RowState = {
   direct: number
@@ -44,6 +56,7 @@ export default function AdminProductsList({
   totalProducts,
   from,
   to,
+  allCategories,
 }: {
   products: IAdminCatalogItem[]
   currentPage: number
@@ -51,28 +64,88 @@ export default function AdminProductsList({
   totalProducts: number
   from: number
   to: number
+  allCategories: CategoryOption[]
 }) {
-  const [page, setPage] = useState(currentPage)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [query, setQuery] = useState(searchParams.get('q') || '')
+  const [page, setPage] = useState(() => {
+    const paramPage = searchParams.get('page')
+    return paramPage ? Number(paramPage) : currentPage
+  })
   const [items, setItems] = useState<IAdminCatalogItem[]>(products)
-  const [query, setQuery] = useState('')
+
+  const updateUrl = useCallback(
+    (paramsUpdate: { q?: string; category?: string; page?: number }) => {
+      const params = new URLSearchParams(searchParams.toString())
+      const updateParam = (key: string, val?: string | number) => {
+        if (val && val !== '') params.set(key, String(val))
+        else params.delete(key)
+      }
+
+      if (paramsUpdate.q !== undefined) updateParam('q', paramsUpdate.q)
+      if (paramsUpdate.category !== undefined)
+        updateParam('category', paramsUpdate.category)
+      if (paramsUpdate.page !== undefined)
+        updateParam('page', paramsUpdate.page)
+
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    },
+    [searchParams, pathname, router],
+  )
+
   const [searchResults, setSearchResults] = useState<
     IAdminCatalogItem[] | null
   >(null)
   const [rows, setRows] = useState<Record<string, RowState>>({})
   const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
   const [, startTransition] = useTransition()
-  const router = useRouter()
   const [deactivateOpen, setDeactivateOpen] = useState(false)
   const [deactivateTarget, setDeactivateTarget] =
     useState<IAdminCatalogItem | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<IAdminCatalogItem | null>(
-    null
+    null,
   )
   const [activateOpen, setActivateOpen] = useState(false)
   const [activateTarget, setActivateTarget] =
     useState<IAdminCatalogItem | null>(null)
   const [scanning, setScanning] = useState(false)
+  // --- STATE NOU PENTRU FILTRE ---
+  const [supplierQuery, setSupplierQuery] = useState(
+    searchParams.get('supplier') || '',
+  )
+
+  // Logică Categorii
+  const initialCatId = searchParams.get('category') || ''
+  const initialSelectedCat = allCategories.find((c) => c._id === initialCatId)
+  const isInitialSub = initialSelectedCat && initialSelectedCat.mainCategory
+
+  const [selectedMainCat, setSelectedMainCat] = useState<string>(
+    isInitialSub
+      ? typeof initialSelectedCat.mainCategory === 'object'
+        ? initialSelectedCat.mainCategory._id
+        : (initialSelectedCat.mainCategory as string)
+      : initialSelectedCat
+        ? initialCatId
+        : '',
+  )
+  const [selectedSubCat, setSelectedSubCat] = useState<string>(
+    isInitialSub ? initialCatId : '',
+  )
+
+  // Filtrări liste categorii
+  const mainCategories = allCategories.filter((c) => !c.mainCategory)
+  const subCategories = selectedMainCat
+    ? allCategories.filter((c) => {
+        const pId =
+          typeof c.mainCategory === 'object'
+            ? c.mainCategory?._id
+            : c.mainCategory
+        return pId === selectedMainCat
+      })
+    : []
 
   async function handleActivateConfirm() {
     if (!activateTarget) return
@@ -83,13 +156,13 @@ export default function AdminProductsList({
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isPublished: true }),
-        }
+        },
       )
       if (!res.ok) throw new Error('Eroare la server')
       setItems((prev) =>
         prev.map((i) =>
-          i._id === activateTarget._id ? { ...i, isPublished: true } : i
-        )
+          i._id === activateTarget._id ? { ...i, isPublished: true } : i,
+        ),
       )
       toast.success('Produs activat cu succes!')
     } catch {
@@ -109,13 +182,13 @@ export default function AdminProductsList({
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ isPublished: false }),
-        }
+        },
       )
       if (!res.ok) throw new Error('Eroare la server')
       setItems((prev) =>
         prev.map((i) =>
-          i._id === deactivateTarget._id ? { ...i, isPublished: false } : i
-        )
+          i._id === deactivateTarget._id ? { ...i, isPublished: false } : i,
+        ),
       )
       toast.success('Produs dezactivat cu succes!')
     } catch {
@@ -144,69 +217,55 @@ export default function AdminProductsList({
     }
   }
 
-  // keep items in sync with server props
   useEffect(() => {
     setItems(products)
   }, [products])
 
-  // reset page when query changes
+  // debounced search update URL (Server Side Filtering)
   useEffect(() => {
-    setPage(1)
-  }, [query])
+    const t = setTimeout(() => {
+      const currentQ = searchParams.get('q') || ''
+      if (query === currentQ) return
 
-  // debounced search…
-  useEffect(() => {
-    const t = setTimeout(async () => {
-      const q = query.trim()
-      if (!q) {
-        setSearchResults(null)
-        return
-      }
-      try {
-        const res = await fetch(
-          `/api/admin/products/search?q=${encodeURIComponent(q)}`
-        )
-        const data = res.ok ? await res.json() : []
-        setSearchResults(Array.isArray(data) ? data : [])
-      } catch {
-        setSearchResults([])
-      }
-    }, 300)
+      // Doar q și category (care e deja în URL dacă e selectată)
+      updateUrl({ q: query, page: 1 })
+      setPage(1)
+    }, 400)
     return () => clearTimeout(t)
-  }, [query])
+  }, [query, updateUrl, searchParams])
 
-  const totalPagesDisplay = searchResults
-    ? Math.ceil(searchResults.length / ADMIN_PRODUCT_PAGE_SIZE)
-    : totalPages
-  const displayList = searchResults
-    ? searchResults.slice(
-        (page - 1) * ADMIN_PRODUCT_PAGE_SIZE,
-        page * ADMIN_PRODUCT_PAGE_SIZE
-      )
-    : items
+  const totalPagesDisplay = totalPages
+  const displayList = items
 
-  // navigation for server-fetched pages
-  const fetchPage = (newPage: number) => {
-    startTransition(() => {
-      router.replace(`/admin/products?page=${newPage}`)
-      setPage(newPage)
-    })
+  const handleMainCatChange = (val: string) => {
+    const newVal = val === 'ALL' ? '' : val
+    setSelectedMainCat(newVal)
+    setSelectedSubCat('')
+    setPage(1)
+    updateUrl({ category: newVal, page: 1 })
   }
+
+  const handleSubCatChange = (val: string) => {
+    const newVal = val === 'ALL' ? '' : val
+    setSelectedSubCat(newVal)
+    setPage(1)
+    updateUrl({ category: newVal || selectedMainCat, page: 1 })
+  }
+
   // decide search vs server
   const changePage = (newPage: number) => {
-    if (newPage < 1 || newPage > totalPagesDisplay) return
-    if (searchResults) {
-      setPage(newPage)
-    } else {
-      fetchPage(newPage)
-    }
+    if (newPage < 1 || newPage > totalPages) return
+
+    setPage(newPage)
+
+    updateUrl({ page: newPage })
   }
 
   const onMarkupChange = (
     id: string,
     key: keyof RowState,
     val: number,
-    fallback: RowState
+    fallback: RowState,
   ) => {
     setRows((prev) => {
       const base = prev[id] ?? fallback
@@ -245,39 +304,87 @@ export default function AdminProductsList({
                   markupRetailPrice: row.retail,
                 },
               }
-            : item
-        )
+            : item,
+        ),
       )
     } else {
       toast.error('Eroare la salvare: ' + res.message)
     }
   }
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuery(e.target.value)
+    setPage(1)
+  }
+
   return (
-    <div className='p-0 max-w-full'>
+    <div className='flex flex-col h-[calc(100vh-6rem)] w-full p-0'>
       {/* HEADER */}
-      <div className='grid mb-4 grid-cols-1 gap-4 lg:grid-cols-4 items-center'>
-        <h1 className='text-2xl font-bold'>Marja profit</h1>
-        <div className='lg:col-span-2 flex items-center space-x-2 justify-center'>
+      <div className='grid grid-cols-1 gap-4 lg:grid-cols-5 items-center shrink-0 mb-2'>
+        <h1 className='text-xs lg:text-2xl font-bold'>Marja profit</h1>
+        <div className='lg:col-span-3 flex flex-wrap items-center justify-center gap-2'>
+          {/* 2. Select Categorie */}
+          <Select
+            value={selectedMainCat || 'ALL'}
+            onValueChange={handleMainCatChange}
+          >
+            <SelectTrigger className='w-full lg:w-36 xl-40 2xl-48'>
+              <SelectValue placeholder='Cat.' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='ALL'>Toate</SelectItem>
+              {mainCategories.map((c) => (
+                <SelectItem key={c._id} value={c._id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* 3. Select Sub-Categorie */}
+          <Select
+            value={selectedSubCat || 'ALL'}
+            onValueChange={handleSubCatChange}
+            disabled={!selectedMainCat}
+          >
+            <SelectTrigger className='w-full lg:w-36 xl-40 2xl-48'>
+              <SelectValue placeholder='Sub.' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='ALL'>Toate</SelectItem>
+              {subCategories.map((c) => (
+                <SelectItem key={c._id} value={c._id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* 1. UNICUL INPUT (Caută Produs + Furnizor) */}
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder='Caută după cod, nume sau cod de bare'
-            className='w-full lg:w-80'
+            onChange={handleSearchChange}
+            placeholder='Caută produs, cod, furnizor...'
+            className='w-full lg:w-44 xl:w-64 2xl:w-80'
           />
-          <span className='text-sm text-gray-400'>
-            {searchResults
-              ? `Vezi ${(page - 1) * ADMIN_PRODUCT_PAGE_SIZE + 1}–${
-                  (page - 1) * ADMIN_PRODUCT_PAGE_SIZE + displayList.length
-                } din ${searchResults.length}`
-              : `${from}–${to} din ${totalProducts} produse`}
+
+          <span className='text-sm text-gray-400 whitespace-nowrap'>
+            {from}–{to} din {totalProducts}
           </span>
         </div>
-        <div className='flex justify-self-end gap-2'>
-          <Button variant='outline' onClick={() => setScanning((x) => !x)}>
+        <div className='flex justify-self-end gap-1'>
+          <Button
+            variant='outline'
+            onClick={() => setScanning((x) => !x)}
+            className='h-8 text-xs px-2 2xl:h-10 lg:text-sm 2xl:px-4'
+          >
             {scanning ? 'Anulează' : 'Scanează'}
           </Button>
-          <Button asChild variant='default'>
+          <Button
+            asChild
+            variant='default'
+            className='h-8 text-xs px-2 2xl:h-10 lg:text-sm 2xl:px-4'
+          >
             <Link href='/admin/management/products/create'>Crează Produs</Link>
           </Button>
         </div>
@@ -290,7 +397,7 @@ export default function AdminProductsList({
             try {
               // Căutăm în API-ul de admin
               const res = await fetch(
-                `/api/admin/products/search?q=${encodeURIComponent(code)}`
+                `/api/admin/products/search?q=${encodeURIComponent(code)}`,
               )
               if (!res.ok) throw new Error('Produs inexistent')
               const items = (await res.json()) as AdminProductSearchResult[]
@@ -313,75 +420,84 @@ export default function AdminProductsList({
           onClose={() => setScanning(false)}
         />
       )}
+      <div className='flex-1 overflow-auto border rounded-md relative bg-background'>
+        <Table className='min-h-full w-full'>
+          <TableHeader className='sticky top-0 bg-background z-20 shadow-sm'>
+            <TableRow className='bg-muted hover:bg-muted'>
+              <TableHead className='h-8 px-1 text-[10px] 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm'>
+                Cod
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm'>
+                Imagine
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm'>
+                Produs
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm whitespace-nowrap'>
+                Preț Intrare
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm'>
+                UM
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm text-right'>
+                Stoc
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] leading-3 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm 2xl:leading-normal text-right'>
+                Adaos Livrare <br /> Directă (%)
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] leading-3 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm 2xl:leading-normal text-left'>
+                Livrare <br /> Directă
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] leading-3 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm 2xl:leading-normal text-right'>
+                Adaos Macara / <br /> Tir Complete (%)
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] leading-3 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm 2xl:leading-normal text-left'>
+                Macara / Tir <br /> Complete
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] leading-3 2xl:h-10 2xl:p-0 2xl:px-2 2xl:text-sm 2xl:leading-normal text-right'>
+                Adaos Livrare <br /> mica PJ (%)
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] leading-3 2xl:h-10 2xl:p-4 2xl:text-sm 2xl:leading-normal text-left'>
+                Livrare <br /> mica PJ
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] leading-3 2xl:h-10 2xl:p-4 2xl:text-sm 2xl:leading-normal text-right'>
+                Adaos Retail <br /> PF (%)
+              </TableHead>
+              <TableHead className='h-8 px-1 text-[10px] leading-3 2xl:h-10 2xl:p-4 2xl:text-sm 2xl:leading-normal text-left'>
+                Retail <br /> PF
+              </TableHead>
 
-      {/* TABEL */}
-      <Table>
-        <TableHeader>
-          <TableRow className='bg-muted'>
-            <TableHead>Cod</TableHead>
-            <TableHead>Imagine</TableHead>
-            <TableHead>Produs</TableHead>
-            <TableHead>Preț Intrare</TableHead>
-            <TableHead>UM</TableHead>
-            <TableHead>Stoc</TableHead>
-            <TableHead>
-              Adaos Livrare <br />
-              Directă (%)
-            </TableHead>
-            <TableHead>
-              Livrare <br />
-              Directă
-            </TableHead>
-            <TableHead>
-              Adaos Macara / <br />
-              Tir Complete (%)
-            </TableHead>
-            <TableHead>
-              Macara / Tir <br />
-              Complete
-            </TableHead>
-            <TableHead>
-              Adaos Livrare <br />
-              mica PJ (%)
-            </TableHead>
-            <TableHead>
-              Livrare <br />
-              mica PJ
-            </TableHead>
-            <TableHead>
-              Adaos Retail <br />
-              PF (%)
-            </TableHead>
-            <TableHead>
-              Retail <br />
-              PF
-            </TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead colSpan={2} className='text-center'>
-              Acțiuni
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {displayList.map((item) => (
-            <ProductRow
-              key={item._id}
-              item={item}
-              onMarkupChange={onMarkupChange}
-              onUpdate={onUpdate}
-              dirtyRows={dirtyRows}
-              rows={rows}
-              setDeactivateTarget={setDeactivateTarget}
-              setDeactivateOpen={setDeactivateOpen}
-              setActivateTarget={setActivateTarget}
-              setActivateOpen={setActivateOpen}
-              setDeleteTarget={setDeleteTarget}
-              setDeleteOpen={setDeleteOpen}
-            />
-          ))}
-        </TableBody>
-      </Table>
-
+              <TableHead className='h-8 px-1 text-[10px] 2xl:h-10 2xl:p-4 2xl:text-sm'>
+                Status
+              </TableHead>
+              <TableHead
+                colSpan={2}
+                className='h-8 px-1 text-[10px] text-center 2xl:h-10 2xl:p-4 2xl:text-sm'
+              >
+                Acțiuni
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {displayList.map((item) => (
+              <ProductRow
+                key={item._id}
+                item={item}
+                onMarkupChange={onMarkupChange}
+                onUpdate={onUpdate}
+                dirtyRows={dirtyRows}
+                rows={rows}
+                setDeactivateTarget={setDeactivateTarget}
+                setDeactivateOpen={setDeactivateOpen}
+                setActivateTarget={setActivateTarget}
+                setActivateOpen={setActivateOpen}
+                setDeleteTarget={setDeleteTarget}
+                setDeleteOpen={setDeleteOpen}
+              />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
       {/* Activare produs dialog */}
       {activateTarget && (
         <AlertDialog open={activateOpen} onOpenChange={setActivateOpen}>
@@ -443,7 +559,7 @@ export default function AdminProductsList({
 
       {/* PAGINAȚIE */}
       {totalPagesDisplay > 1 && (
-        <div className='flex justify-center items-center gap-2 mt-4'>
+        <div className='flex justify-center items-center gap-2 mt-4 shrink-0'>
           <Button
             variant='outline'
             onClick={() => changePage(page - 1)}
