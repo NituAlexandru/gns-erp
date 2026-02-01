@@ -27,6 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { MoreHorizontal } from 'lucide-react'
 
 interface CatalogRowProps {
   item: ICatalogItem
@@ -45,14 +46,13 @@ export function CatalogRow({
 }: CatalogRowProps) {
   const router = useRouter()
 
-  // 1. APELĂM HOOK-UL O SINGURĂ DATĂ (pentru stoc și prețul principal)
   const {
     convertedStock,
     selectedUnit,
     handleUnitChange,
     allUnits,
     convertedPrice: directPrice,
-    conversionFactor, // <--- EXTRAGEM FACTORUL DE AICI
+    conversionFactor,
   } = useUnitConversion({
     item,
     baseStock: item.totalStock,
@@ -66,30 +66,38 @@ export function CatalogRow({
   const retailPrice = item.retailPrice * conversionFactor
 
   return (
-    <TableRow className='hover:bg-muted/50'>
-      <TableCell>{item.productCode || '-'}</TableCell>
-      <TableCell className='p-0 h-10 w-12'>
+    <TableRow className='hover:bg-muted/50 border-b'>
+      {/* COD */}
+      <TableCell className='text-[10px] p-0  xl:py-1 xl:text-sm 2xl:text-xs   font-mono'>
+        {item.productCode || '-'}
+      </TableCell>
+
+      {/* IMAGINE */}
+      <TableCell className='p-0  xl:py-1 w-8 h-8 xl:w-16 xl:h-12'>
         {item.image ? (
-          <Image
-            src={item.image}
-            alt={item.name}
-            priority
-            width={45}
-            height={45}
-            style={{ width: '50px', height: '50px' }}
-            className='ml-3 object-contain'
-          />
+          <div className='relative w-[30px] h-[30px] ml-1 lg:w-[45px] lg:h-[45px] lg:ml-3'>
+            <Image
+              src={item.image}
+              alt={item.name}
+              fill
+              className='object-contain'
+            />
+          </div>
         ) : (
-          '-'
+          <span className='text-[10px] ml-1 lg:ml-3 xl:text-sm 2xl:text-xs  '>
+            -
+          </span>
         )}
       </TableCell>
-      <TableCell>
+
+      {/* NUME PRODUS */}
+      <TableCell className='p-0 xl:py-1 max-w-[100px] lg:max-w-[180px] xl:max-w-[200px] 2xl:max-w-[250px] 3xl:max-w-[350px]'>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <Link
                 href={`/catalog-produse/${item._id}/${toSlug(item.name)}`}
-                className='block max-w-[350px] truncate hover:underline'
+                className='block truncate text-[10px] xl:text-sm 2xl:text-xshover:underline font-medium mr-3'
               >
                 {item.name}
               </Link>
@@ -100,40 +108,81 @@ export function CatalogRow({
           </Tooltip>
         </TooltipProvider>
       </TableCell>
-      <TableCell>{item.category || '-'}</TableCell>
 
-      {/* 3. AFIȘĂM PREȚURILE CALCULATE MAI SUS */}
-      <TableCell>{formatCurrency(directPrice)}</TableCell>
-      <TableCell>{formatCurrency(fullTruckPrice)}</TableCell>
-      <TableCell>{formatCurrency(smallBizPrice)}</TableCell>
-      <TableCell>{formatCurrency(retailPrice)}</TableCell>
+      {/* CATEGORIE */}
+      <TableCell className='text-[10px] p-0  xl:py-1 xl:text-sm 2xl:text-xs truncate max-w-[80px] lg:max-w-none border-l-1 border-border pl-1 '>
+        {item.category || '-'}
+      </TableCell>
 
-      <TableCell>{convertedStock.toFixed(2)}</TableCell>
-      <TableCell>
+      {/* --- PREȚURI (Whitespace nowrap + Text Right) --- */}
+
+      {/* Livrare Directă */}
+      <TableCell className='text-[10px] p-0  xl:py-1 xl:text-sm 2xl:text-xs   whitespace-nowrap text-right'>
+        {formatCurrency(directPrice)}
+      </TableCell>
+
+      {/* Macara / Tir */}
+      <TableCell className='text-[10px] p-0  xl:py-1 xl:text-sm 2xl:text-xs   whitespace-nowrap text-right'>
+        {formatCurrency(fullTruckPrice)}
+      </TableCell>
+
+      {/* Comenzi Mici PJ */}
+      <TableCell className='text-[10px] p-0  xl:py-1 xl:text-sm 2xl:text-xs   whitespace-nowrap text-right'>
+        {formatCurrency(smallBizPrice)}
+      </TableCell>
+
+      {/* Retail PF */}
+      <TableCell className='text-[10px] p-0  xl:py-1 xl:text-sm 2xl:text-xs whitespace-nowrap text-right font-semibold'>
+        {formatCurrency(retailPrice)}
+      </TableCell>
+
+      {/* STOC */}
+      <TableCell className='text-[10px] p-0 xl:py-1 xl:text-sm 2xl:text-xs text-right font-bold pr-3'>
+        {convertedStock.toFixed(2)}
+      </TableCell>
+
+      {/* UM (Select compact) */}
+      <TableCell className='p-0 xl:py-1'>
         <Select value={selectedUnit} onValueChange={handleUnitChange}>
-          <SelectTrigger className='w-[100px] h-8 p-2 text-sm cursor-pointer'>
+          <SelectTrigger className='w-[65px] h-6 text-[10px] px-1 2xl:w-[100px] lg:h-8 lg:p-2 xl:text-sm 2xl:text-xs cursor-pointer'>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {allUnits.map((u) => (
-              <SelectItem key={u.unitName} value={u.unitName}>
+              <SelectItem
+                key={u.unitName}
+                value={u.unitName}
+                className='text-xs lg:text-sm'
+              >
                 {u.unitName}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </TableCell>
-      <TableCell>{item.barCode || '-'}</TableCell>
-      <TableCell>
+
+      {/* COD BARE */}
+      <TableCell className='text-[10px] p-0  xl:py-1 xl:text-sm 2xl:text-xs   font-mono text-muted-foreground'>
+        {item.barCode || '-'}
+      </TableCell>
+
+      {/* ACȚIUNI */}
+      <TableCell className='p-0  xl:py-1'>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant='outline' size='sm'>
-              Acțiuni
+            <Button
+              variant='outline'
+              size='sm'
+              className='h-6 px-2 lg:h-9 lg:px-4'
+            >
+              <MoreHorizontal className='w-4 h-4 lg:hidden' />
+
+              <span className='hidden lg:inline text-xs '>Acțiuni</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end'>
             <DropdownMenuItem
-              className='cursor-pointer hover:bg-muted/50'
+              className='cursor-pointer hover:bg-muted/50 text-xs lg:text-sm'
               onSelect={() =>
                 router.push(`/catalog-produse/${item._id}/${toSlug(item.name)}`)
               }
@@ -142,7 +191,7 @@ export function CatalogRow({
             </DropdownMenuItem>
             {canManageProducts && (
               <DropdownMenuItem
-                className='cursor-pointer hover:bg-muted/50'
+                className='cursor-pointer hover:bg-muted/50 text-xs lg:text-sm'
                 onSelect={() =>
                   router.push(`/admin/management/products/${item._id}/edit`)
                 }
@@ -152,7 +201,7 @@ export function CatalogRow({
             )}
             {isAdmin && (
               <DropdownMenuItem
-                className='cursor-pointer hover:bg-muted/50'
+                className='cursor-pointer hover:bg-muted/50 text-xs lg:text-sm text-red-600 focus:text-red-600'
                 onSelect={() => {
                   setDeleteTarget(item)
                   setDeleteOpen(true)

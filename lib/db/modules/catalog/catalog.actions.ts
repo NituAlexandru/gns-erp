@@ -5,6 +5,7 @@ import ERPProductModel from '../product/product.model'
 import type { PipelineStage, Types } from 'mongoose'
 import { PRODUCT_PAGE_SIZE } from '../product/constants'
 import { ICatalogItem, ICatalogPage } from './types'
+import { CategoryModel } from '../category'
 
 type RawCatalogDoc = {
   _id: Types.ObjectId
@@ -30,12 +31,32 @@ type RawCatalogDoc = {
 export async function getCatalogPage({
   page = 1,
   limit = PRODUCT_PAGE_SIZE,
+  q,
+  category,
 }: {
   page?: number
   limit?: number
+  q?: string
+  category?: string
 }): Promise<ICatalogPage> {
   await connectToDatabase()
   const skip = (page - 1) * limit
+
+  const categoryIds: Types.ObjectId[] = []
+  if (category) {
+    const catDoc = await CategoryModel.findById(category).lean()
+    if (catDoc) {
+      categoryIds.push(catDoc._id as unknown as Types.ObjectId)
+      if (!catDoc.mainCategory) {
+        const subCats = await CategoryModel.find({ mainCategory: catDoc._id })
+          .select('_id')
+          .lean()
+        subCats.forEach((sc) =>
+          categoryIds.push(sc._id as unknown as Types.ObjectId),
+        )
+      }
+    }
+  }
 
   const agg: PipelineStage[] = [
     { $match: { isPublished: true } },
@@ -51,6 +72,7 @@ export async function getCatalogPage({
         createdAt: 1,
         isPublished: 1,
         unit: 1,
+        suppliers: 1,
         packagingUnit: 1,
         packagingQuantity: 1,
         itemsPerPallet: 1,
@@ -73,12 +95,36 @@ export async function getCatalogPage({
               createdAt: 1,
               isPublished: 1,
               unit: '$packagingUnit',
+              suppliers: 1,
               packagingUnit: null,
               packagingQuantity: null,
               itemsPerPallet: { $ifNull: ['$itemsPerPallet', 0] },
             },
           },
         ],
+      },
+    },
+    {
+      $lookup: {
+        from: 'suppliers',
+        localField: 'suppliers.supplier',
+        foreignField: '_id',
+        as: 'resolvedSuppliers',
+      },
+    },
+    {
+      $match: {
+        ...(categoryIds.length > 0 ? { category: { $in: categoryIds } } : {}),
+        ...(q
+          ? {
+              $or: [
+                { name: { $regex: q, $options: 'i' } },
+                { productCode: { $regex: q, $options: 'i' } },
+                { barCode: { $regex: q, $options: 'i' } },
+                { 'resolvedSuppliers.name': { $regex: q, $options: 'i' } },
+              ],
+            }
+          : {}),
       },
     },
     {

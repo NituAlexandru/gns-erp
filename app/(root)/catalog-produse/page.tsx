@@ -1,5 +1,6 @@
 import CatalogList from './catalog-list'
 import { getCatalogPage } from '@/lib/db/modules/catalog/catalog.actions'
+import { getAllCategories } from '@/lib/db/modules/category/category.actions'
 import {
   MANAGEMENT_ROLES,
   SUPER_ADMIN_ROLES,
@@ -7,17 +8,15 @@ import {
 import { auth } from '@/auth'
 import { ICatalogPage } from '@/lib/db/modules/catalog/types'
 
-// Pentru a te asigura că datele sunt mereu proaspete la fiecare încărcare,
-// poți adăuga această linie. Este metoda corectă de a preveni caching-ul.
 export const dynamic = 'force-dynamic'
 
 export default async function CatalogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; q?: string; category?: string }>
 }) {
-  const { page: p } = await searchParams
-  const page = Number(p) || 1
+  const params = await searchParams
+  const page = Number(params.page) || 1
 
   const session = await auth()
   const role = session?.user?.role?.toLowerCase() || ''
@@ -25,7 +24,15 @@ export default async function CatalogPage({
   const canManageProducts = MANAGEMENT_ROLES.includes(role)
   const isAdmin = SUPER_ADMIN_ROLES.includes(role)
 
-  const initialData: ICatalogPage = await getCatalogPage({ page })
+  // Fetch date cu filtre (q, category)
+  const initialData: ICatalogPage = await getCatalogPage({
+    page,
+    q: params.q || '',
+    category: params.category || '',
+  })
+
+  // Fetch categorii pentru filtre
+  const categories = await getAllCategories()
 
   return (
     <CatalogList
@@ -33,6 +40,7 @@ export default async function CatalogPage({
       currentPage={page}
       canManageProducts={canManageProducts}
       isAdmin={isAdmin}
+      allCategories={categories}
     />
   )
 }
