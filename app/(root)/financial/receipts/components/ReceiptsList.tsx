@@ -49,22 +49,22 @@ import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface ReceiptsListProps {
-  initialData: {
-    data: ReceiptDTO[]
-    totalPages: number
-  }
+  receipts: ReceiptDTO[]
+  totalPages: number
   currentPage: number
+  totalSum: number
 }
 
-export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
+export function ReceiptsList({
+  receipts,
+  totalPages,
+  currentPage,
+  totalSum,
+}: ReceiptsListProps) {
   const router = useRouter()
-  const [data, setData] = useState<ReceiptDTO[]>(initialData.data)
-  const [totalPages] = useState(initialData.totalPages)
-  const [page, setPage] = useState(currentPage)
-  // State pentru Modalul de Anulare
   const [isCancelOpen, setIsCancelOpen] = useState(false)
   const [receiptToCancel, setReceiptToCancel] = useState<ReceiptDTO | null>(
-    null
+    null,
   )
   const [cancelReason, setCancelReason] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -72,12 +72,7 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
   const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
-  useEffect(() => {
-    setData(initialData.data)
-  }, [initialData])
-
   const handlePageChange = (newPage: number) => {
-    setPage(newPage)
     router.push(`/financial/receipts?page=${newPage}`)
   }
 
@@ -134,7 +129,15 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
     }
   }
   return (
-    <div className='space-y-4'>
+    <div className='space-y-2'>
+      <div className='flex justify-start'>
+        <div className='bg-muted/50 px-2 py-2 rounded-md border text-xs'>
+          Total Încasări:{' '}
+          <span className='font-bold text-xs ml-2'>
+            {formatCurrency(totalSum)}
+          </span>
+        </div>
+      </div>
       <div className='border rounded-lg overflow-x-auto bg-card'>
         <Table>
           <TableHeader>
@@ -149,8 +152,8 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length > 0 ? (
-              data.map((receipt) => (
+            {receipts.length > 0 ? (
+              receipts.map((receipt) => (
                 <TableRow key={receipt._id} className='hover:bg-muted/50'>
                   <TableCell className='font-medium'>
                     <Link
@@ -253,18 +256,20 @@ export function ReceiptsList({ initialData, currentPage }: ReceiptsListProps) {
         <div className='flex items-center justify-center gap-2'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(Math.max(1, page - 1))}
-            disabled={page <= 1}
+            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+            disabled={currentPage <= 1}
           >
             Anterior
           </Button>
           <span className='text-sm text-muted-foreground'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
-            disabled={page >= totalPages}
+            onClick={() =>
+              handlePageChange(Math.min(totalPages, currentPage + 1))
+            }
+            disabled={currentPage >= totalPages}
           >
             Următor
           </Button>

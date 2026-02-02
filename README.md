@@ -83,7 +83,8 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # Foarte important
 
-- receptie - mentiuni livrare in lista
+- de inchis cumva Aviz retur paleti - TRb generat nir cu cantitatile negative
+- receptie - mentiuni livrare in lista + blocaj la cantitati pana selecteaza UM
 - fisa client - LM FINANCIAL CONTA SERVICES S.R.L. bug sume 0
 - pe facturile split nu se preia CODUL UIT, de verificat adresa de livrare, se preia prima de la fiecare client in parte. nu cea selectata.
 - bug comanda, cand se deschide formul de edit, se incarca un pret aiurea, nu cel salvat.

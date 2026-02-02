@@ -1,7 +1,7 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-import { startSession, Types, FilterQuery } from 'mongoose'
+import { startSession, Types, FilterQuery, PipelineStage } from 'mongoose'
 import { revalidatePath } from 'next/cache'
 import NirModel, { INirDoc } from './nir.model'
 import ReceptionModel from '../../reception/reception.model'
@@ -42,7 +42,7 @@ export async function createNirFromReception({
 
       if (seriesList.length === 0) {
         throw new Error(
-          'Nu există nicio serie activă pentru documente de tip NIR.'
+          'Nu există nicio serie activă pentru documente de tip NIR.',
         )
       }
 
@@ -114,7 +114,7 @@ export async function createNirFromReception({
           const pId =
             item.product && (item.product._id || item.product)
               ? new Types.ObjectId(
-                  (item.product._id || item.product).toString()
+                  (item.product._id || item.product).toString(),
                 )
               : undefined
 
@@ -172,7 +172,7 @@ export async function createNirFromReception({
           const packId =
             item.packaging && (item.packaging._id || item.packaging)
               ? new Types.ObjectId(
-                  (item.packaging._id || item.packaging).toString()
+                  (item.packaging._id || item.packaging).toString(),
                 )
               : undefined
 
@@ -200,7 +200,7 @@ export async function createNirFromReception({
 
       // 1. Subtotal (Valoarea Netă a Facturii: Marfă + Ambalaj + Transport)
       const subtotal = round2(
-        productsSubtotal + packagingSubtotal + transportSubtotal
+        productsSubtotal + packagingSubtotal + transportSubtotal,
       )
       // 2. TVA Total (TVA Marfă + TVA Ambalaj + TVA Transport)
       const vatTotal = round2(productsVat + packagingVat + transportVat)
@@ -270,7 +270,7 @@ export async function createNirFromReception({
             status: 'CONFIRMED',
           },
         ],
-        { session }
+        { session },
       )
 
       // f. Update Recepție
@@ -281,7 +281,7 @@ export async function createNirFromReception({
           nirNumber: `${activeSeries}-${paddedNum}`,
           nirDate: newNir.nirDate,
         },
-        { session }
+        { session },
       )
 
       return JSON.parse(JSON.stringify(newNir)) as NirDTO
@@ -385,44 +385,87 @@ export async function getNirByReceptionId(receptionId: string) {
 // -------------------------------------------------------------
 export async function getNirs(
   page: number = 1,
-  filters?: {
+  filters: {
     status?: string
     supplierId?: string
     q?: string
-  }
-): Promise<{ data: NirDTO[]; totalPages: number }> {
+    startDate?: string 
+    endDate?: string 
+  } = {},
+): Promise<{ data: NirDTO[]; totalPages: number; totalSum: number }> {
   try {
     await connectToDatabase()
-    const query: FilterQuery<INirDoc> = {}
-
-    if (filters?.status && filters.status !== 'ALL') {
-      query.status = filters.status
-    }
-    if (filters?.supplierId) {
-      query.supplierId = new Types.ObjectId(filters.supplierId)
-    }
-    if (filters?.q) {
-      const regex = new RegExp(filters.q, 'i')
-      query.$or = [{ nirNumber: regex }, { 'supplierSnapshot.name': regex }]
-    }
-
+    const { status, supplierId, q, startDate, endDate } = filters
     const skip = (page - 1) * PAGE_SIZE
-    const [totalDocs, results] = await Promise.all([
-      NirModel.countDocuments(query),
-      NirModel.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(PAGE_SIZE)
-        .lean(),
-    ])
+
+    const pipeline: PipelineStage[] = []
+
+    // 1. Match (Filtrare)
+    const matchStage: FilterQuery<INirDoc> = {}
+
+    if (status && status !== 'ALL') {
+      matchStage.status = status
+    }
+
+    if (supplierId) {
+      matchStage.supplierId = new Types.ObjectId(supplierId)
+    }
+
+    if (q) {
+      const regex = new RegExp(q, 'i')
+      matchStage.$or = [
+        { nirNumber: regex },
+        { 'supplierSnapshot.name': regex },
+      ]
+    }
+
+    // Filtrare Dată
+    if (startDate || endDate) {
+      matchStage.nirDate = {}
+      if (startDate) matchStage.nirDate.$gte = new Date(startDate)
+      if (endDate) {
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+        matchStage.nirDate.$lte = end
+      }
+    }
+
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage })
+    }
+
+    // 2. Facet (Date + Totaluri)
+    pipeline.push({
+      $facet: {
+        data: [
+          { $sort: { nirDate: -1, createdAt: -1 } },
+          { $skip: skip },
+          { $limit: PAGE_SIZE },
+        ],
+        stats: [
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              totalSum: { $sum: '$totals.grandTotal' }, // Calculăm suma totală
+            },
+          },
+        ],
+      },
+    })
+
+    const result = await NirModel.aggregate(pipeline)
+    const data = result[0].data || []
+    const stats = result[0].stats[0] || { count: 0, totalSum: 0 }
 
     return {
-      data: JSON.parse(JSON.stringify(results)),
-      totalPages: Math.ceil(totalDocs / PAGE_SIZE),
+      data: JSON.parse(JSON.stringify(data)),
+      totalPages: Math.ceil(stats.count / PAGE_SIZE),
+      totalSum: stats.totalSum, // Returnăm suma
     }
   } catch (error) {
     console.error('Error getNirs:', error)
-    return { data: [], totalPages: 0 }
+    return { data: [], totalPages: 0, totalSum: 0 }
   }
 }
 
@@ -431,7 +474,7 @@ export async function getNirs(
 // -------------------------------------------------------------
 export async function generateNirForReceptionAction(
   receptionId: string,
-  seriesName?: string
+  seriesName?: string,
 ) {
   try {
     const session = await auth()

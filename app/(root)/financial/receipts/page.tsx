@@ -30,7 +30,7 @@ export default async function ReceiptsPage({
   const endDate = resolvedParams.endDate
 
   // Le trimitem la backend
-  const initialData = await getReceipts(page, PAGE_SIZE, {
+  const { data, totalPages, totalSum } = await getReceipts(page, PAGE_SIZE, {
     search: search,
     startDate: startDate,
     endDate: endDate,
@@ -55,7 +55,12 @@ export default async function ReceiptsPage({
         </Button>
       </div>
 
-      <ReceiptsList initialData={initialData} currentPage={page} />
+      <ReceiptsList
+        receipts={data}
+        totalPages={totalPages}
+        currentPage={page}
+        totalSum={totalSum}
+      />
     </div>
   )
 }

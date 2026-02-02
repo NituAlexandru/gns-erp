@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import {
   Table,
   TableBody,
@@ -10,23 +10,18 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import {
-  PopulatedInvoice,
-  InvoiceFilters,
-} from '@/lib/db/modules/financial/invoices/invoice.types'
+import { PopulatedInvoice } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { ProformasFilters } from './ProformasFilters'
-import { useDebounce } from '@/hooks/use-debounce'
-import qs from 'query-string'
-import { cn, formatCurrency } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { Loader2, MoreHorizontal } from 'lucide-react'
-import { InvoiceStatusBadge } from '../../invoices/components/InvoiceStatusBadge' // Importăm Badge-ul existent
+import { InvoiceStatusBadge } from '../../invoices/components/InvoiceStatusBadge'
 import { toast } from 'sonner'
 import { cancelInvoice } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import {
@@ -43,83 +38,40 @@ import { Input } from '@/components/ui/input'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface ProformasListProps {
-  initialData: {
-    data: PopulatedInvoice[]
-    totalPages: number
-  }
+  invoices: PopulatedInvoice[]
+  totalPages: number
   currentPage: number
   isAdmin: boolean
+  totalFilteredSum: number
 }
 
 export function ProformasList({
-  initialData,
+  invoices,
+  totalPages,
   currentPage,
   isAdmin,
+  totalFilteredSum,
 }: ProformasListProps) {
   const router = useRouter()
-  const [invoices, setInvoices] = useState<PopulatedInvoice[]>(initialData.data)
-  const [totalPages, setTotalPages] = useState(initialData.totalPages)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [queryParams, setQueryParams] = useState({
-    page: currentPage,
-  })
-  const [filters, setFilters] = useState<InvoiceFilters>({})
-  const debouncedFilters = useDebounce(filters, 500)
-
-  // State pentru Anulare
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [invoiceToActOn, setInvoiceToActOn] = useState<PopulatedInvoice | null>(
     null,
   )
-
-  // State pentru PDF
   const [isPreviewOpenPdf, setIsPreviewOpenPdf] = useState(false)
   const [printData, setPrintData] = useState<any>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
-  useEffect(() => {
-    setQueryParams({ page: 1 })
-  }, [debouncedFilters])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    if (typeof window !== 'undefined') {
-      const fetchProformas = () => {
-        startTransition(async () => {
-          const url = qs.stringifyUrl(
-            {
-              url: '/api/invoices/proformas',
-              query: {
-                ...queryParams,
-                ...debouncedFilters,
-              },
-            },
-            { skipNull: true, skipEmptyString: true },
-          )
-
-          try {
-            const res = await fetch(url, { signal: controller.signal })
-            const result = await res.json()
-            setInvoices(result.data || [])
-            setTotalPages(result.totalPages || 0)
-          } catch (error) {
-            if ((error as Error).name !== 'AbortError') {
-              console.error('Fetch error:', error)
-              setInvoices([])
-            }
-          }
-        })
-      }
-      fetchProformas()
-    }
-    return () => controller.abort()
-  }, [queryParams, debouncedFilters])
-
-  const handleFiltersChange = (newFilters: Partial<InvoiceFilters>) => {
-    setFilters((prev) => ({ ...prev, ...newFilters }))
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
   }
 
+  // --- ACȚIUNI ---
   const handlePrintPreview = async (invoiceId: string) => {
     setIsGeneratingPdf(invoiceId)
     try {
@@ -150,13 +102,7 @@ export function ProformasList({
       )
       if (result.success) {
         toast.success(result.message)
-        setInvoices((prev) =>
-          prev.map((inv) =>
-            inv._id === invoiceToActOn._id
-              ? { ...inv, status: 'CANCELLED' }
-              : inv,
-          ),
-        )
+        router.refresh()
       } else {
         toast.error('Eroare la anulare', { description: result.message })
       }
@@ -168,11 +114,19 @@ export function ProformasList({
 
   return (
     <div className='flex flex-col gap-2'>
-      <ProformasFilters
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
-      />
+      <ProformasFilters />
 
+      {/* 2. Afișare Total */}
+      <div className='flex justify-start'>
+        <div className='bg-muted/50 px-3 py-1 rounded text-sm font-medium border border-border'>
+          Total Proforme Filtrate:{' '}
+          <span className='text-primary font-bold'>
+            {formatCurrency(totalFilteredSum)}
+          </span>
+        </div>
+      </div>
+
+      {/* 3. Tabelul */}
       <div className='border rounded-lg overflow-x-auto bg-card'>
         <Table>
           <TableHeader>
@@ -188,19 +142,13 @@ export function ProformasList({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isPending ? (
-              <TableRow>
-                <TableCell colSpan={8} className='text-center h-24'>
-                  Se încarcă...
-                </TableCell>
-              </TableRow>
-            ) : invoices.length > 0 ? (
+            {invoices.length > 0 ? (
               invoices.map((invoice) => (
                 <TableRow
                   key={invoice._id.toString()}
                   className='hover:bg-muted/50'
                 >
-                  <TableCell className='font-medium'>
+                  <TableCell className='font-medium py-1'>
                     <div className='flex flex-col'>
                       <span>
                         {invoice.seriesName}-{invoice.invoiceNumber}
@@ -210,23 +158,25 @@ export function ProformasList({
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='py-1'>
                     {new Date(invoice.invoiceDate).toLocaleDateString('ro-RO')}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='py-1'>
                     {new Date(invoice.dueDate).toLocaleDateString('ro-RO')}
                   </TableCell>
-                  <TableCell>{invoice.clientId?.name || 'N/A'}</TableCell>
-                  <TableCell>{invoice.createdByName || 'N/A'}</TableCell>
-                  <TableCell>
+                  <TableCell className='py-1'>
+                    {invoice.clientId?.name || 'N/A'}
+                  </TableCell>
+                  <TableCell className='py-1'>
+                    {invoice.createdByName || 'N/A'}
+                  </TableCell>
+                  <TableCell className='py-1'>
                     <InvoiceStatusBadge status={invoice.status} />
                   </TableCell>
-
-                  <TableCell className='text-right font-semibold'>
+                  <TableCell className='text-right font-semibold py-1'>
                     {formatCurrency(invoice.totals.grandTotal)}
                   </TableCell>
-
-                  <TableCell className='text-right'>
+                  <TableCell className='text-right py-1'>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant='ghost' size='icon'>
@@ -240,6 +190,14 @@ export function ProformasList({
                           }
                         >
                           Vizualizează
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() => {
+                            setInvoiceToActOn(invoice)
+                            setIsCancelModalOpen(true)
+                          }}
+                        >
+                          Anulează
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onSelect={() =>
@@ -270,41 +228,30 @@ export function ProformasList({
         </Table>
       </div>
 
+      {/* 4. Paginarea */}
       {totalPages > 1 && (
         <div className='flex items-center justify-center gap-2 mt-4'>
           <Button
             variant='outline'
-            onClick={() =>
-              setQueryParams((prev) => ({
-                ...prev,
-                page: Math.max(1, prev.page - 1),
-              }))
-            }
-            disabled={queryParams.page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
           >
             Anterior
           </Button>
-
           <span className='text-sm'>
-            Pagina {queryParams.page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
-
           <Button
             variant='outline'
-            onClick={() =>
-              setQueryParams((prev) => ({
-                ...prev,
-                page: Math.min(totalPages, prev.page + 1),
-              }))
-            }
-            disabled={queryParams.page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
           >
             Următor
           </Button>
         </div>
       )}
 
-      {/* Modal Anulare */}
+      {/* 5. Modale */}
       <AlertDialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

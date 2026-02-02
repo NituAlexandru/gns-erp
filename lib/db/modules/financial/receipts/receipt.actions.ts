@@ -1,7 +1,12 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-import mongoose, { startSession, Types, FilterQuery } from 'mongoose'
+import mongoose, {
+  startSession,
+  Types,
+  FilterQuery,
+  PipelineStage,
+} from 'mongoose'
 import ReceiptModel, { IReceiptDoc } from './receipt.model'
 import { CreateReceiptDTO, ReceiptDTO } from './receipt.types'
 import { getSetting } from '../../setting/setting.actions'
@@ -89,7 +94,7 @@ export async function createReceiptAction(data: CreateReceiptDTO) {
             createdByName: userName,
           },
         ],
-        { session }
+        { session },
       )
 
       // C. Procesăm ALOCĂRILE (Logic 100% din payment-allocation)
@@ -104,20 +109,20 @@ export async function createReceiptAction(data: CreateReceiptDTO) {
 
           // Încărcăm factura cu SESIUNEA CURENTĂ
           const invoice = await InvoiceModel.findById(alloc.invoiceId).session(
-            session
+            session,
           )
 
           if (!invoice)
             throw new Error(
-              `Factura ${alloc.invoiceSeries}-${alloc.invoiceNumber} nu există.`
+              `Factura ${alloc.invoiceSeries}-${alloc.invoiceNumber} nu există.`,
             )
           if (invoice.status === 'PAID')
             throw new Error(
-              `Factura ${invoice.invoiceNumber} este deja plătită.`
+              `Factura ${invoice.invoiceNumber} este deja plătită.`,
             )
           if (amount > round2(invoice.remainingAmount))
             throw new Error(
-              `Suma depășește restul de plată la factura ${invoice.invoiceNumber}.`
+              `Suma depășește restul de plată la factura ${invoice.invoiceNumber}.`,
             )
 
           // Creăm Alocarea
@@ -132,7 +137,7 @@ export async function createReceiptAction(data: CreateReceiptDTO) {
                 createdByName: userName,
               },
             ],
-            { session }
+            { session },
           )
 
           // ACTUALIZĂM FACTURA
@@ -183,7 +188,7 @@ export async function createReceiptAction(data: CreateReceiptDTO) {
             status: 'VALID',
           },
         ],
-        { session }
+        { session },
       )
 
       return JSON.parse(JSON.stringify(newReceipt)) as ReceiptDTO
@@ -255,7 +260,7 @@ export async function cancelReceipt({
 
         for (const alloc of allocations) {
           const invoice = await InvoiceModel.findById(alloc.invoiceId).session(
-            session
+            session,
           )
           if (invoice) {
             // Inversăm sumele pe factură
@@ -267,7 +272,7 @@ export async function cancelReceipt({
           }
           // Ștergem alocarea
           await PaymentAllocationModel.findByIdAndDelete(alloc._id).session(
-            session
+            session,
           )
         }
 
@@ -293,7 +298,7 @@ export async function cancelReceipt({
         await recalculateClientSummary(
           clientIdForRecalc!,
           'receipt-cancel',
-          true
+          true,
         )
       } catch (e) {
         console.error(e)
@@ -315,20 +320,25 @@ export async function cancelReceipt({
 export async function getReceipts(
   page: number = 1,
   limit: number = PAGE_SIZE,
-  filters?: {
+  filters: {
     search?: string
     startDate?: string
     endDate?: string
-  }
-): Promise<{ data: ReceiptDTO[]; totalPages: number }> {
+  } = {},
+): Promise<{ data: ReceiptDTO[]; totalPages: number; totalSum: number }> {
   try {
     await connectToDatabase()
+    const { search, startDate, endDate } = filters
     const skip = (page - 1) * limit
-    const query: FilterQuery<IReceiptDoc> = {}
 
-    if (filters?.search) {
-      const searchRegex = new RegExp(filters.search, 'i')
-      query.$or = [
+    const pipeline: PipelineStage[] = []
+
+    // 1. Filtrare
+    const matchStage: FilterQuery<IReceiptDoc> = {}
+
+    if (search) {
+      const searchRegex = new RegExp(search, 'i')
+      matchStage.$or = [
         { 'clientSnapshot.name': searchRegex },
         { series: searchRegex },
         { number: searchRegex },
@@ -336,34 +346,52 @@ export async function getReceipts(
       ]
     }
 
-    if (filters?.startDate || filters?.endDate) {
-      query.date = {}
-      if (filters.startDate) {
-        query.date.$gte = new Date(filters.startDate)
-      }
-      if (filters.endDate) {
-        const end = new Date(filters.endDate)
+    if (startDate || endDate) {
+      matchStage.date = {}
+      if (startDate) matchStage.date.$gte = new Date(startDate)
+      if (endDate) {
+        const end = new Date(endDate)
         end.setHours(23, 59, 59, 999)
-        query.date.$lte = end
+        matchStage.date.$lte = end
       }
     }
 
-    const [total, docs] = await Promise.all([
-      ReceiptModel.countDocuments(query),
-      ReceiptModel.find(query)
-        .sort({ date: -1, createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-    ])
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage })
+    }
+
+    // 2. Grupare pentru date și totaluri
+    pipeline.push({
+      $facet: {
+        data: [
+          { $sort: { date: -1, createdAt: -1, _id: -1 } }, // Sortare stabilă
+          { $skip: skip },
+          { $limit: limit },
+        ],
+        stats: [
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              totalSum: { $sum: '$amount' }, // Calculăm suma
+            },
+          },
+        ],
+      },
+    })
+
+    const result = await ReceiptModel.aggregate(pipeline)
+    const data = result[0].data || []
+    const stats = result[0].stats[0] || { count: 0, totalSum: 0 }
 
     return {
-      data: JSON.parse(JSON.stringify(docs)) as ReceiptDTO[],
-      totalPages: Math.ceil(total / limit),
+      data: JSON.parse(JSON.stringify(data)),
+      totalPages: Math.ceil(stats.count / limit),
+      totalSum: stats.totalSum,
     }
   } catch (e) {
     console.error('❌ Error getReceipts:', e)
-    return { data: [], totalPages: 0 }
+    return { data: [], totalPages: 0, totalSum: 0 }
   }
 }
 
@@ -371,7 +399,7 @@ export async function getReceipts(
 // GET BY ID
 // -------------------------------------------------------------
 export async function getReceiptById(
-  id: string
+  id: string,
 ): Promise<{ success: boolean; data?: ReceiptDTO; message?: string }> {
   try {
     await connectToDatabase()
@@ -425,7 +453,7 @@ export async function getPayableInvoicesForReceipt(clientId: string) {
     })
       .sort({ dueDate: 1 }) // Cele mai vechi primele
       .select(
-        'invoiceNumber seriesName dueDate remainingAmount totals.grandTotal status'
+        'invoiceNumber seriesName dueDate remainingAmount totals.grandTotal status',
       )
       .lean()
 

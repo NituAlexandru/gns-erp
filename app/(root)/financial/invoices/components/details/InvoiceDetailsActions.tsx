@@ -54,13 +54,12 @@ export function InvoiceDetailsActions({
   const statusInfo =
     INVOICE_STATUS_MAP[invoice.status] || INVOICE_STATUS_MAP.CREATED
 
-  // Handlerele (le-am copiat din InvoicesList)
   const handleApprove = () => {
     startTransition(async () => {
       const result = await approveInvoice(invoice._id.toString())
       if (result.success) {
         toast.success(result.message)
-        router.refresh() // Reîmprospătează pagina
+        router.refresh() 
       } else {
         toast.error('Eroare la aprobare', { description: result.message })
       }
@@ -71,13 +70,13 @@ export function InvoiceDetailsActions({
     startTransition(async () => {
       const result = await rejectInvoice(
         invoice._id.toString(),
-        rejectionReason
+        rejectionReason,
       )
       if (result.success) {
         toast.success(result.message)
         setIsRejectModalOpen(false)
         setRejectionReason('')
-        router.refresh() // Reîmprospătează pagina
+        router.refresh() 
       } else {
         toast.error('Eroare la respingere', { description: result.message })
       }
@@ -94,8 +93,7 @@ export function InvoiceDetailsActions({
         setPrintData(result.data)
         setIsPreviewOpen(true)
       } else {
-        // Aici suntem pe ramura success: false, deci avem message
-        toast.error(result.message)
+       toast.error(result.message)
       }
     } catch (error) {
       toast.error('Eroare la generarea datelor de printare.')
@@ -114,11 +112,7 @@ export function InvoiceDetailsActions({
       <div className='flex flex-wrap items-center justify-between gap-2'>
         {/* Partea stângă: Navigare și Titlu */}
         <div className='flex items-center gap-2'>
-          <Button
-            variant='outline'
-            size='icon'
-            onClick={() => router.push('/financial/invoices')}
-          >
+          <Button variant='outline' size='icon' onClick={() => router.back()}>
             <ChevronLeft className='h-4 w-4' />
           </Button>
           <div className='flex gap-2'>

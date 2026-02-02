@@ -867,44 +867,48 @@ export async function cancelDeliveryNoteFromPlanner({
 export async function getDeliveryNotes(
   page: number = 1,
   filters?: {
+    q?: string
     status?: (typeof DELIVERY_NOTE_STATUSES)[number]
     clientId?: string
-    q?: string
+    startDate?: string
+    endDate?: string
   },
 ): Promise<{ data: DeliveryNoteDTO[]; totalPages: number }> {
   try {
     await connectToDatabase()
 
-    // Construim query-ul
+    const { q, status, clientId, startDate, endDate } = filters || {}
+
     const query: FilterQuery<IDeliveryNoteDoc> = {}
 
-    //eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (filters?.status && filters.status !== ('ALL' as any)) {
-      query.status = filters.status
-    }
+    if (status) query.status = status
+    if (clientId) query.clientId = clientId
 
-    if (filters?.clientId) {
-      query.clientId = filters.clientId
-    }
-
-    if (filters?.q) {
-      const regex = new RegExp(filters.q, 'i')
-      // Căutăm după număr aviz sau nume client (din snapshot)
+    if (q) {
+      const regex = new RegExp(q, 'i')
       query.$or = [
         { noteNumber: regex },
+        { seriesName: regex },
         { 'clientSnapshot.name': regex },
-        { seriesName: regex }, // Optional: căutare și după serie
       ]
     }
 
-    // Calculăm skip pentru paginare
+    if (startDate || endDate) {
+      query.createdAt = {}
+      if (startDate) query.createdAt.$gte = new Date(startDate)
+      if (endDate) {
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+        query.createdAt.$lte = end
+      }
+    }
+
     const skip = (page - 1) * PAGE_SIZE
 
-    // Executăm ambele query-uri în paralel pentru performanță
     const [totalDocs, results] = await Promise.all([
       DeliveryNoteModel.countDocuments(query),
       DeliveryNoteModel.find(query)
-        .sort({ createdAt: -1 }) // Cele mai noi primele
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(PAGE_SIZE)
         .lean(),

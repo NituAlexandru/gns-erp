@@ -118,8 +118,15 @@ export interface InvoiceFilters {
   minTotal?: number
   agentId?: string
   clientId?: string
+  startDate?: string
+  endDate?: string
+  series?: string
 }
-
+export interface SeriesStat {
+  _id: string // Numele seriei
+  total: number
+  count: number
+}
 // Tipul pentru o factură "populată" (cu client și agent)
 export interface PopulatedInvoice
   extends Omit<

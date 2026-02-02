@@ -50,7 +50,7 @@ export function RefreshAnafButton({ onLoadingChange }: RefreshAnafButtonProps) {
       className='gap-2'
     >
       <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
-      <span>Actualizează Statusuri ANAF</span>
+      <span>Actualizează ANAF</span>
     </Button>
   )
 }

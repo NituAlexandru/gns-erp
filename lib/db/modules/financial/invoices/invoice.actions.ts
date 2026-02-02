@@ -22,6 +22,7 @@ import {
   StornableProductDTO,
   PopulatedInvoice,
   InvoiceFilters,
+  SeriesStat,
 } from './invoice.types'
 import { ISettingInput } from '../../setting/types'
 import { IClientDoc } from '../../client/types'
@@ -1336,11 +1337,26 @@ export async function generateStornoLinesForQuantity(
 export async function getAllInvoices(
   page: number = 1,
   filters: InvoiceFilters = {},
-): Promise<{ data: PopulatedInvoice[]; totalPages: number }> {
+): Promise<{
+  data: PopulatedInvoice[]
+  totalPages: number
+  totalFilteredSum: number
+  seriesStats: SeriesStat[]
+}> {
   try {
     await connectToDatabase()
 
-    const { q, status, eFacturaStatus, minTotal, agentId, clientId } = filters
+    const {
+      q,
+      status,
+      eFacturaStatus,
+      minTotal,
+      agentId,
+      clientId,
+      startDate,
+      endDate,
+      series,
+    } = filters
 
     const skip = (page - 1) * PAGE_SIZE
     const limit = PAGE_SIZE
@@ -1353,6 +1369,21 @@ export async function getAllInvoices(
       // 2. ADĂUGAT: Excludem seriile de Sold Inițial (Clienți și Ambalaje)
       seriesName: { $nin: ['INIT-C', 'INIT-AMB'] },
     }
+    if (series) {
+      matchStage.seriesName = series
+    }
+
+    if (startDate || endDate) {
+      matchStage.invoiceDate = {}
+      if (startDate) matchStage.invoiceDate.$gte = new Date(startDate)
+      // Setăm endDate la finalul zilei (23:59:59) ca să prindă și facturile din acea zi
+      if (endDate) {
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+        matchStage.invoiceDate.$lte = end
+      }
+    }
+
     if (status) {
       matchStage.status = status
     }
@@ -1427,9 +1458,27 @@ export async function getAllInvoices(
     // --- Faza 4: Paginare și Numărare ($facet) ---
     pipeline.push({
       $facet: {
-        totalCount: [{ $count: 'count' }],
+        stats: [
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              totalFilteredSum: { $sum: '$totals.grandTotal' },
+            },
+          },
+        ],
+        seriesStats: [
+          {
+            $group: {
+              _id: '$seriesName', // Grupăm după nume serie
+              total: { $sum: '$totals.grandTotal' }, // Suma
+              count: { $sum: 1 }, // Câte facturi sunt
+            },
+          },
+          { $sort: { _id: 1 } }, // Le ordonăm alfabetic
+        ],
         data: [
-          { $sort: { invoiceDate: -1 } },
+          { $sort: { invoiceDate: -1, invoiceNumber: -1, _id: -1 } },
           { $skip: skip },
           { $limit: limit },
           {
@@ -1457,16 +1506,24 @@ export async function getAllInvoices(
     const result = await InvoiceModel.aggregate(pipeline)
 
     const data = result[0].data as PopulatedInvoice[]
-    const totalItems = result[0].totalCount[0]?.count || 0
+
+    // Extragem statisticile (sau valori default 0 dacă nu sunt rezultate)
+    const stats = result[0].stats[0] || { count: 0, totalFilteredSum: 0 }
+
+    const totalItems = stats.count
+    const totalFilteredSum = stats.totalFilteredSum // Suma calculată
+
     const totalPages = Math.ceil(totalItems / PAGE_SIZE)
 
     return {
       data: JSON.parse(JSON.stringify(data)),
       totalPages: totalPages,
+      totalFilteredSum: totalFilteredSum, // Trimitem suma nouă
+      seriesStats: result[0].seriesStats || [],
     }
   } catch (error) {
     console.error('Eroare la preluarea facturilor:', error)
-    return { data: [], totalPages: 0 }
+    return { data: [], totalPages: 0, totalFilteredSum: 0, seriesStats: [] }
   }
 }
 export async function approveInvoice(
@@ -1721,10 +1778,14 @@ export async function updateInvoice(
 export async function getProformas(
   page: number = 1,
   filters: InvoiceFilters = {},
-): Promise<{ data: PopulatedInvoice[]; totalPages: number }> {
+): Promise<{
+  data: PopulatedInvoice[]
+  totalPages: number
+  totalFilteredSum: number
+}> {
   try {
     await connectToDatabase()
-    const { q, minTotal, agentId, clientId } = filters
+    const { q, minTotal, agentId, clientId, startDate, endDate } = filters
     const skip = (page - 1) * PAGE_SIZE
     const limit = PAGE_SIZE
     const pipeline: PipelineStage[] = []
@@ -1732,6 +1793,17 @@ export async function getProformas(
     // 1. Filtrare STRICTĂ pe Proforme
     const matchStage: FilterQuery<IInvoiceDoc> = {
       invoiceType: 'PROFORMA',
+    }
+
+    if (filters.startDate || filters.endDate) {
+      matchStage.invoiceDate = {}
+      if (filters.startDate)
+        matchStage.invoiceDate.$gte = new Date(filters.startDate)
+      if (filters.endDate) {
+        const end = new Date(filters.endDate)
+        end.setHours(23, 59, 59, 999)
+        matchStage.invoiceDate.$lte = end
+      }
     }
 
     if (minTotal) matchStage['totals.grandTotal'] = { $gte: Number(minTotal) }
@@ -1790,9 +1862,17 @@ export async function getProformas(
 
     pipeline.push({
       $facet: {
-        totalCount: [{ $count: 'count' }],
+        stats: [
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              totalFilteredSum: { $sum: '$totals.grandTotal' },
+            },
+          },
+        ],
         data: [
-          { $sort: { invoiceDate: -1 } },
+          { $sort: { invoiceDate: -1, invoiceNumber: -1, _id: -1 } },
           { $skip: skip },
           { $limit: limit },
           {
@@ -1815,16 +1895,16 @@ export async function getProformas(
 
     const result = await InvoiceModel.aggregate(pipeline)
     const data = result[0].data as PopulatedInvoice[]
-    const totalItems = result[0].totalCount[0]?.count || 0
-    const totalPages = Math.ceil(totalItems / PAGE_SIZE)
+    const stats = result[0].stats[0] || { count: 0, totalFilteredSum: 0 }
 
     return {
       data: JSON.parse(JSON.stringify(data)),
-      totalPages: totalPages,
+      totalPages: Math.ceil(stats.count / PAGE_SIZE),
+      totalFilteredSum: stats.totalFilteredSum,
     }
   } catch (error) {
     console.error('Eroare la preluarea proformelor:', error)
-    return { data: [], totalPages: 0 }
+    return { data: [], totalPages: 0, totalFilteredSum: 0 }
   }
 }
 /**

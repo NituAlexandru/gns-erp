@@ -1,23 +1,35 @@
-import React from 'react'
 import { auth } from '@/auth'
 import { getDeliveryNotes } from '@/lib/db/modules/financial/delivery-notes/delivery-note.actions'
 import { DeliveryNotesList } from './components/DeliveryNotesList'
 
-export default async function DeliveryNotesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ page?: string }>
-}) {
-  const resolvedSearchParams = await searchParams
+interface PageProps {
+  searchParams: Promise<{
+    page?: string
+    q?: string
+    status?: string
+    clientId?: string
+    startDate?: string
+    endDate?: string
+  }>
+}
+
+export default async function DeliveryNotesPage(props: PageProps) {
+  const resolvedSearchParams = await props.searchParams
   const page = Number(resolvedSearchParams.page) || 1
-  // Preluăm sesiunea pentru a ști cine face acțiunile
+
   const session = await auth()
   const userId = session?.user?.id || ''
   const userName = session?.user?.name || 'Unknown User'
 
-  // Preluăm datele inițiale pe server (Server Side Rendering)
-  // Asta asigură că tabelul nu e gol când intră prima dată pe pagină (SEO & UX)
-  const initialData = await getDeliveryNotes(page)
+  const filters = {
+    q: resolvedSearchParams.q,
+    status: resolvedSearchParams.status as any,
+    clientId: resolvedSearchParams.clientId,
+    startDate: resolvedSearchParams.startDate,
+    endDate: resolvedSearchParams.endDate,
+  }
+
+  const result = await getDeliveryNotes(page, filters)
 
   return (
     <div className='flex flex-col gap-4'>
@@ -28,7 +40,8 @@ export default async function DeliveryNotesPage({
       </div>
 
       <DeliveryNotesList
-        initialData={initialData}
+        data={result.data}
+        totalPages={result.totalPages}
         currentPage={page}
         currentUserId={userId}
         currentUserName={userName}

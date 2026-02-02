@@ -1,5 +1,6 @@
 import { getProformas } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { ProformasList } from '../invoices/components/ProformasList'
+import { InvoiceFilters } from '@/lib/db/modules/financial/invoices/invoice.types'
 
 interface PageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
@@ -8,7 +9,16 @@ interface PageProps {
 export default async function ProformasPage(props: PageProps) {
   const searchParams = await props.searchParams
   const page = Number(searchParams.page) || 1
-  const result = await getProformas(page, searchParams)
+  const filters: InvoiceFilters = {
+    q: searchParams.q as string,
+    startDate: searchParams.startDate as string,
+    endDate: searchParams.endDate as string,
+  }
+
+  const { data, totalPages, totalFilteredSum } = await getProformas(
+    page,
+    filters,
+  )
 
   return (
     <div className='space-y-0'>
@@ -18,7 +28,13 @@ export default async function ProformasPage(props: PageProps) {
         </h1>
       </div>
 
-      <ProformasList initialData={result} currentPage={page} isAdmin={true} />
+      <ProformasList
+        invoices={data}
+        totalPages={totalPages}
+        currentPage={page}
+        isAdmin={true}
+        totalFilteredSum={totalFilteredSum}
+      />
     </div>
   )
 }

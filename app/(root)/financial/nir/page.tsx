@@ -8,14 +8,20 @@ import { getNirs } from '@/lib/db/modules/financial/nir/nir.actions'
 export default async function NirListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{
+    page?: string
+    q?: string
+    status?: string
+    startDate?: string
+    endDate?: string
+  }>
 }) {
   const session = await auth()
 
   const userRole = (session?.user?.role || '').toLowerCase()
 
   const hasAccess = MANAGEMENT_ROLES.some(
-    (role) => role.toLowerCase() === userRole
+    (role) => role.toLowerCase() === userRole,
   )
 
   // 1. SECURITATE
@@ -40,20 +46,34 @@ export default async function NirListPage({
     )
   }
 
-  // 2. Fetch Data
   const resolvedSearchParams = await searchParams
   const page = Number(resolvedSearchParams.page) || 1
-  const initialData = await getNirs(page)
+
+  // Construim filtrele din URL
+  const filters = {
+    q: resolvedSearchParams.q,
+    status: resolvedSearchParams.status,
+    startDate: resolvedSearchParams.startDate,
+    endDate: resolvedSearchParams.endDate,
+  }
+
+  // Cerem datele filtrate direct de la server
+  const { data, totalPages, totalSum } = await getNirs(page, filters)
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-2'>
       <div className='flex items-center justify-between'>
         <h1 className='text-2xl font-bold tracking-tight'>
           Note de Intrare Recepție (NIR)
         </h1>
       </div>
 
-      <NirList initialData={initialData} currentPage={page} />
+      <NirList
+        data={data}
+        totalPages={totalPages}
+        currentPage={page}
+        totalSum={totalSum}
+      />
     </div>
   )
 }

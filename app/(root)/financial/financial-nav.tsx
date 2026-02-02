@@ -1,6 +1,7 @@
 'use client'
 
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
   LayoutDashboard,
@@ -25,7 +26,6 @@ const NAV_ITEMS = [
 
 export default function FinancialNav() {
   const pathname = usePathname()
-  const router = useRouter()
 
   const getActive = (id: string) =>
     id === ''
@@ -34,19 +34,27 @@ export default function FinancialNav() {
 
   return (
     <nav className='flex flex-col gap-2'>
-      {NAV_ITEMS.map((item) => (
-        <Button
-          key={item.id}
-          variant={getActive(item.id) ? 'secondary' : 'ghost'}
-          className='justify-start gap-2'
-          onClick={() =>
-            router.push(item.id ? `/financial/${item.id}` : '/financial')
-          }
-        >
-          {item.icon}
-          {item.label}
-        </Button>
-      ))}
+      {NAV_ITEMS.map((item) => {
+        const href = item.id ? `/financial/${item.id}` : '/financial'
+        const isActive = getActive(item.id)
+
+        return (
+          <Button
+            key={item.id}
+            variant={isActive ? 'secondary' : 'ghost'}
+            className='justify-start lg:justify-start gap-2 px-2 lg:px-4 transition-all duration-200'
+            title={item.label}
+            asChild
+          >
+            <Link href={href}>
+              {item.icon}
+              <span className='text-xs md:text-[10px] lg:text-xs min-[1274px]:text-sm whitespace-nowrap'>
+                {item.label}
+              </span>
+            </Link>
+          </Button>
+        )
+      })}
     </nav>
   )
 }

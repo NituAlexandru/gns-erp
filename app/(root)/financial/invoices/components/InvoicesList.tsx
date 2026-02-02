@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import {
   PopulatedInvoice,
   InvoiceFilters,
+  SeriesStat,
 } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { InvoicesFilters } from './InvoicesFilters'
 import { useDebounce } from '@/hooks/use-debounce'
@@ -25,7 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   Download,
   Info,
@@ -80,28 +81,28 @@ import {
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface InvoicesListProps {
-  initialData: {
-    data: PopulatedInvoice[]
-    totalPages: number
-  }
+  invoices: PopulatedInvoice[]
+  totalPages: number
   currentPage: number
   isAdmin: boolean
+  totalFilteredSum: number
+  availableSeries: string[]
+  seriesStats: SeriesStat[]
 }
 
 export function InvoicesList({
-  initialData,
+  invoices,
+  totalPages,
   currentPage,
   isAdmin,
+  totalFilteredSum,
+  availableSeries,
+  seriesStats,
 }: InvoicesListProps) {
   const router = useRouter()
-  const [invoices, setInvoices] = useState<PopulatedInvoice[]>(initialData.data)
-  const [totalPages, setTotalPages] = useState(initialData.totalPages)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [queryParams, setQueryParams] = useState({
-    page: currentPage,
-  })
-  const [filters, setFilters] = useState<InvoiceFilters>({})
-  const debouncedFilters = useDebounce(filters, 500)
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
   const [invoiceToActOn, setInvoiceToActOn] = useState<PopulatedInvoice | null>(
@@ -126,61 +127,12 @@ export function InvoicesList({
     setErrorModalOpen(true)
   }
 
-  useEffect(() => {
-    setQueryParams({ page: 1 })
-  }, [debouncedFilters])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    if (typeof window !== 'undefined') {
-      const fetchInvoices = () => {
-        startTransition(async () => {
-          const url = qs.stringifyUrl(
-            {
-              url: '/api/invoices',
-              query: {
-                ...queryParams, // Trimitem pagina
-                ...debouncedFilters, // ✅ MODIFICARE: Adăugăm și filtrele în query string
-              },
-            },
-            { skipNull: true, skipEmptyString: true },
-          )
-
-          try {
-            const res = await fetch(url, { signal: controller.signal })
-            const result = await res.json()
-            setInvoices(result.data || [])
-            setTotalPages(result.totalPages || 0)
-          } catch (error) {
-            if ((error as Error).name !== 'AbortError') {
-              console.error('Fetch error:', error)
-              setInvoices([])
-            }
-          }
-        })
-      }
-      fetchInvoices()
-    }
-    return () => controller.abort()
-  }, [queryParams, debouncedFilters])
-
-  const handleFiltersChange = (newFilters: Partial<InvoiceFilters>) => {
-    setFilters((prev) => ({ ...prev, ...newFilters }))
-  }
-
   const handleApprove = (invoice: PopulatedInvoice) => {
     startTransition(async () => {
       const result = await approveInvoice(invoice._id.toString())
       if (result.success) {
         toast.success(result.message)
-        // Actualizăm datele local, fără un re-fetch complet
-        setInvoices((prev) =>
-          prev.map((inv) =>
-            inv._id === invoice._id
-              ? { ...inv, status: 'APPROVED', eFacturaStatus: 'PENDING' }
-              : inv,
-          ),
-        )
+        router.refresh()
       } else {
         toast.error('Eroare la aprobare', { description: result.message })
       }
@@ -196,13 +148,7 @@ export function InvoicesList({
       )
       if (result.success) {
         toast.success(result.message)
-        setInvoices((prev) =>
-          prev.map((inv) =>
-            inv._id === invoiceToActOn._id
-              ? { ...inv, status: 'REJECTED', rejectionReason: rejectionReason }
-              : inv,
-          ),
-        )
+        router.refresh()
       } else {
         toast.error('Eroare la respingere', { description: result.message })
       }
@@ -221,34 +167,10 @@ export function InvoicesList({
 
       if (result.success) {
         toast.success('Trimisă la ANAF!', { description: result.message })
-
-        // Actualizăm interfața local (fără refresh la pagină)
-        setInvoices((prev) =>
-          prev.map((inv) => {
-            if (inv._id === invoice._id) {
-              // Încercăm să extragem ID-ul din mesaj pentru a-l afișa imediat
-              const match = result.message.match(/Index:\s*(\d+)/)
-              const uploadId = match ? match[1] : 'PENDING...'
-
-              return {
-                ...inv,
-                eFacturaStatus: 'SENT',
-                eFacturaUploadId: uploadId,
-              }
-            }
-            return inv
-          }),
-        )
+        router.refresh()
       } else {
         toast.error('Eroare ANAF', { description: result.message })
-        // Putem marca vizual eroarea
-        setInvoices((prev) =>
-          prev.map((inv) =>
-            inv._id === invoice._id
-              ? { ...inv, eFacturaStatus: 'REJECTED_ANAF' }
-              : inv,
-          ),
-        )
+        router.refresh()
       }
     } catch (err) {
       toast.error('Eroare de comunicare', { description: String(err) })
@@ -313,22 +235,9 @@ export function InvoicesList({
         })
 
         // Dacă s-a schimbat statusul (ok/nok), actualizăm UI-ul
-        if (result.status === 'ok') {
-          setInvoices((prev) =>
-            prev.map((inv) =>
-              inv._id === invoice._id
-                ? { ...inv, eFacturaStatus: 'ACCEPTED' }
-                : inv,
-            ),
-          )
-        } else if (result.status === 'nok') {
-          setInvoices((prev) =>
-            prev.map((inv) =>
-              inv._id === invoice._id
-                ? { ...inv, eFacturaStatus: 'REJECTED_ANAF' }
-                : inv,
-            ),
-          )
+        if (result.status === 'ok' || result.status === 'nok') {
+          // Indiferent dacă e OK sau NOK, datele s-au schimbat în baza de date
+          router.refresh()
         }
       } else {
         toast.warning('Verificare nereușită', { description: result.message })
@@ -363,17 +272,7 @@ export function InvoicesList({
 
       if (result.success) {
         toast.success(result.message)
-        setInvoices((prev) =>
-          prev.map((inv) =>
-            inv._id === invoiceToActOn._id
-              ? {
-                  ...inv,
-                  status: 'CANCELLED',
-                  eFacturaStatus: 'NOT_REQUIRED',
-                }
-              : inv,
-          ),
-        )
+        router.refresh()
       } else {
         toast.error('Eroare la anulare', { description: result.message })
       }
@@ -421,21 +320,7 @@ export function InvoicesList({
 
       if (result.success) {
         toast.success(result.message)
-
-        // Actualizăm local TOATE facturile care au fost anulate (ca să nu dăm refresh)
-        // Backend-ul a anulat tot grupul, deci căutăm în lista locală toate facturile cu acel splitGroupId
-        setInvoices((prev) =>
-          prev.map((inv) =>
-            // Dacă au același splitGroupId, le marcăm pe toate ca anulate
-            inv.splitGroupId === invoiceToActOn.splitGroupId
-              ? {
-                  ...inv,
-                  status: 'CANCELLED',
-                  eFacturaStatus: 'NOT_REQUIRED',
-                }
-              : inv,
-          ),
-        )
+        router.refresh()
       } else {
         toast.error('Eroare la anulare grup', { description: result.message })
       }
@@ -467,13 +352,42 @@ export function InvoicesList({
     }
   }
 
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
+  }
+
   return (
     <div className='flex flex-col gap-2'>
       <InvoicesFilters
-        filters={filters}
-        onFiltersChange={handleFiltersChange}
         onBulkRefreshLoading={setIsBulkRefreshing}
+        availableSeries={availableSeries}
       />
+      <div className='flex flex-wrap justify-start items-center gap-2 text-sm'>
+        {/* Total General */}
+        <div className='bg-primary/10 px-3 py-1 rounded border border-primary/20'>
+          <span className='text-muted-foreground mr-1'>Total General:</span>
+          <span className='font-bold text-primary'>
+            {formatCurrency(totalFilteredSum)}
+          </span>
+        </div>
+
+        {/* Separator mic dacă avem serii */}
+        {seriesStats.length > 0 && <div className='h-4 w-px bg-border mx-1' />}
+
+        {/* Totaluri pe Serii */}
+        {seriesStats.map((stat) => (
+          <div
+            key={stat._id}
+            className='bg-muted/40 px-2 py-1 rounded border text-xs'
+          >
+            <span className='font-semibold mr-1'>{stat._id}:</span>
+            <span>{formatCurrency(stat.total)}</span>
+            <span className='text-muted-foreground ml-1'>({stat.count})</span>
+          </div>
+        ))}
+      </div>
 
       <div className='border rounded-lg overflow-x-auto bg-card'>
         <Table>
@@ -510,29 +424,33 @@ export function InvoicesList({
                   key={invoice._id.toString()}
                   className='hover:bg-muted/50'
                 >
-                  <TableCell className='font-medium'>
+                  <TableCell className='font-medium py-1 text-[10px] lg:text-xs xl:text-sm'>
                     <div className='flex flex-col'>
                       <span>
                         {invoice.seriesName}-{invoice.invoiceNumber}
                       </span>
-                      <span className='text-[10px] text-yellow-600 font-bold uppercase tracking-wider'>
+                      <span className='text-[8px] lg:text-[10px] text-yellow-600 font-bold uppercase tracking-wider'>
                         {invoice.invoiceType}
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
                     {new Date(invoice.invoiceDate).toLocaleDateString('ro-RO')}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
                     {new Date(invoice.dueDate).toLocaleDateString('ro-RO')}
                   </TableCell>
-                  <TableCell>{invoice.clientId?.name || 'N/A'}</TableCell>
-                  <TableCell>{invoice.createdByName || 'N/A'}</TableCell>
-                  <TableCell>
+                  <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm truncate max-w-[150px] lg:max-w-[200px] xl:max-w-[250px]'>
+                    {invoice.clientId?.name || 'N/A'}
+                  </TableCell>
+                  <TableCell className='text-[10px] lg:text-xs xl:text-sm max-w-[150px]'>
+                    {invoice.createdByName || 'N/A'}
+                  </TableCell>
+                  <TableCell className='py-1 max-w-[75px] lg:max-w-[125px]'>
                     <InvoiceStatusBadge status={invoice.status} />
                   </TableCell>
                   {/* COLOANA 1: STATUS EFACTURA */}
-                  <TableCell>
+                  <TableCell className='py-1'>
                     <div
                       className={cn(
                         'inline-block',
@@ -557,8 +475,8 @@ export function InvoicesList({
                     </div>
                   </TableCell>
 
-                  {/* COLOANA 2: ACȚIUNI (Curățat de erori) */}
-                  <TableCell>
+                  {/* COLOANA 2: ACȚIUNI */}
+                  <TableCell className='py-1'>
                     {isAdmin ? (
                       <div className='flex gap-1 items-start '>
                         {/* A. Buton UPLOAD (Doar acțiunea de trimitere) */}
@@ -644,14 +562,14 @@ export function InvoicesList({
                       <span className='text-muted-foreground text-xs'>-</span>
                     )}
                   </TableCell>
-                  <TableCell className='text-right font-semibold'>
+                  <TableCell className='text-right text-[10px] lg:text-xs xl:text-sm py-1'>
                     {formatCurrency(invoice.totals.grandTotal)}
                   </TableCell>
                   {isAdmin && (
                     <>
                       <TableCell
                         className={cn(
-                          'text-right font-medium',
+                          'text-right text-[10px] lg:text-xs xl:text-sm py-1',
                           getProfitColorClass(invoice.totals.totalProfit),
                         )}
                       >
@@ -661,7 +579,7 @@ export function InvoicesList({
                       </TableCell>
                       <TableCell
                         className={cn(
-                          'text-right text-xs',
+                          'text-right text-[10px] lg:text-xs xl:text-sm py-1',
                           getMarginColorClass(invoice.totals.profitMargin),
                         )}
                       >
@@ -671,7 +589,7 @@ export function InvoicesList({
                       </TableCell>
                     </>
                   )}
-                  <TableCell className='text-right'>
+                  <TableCell className='text-right py-1 '>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant='ghost' size='icon'>
@@ -800,32 +718,20 @@ export function InvoicesList({
         <div className='flex items-center justify-center gap-2 mt-4'>
           <Button
             variant='outline'
-            // Modificare aici:
-            onClick={() =>
-              setQueryParams((prev) => ({
-                ...prev,
-                page: Math.max(1, prev.page - 1),
-              }))
-            }
-            disabled={queryParams.page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
 
           <span className='text-sm'>
-            Pagina {queryParams.page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
 
           <Button
             variant='outline'
-            // Modificare aici:
-            onClick={() =>
-              setQueryParams((prev) => ({
-                ...prev,
-                page: Math.min(totalPages, prev.page + 1),
-              }))
-            }
-            disabled={queryParams.page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

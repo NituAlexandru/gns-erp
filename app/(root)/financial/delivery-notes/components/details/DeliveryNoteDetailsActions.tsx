@@ -99,7 +99,7 @@ export function DeliveryNoteDetailsActions({
     startTransition(async () => {
       const result: InvoiceActionResult = await createInvoiceFromSingleNote(
         note.deliveryId,
-        series
+        series,
       )
       if (result.success) {
         toast.success('Factura generată cu succes!')
@@ -139,11 +139,7 @@ export function DeliveryNoteDetailsActions({
       <div className='flex flex-wrap items-center justify-between gap-2 mb-4'>
         {/* Navigare & Titlu */}
         <div className='flex items-center gap-2'>
-          <Button
-            variant='outline'
-            size='icon'
-            onClick={() => router.push('/financial/delivery-notes')}
-          >
+          <Button variant='outline' size='icon' onClick={() => router.back()}>
             <ChevronLeft className='h-4 w-4' />
           </Button>
           <div className='flex gap-2 items-center'>
