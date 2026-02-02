@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTransition } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -12,48 +12,40 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
-import {
-  ClientDeliveryListItem,
-  getDeliveriesForClient,
-} from '@/lib/db/modules/deliveries/client-delivery.actions'
+import { ClientDeliveryListItem } from '@/lib/db/modules/deliveries/client-delivery.actions'
 import { DeliveryStatusBadge } from '@/app/(root)/deliveries/components/DeliveryStatusBadge'
 
 interface ClientDeliveriesListProps {
   clientId: string
+  initialData: {
+    data: ClientDeliveryListItem[]
+    totalPages: number
+  }
+  currentPage: number
 }
 
-export function ClientDeliveriesList({ clientId }: ClientDeliveriesListProps) {
+export function ClientDeliveriesList({
+  clientId,
+  initialData,
+  currentPage,
+}: ClientDeliveriesListProps) {
   const router = useRouter()
-  const [deliveries, setDeliveries] = useState<ClientDeliveryListItem[]>([])
-  const [totalPages, setTotalPages] = useState(0)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    const fetchDeliveries = () => {
-      startTransition(async () => {
-        try {
-          const result = await getDeliveriesForClient(clientId, page)
-          setDeliveries(result.data || [])
-          setTotalPages(result.totalPages || 0)
-        } catch (error) {
-          console.error('Failed to fetch client deliveries:', error)
-          setDeliveries([])
-          setTotalPages(0)
-        }
-      })
-    }
-    fetchDeliveries()
-  }, [clientId, page])
+  const deliveries = initialData?.data || []
+  const totalPages = initialData?.totalPages || 0
 
   const handleRowClick = (deliveryId: string) => {
     router.push(`/deliveries/${deliveryId}`)
   }
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setPage(newPage)
-    }
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', newPage.toString())
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   return (
@@ -89,13 +81,13 @@ export function ClientDeliveriesList({ clientId }: ClientDeliveriesListProps) {
                   </TableCell>
                   <TableCell>
                     {new Date(
-                      delivery.requestedDeliveryDate
+                      delivery.requestedDeliveryDate,
                     ).toLocaleDateString('ro-RO')}
                   </TableCell>
                   <TableCell>
                     {delivery.deliveryDate
                       ? new Date(delivery.deliveryDate).toLocaleDateString(
-                          'ro-RO'
+                          'ro-RO',
                         )
                       : 'N/A'}
                   </TableCell>
@@ -114,31 +106,30 @@ export function ClientDeliveriesList({ clientId }: ClientDeliveriesListProps) {
             ) : (
               <TableRow>
                 <TableCell colSpan={6} className='text-center h-24'>
-                  Nicio livrare găsită pentru acest client.
+                  Nicio livrare găsită.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-
-      {/* Paginare */}
+      {/* Paginare identică cu Orders */}
       {totalPages > 1 && (
         <div className='flex justify-center items-center gap-2 mt-0'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
+import React, { useTransition } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -10,50 +11,36 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import {
-  getProductStatsForClient,
-  ClientProductStat,
-} from '@/lib/db/modules/client/summary/client-product-stats.actions'
+import { ClientProductStat } from '@/lib/db/modules/client/summary/client-product-stats.actions'
 import { formatCurrency } from '@/lib/utils'
-import { toast } from 'sonner'
 
 interface ClientProductsListProps {
   clientId: string
+  initialData: {
+    data: ClientProductStat[]
+    totalPages: number
+  }
+  currentPage: number
 }
 
-export function ClientProductsList({ clientId }: ClientProductsListProps) {
-  const [products, setProducts] = useState<ClientProductStat[]>([])
-  const [totalPages, setTotalPages] = useState(0)
+export function ClientProductsList({
+  clientId,
+  initialData,
+  currentPage,
+}: ClientProductsListProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    const fetchProducts = () => {
-      startTransition(async () => {
-        try {
-          const result = await getProductStatsForClient(clientId, page)
-          if (result.success) {
-            setProducts(result.data || [])
-            setTotalPages(result.totalPages || 0)
-          } else {
-            toast.error('Eroare statistici', { description: result.message })
-            setProducts([])
-            setTotalPages(0)
-          }
-        } catch (error) {
-          console.error('Failed to fetch client product stats:', error)
-          setProducts([])
-          setTotalPages(0)
-        }
-      })
-    }
-    fetchProducts()
-  }, [clientId, page])
+  const products = initialData?.data || []
+  const totalPages = initialData?.totalPages || 0
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setPage(newPage)
-    }
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', newPage.toString())
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   const formatItemType = (itemType: ClientProductStat['itemType']): string => {
@@ -97,7 +84,6 @@ export function ClientProductsList({ clientId }: ClientProductsListProps) {
                   <TableCell className='font-medium'>
                     {product.productName}
                   </TableCell>
-                  {/*  Afișăm text simplu --- */}
                   <TableCell>{formatItemType(product.itemType)}</TableCell>
                   <TableCell className='text-right font-semibold'>
                     {formatCurrency(product.totalValue)}
@@ -107,31 +93,29 @@ export function ClientProductsList({ clientId }: ClientProductsListProps) {
             ) : (
               <TableRow>
                 <TableCell colSpan={3} className='text-center h-24'>
-                  Nicio statistică de produs găsită (fără facturi finalizate).
+                  Nicio statistică de produs găsită.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-
-      {/* Paginare */}
       {totalPages > 1 && (
         <div className='flex justify-center items-center gap-2 mt-0'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

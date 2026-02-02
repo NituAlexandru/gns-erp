@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTransition } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -11,10 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import {
-  getInvoicesForClient,
-  ClientInvoiceListItem,
-} from '@/lib/db/modules/financial/invoices/client-invoice.actions'
+import { ClientInvoiceListItem } from '@/lib/db/modules/financial/invoices/client-invoice.actions'
 import { formatCurrency } from '@/lib/utils'
 import { InvoiceStatusBadge } from '@/app/(root)/financial/invoices/components/InvoiceStatusBadge'
 import {
@@ -27,57 +24,52 @@ import {
 
 interface ClientInvoicesListProps {
   clientId: string
+  initialData: {
+    data: ClientInvoiceListItem[]
+    totalPages: number
+  }
+  currentPage: number
 }
 
-export function ClientInvoicesList({ clientId }: ClientInvoicesListProps) {
+export function ClientInvoicesList({
+  clientId,
+  initialData,
+  currentPage,
+}: ClientInvoicesListProps) {
   const router = useRouter()
-  const [invoices, setInvoices] = useState<ClientInvoiceListItem[]>([])
-  const [totalPages, setTotalPages] = useState(0)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(1)
-  const [statusFilter, setStatusFilter] = useState<string>('ALL')
-
-  useEffect(() => {
-    const fetchInvoices = () => {
-      startTransition(async () => {
-        try {
-          const result = await getInvoicesForClient(
-            clientId,
-            page,
-            statusFilter
-          )
-          setInvoices(result.data || [])
-          setTotalPages(result.totalPages || 0)
-        } catch (error) {
-          console.error('Failed to fetch client invoices:', error)
-          setInvoices([])
-          setTotalPages(0)
-        }
-      })
-    }
-    fetchInvoices()
-  }, [clientId, page, statusFilter])
+  const invoices = initialData?.data || []
+  const totalPages = initialData?.totalPages || 0
+  const currentStatus = searchParams.get('status') || 'ALL'
 
   const handleRowClick = (invoiceId: string) => {
     router.push(`/financial/invoices/${invoiceId}`)
   }
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setPage(newPage)
-    }
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', newPage.toString())
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   const handleFilterChange = (value: string) => {
-    setStatusFilter(value)
-    setPage(1)
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('status', value)
+    params.set('page', '1')
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   return (
     <div className='flex flex-col gap-2'>
       <div className='flex justify-end'>
-        <div className=' p-0'>
-          <Select value={statusFilter} onValueChange={handleFilterChange}>
+        <div className='p-0'>
+          <Select value={currentStatus} onValueChange={handleFilterChange}>
             <SelectTrigger>
               <SelectValue placeholder='Filtrează status' />
             </SelectTrigger>
@@ -107,7 +99,7 @@ export function ClientInvoicesList({ clientId }: ClientInvoicesListProps) {
           <TableBody>
             {isPending ? (
               <TableRow>
-                <TableCell colSpan={6} className='text-center h-24'>
+                <TableCell colSpan={7} className='text-center h-24'>
                   Se încarcă...
                 </TableCell>
               </TableRow>
@@ -147,8 +139,8 @@ export function ClientInvoicesList({ clientId }: ClientInvoicesListProps) {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={6} className='text-center h-24'>
-                  Nicio factură găsită pentru acest client.
+                <TableCell colSpan={7} className='text-center h-24'>
+                  Nicio factură găsită.
                 </TableCell>
               </TableRow>
             )}
@@ -156,23 +148,22 @@ export function ClientInvoicesList({ clientId }: ClientInvoicesListProps) {
         </Table>
       </div>
 
-      {/* Paginare */}
       {totalPages > 1 && (
         <div className='flex justify-center items-center gap-2 mt-0'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

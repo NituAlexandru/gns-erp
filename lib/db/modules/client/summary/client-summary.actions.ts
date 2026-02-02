@@ -215,7 +215,18 @@ export async function getClientLedger(
               },
             },
           },
-          documentNumber: { $concat: ['$seriesName', '-', '$invoiceNumber'] },
+          documentNumber: {
+            $cond: {
+              if: {
+                $and: [
+                  { $ne: ['$seriesName', null] },
+                  { $ne: ['$seriesName', ''] },
+                ],
+              },
+              then: { $concat: ['$seriesName', ' - ', '$invoiceNumber'] },
+              else: '$invoiceNumber',
+            },
+          },
           details: {
             $switch: {
               branches: [
@@ -306,7 +317,16 @@ export async function getClientLedger(
           remainingAmount: { $literal: 0 },
           documentType: 'Încasare',
           documentNumber: {
-            $concat: [{ $ifNull: ['$seriesName', ''] }, '-', '$paymentNumber'],
+            $cond: {
+              if: {
+                $and: [
+                  { $ne: ['$seriesName', null] },
+                  { $ne: ['$seriesName', ''] },
+                ],
+              },
+              then: { $concat: ['$seriesName', ' - ', '$paymentNumber'] },
+              else: '$paymentNumber',
+            },
           },
           details: {
             $concat: [

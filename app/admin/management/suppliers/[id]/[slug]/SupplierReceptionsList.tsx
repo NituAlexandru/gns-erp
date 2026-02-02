@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
+import React, { useTransition } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -11,36 +12,49 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
-import { getReceptionsForSupplier } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
 import { InventoryLocation } from '@/lib/db/modules/inventory/types'
 
+interface ReceptionListItem {
+  _id: string
+  series: string
+  number: string
+  date: Date
+  invoiceReference: string
+  warehouseName: string
+  totalValue: number
+}
+
 interface SupplierReceptionsListProps {
   supplierId: string
+  initialData: {
+    data: ReceptionListItem[]
+    totalPages: number
+  }
+  currentPage: number
 }
 
 export function SupplierReceptionsList({
   supplierId,
+  initialData,
+  currentPage,
 }: SupplierReceptionsListProps) {
-  const [receptions, setReceptions] = useState<any[]>([]) // Poți înlocui any cu interfața ReceptionListItem
-  const [totalPages, setTotalPages] = useState(0)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(1)
 
-  useEffect(() => {
-    const fetchData = () => {
-      startTransition(async () => {
-        try {
-          const result = await getReceptionsForSupplier(supplierId, page)
-          setReceptions(result.data || [])
-          setTotalPages(result.totalPages || 0)
-        } catch (error) {
-          console.error('Failed to fetch supplier receptions:', error)
-        }
-      })
-    }
-    fetchData()
-  }, [supplierId, page])
+  // Folosim datele primite, nu facem fetch
+  const receptions = initialData?.data || []
+  const totalPages = initialData?.totalPages || 0
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', newPage.toString())
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
+  }
 
   return (
     <div className='flex flex-col gap-4'>
@@ -93,23 +107,23 @@ export function SupplierReceptionsList({
         </Table>
       </div>
 
-      {/* Paginare - Identică cu cea de la facturi */}
+      {/* Paginare */}
       {totalPages > 1 && (
         <div className='flex justify-center items-center gap-2 mt-0'>
           <Button
             variant='outline'
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

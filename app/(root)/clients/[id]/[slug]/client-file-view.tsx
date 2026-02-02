@@ -16,12 +16,16 @@ import { ClientOrdersList } from './ClientOrdersList'
 import { ClientDeliveriesList } from './ClientDeliveriesList'
 import { ClientDeliveryNotesList } from './ClientDeliveryNotesList'
 import { ClientProductsList } from './ClientProductsList'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 interface ClientFileViewProps {
   client: IClientDoc
   summary: IClientSummary
   isAdmin: boolean
   clientSlug: string
+  activeTab: string
+  tabData: any
+  currentPage: number
 }
 
 export default function ClientFileView({
@@ -29,12 +33,29 @@ export default function ClientFileView({
   summary,
   isAdmin,
   clientSlug,
+  activeTab,
+  tabData,
+  currentPage,
 }: ClientFileViewProps) {
-  const [activeTab, setActiveTab] = useState('details')
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  // State-uri locale (doar pentru modale/interacțiuni UI)
   const [selectedLedgerEntry, setSelectedLedgerEntry] =
     useState<ClientLedgerEntry | null>(null)
   const [selectedPayment, setSelectedPayment] =
     useState<PopulatedClientPayment | null>(null)
+
+  // Funcție care schimbă URL-ul când dai click pe un tab
+  const handleTabChange = (newTab: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', newTab)
+    params.delete('page') // Resetăm pagina
+    params.delete('status') // Resetăm filtrele
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
   const handleInvoiceClick = (entry: ClientLedgerEntry) => {
     setSelectedLedgerEntry(entry)
   }
@@ -62,18 +83,17 @@ export default function ClientFileView({
   return (
     <>
       <div className='grid md:grid-cols-5 max-w-full gap-8'>
-        {/* Coloana Stânga: Meniul */}
         <aside className='md:col-span-1'>
           <div className='sticky top-24'>
+            {/* ClientNav trebuie să accepte acum setActiveTab care schimbă URL-ul */}
             <ClientNav
               activeTab={activeTab}
-              setActiveTab={setActiveTab}
+              setActiveTab={handleTabChange}
               clientId={client._id}
               isAdmin={isAdmin}
             />
           </div>
         </aside>
-        {/* Coloana Dreapta: Conținutul */}
         <main className='md:col-span-4 space-y-2'>
           <ClientSummaryCard
             summary={summary}
@@ -83,25 +103,48 @@ export default function ClientFileView({
           />
 
           <div>
+            {/* Randăm condiționat, dar pasăm datele (tabData) direct */}
+
             {activeTab === 'details' && (
               <ClientDetails client={client} isAdmin={isAdmin} />
             )}
+
             {activeTab === 'orders' && (
-              <ClientOrdersList clientId={client._id} />
+              <ClientOrdersList
+                clientId={client._id}
+                initialData={tabData} // <--- Datele vin de sus
+                currentPage={currentPage}
+              />
             )}
+
             {activeTab === 'deliveries' && (
-              <ClientDeliveriesList clientId={client._id} />
+              <ClientDeliveriesList
+                clientId={client._id}
+                initialData={tabData}
+                currentPage={currentPage}
+              />
             )}
+
             {activeTab === 'notices' && (
-              <ClientDeliveryNotesList clientId={client._id} />
+              <ClientDeliveryNotesList
+                clientId={client._id}
+                initialData={tabData}
+                currentPage={currentPage}
+              />
             )}
+
             {activeTab === 'invoices' && (
-              <ClientInvoicesList clientId={client._id} />
+              <ClientInvoicesList
+                clientId={client._id}
+                initialData={tabData}
+                currentPage={currentPage}
+              />
             )}
 
             {activeTab === 'payments' && (
               <ClientLedgerTable
                 clientId={client._id}
+                entries={tabData} // Ledger-ul e o listă simplă
                 onInvoiceClick={handleInvoiceClick}
                 onPaymentClick={handlePaymentClick}
                 isAdmin={isAdmin}
@@ -109,7 +152,11 @@ export default function ClientFileView({
             )}
 
             {activeTab === 'products' && (
-              <ClientProductsList clientId={client._id} />
+              <ClientProductsList
+                clientId={client._id}
+                initialData={tabData}
+                currentPage={currentPage}
+              />
             )}
           </div>
         </main>

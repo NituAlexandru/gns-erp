@@ -7,13 +7,14 @@ import { SupplierCreateSchema, SupplierUpdateSchema } from './validator'
 import { ADMIN_PAGE_SIZE } from '@/lib/constants'
 import { revalidatePath } from 'next/cache'
 import { logAudit } from '../audit-logs/audit.actions'
+import { FilterQuery } from 'mongoose'
 
 export async function createSupplier(
   data: ISupplierInput,
   userId: string,
   userName: string,
   ip?: string,
-  userAgent?: string
+  userAgent?: string,
 ) {
   const payload = SupplierCreateSchema.parse(data)
   await connectToDatabase()
@@ -36,7 +37,7 @@ export async function createSupplier(
     userId,
     { after: newSupplier },
     ip,
-    userAgent
+    userAgent,
   )
 
   return { success: true, message: 'Furnizor creat cu succes' }
@@ -47,7 +48,7 @@ export async function updateSupplier(
   userId: string,
   userName: string,
   ip?: string,
-  userAgent?: string
+  userAgent?: string,
 ) {
   const payload = SupplierUpdateSchema.parse(data)
   await connectToDatabase()
@@ -66,7 +67,7 @@ export async function updateSupplier(
   const updatedSupplier = await SupplierModel.findByIdAndUpdate(
     payload._id,
     updateData,
-    { new: true }
+    { new: true },
   ).lean()
 
   if (!updatedSupplier) throw new Error('Furnizor inexistent')
@@ -80,7 +81,7 @@ export async function updateSupplier(
     userId,
     { before, after: updatedSupplier },
     ip,
-    userAgent
+    userAgent,
   )
 
   return { success: true, message: 'Furnizor actualizat cu succes' }
@@ -90,7 +91,7 @@ export async function deleteSupplier(
   id: string,
   userId: string,
   ip?: string,
-  userAgent?: string
+  userAgent?: string,
 ) {
   await connectToDatabase()
 
@@ -114,18 +115,39 @@ export async function getSupplierById(id: string): Promise<ISupplierDoc> {
 export async function getAllSuppliersForAdmin({
   page = 1,
   limit = ADMIN_PAGE_SIZE,
+  query = '',
 }: {
   page?: number
   limit?: number
+  query?: string // <--- Tip NOU
 }) {
   await connectToDatabase()
   const skip = (page - 1) * limit
-  const total = await SupplierModel.countDocuments()
-  const data = await SupplierModel.find()
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean()
+
+  // 1. Construim filtrul de căutare
+  const filter: FilterQuery<typeof SupplierModel> = {}
+
+  if (query) {
+    const regex = new RegExp(query, 'i')
+    filter.$or = [
+      { name: regex },
+      { fiscalCode: { $regex: query, $options: 'i' } },
+      { email: regex },
+      { phone: regex },
+      { regComNumber: { $regex: query, $options: 'i' } },
+    ]
+  }
+
+  // 2. Aplicăm filtrul la find și countDocuments
+  const [data, total] = await Promise.all([
+    SupplierModel.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    SupplierModel.countDocuments(filter),
+  ])
+
   return {
     data: JSON.parse(JSON.stringify(data)) as ISupplierDoc[],
     totalPages: Math.ceil(total / limit),
@@ -133,4 +155,14 @@ export async function getAllSuppliersForAdmin({
     from: skip + 1,
     to: skip + data.length,
   }
+}
+
+export async function getSupplierByCode(code: string) {
+  await connectToDatabase()
+  const supplier = await SupplierModel.findOne({
+    $or: [{ fiscalCode: code }, { _id: code }],
+  }).lean()
+
+  if (!supplier) return null
+  return JSON.parse(JSON.stringify(supplier)) as ISupplierDoc
 }

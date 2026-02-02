@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTransition } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -12,52 +12,40 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
-import {
-  ClientDeliveryNoteItem,
-  getDeliveryNotesForClient,
-} from '@/lib/db/modules/financial/delivery-notes/client-delivery-note.actions'
+import { ClientDeliveryNoteItem } from '@/lib/db/modules/financial/delivery-notes/client-delivery-note.actions'
 import { DeliveryNoteStatusBadge } from '@/app/(root)/financial/delivery-notes/components/DeliveryNoteStatusBadge'
 
 interface ClientDeliveryNotesListProps {
   clientId: string
+  initialData: {
+    data: ClientDeliveryNoteItem[]
+    totalPages: number
+  }
+  currentPage: number
 }
 
 export function ClientDeliveryNotesList({
   clientId,
+  initialData,
+  currentPage,
 }: ClientDeliveryNotesListProps) {
   const router = useRouter()
-  const [deliveryNotes, setDeliveryNotes] = useState<ClientDeliveryNoteItem[]>(
-    []
-  )
-  const [totalPages, setTotalPages] = useState(0)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    const fetchDeliveryNotes = () => {
-      startTransition(async () => {
-        try {
-          const result = await getDeliveryNotesForClient(clientId, page)
-          setDeliveryNotes(result.data || [])
-          setTotalPages(result.totalPages || 0)
-        } catch (error) {
-          console.error('Failed to fetch client delivery notes:', error)
-          setDeliveryNotes([])
-          setTotalPages(0)
-        }
-      })
-    }
-    fetchDeliveryNotes()
-  }, [clientId, page])
+  const deliveryNotes = initialData?.data || []
+  const totalPages = initialData?.totalPages || 0
 
   const handleRowClick = (deliveryNoteId: string) => {
     router.push(`/delivery-notes/${deliveryNoteId}`)
   }
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setPage(newPage)
-    }
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', newPage.toString())
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   return (
@@ -105,31 +93,29 @@ export function ClientDeliveryNotesList({
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className='text-center h-24'>
-                  Niciun aviz găsit pentru acest client.
+                  Niciun aviz găsit.
                 </TableCell>
               </TableRow>
             )}
           </TableBody>
         </Table>
       </div>
-
-      {/* Paginare */}
       {totalPages > 1 && (
         <div className='flex justify-center items-center gap-2 mt-0'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

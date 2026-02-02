@@ -1,27 +1,41 @@
 'use client'
 
-import { useState } from 'react'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 import { ISupplierSummary } from '@/lib/db/modules/suppliers/summary/supplier-summary.model'
 import { SupplierNav } from '../../supplier-nav'
 import SupplierSummaryCard from '../../supplier-summary-card'
 import { SupplierDetails } from '../../supplier-details'
-
 import { SupplierProductsList } from './SupplierProductsList'
 import { SupplierInvoicesList } from './SupplierInvoicesList'
-import { SupplierLedgerTable } from '../../components/SupplierLedgerTable'
-import { SupplierReceptionsList } from '../../components/SupplierReceptionsList'
+import { SupplierReceptionsList } from './SupplierReceptionsList'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
+import { SupplierLedgerTable } from './SupplierLedgerTable'
 
 interface SupplierFileViewProps {
   supplier: ISupplierDoc
   summary: ISupplierSummary
+  activeTab: string
+  tabData: any
+  currentPage: number
 }
 
 export default function SupplierFileView({
   supplier,
   summary,
+  activeTab,
+  tabData,
+  currentPage,
 }: SupplierFileViewProps) {
-  const [activeTab, setActiveTab] = useState('details')
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const handleTabChange = (newTab: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('tab', newTab)
+    params.delete('page')
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
 
   return (
     <div className='grid md:grid-cols-5 max-w-full gap-8'>
@@ -29,38 +43,52 @@ export default function SupplierFileView({
         <div className='sticky top-24'>
           <SupplierNav
             activeTab={activeTab}
-            setActiveTab={setActiveTab}
+            setActiveTab={handleTabChange}
             supplierId={supplier._id}
           />
         </div>
       </aside>
 
       <main className='md:col-span-4 space-y-6'>
-        {/* Cardul de Sumar Financiar */}
         <SupplierSummaryCard summary={summary} />
 
         <div>
-          {/* TAB: DETALII */}
+
           {activeTab === 'details' && <SupplierDetails supplier={supplier} />}
 
           {/* TAB: RECEPȚII (NIR) */}
           {activeTab === 'receptions' && (
-            <SupplierReceptionsList supplierId={supplier._id} />
+            <SupplierReceptionsList
+              supplierId={supplier._id}
+              initialData={tabData}
+              currentPage={currentPage}
+            />
           )}
 
           {/* TAB: FACTURI */}
           {activeTab === 'invoices' && (
-            <SupplierInvoicesList supplierId={supplier._id} />
+            <SupplierInvoicesList
+              supplierId={supplier._id}
+              initialData={tabData}
+              currentPage={currentPage}
+            />
           )}
 
           {/* TAB: PLĂȚI */}
           {activeTab === 'payments' && (
-            <SupplierLedgerTable supplierId={supplier._id} />
+            <SupplierLedgerTable
+              supplierId={supplier._id}
+              entries={tabData} 
+            />
           )}
 
           {/* TAB: PRODUSE */}
           {activeTab === 'products' && (
-            <SupplierProductsList supplierId={supplier._id} />
+            <SupplierProductsList
+              supplierId={supplier._id}
+              initialData={tabData}
+              currentPage={currentPage}
+            />
           )}
         </div>
       </main>

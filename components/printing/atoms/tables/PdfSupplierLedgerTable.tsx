@@ -18,11 +18,11 @@ const styles = StyleSheet.create({
   cell: { padding: 4 },
 
   // Coloane (aceleași dimensiuni ca la client)
-  colDate: { width: '15%' },
+  colDate: { width: '13%' },
   colDoc: { width: '20%' },
-  colDetails: { width: '25%' },
-  colDebit: { width: '13%', textAlign: 'right' },
-  colCredit: { width: '13%', textAlign: 'right' },
+  colDetails: { width: '23%' },
+  colDebit: { width: '15%', textAlign: 'right' },
+  colCredit: { width: '15%', textAlign: 'right' },
   colBalance: { width: '14%', textAlign: 'right', fontWeight: 'bold' },
   debitColor: { color: '#16a34a' },
   creditColor: { color: '#dc2626' },

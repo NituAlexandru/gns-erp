@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTransition } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -13,43 +13,36 @@ import {
 import { Button } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/utils'
 import { SupplierInvoiceStatusBadge } from './SupplierInvoiceStatusBadge'
-import {
-  getInvoicesForSupplier,
-  SupplierInvoiceListItem,
-} from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
+import { SupplierInvoiceListItem } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 
 interface SupplierInvoicesListProps {
   supplierId: string
+  initialData: {
+    data: SupplierInvoiceListItem[]
+    totalPages: number
+  }
+  currentPage: number
 }
 
 export function SupplierInvoicesList({
   supplierId,
+  initialData,
+  currentPage,
 }: SupplierInvoicesListProps) {
   const router = useRouter()
-  const [invoices, setInvoices] = useState<SupplierInvoiceListItem[]>([])
-  const [totalPages, setTotalPages] = useState(0)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(1)
 
-  useEffect(() => {
-    const fetchData = () => {
-      startTransition(async () => {
-        try {
-          const result = await getInvoicesForSupplier(supplierId, page)
-          setInvoices(result.data || [])
-          setTotalPages(result.totalPages || 0)
-        } catch (error) {
-          console.error('Failed to fetch supplier invoices:', error)
-        }
-      })
-    }
-    fetchData()
-  }, [supplierId, page])
+  const invoices = initialData?.data || []
+  const totalPages = initialData?.totalPages || 0
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setPage(newPage)
-    }
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', newPage.toString())
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   return (
@@ -103,23 +96,22 @@ export function SupplierInvoicesList({
         </Table>
       </div>
 
-      {/* Paginare */}
       {totalPages > 1 && (
         <div className='flex justify-center items-center gap-2 mt-0'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

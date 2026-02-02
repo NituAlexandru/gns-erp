@@ -31,15 +31,15 @@ const styles = StyleSheet.create({
   // Coloane
   colDate: { width: '12%', paddingLeft: 4 },
   colDoc: { width: '18%', paddingLeft: 2 },
-  colDetails: { width: '30%', paddingLeft: 2 },
+  colDetails: { width: '26%', paddingLeft: 2 },
   colDebit: {
-    width: '13%',
+    width: '15%',
     textAlign: 'right',
     paddingRight: 4,
     color: '#dc2626',
   }, // Rosu
   colCredit: {
-    width: '13%',
+    width: '15%',
     textAlign: 'right',
     paddingRight: 4,
     color: '#16a34a',
@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   footerLabel: {
-    width: '86%',
+    width: '80%',
     textAlign: 'right',
     paddingRight: 10,
     fontWeight: 'bold',
@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   footerValue: {
-    width: '14%',
+    width: '20%',
     textAlign: 'right',
     paddingRight: 4,
     fontWeight: 'heavy',

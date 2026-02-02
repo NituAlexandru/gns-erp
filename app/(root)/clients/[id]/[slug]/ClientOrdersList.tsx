@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useTransition } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -10,50 +10,42 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { formatCurrency } from '@/lib/utils'
-import {
-  ClientOrderItem,
-  getOrdersForClient,
-} from '@/lib/db/modules/order/client-order.actions'
-import { OrderStatusBadge } from '@/app/(root)/orders/components/OrderStatusBadge'
 import { Button } from '@/components/ui/button'
+import { formatCurrency } from '@/lib/utils'
+import { ClientOrderItem } from '@/lib/db/modules/order/client-order.actions'
+import { OrderStatusBadge } from '@/app/(root)/orders/components/OrderStatusBadge'
 
 interface ClientOrdersListProps {
   clientId: string
+  initialData: {
+    data: ClientOrderItem[]
+    totalPages: number
+  }
+  currentPage: number
 }
 
-export function ClientOrdersList({ clientId }: ClientOrdersListProps) {
+export function ClientOrdersList({
+  clientId,
+  initialData,
+  currentPage,
+}: ClientOrdersListProps) {
   const router = useRouter()
-  const [orders, setOrders] = useState<ClientOrderItem[]>([])
-  const [totalPages, setTotalPages] = useState(0)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(1)
-
-  useEffect(() => {
-    const fetchOrders = () => {
-      startTransition(async () => {
-        try {
-          const result = await getOrdersForClient(clientId, page)
-          setOrders(result.data || [])
-          setTotalPages(result.totalPages || 0)
-        } catch (error) {
-          console.error('Failed to fetch client orders:', error)
-          setOrders([])
-          setTotalPages(0)
-        }
-      })
-    }
-    fetchOrders()
-  }, [clientId, page])
+  const orders = initialData?.data || []
+  const totalPages = initialData?.totalPages || 0
 
   const handleRowClick = (orderId: string) => {
     router.push(`/orders/${orderId}`)
   }
 
   const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setPage(newPage)
-    }
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', newPage.toString())
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   return (
@@ -103,7 +95,7 @@ export function ClientOrdersList({ clientId }: ClientOrdersListProps) {
             ) : (
               <TableRow>
                 <TableCell colSpan={5} className='text-center h-24'>
-                  Nicio comandă găsită pentru acest client.
+                  Nicio comandă găsită.
                 </TableCell>
               </TableRow>
             )}
@@ -111,23 +103,22 @@ export function ClientOrdersList({ clientId }: ClientOrdersListProps) {
         </Table>
       </div>
 
-      {/* Paginare */}
       {totalPages > 1 && (
         <div className='flex justify-center items-center gap-2 mt-0'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page - 1)}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(page + 1)}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

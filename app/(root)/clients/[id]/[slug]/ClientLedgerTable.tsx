@@ -10,14 +10,12 @@ import {
   TableFooter,
 } from '@/components/ui/table'
 import { formatCurrency, formatDateTime } from '@/lib/utils'
-import { getClientLedger } from '@/lib/db/modules/client/summary/client-summary.actions'
 import { ClientLedgerEntry } from '@/lib/db/modules/client/summary/client-summary.types'
-import { Loader2 } from 'lucide-react'
-import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
 interface ClientLedgerTableProps {
   clientId: string
+  entries: ClientLedgerEntry[]
   onInvoiceClick: (entry: ClientLedgerEntry) => void
   onPaymentClick: (paymentId: string) => void
   isAdmin: boolean
@@ -25,45 +23,17 @@ interface ClientLedgerTableProps {
 
 export function ClientLedgerTable({
   clientId,
+  entries = [],
   onInvoiceClick,
   onPaymentClick,
   isAdmin,
 }: ClientLedgerTableProps) {
-  const [entries, setEntries] = useState<ClientLedgerEntry[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [finalBalance, setFinalBalance] = useState(0)
-
-  useEffect(() => {
-    const fetchLedger = async () => {
-      setIsLoading(true)
-      const result = await getClientLedger(clientId)
-
-      if (result.success) {
-        setEntries(result.data)
-        if (result.data.length > 0) {
-          setFinalBalance(result.data[result.data.length - 1].runningBalance)
-        }
-      } else {
-        toast.error('Eroare la preluarea fișei contabile.', {
-          description: result.message,
-        })
-      }
-      setIsLoading(false)
-    }
-
-    fetchLedger()
-  }, [clientId])
+  // Calculăm soldul final pe loc (nu mai folosim state)
+  const finalBalance =
+    entries.length > 0 ? entries[entries.length - 1].runningBalance : 0
 
   const formatDate = (date: Date | string) =>
     formatDateTime(new Date(date)).dateOnly
-
-  if (isLoading) {
-    return (
-      <div className='flex items-center justify-center h-60'>
-        <Loader2 className='h-8 w-8 animate-spin text-muted-foreground' />
-      </div>
-    )
-  }
 
   if (entries.length === 0) {
     return (
@@ -101,7 +71,6 @@ export function ClientLedgerTable({
         </TableHeader>
         <TableBody>
           {entries.map((entry, index) => {
-            // Calculăm dacă scadența e depășită ȘI mai sunt bani de dat
             const isOverdue =
               entry.dueDate &&
               new Date(entry.dueDate).getTime() < new Date().getTime() &&
@@ -110,8 +79,6 @@ export function ClientLedgerTable({
             return (
               <TableRow key={index}>
                 <TableCell>{formatDate(entry.date)}</TableCell>
-
-                {/* Data scadenței devine roșie doar dacă isOverdue e true */}
                 <TableCell
                   className={cn(
                     'text-muted-foreground',
@@ -120,7 +87,6 @@ export function ClientLedgerTable({
                 >
                   {entry.dueDate ? formatDate(new Date(entry.dueDate)) : '-'}
                 </TableCell>
-
                 <TableCell>
                   {isAdmin ? (
                     <button
@@ -132,7 +98,6 @@ export function ClientLedgerTable({
                         }
                       }}
                       className='font-medium hover:underline text-left cursor-pointer'
-                      title='Vezi detalii alocare'
                     >
                       {entry.documentNumber}
                     </button>
@@ -140,31 +105,17 @@ export function ClientLedgerTable({
                     <span className='font-medium'>{entry.documentNumber}</span>
                   )}
                 </TableCell>
-
                 <TableCell className='text-muted-foreground'>
-                  {entry.documentNumber.startsWith('INIT-C') ? (
-                    entry.debit > 0 ? (
-                      <span className='font-medium text-foreground'>
-                        Sold Inițial - Debit
-                      </span>
-                    ) : (
-                      <span className='font-medium text-foreground'>
-                        Sold Inițial - Credit
-                      </span>
-                    )
-                  ) : (
-                    entry.details
-                  )}
+                  {entry.documentNumber.startsWith('INIT-C')
+                    ? entry.debit > 0
+                      ? 'Sold Inițial - Debit'
+                      : 'Sold Inițial - Credit'
+                    : entry.details}
                 </TableCell>
-
                 <TableCell className='text-right font-medium text-red-600'>
-                  {/* Afișăm orice valoare din debit (pozitivă sau negativă), atâta timp cât nu e 0 */}
                   {entry.debit !== 0 ? formatCurrency(entry.debit) : '—'}
                 </TableCell>
-
-                {/* 2. COLOANA CREDIT (Încasat) */}
                 <TableCell className='text-right font-medium text-green-600'>
-                  {/* Afișăm doar dacă există o încasare reală (Credit) */}
                   {entry.credit !== 0
                     ? formatCurrency(Math.abs(entry.credit))
                     : '—'}
@@ -176,8 +127,6 @@ export function ClientLedgerTable({
             )
           })}
         </TableBody>
-
-        {/* Footer-ul (NU mai este sticky) */}
         <TableFooter className='bg-background'>
           <TableRow>
             <TableCell colSpan={6} className='text-right'>

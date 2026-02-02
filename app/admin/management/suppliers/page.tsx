@@ -5,19 +5,22 @@ import { getAllSuppliersForAdmin } from '@/lib/db/modules/suppliers/supplier.act
 export default async function AdminSuppliersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>
+  searchParams: Promise<{ page?: string; q?: string }>
 }) {
   const session = await auth()
   const allowedRoles = ['Administrator', 'Admin', 'Manager']
+
   if (!session?.user?.role || !allowedRoles.includes(session.user.role)) {
     throw new Error(
-      'Nu aveți permisiunea necesară pentru a accesa această pagină.'
+      'Nu aveți permisiunea necesară pentru a accesa această pagină.',
     )
   }
 
-  const { page: pageParam } = await searchParams
-  const page = Number(pageParam) || 1
+  const resolvedParams = await searchParams
+  const page = Number(resolvedParams.page) || 1
+  const query = resolvedParams.q || ''
 
-  const data = await getAllSuppliersForAdmin({ page })
+  const data = await getAllSuppliersForAdmin({ page, query })
+
   return <SupplierList initialData={data} currentPage={page} />
 }
