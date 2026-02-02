@@ -43,7 +43,7 @@ import { syncDeliveryNoteWithDelivery } from '../financial/delivery-notes/delive
 
 function buildDeliveryLine(
   item: PlannerItem,
-  originalLine: IOrderLineItem
+  originalLine: IOrderLineItem,
 ): NewDeliveryLineData {
   const allUnits = [
     { unitName: item.baseUnit, baseUnitEquivalent: 1 },
@@ -53,11 +53,11 @@ function buildDeliveryLine(
   const conversionFactor = unitInfo?.baseUnitEquivalent || 1
   const quantityInBaseUnit = round2(item.quantityToAllocate * conversionFactor)
   const lineValue = round2(
-    item.quantityToAllocate * originalLine.priceAtTimeOfOrder
+    item.quantityToAllocate * originalLine.priceAtTimeOfOrder,
   )
 
   const lineVatValue = round2(
-    lineValue * (originalLine.vatRateDetails.rate / 100)
+    lineValue * (originalLine.vatRateDetails.rate / 100),
   )
   const lineTotal = round2(lineValue + lineVatValue)
   let correctedPriceInBaseUnit = originalLine.priceInBaseUnit
@@ -104,7 +104,7 @@ function buildDeliveryLine(
   return lineData
 }
 function calculateDeliveryTotals(
-  deliveryLines: NewDeliveryLineData[]
+  deliveryLines: NewDeliveryLineData[],
 ): IDelivery['totals'] {
   const totals: IDelivery['totals'] = {
     productsSubtotal: 0,
@@ -142,20 +142,20 @@ function calculateDeliveryTotals(
     totals.productsSubtotal +
       totals.packagingSubtotal +
       totals.servicesSubtotal +
-      totals.manualSubtotal
+      totals.manualSubtotal,
   )
   totals.vatTotal = round2(
     totals.productsVat +
       totals.packagingVat +
       totals.servicesVat +
-      totals.manualVat
+      totals.manualVat,
   )
   totals.grandTotal = round2(totals.subtotal + totals.vatTotal)
 
   // Rotunjim totul la final
   Object.keys(totals).forEach((key) => {
     totals[key as keyof IDelivery['totals']] = round2(
-      totals[key as keyof IDelivery['totals']]
+      totals[key as keyof IDelivery['totals']],
     )
   })
 
@@ -166,20 +166,20 @@ function createSingleDeliveryDocument(
   originalOrder: IOrder,
   originalLinesMap: Map<string, IOrderLineItem>,
   user: { id: string; name: string },
-  companyAddress?: CompanyAddressSnapshot
+  companyAddress?: CompanyAddressSnapshot,
 ): NewDeliveryData {
   const deliveryLinesData = plan.items.map((item) => {
     const originalLine = originalLinesMap.get(item.orderLineItemId!)
     if (!originalLine)
       throw new Error(
-        `Integrity Error: Original line ${item.orderLineItemId} not found.`
+        `Integrity Error: Original line ${item.orderLineItemId} not found.`,
       )
     return buildDeliveryLine(item, originalLine)
   })
   const deliveryTotals = calculateDeliveryTotals(deliveryLinesData)
 
   let finalAddress: DeliveryAddress = JSON.parse(
-    JSON.stringify(originalOrder.deliveryAddress)
+    JSON.stringify(originalOrder.deliveryAddress),
   )
 
   // Dacă e Ridicare Client și avem adresa companiei
@@ -228,7 +228,7 @@ function createSingleDeliveryDocument(
 }
 export async function createSingleDelivery(
   orderId: string,
-  plan: PlannedDelivery
+  plan: PlannedDelivery,
 ) {
   await connectToDatabase()
 
@@ -253,7 +253,7 @@ export async function createSingleDelivery(
       originalOrder.lineItems.map((line: IOrderLineItem) => [
         line._id.toString(),
         line,
-      ])
+      ]),
     )
 
     // 👇 --- FIX TIMEZONE ---
@@ -276,14 +276,14 @@ export async function createSingleDelivery(
       originalOrder,
       originalLinesMap,
       user,
-      companyAddress
+      companyAddress,
     )
 
     // 2. Generăm numărul de livrare folosind funcția atomică
 
     const deliveryNumber = await generateDeliveryNumber(
       originalOrder.orderNumber,
-      { session: mongoSession }
+      { session: mongoSession },
     )
 
     const deliveryForInsert: DeliveryDataForInsert = {
@@ -295,7 +295,7 @@ export async function createSingleDelivery(
     // 3. Inserăm livrarea
     const [savedDelivery] = await DeliveryModel.insertMany(
       [deliveryForInsert],
-      { session: mongoSession }
+      { session: mongoSession },
     )
 
     // 4. Actualizăm statusul comenzii la 'SCHEDULED' (dacă nu e deja)
@@ -306,7 +306,7 @@ export async function createSingleDelivery(
       await OrderModel.findByIdAndUpdate(
         orderId,
         { $set: { status: 'SCHEDULED' } },
-        { session: mongoSession }
+        { session: mongoSession },
       )
     }
 
@@ -354,7 +354,7 @@ export async function deleteDeliveryPlan(deliveryId: string) {
     const cancellableStatuses: DeliveryStatusKey[] = ['CREATED', 'SCHEDULED'] // Folosim tipul corect
     if (!cancellableStatuses.includes(delivery.status)) {
       throw new Error(
-        `Nu se poate anula o livrare cu statusul "${delivery.status}".`
+        `Nu se poate anula o livrare cu statusul "${delivery.status}".`,
       )
     }
 
@@ -375,7 +375,7 @@ export async function deleteDeliveryPlan(deliveryId: string) {
     if (remainingActiveDeliveries === 0) {
       // Găsim comanda și verificăm statusul curent înainte de a-l schimba
       const order = await OrderModel.findById(delivery.orderId).session(
-        mongoSession
+        mongoSession,
       )
       // Schimbăm statusul doar dacă e 'SCHEDULED' sau 'PARTIALLY_DELIVERED'
       if (
@@ -385,7 +385,7 @@ export async function deleteDeliveryPlan(deliveryId: string) {
         await OrderModel.findByIdAndUpdate(
           delivery.orderId,
           { $set: { status: 'CONFIRMED' } },
-          { session: mongoSession }
+          { session: mongoSession },
         )
       }
     }
@@ -409,7 +409,7 @@ export async function deleteDeliveryPlan(deliveryId: string) {
 }
 export async function updateSingleDelivery(
   deliveryId: string,
-  plan: PlannedDelivery
+  plan: PlannedDelivery,
 ) {
   await connectToDatabase()
 
@@ -436,13 +436,13 @@ export async function updateSingleDelivery(
     const readOnlyStatuses: string[] = ['INVOICED', 'CANCELLED', 'DELIVERED']
     if (readOnlyStatuses.includes(delivery.status)) {
       throw new Error(
-        `Nu se poate modifica o livrare cu statusul "${delivery.status}".`
+        `Nu se poate modifica o livrare cu statusul "${delivery.status}".`,
       )
     }
 
     // 3. Preluăm comanda originală
     const originalOrder: IOrder | null = await OrderModel.findById(
-      delivery.orderId
+      delivery.orderId,
     ).lean<IOrder>()
     if (!originalOrder) throw new Error('Comanda sursă nu a fost găsită.')
 
@@ -450,7 +450,7 @@ export async function updateSingleDelivery(
       originalOrder.lineItems.map((line: IOrderLineItem) => [
         line._id.toString(),
         line,
-      ])
+      ]),
     )
 
     // 4. Reconstruim datele
@@ -458,7 +458,7 @@ export async function updateSingleDelivery(
       const originalLine = originalLinesMap.get(item.orderLineItemId!)
       if (!originalLine)
         throw new Error(
-          `Integrity Error: Linia originală ${item.orderLineItemId} nu a fost găsită.`
+          `Integrity Error: Linia originală ${item.orderLineItemId} nu a fost găsită.`,
         )
       return buildDeliveryLine(item, originalLine)
     })
@@ -491,7 +491,7 @@ export async function updateSingleDelivery(
     await syncDeliveryNoteWithDelivery(
       savedDelivery as unknown as IDelivery,
       mongoSession,
-      user
+      user,
     )
 
     await mongoSession.commitTransaction()
@@ -517,7 +517,7 @@ export async function updateSingleDelivery(
 }
 /** Preia livrările asociate unei comenzi */
 export async function getDeliveriesByOrderId(
-  orderId: string
+  orderId: string,
 ): Promise<IDelivery[]> {
   try {
     await connectToDatabase()
@@ -535,7 +535,7 @@ export async function getDeliveriesByOrderId(
 }
 // ----------------------- For Delivery Planner ----------------------- //
 export async function getUnassignedDeliveriesForDate(
-  selectedDate: Date
+  selectedDate: Date,
 ): Promise<IDelivery[]> {
   try {
     await connectToDatabase()
@@ -566,7 +566,7 @@ export async function getUnassignedDeliveriesForDate(
  * Acestea sunt livrările care apar în grid-ul din dreapta.
  */
 export async function getAssignedDeliveriesForDate(
-  selectedDate: Date
+  selectedDate: Date,
 ): Promise<IDelivery[]> {
   try {
     await connectToDatabase()
@@ -595,7 +595,7 @@ export async function getAssignedDeliveriesForDate(
 
 export async function scheduleDelivery(
   deliveryId: string,
-  data: ScheduleDeliveryInput
+  data: ScheduleDeliveryInput,
 ) {
   await connectToDatabase()
 
@@ -622,7 +622,7 @@ export async function scheduleDelivery(
     const editableStatuses: DeliveryStatusKey[] = ['CREATED', 'SCHEDULED']
     if (!editableStatuses.includes(delivery.status)) {
       throw new Error(
-        `Nu se poate (re)programa o livrare cu statusul "${delivery.status}".`
+        `Nu se poate (re)programa o livrare cu statusul "${delivery.status}".`,
       )
     }
 
@@ -642,7 +642,7 @@ export async function scheduleDelivery(
         !mongoose.Types.ObjectId.isValid(data.assemblyId)
       ) {
         throw new Error(
-          'Trebuie să selectezi un ansamblu (șofer/vehicul) pentru livrările cu flotă proprie.'
+          'Trebuie să selectezi un ansamblu (șofer/vehicul) pentru livrările cu flotă proprie.',
         )
       }
     }
@@ -678,7 +678,7 @@ export async function scheduleDelivery(
 
       if (existingOverlap) {
         throw new Error(
-          `Suprapunere detectată. Ansamblul este deja programat pe slotul/sloturile selectate (Livrarea ${existingOverlap.deliveryNumber}).`
+          `Suprapunere detectată. Ansamblul este deja programat pe slotul/sloturile selectate (Livrarea ${existingOverlap.deliveryNumber}).`,
         )
       }
 
@@ -705,7 +705,7 @@ export async function scheduleDelivery(
 
       if (existingBlock) {
         throw new Error(
-          `Interval indisponibil. Există o notiță (${existingBlock.type}) pe acest interval.`
+          `Interval indisponibil. Există o notiță (${existingBlock.type}) pe acest interval.`,
         )
       }
       // ------------------------------------------------------------
@@ -835,7 +835,7 @@ export async function unassignDelivery(deliveryId: string) {
     const unassignableStatuses: DeliveryStatusKey[] = ['SCHEDULED']
     if (!unassignableStatuses.includes(delivery.status)) {
       throw new Error(
-        `Nu se poate dezaloca o livrare cu statusul "${delivery.status}".`
+        `Nu se poate dezaloca o livrare cu statusul "${delivery.status}".`,
       )
     }
 
@@ -880,72 +880,91 @@ export async function unassignDelivery(deliveryId: string) {
 export async function getFilteredDeliveries({
   search,
   status,
-  date,
+  startDate,
+  endDate,
   page = 1,
+  limit = PAGE_SIZE,
 }: {
   search?: string
   status?: string
-  date?: string
+  startDate?: string
+  endDate?: string
   page?: number
+  limit?: number
 }) {
-  await connectToDatabase()
+  try {
+    await connectToDatabase()
+    const skip = (page - 1) * limit
+    const query: any = {}
 
-  const query: FilterQuery<IDelivery> = {}
-
-  // căutare: client / nr comandă / nr livrare
-  if (search) {
-    const regex = { $regex: search, $options: 'i' }
-    query.$or = [
-      { 'clientSnapshot.name': regex },
-      { orderNumber: regex },
-      { deliveryNumber: regex },
-    ]
-  }
-
-  // filtrare după zi (pe deliveryDate)
-  if (date) {
-    const d = parseISO(date)
-    if (isValid(d)) {
-      query.deliveryDate = { $gte: startOfDay(d), $lte: endOfDay(d) }
+    // 1. Filtrare Search
+    if (search) {
+      const regex = new RegExp(search, 'i')
+      query.$or = [
+        { 'clientSnapshot.name': regex },
+        { orderNumber: regex },
+        { deliveryNumber: regex },
+        { createdByName: regex },
+      ]
     }
-  }
 
-  // status
-  if (status && status !== 'all') {
-    query.status = status
-  }
+    // 2. Filtrare Status
+    if (status && status !== 'all') {
+      query.status = status
+    }
 
-  const now = new Date()
-  const currentYearCount = await DeliveryModel.countDocuments({
-    createdAt: {
-      $gte: startOfYear(now),
-      $lte: endOfYear(now),
-    },
-    status: { $ne: 'CANCELLED' }, // Opțional: Dacă vrei să excluzi anulatele din numărătoare
-  })
+    // 3. Filtrare Dată (Exactă pe zi)
+    if (startDate || endDate) {
+      query.createdAt = {}
+      if (startDate) {
+        query.createdAt.$gte = new Date(startDate)
+      }
+      if (endDate) {
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999) // Sfârșitul zilei
+        query.createdAt.$lte = end
+      }
+    }
 
-  const safePage = Math.max(1, page)
-  const skipCount = (safePage - 1) * PAGE_SIZE
-  const totalCount = await DeliveryModel.countDocuments(query)
+    // 4. Executare Query (Count + Find)
+    const [totalCount, data] = await Promise.all([
+      DeliveryModel.countDocuments(query),
+      DeliveryModel.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+    ])
 
-  const deliveries = await DeliveryModel.find(query)
-    .sort({ createdAt: -1 }) // afișăm după data creării
-    .skip(skipCount)
-    .limit(PAGE_SIZE)
-    .lean()
+    // Optional: Calculăm și livrările din anul curent pentru statistica din header
+    const currentYearStart = new Date(new Date().getFullYear(), 0, 1)
+    const currentYearCount = await DeliveryModel.countDocuments({
+      createdAt: { $gte: currentYearStart },
+    })
 
-  return JSON.parse(
-    JSON.stringify({
-      data: deliveries,
-      currentYearCount,
+    return {
+      data: JSON.parse(JSON.stringify(data)),
       pagination: {
         totalCount,
-        currentPage: safePage,
-        totalPages: Math.max(1, Math.ceil(totalCount / PAGE_SIZE)),
-        pageSize: PAGE_SIZE,
+        currentPage: page,
+        totalPages: Math.ceil(totalCount / limit),
+        pageSize: limit,
       },
-    })
-  )
+      currentYearCount,
+    }
+  } catch (error) {
+    console.error('Error fetching deliveries:', error)
+    return {
+      data: [],
+      pagination: {
+        totalCount: 0,
+        currentPage: 1,
+        totalPages: 1,
+        pageSize: limit,
+      },
+      currentYearCount: 0,
+    }
+  }
 }
 
 export async function getRecentDeliveries() {

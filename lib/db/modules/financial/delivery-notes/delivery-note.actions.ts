@@ -1017,61 +1017,38 @@ export async function getDeliveryNoteById(
   }
 }
 export type DeliveryNoteStats = {
-  inTransit: number // Avize în tranzit (neconfirmate)
-  toInvoice: number
-  overdue: number
+  inTransit: number
+  delivered: number // De facturat
+  invoiced: number // Facturate (opțional, dacă vrei să afișezi)
+  cancelled: number
 }
 
 export async function getDeliveryNoteStats(): Promise<DeliveryNoteStats> {
   await connectToDatabase()
 
   try {
-    // Data limită: Acum 3 zile
-    const dateLimitForOverdue = new Date()
-    dateLimitForOverdue.setDate(dateLimitForOverdue.getDate() - 3)
-
     const stats = await DeliveryNoteModel.aggregate([
       {
         $match: {
-          status: { $in: ['IN_TRANSIT', 'DELIVERED'] },
+          status: {
+            $in: ['IN_TRANSIT', 'DELIVERED', 'INVOICED', 'CANCELLED'],
+          },
         },
       },
       {
         $group: {
           _id: null,
-          // 1. În Tranzit (Total)
           inTransit: {
             $sum: { $cond: [{ $eq: ['$status', 'IN_TRANSIT'] }, 1, 0] },
           },
-          // 2. Întârziate (În Tranzit + Mai vechi de 3 zile)
-          overdue: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$status', 'IN_TRANSIT'] },
-                    { $lt: ['$createdAt', dateLimitForOverdue] },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
+          delivered: {
+            $sum: { $cond: [{ $eq: ['$status', 'DELIVERED'] }, 1, 0] },
           },
-          // 3. De Facturat (Livrate dar nefacturate)
-          toInvoice: {
-            $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$status', 'DELIVERED'] },
-                    { $eq: ['$isInvoiced', false] },
-                  ],
-                },
-                1,
-                0,
-              ],
-            },
+          invoiced: {
+            $sum: { $cond: [{ $eq: ['$status', 'INVOICED'] }, 1, 0] },
+          },
+          cancelled: {
+            $sum: { $cond: [{ $eq: ['$status', 'CANCELLED'] }, 1, 0] },
           },
         },
       },
@@ -1080,14 +1057,15 @@ export async function getDeliveryNoteStats(): Promise<DeliveryNoteStats> {
     if (stats.length > 0) {
       return {
         inTransit: stats[0].inTransit || 0,
-        toInvoice: stats[0].toInvoice || 0,
-        overdue: stats[0].overdue || 0,
+        delivered: stats[0].delivered || 0,
+        invoiced: stats[0].invoiced || 0,
+        cancelled: stats[0].cancelled || 0,
       }
     }
 
-    return { inTransit: 0, toInvoice: 0, overdue: 0 }
+    return { inTransit: 0, delivered: 0, invoiced: 0, cancelled: 0 }
   } catch (error) {
     console.error('Eroare la calcularea statisticilor pentru avize:', error)
-    return { inTransit: 0, toInvoice: 0, overdue: 0 }
+    return { inTransit: 0, delivered: 0, invoiced: 0, cancelled: 0 }
   }
 }

@@ -39,68 +39,37 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 interface OrdersListProps {
-  initialData: {
-    data: PopulatedOrder[]
-    totalPages: number
-  }
+  orders: PopulatedOrder[]
+  totalPages: number
   currentPage: number
   isAdmin: boolean
 }
 
 export function OrdersList({
-  initialData,
+  orders,
+  totalPages,
   currentPage,
   isAdmin,
 }: OrdersListProps) {
   const router = useRouter()
-  const [orders, setOrders] = useState<PopulatedOrder[]>(initialData.data)
-  const [totalPages, setTotalPages] = useState(initialData.totalPages)
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [page, setPage] = useState(currentPage)
-  const [filters, setFilters] = useState<OrderFilters>({})
-  const debouncedFilters = useDebounce(filters, 500)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [orderToCancel, setOrderToCancel] = useState<PopulatedOrder | null>(
-    null
+    null,
   )
   const [cancellationWarning, setCancellationWarning] = useState<string | null>(
-    null
+    null,
   )
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const fetchOrders = () => {
-        startTransition(async () => {
-          const url = qs.stringifyUrl(
-            {
-              url: '/api/orders',
-              query: { ...debouncedFilters, page },
-            },
-            { skipNull: true, skipEmptyString: true }
-          )
-
-          try {
-            const res = await fetch(url)
-            const result = await res.json()
-            setOrders(result.data || [])
-            setTotalPages(result.totalPages || 0)
-          } catch (error) {
-            console.error('Failed to fetch filtered orders:', error)
-            setOrders([])
-            setTotalPages(0)
-          }
-        })
-      }
-      fetchOrders()
-    }
-  }, [debouncedFilters, page])
-
-  const handleFiltersChange = (newFilters: Partial<OrderFilters>) => {
-    setPage(1)
-    setFilters((prev) => ({ ...prev, ...newFilters }))
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    router.push(`${pathname}?${params.toString()}`)
   }
 
   const handleCancel = async () => {
@@ -110,11 +79,7 @@ export function OrdersList({
       const result = await cancelOrder(orderToCancel._id)
       if (result.success) {
         toast.success(result.message)
-        setOrders((prevOrders) =>
-          prevOrders.map((o) =>
-            o._id === orderToCancel._id ? { ...o, status: 'CANCELLED' } : o
-          )
-        )
+        router.refresh()
       } else {
         toast.error('Eroare la anulare', { description: result.message })
       }
@@ -141,13 +106,9 @@ export function OrdersList({
         <h1 className='text-2xl font-bold'>Comenzi</h1>
 
         <div className='flex items-center gap-2'>
-          <OrdersFilters
-            filters={filters}
-            onFiltersChange={handleFiltersChange}
-            isAdmin={true}
-          />
+          <OrdersFilters />
           <Button asChild>
-            <Link href='/orders/new'>Creare Comandă Nouă</Link>
+            <Link href='/orders/new'>Comandă Nouă</Link>
           </Button>
         </div>
       </div>
@@ -230,7 +191,7 @@ export function OrdersList({
                             startTransition(async () => {
                               const check =
                                 await checkOrderCancellationEligibility(
-                                  order._id
+                                  order._id,
                                 )
 
                               if (!check.allowed) {
@@ -277,18 +238,18 @@ export function OrdersList({
         <div className='flex items-center justify-center gap-2 mt-4'>
           <Button
             variant='outline'
-            onClick={() => setPage((p: number) => p - 1)}
-            disabled={page <= 1 || isPending}
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span className='text-sm'>
-            Pagina {page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => setPage((p: number) => p + 1)}
-            disabled={page >= totalPages || isPending}
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

@@ -41,11 +41,10 @@ export function OrdersStatsCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className='pb-1'>
-        {/* MODIFICAT: grid-cols-5 pentru a include noile statusuri */}
         <div className='grid grid-cols-5 gap-1 text-center divide-x'>
-          {/* 1. CIORNE (NOU) */}
+          {/* 1. CIORNE */}
           <Link
-            href='/orders' // Poți adăuga filtrare în URL dacă pagina suportă
+            href='/orders?status=DRAFT'
             className='flex flex-col items-center px-1 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
           >
             <span className='text-2xl font-bold text-gray-500'>
@@ -56,52 +55,55 @@ export function OrdersStatsCard() {
             </span>
           </Link>
 
-          {/* 2. ÎNTÂRZIATE (NOU) - Le punem în față pentru vizibilitate */}
-          <div className='flex flex-col items-center px-1 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'>
-            <span className='text-2xl font-bold text-rose-700'>
-              {stats?.overdue || 0}
-            </span>
-            <span className='text-[9px] text-rose-700 uppercase font-semibold mt-1 leading-tight'>
-              Întârziate
-            </span>
-          </div>
-
-          {/* 3. CONFIRMATE (De programat) */}
+          {/* 2. CONFIRMATE */}
           <Link
-            href='/orders'
+            href='/orders?status=CONFIRMED'
             className='flex flex-col items-center px-1 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
           >
             <span className='text-2xl font-bold text-red-600'>
               {stats?.confirmed || 0}
             </span>
             <span className='text-[9px] text-red-600 uppercase font-semibold mt-1 leading-tight'>
-              De Programat
+              Confirmate
             </span>
           </Link>
 
-          {/* 4. ÎN LIVRARE */}
+          {/* 3. PROGRAMATE */}
           <Link
-            href='/orders'
+            href='/orders?status=SCHEDULED'
+            className='flex flex-col items-center px-1 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
+          >
+            <span className='text-2xl font-bold text-orange-500'>
+              {stats?.scheduled || 0}
+            </span>
+            <span className='text-[9px] text-orange-500 uppercase font-semibold mt-1 leading-tight'>
+              Programate
+            </span>
+          </Link>
+
+          {/* 4. LIVRATE PARȚIAL */}
+          <Link
+            href='/orders?status=PARTIALLY_DELIVERED'
             className='flex flex-col items-center px-1 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
           >
             <span className='text-2xl font-bold text-yellow-500'>
-              {stats?.inProgress || 0}
+              {stats?.partiallyDelivered || 0}
             </span>
             <span className='text-[9px] uppercase font-semibold mt-1 leading-tight text-yellow-500'>
-              În Livrare
+              Livrate Parțial
             </span>
           </Link>
 
-          {/* 5. DE FACTURAT */}
+          {/* 5. LIVRATE INTEGRAL (Gata de factură) */}
           <Link
-            href='/orders'
+            href='/orders?status=DELIVERED'
             className='flex flex-col items-center px-1 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
           >
             <span className='text-2xl font-bold text-green-600'>
-              {stats?.toInvoice || 0}
+              {stats?.delivered || 0}
             </span>
             <span className='text-[9px] uppercase text-green-600 font-semibold mt-1 leading-tight'>
-              De Facturat
+              Livrate Integral
             </span>
           </Link>
         </div>
@@ -141,41 +143,57 @@ export function DeliveryNotesStatsCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className='pb-2'>
-        {/* MODIFICAT: grid-cols-3 */}
-        <div className='grid grid-cols-3 gap-2 text-center divide-x'>
-          {/* 1. ÎNTÂRZIATE (NOU) */}
-          <div className='flex flex-col items-center px-2 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'>
-            <span className='text-3xl font-bold text-rose-700'>
-              {stats?.overdue || 0}
-            </span>
-            <span className='text-[10px] text-rose-700 uppercase font-semibold mt-1 leading-tight'>
-              Întârziate
-            </span>
-          </div>
-
-          {/* 2. În Tranzit */}
+        {/* GRILĂ CU 4 COLOANE PENTRU TOATE STATUSURILE */}
+        <div className='grid grid-cols-4 gap-2 text-center divide-x'>
+          {/* 1. ÎN TRANZIT */}
           <Link
-            href='/financial/delivery-notes'
+            href='/financial/delivery-notes?status=IN_TRANSIT'
             className='flex flex-col items-center px-2 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
           >
-            <span className='text-3xl font-bold text-orange-500'>
-              {stats?.inTransit}
+            <span className='text-2xl font-bold text-yellow-500'>
+              {stats?.inTransit || 0}
             </span>
-            <span className='text-[10px] text-orange-500 uppercase font-semibold mt-1 leading-tight'>
+            <span className='text-[10px] text-yellow-500 uppercase font-semibold mt-1 leading-tight'>
               În Tranzit
             </span>
           </Link>
 
-          {/* 3. De Facturat */}
+          {/* 2. DE FACTURAT (Status: DELIVERED) */}
           <Link
-            href='/financial/delivery-notes'
+            href='/financial/delivery-notes?status=DELIVERED'
             className='flex flex-col items-center px-2 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
           >
-            <span className='text-3xl font-bold text-green-600'>
-              {stats?.toInvoice}
+            <span className='text-2xl font-bold text-green-600'>
+              {stats?.delivered || 0}
             </span>
             <span className='text-[10px] uppercase text-green-600 font-semibold mt-1 leading-tight'>
               De Facturat
+            </span>
+          </Link>
+
+          {/* 3. FACTURATE (Status: INVOICED) */}
+          <Link
+            href='/financial/delivery-notes?status=INVOICED'
+            className='flex flex-col items-center px-2 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
+          >
+            <span className='text-2xl font-bold text-sky-400'>
+              {stats?.invoiced || 0}
+            </span>
+            <span className='text-[10px] uppercase text-sky-400 font-semibold mt-1 leading-tight'>
+              Facturate
+            </span>
+          </Link>
+
+          {/* 4. ANULATE (Status: CANCELLED) */}
+          <Link
+            href='/financial/delivery-notes?status=CANCELLED'
+            className='flex flex-col items-center px-2 hover:bg-muted/50 rounded-md transition-colors cursor-pointer py-1'
+          >
+            <span className='text-2xl font-bold text-red-500'>
+              {stats?.cancelled || 0}
+            </span>
+            <span className='text-[10px] uppercase text-red-500 font-semibold mt-1 leading-tight'>
+              Anulate
             </span>
           </Link>
         </div>

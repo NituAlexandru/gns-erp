@@ -586,27 +586,112 @@ export async function cancelOrder(orderId: string) {
 }
 export async function getAllOrders(
   page: number = 1,
+  filters: {
+    q?: string
+    status?: string
+    minTotal?: number
+    dateFrom?: string
+    dateTo?: string
+  } = {},
 ): Promise<{ data: PopulatedOrder[]; totalPages: number }> {
   try {
     await connectToDatabase()
 
+    const { q, status, minTotal, dateFrom, dateTo } = filters
     const skipAmount = (page - 1) * PAGE_SIZE
 
-    const [orders, totalOrders] = await Promise.all([
-      Order.find({})
-        .sort({ createdAt: -1 })
-        .skip(skipAmount)
-        .limit(PAGE_SIZE)
-        .populate({ path: 'client', select: 'name' })
-        .populate({ path: 'salesAgent', select: 'name' })
-        .lean(),
-      Order.countDocuments({}),
-    ])
+    // 1. Construim Pipeline-ul de Agregare
+    const pipeline: any[] = []
 
-    const totalPages = Math.ceil(totalOrders / PAGE_SIZE)
+    // A. Match de bază (Status, Dată, Total)
+    const matchQuery: any = {}
+
+    if (status && status !== 'ALL') {
+      matchQuery.status = status
+    }
+
+    if (dateFrom || dateTo) {
+      matchQuery.createdAt = {}
+      if (dateFrom) matchQuery.createdAt.$gte = new Date(dateFrom)
+      if (dateTo) {
+        const end = new Date(dateTo)
+        end.setHours(23, 59, 59, 999)
+        matchQuery.createdAt.$lte = end
+      }
+    }
+
+    if (minTotal) {
+      matchQuery['totals.grandTotal'] = { $gte: minTotal }
+    }
+
+    // Adăugăm match-ul de bază în pipeline
+    if (Object.keys(matchQuery).length > 0) {
+      pipeline.push({ $match: matchQuery })
+    }
+
+    // B. Lookup-uri necesare pentru căutare text și populare
+    pipeline.push(
+      {
+        $lookup: {
+          from: 'clients',
+          localField: 'client',
+          foreignField: '_id',
+          as: 'clientDetails',
+        },
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'salesAgent',
+          foreignField: '_id',
+          as: 'agentDetails',
+        },
+      },
+    )
+
+    // C. Căutare Text (Dacă există q)
+    if (q) {
+      const regex = new RegExp(q, 'i')
+      pipeline.push({
+        $match: {
+          $or: [
+            { orderNumber: regex },
+            { 'clientDetails.name': regex },
+            { 'agentDetails.name': regex },
+          ],
+        },
+      })
+    }
+
+    // D. Facet pentru Paginare și Total
+    pipeline.push({
+      $facet: {
+        data: [
+          { $sort: { createdAt: -1 } },
+          { $skip: skipAmount },
+          { $limit: PAGE_SIZE },
+          // Proiectăm structura finală similară cu populate
+          {
+            $addFields: {
+              client: { $arrayElemAt: ['$clientDetails', 0] },
+              salesAgent: { $arrayElemAt: ['$agentDetails', 0] },
+            },
+          },
+          // Curățăm câmpurile temporare
+          { $project: { clientDetails: 0, agentDetails: 0 } },
+        ],
+        metadata: [{ $count: 'total' }],
+      },
+    })
+
+    const results = await Order.aggregate(pipeline)
+
+    const data = results[0].data || []
+    const totalCount = results[0].metadata[0]?.total || 0
+    const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
     return {
-      data: JSON.parse(JSON.stringify(orders)),
+      data: JSON.parse(JSON.stringify(data)),
       totalPages,
     }
   } catch (error) {
@@ -724,23 +809,21 @@ export async function getRecentOrders() {
   }
 }
 export type OrderStats = {
-  confirmed: number // Confirmate (De programat)
-  inProgress: number // Programate + Parțial Livrate
-  toInvoice: number // Livrate Integral + Parțial Facturate
-  drafts: number // <-- NOU
-  overdue: number
+  drafts: number // Ciorne
+  confirmed: number // Confirmate
+  scheduled: number // Programate (pregătite de livrare)
+  partiallyDelivered: number // Livrate Parțial
+  delivered: number // Livrate Integral (De facturat)
+  partiallyInvoiced: number // Facturate Parțial
 }
 export async function getOrderStats(): Promise<OrderStats> {
   await connectToDatabase()
 
   try {
-    // Definim "Întârziat" = Comenzi confirmate mai vechi de 3 zile care nu sunt programate
-    const dateLimitForOverdue = new Date()
-    dateLimitForOverdue.setDate(dateLimitForOverdue.getDate() - 3)
-
     const stats = await Order.aggregate([
       {
         $match: {
+          // Filtrăm doar statusurile care ne interesează în dashboard
           status: {
             $in: [
               'DRAFT',
@@ -756,48 +839,25 @@ export async function getOrderStats(): Promise<OrderStats> {
       {
         $group: {
           _id: null,
-          // 1. Ciorne (DRAFT)
           drafts: {
             $sum: { $cond: [{ $eq: ['$status', 'DRAFT'] }, 1, 0] },
           },
-          // 2. Confirmate (De programat)
           confirmed: {
             $sum: { $cond: [{ $eq: ['$status', 'CONFIRMED'] }, 1, 0] },
           },
-          // 3. Întârziate (Confirmate + Vechi de 3 zile)
-          overdue: {
+          scheduled: {
+            $sum: { $cond: [{ $eq: ['$status', 'SCHEDULED'] }, 1, 0] },
+          },
+          partiallyDelivered: {
             $sum: {
-              $cond: [
-                {
-                  $and: [
-                    { $eq: ['$status', 'CONFIRMED'] },
-                    { $lt: ['$createdAt', dateLimitForOverdue] },
-                  ],
-                },
-                1,
-                0,
-              ],
+              $cond: [{ $eq: ['$status', 'PARTIALLY_DELIVERED'] }, 1, 0],
             },
           },
-          // 4. În Progres (Programate/Parțial Livrate)
-          inProgress: {
-            $sum: {
-              $cond: [
-                { $in: ['$status', ['SCHEDULED', 'PARTIALLY_DELIVERED']] },
-                1,
-                0,
-              ],
-            },
+          delivered: {
+            $sum: { $cond: [{ $eq: ['$status', 'DELIVERED'] }, 1, 0] },
           },
-          // 5. De Facturat
-          toInvoice: {
-            $sum: {
-              $cond: [
-                { $in: ['$status', ['DELIVERED', 'PARTIALLY_INVOICED']] },
-                1,
-                0,
-              ],
-            },
+          partiallyInvoiced: {
+            $sum: { $cond: [{ $eq: ['$status', 'PARTIALLY_INVOICED'] }, 1, 0] },
           },
         },
       },
@@ -805,18 +865,33 @@ export async function getOrderStats(): Promise<OrderStats> {
 
     if (stats.length > 0) {
       return {
-        confirmed: stats[0].confirmed || 0,
-        inProgress: stats[0].inProgress || 0,
-        toInvoice: stats[0].toInvoice || 0,
         drafts: stats[0].drafts || 0,
-        overdue: stats[0].overdue || 0,
+        confirmed: stats[0].confirmed || 0,
+        scheduled: stats[0].scheduled || 0,
+        partiallyDelivered: stats[0].partiallyDelivered || 0,
+        delivered: stats[0].delivered || 0,
+        partiallyInvoiced: stats[0].partiallyInvoiced || 0,
       }
     }
 
-    return { confirmed: 0, inProgress: 0, toInvoice: 0, drafts: 0, overdue: 0 }
+    return {
+      drafts: 0,
+      confirmed: 0,
+      scheduled: 0,
+      partiallyDelivered: 0,
+      delivered: 0,
+      partiallyInvoiced: 0,
+    }
   } catch (error) {
-    console.error('Eroare la calcularea statisticilor pentru comenzi:', error)
-    return { confirmed: 0, inProgress: 0, toInvoice: 0, drafts: 0, overdue: 0 }
+    console.error('Eroare statistici comenzi:', error)
+    return {
+      drafts: 0,
+      confirmed: 0,
+      scheduled: 0,
+      partiallyDelivered: 0,
+      delivered: 0,
+      partiallyInvoiced: 0,
+    }
   }
 }
 export async function checkOrderCancellationEligibility(orderId: string) {

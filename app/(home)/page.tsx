@@ -8,7 +8,7 @@ import { RightPanel } from './components/right-panel'
 
 export default function HomePage() {
   return (
-    <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 h-[calc(100vh-64px)]'>
+    <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 h-full'>
       {/* --- COLOANA 1: COMENZI --- */}
       <div className='flex flex-col gap-4 h-full min-h-0'>
         <div className='flex-none'>
@@ -22,7 +22,6 @@ export default function HomePage() {
       {/* --- COLOANA 2: LIVRĂRI (AVIZE) --- */}
       <div className='flex flex-col gap-4 h-full min-h-0'>
         <div className='flex-none'>
-          {/* Folosim noua componentă */}
           <DeliveryNotesStatsCard />
         </div>
         <div className='flex-1 min-h-0 overflow-hidden'>

@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useRef } from 'react'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -22,15 +22,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
-
-function useDebounce<T>(value: T, delay = 400) {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(value), delay)
-    return () => clearTimeout(t)
-  }, [value, delay])
-  return debounced
-}
+import { DateRange } from 'react-day-picker'
 
 interface StatusOption {
   value: string
@@ -45,104 +37,84 @@ export default function FilterControls({ statuses }: FilterControlsProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [search, setSearch] = useState('')
-  const [status, setStatus] = useState('all')
-  const [date, setDate] = useState<Date | undefined>()
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // stabilizăm query-ul ca string pentru deps
-  const searchParamsString = useMemo(
-    () => searchParams.toString(),
-    [searchParams]
-  )
+  // -- LOGICĂ URL --
+  const updateUrl = (key: string, value: string | null) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('page', '1') // Reset pagină la orice filtrare
 
-  // sincronizează starea locală din URL
-  useEffect(() => {
-    const params = new URLSearchParams(searchParamsString)
-    setSearch(params.get('generalSearch') || '')
-    setStatus(params.get('status') || 'all')
-    const d = params.get('date')
-    setDate(d ? new Date(d) : undefined)
-  }, [searchParamsString])
-
-  const debouncedSearch = useDebounce(search, 400)
-
-  // actualizează URL când se schimbă filtrele (păstrăm page doar dacă nu s-au schimbat filtrele)
-  useEffect(() => {
-    const prev = new URLSearchParams(searchParamsString)
-    const prevSearch = prev.get('generalSearch') || ''
-    const prevStatus = prev.get('status') || 'all'
-    const prevDate = prev.get('date') || ''
-
-    const next = new URLSearchParams(prev.toString())
-
-    if (debouncedSearch) next.set('generalSearch', debouncedSearch)
-    else next.delete('generalSearch')
-
-    if (status && status !== 'all') next.set('status', status)
-    else next.delete('status')
-
-    if (date) next.set('date', format(date, 'yyyy-MM-dd'))
-    else next.delete('date')
-
-    const nextSearch = next.get('generalSearch') || ''
-    const nextStatus = next.get('status') || 'all'
-    const nextDate = next.get('date') || ''
-
-    const filtersChanged =
-      prevSearch !== nextSearch ||
-      prevStatus !== nextStatus ||
-      prevDate !== nextDate
-
-    if (filtersChanged) {
-      next.set('page', '1')
+    if (value && value !== 'all') {
+      params.set(key, value)
+    } else {
+      params.delete(key)
     }
+    router.replace(`${pathname}?${params.toString()}`)
+  }
 
-    const nextUrl = `${pathname}?${next.toString()}`
-    const currentUrl = `${pathname}?${searchParamsString}`
-    if (nextUrl !== currentUrl) {
-      router.replace(nextUrl)
-    }
-  }, [debouncedSearch, status, date, pathname, router, searchParamsString])
+  // 1. Search Text (Debounce)
+  const handleTextChange = (val: string) => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current)
+    timeoutRef.current = setTimeout(() => {
+      updateUrl('generalSearch', val)
+    }, 500)
+  }
 
+  // 2. Date Selection (Range)
+  const date: DateRange | undefined = {
+    from: searchParams.get('startDate')
+      ? new Date(searchParams.get('startDate')!)
+      : undefined,
+    to: searchParams.get('endDate')
+      ? new Date(searchParams.get('endDate')!)
+      : undefined,
+  }
+
+  const handleDateSelect = (newDate: DateRange | undefined) => {
+    const params = new URLSearchParams(searchParams)
+    params.set('page', '1')
+
+    if (newDate?.from)
+      params.set('startDate', format(newDate.from, 'yyyy-MM-dd'))
+    else params.delete('startDate')
+
+    if (newDate?.to) params.set('endDate', format(newDate.to, 'yyyy-MM-dd'))
+    else params.delete('endDate')
+
+    router.replace(`${pathname}?${params.toString()}`)
+  }
+
+  // 3. Reset
   const handleReset = () => {
-    setSearch('')
-    setStatus('all')
-    setDate(undefined)
-
-    const next = new URLSearchParams()
-    next.set('page', '1')
-
-    const nextUrl = `${pathname}?${next.toString()}`
-    const currentUrl = `${pathname}?${searchParamsString}`
-    if (nextUrl !== currentUrl) {
-      router.replace(nextUrl)
-    }
+    router.replace(pathname)
+    if (inputRef.current) inputRef.current.value = ''
   }
 
   return (
-    <Card className='m-0 p-3'>
-      <CardContent>
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4'>
-          {/* 🔍 Căutare */}
-          <Input
-            placeholder='Caută client / nr. comandă / nr. livrare...'
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className='lg:col-span-2'
-          />
+    <Card className='m-0 p-1'>
+      <CardContent className='p-0'>
+        <div className='flex flex-col lg:flex-row gap-4 items-center justify-between'>
+          <div className='flex flex-col lg:flex-row gap-2 w-full lg:w-auto'>
+            {/* 🔍 Căutare */}
+            <Input
+              ref={inputRef}
+              placeholder='Caută client / nr. comandă...'
+              defaultValue={searchParams.get('generalSearch')?.toString()}
+              onChange={(e) => handleTextChange(e.target.value)}
+              className='w-full lg:w-[300px]'
+            />
 
-          {/* ⚙️ Status */}
-          <div className='flex gap-2'>
-            <label className='text-sm font-medium mt-2 text-muted-foreground block'>
-              Status
-            </label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
+            {/* ⚙️ Status */}
+            <Select
+              value={searchParams.get('status')?.toString() || 'all'}
+              onValueChange={(val) => updateUrl('status', val)}
+            >
+              <SelectTrigger className='w-full lg:w-[200px]'>
                 <SelectValue placeholder='Selectează status' />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='all'>Toate</SelectItem>
+                <SelectItem value='all'>Toate statusurile</SelectItem>
                 {statuses.map((s) => (
                   <SelectItem key={s.value} value={s.value}>
                     {s.label}
@@ -150,42 +122,55 @@ export default function FilterControls({ statuses }: FilterControlsProps) {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* 📅 Dată */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={'outline'}
+                  className={cn(
+                    'w-full lg:w-[200px] justify-start text-left font-normal',
+                    !date && 'text-muted-foreground',
+                  )}
+                >
+                  <CalendarIcon className='mr-2 h-4 w-4' />
+                  {date?.from ? (
+                    date.to ? (
+                      <>
+                        {format(date.from, 'dd LLL y', { locale: ro })} -{' '}
+                        {format(date.to, 'dd LLL y', { locale: ro })}
+                      </>
+                    ) : (
+                      format(date.from, 'dd LLL y', { locale: ro })
+                    )
+                  ) : (
+                    <span>Alege perioada</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className='w-auto p-0' align='start'>
+                <Calendar
+                  mode='range'
+                  defaultMonth={date?.from}
+                  selected={date}
+                  onSelect={handleDateSelect}
+                  numberOfMonths={2}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
-          {/* 📅 Dată (zi unică pe deliveryDate) */}
-          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type='button'
-                className={cn(
-                  'w-full flex items-center justify-start border rounded-md px-3 py-2 text-sm text-left font-normal',
-                  !date && 'text-muted-foreground'
-                )}
-              >
-                <CalendarIcon className='mr-2 h-4 w-4' />
-                {date ? (
-                  format(date, 'PPP', { locale: ro })
-                ) : (
-                  <span>Alege o zi</span>
-                )}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className='w-auto p-0' align='start'>
-              <Calendar
-                mode='single'
-                selected={date}
-                onSelect={(d) => {
-                  setDate(d)
-                  setIsCalendarOpen(false)
-                }}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-
-          <Button variant='outline' onClick={handleReset}>
-            Resetează filtrele
-          </Button>
+          {/* Reset Button */}
+          {searchParams.toString().length > 0 && (
+            <Button
+              variant='ghost'
+              onClick={handleReset}
+              title='Resetează filtrele'
+            >
+              <X className='h-4 w-4 mr-2' /> Resetează
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
