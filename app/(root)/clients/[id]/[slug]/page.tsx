@@ -10,6 +10,7 @@ import ClientFileView from './client-file-view'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft } from 'lucide-react'
+import BackButton from '@/components/shared/back-button'
 
 export default async function ClientViewPage({
   params,
@@ -42,11 +43,7 @@ export default async function ClientViewPage({
   return (
     <div className='px-6 space-y-6'>
       <div className='flex items-center gap-4 mb-5'>
-        <Button asChild variant='outline'>
-          <Link href='/clients'>
-            <ChevronLeft /> Înapoi
-          </Link>
-        </Button>
+        <BackButton />
         <h1 className='text-2xl font-bold'>Fișă Client: {client.name}</h1>
       </div>
       <ClientFileView

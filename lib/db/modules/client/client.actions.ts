@@ -9,6 +9,7 @@ import { PAGE_SIZE } from '@/lib/constants'
 import { logAudit } from '../audit-logs/audit.actions'
 import { ClientWithSummary } from './summary/client-summary.model'
 import { getClientSummary } from './summary/client-summary.actions'
+import { FilterQuery } from 'mongoose'
 
 // Creează client
 export async function createClient(
@@ -16,7 +17,7 @@ export async function createClient(
   userId: string,
   userName: string,
   ip?: string,
-  userAgent?: string
+  userAgent?: string,
 ) {
   const payload = ClientCreateSchema.parse(data)
   await connectToDatabase()
@@ -40,7 +41,7 @@ export async function createClient(
     userId,
     { after: client },
     ip,
-    userAgent
+    userAgent,
   )
 
   return { success: true, message: 'Client creat cu succes' }
@@ -51,7 +52,7 @@ export async function updateClient(
   userId: string,
   userName: string,
   ip?: string,
-  userAgent?: string
+  userAgent?: string,
 ) {
   const payload = ClientUpdateSchema.parse(data)
   await connectToDatabase()
@@ -81,7 +82,7 @@ export async function updateClient(
     userId,
     { before, after: updated },
     ip,
-    userAgent
+    userAgent,
   )
 
   return { success: true, message: 'Client actualizat cu succes' }
@@ -92,7 +93,7 @@ export async function deleteClient(
   id: string,
   userId: string,
   ip?: string,
-  userAgent?: string
+  userAgent?: string,
 ) {
   await connectToDatabase()
 
@@ -130,9 +131,11 @@ export async function getClientById(id: string): Promise<ClientWithSummary> {
 export async function getAllClients({
   page = 1,
   limit = PAGE_SIZE,
+  query = '',
 }: {
   page?: number
   limit?: number
+  query?: string
 }): Promise<{
   data: IClientDoc[]
   totalPages: number
@@ -142,12 +145,31 @@ export async function getAllClients({
 }> {
   await connectToDatabase()
   const skip = (page - 1) * limit
-  const total = await ClientModel.countDocuments()
-  const data = await ClientModel.find()
-    .sort({ createdAt: -1, _id: -1 })
-    .skip(skip)
-    .limit(limit)
-    .lean()
+
+  // 1. Construim Filtrul
+  const filter: FilterQuery<typeof ClientModel> = {}
+
+  if (query) {
+    const regex = new RegExp(query, 'i')
+    filter.$or = [
+      { name: regex },
+      { cnp: { $regex: query, $options: 'i' } },
+      { vatId: { $regex: query, $options: 'i' } },
+      { email: regex },
+      { phone: regex },
+    ]
+  }
+
+  // 2. Aplicăm filtrul la find și count
+  const [data, total] = await Promise.all([
+    ClientModel.find(filter)
+      .sort({ createdAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    ClientModel.countDocuments(filter),
+  ])
+
   return {
     data: JSON.parse(JSON.stringify(data)) as IClientDoc[],
     totalPages: Math.ceil(total / limit),
@@ -155,6 +177,15 @@ export async function getAllClients({
     from: skip + 1,
     to: skip + data.length,
   }
+}
+export async function getClientByCode(code: string) {
+  await connectToDatabase()
+  const client = await ClientModel.findOne({
+    $or: [{ cnp: code }, { vatId: code }, { _id: code }],
+  }).lean()
+
+  if (!client) return null
+  return JSON.parse(JSON.stringify(client)) as IClientDoc
 }
 // pentru ORDER
 export type SearchedClient = {
@@ -165,7 +196,7 @@ export type SearchedClient = {
 type LeanClientForSearch = Pick<IClientDoc, '_id' | 'name' | 'vatId' | 'cnp'>
 
 export async function searchClients(
-  searchTerm: string
+  searchTerm: string,
 ): Promise<SearchedClient[]> {
   try {
     await connectToDatabase()
@@ -213,13 +244,13 @@ export async function searchClients(
 async function updateAddressStatus(
   clientId: string,
   addressId: string,
-  isActive: boolean
+  isActive: boolean,
 ) {
   await connectToDatabase()
 
   const result = await ClientModel.updateOne(
     { _id: clientId, 'deliveryAddresses._id': addressId },
-    { $set: { 'deliveryAddresses.$.isActive': isActive } }
+    { $set: { 'deliveryAddresses.$.isActive': isActive } },
   )
 
   if (result.matchedCount === 0) {
@@ -239,7 +270,7 @@ export async function deactivateDeliveryAddress(
   clientId: string,
   addressId: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _userId: string
+  _userId: string,
 ) {
   return updateAddressStatus(clientId, addressId, false)
 }
@@ -248,7 +279,7 @@ export async function reactivateDeliveryAddress(
   clientId: string,
   addressId: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _userId: string
+  _userId: string,
 ) {
   return updateAddressStatus(clientId, addressId, true)
 }
