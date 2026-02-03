@@ -368,7 +368,7 @@ export default function StockMovementsPage() {
                         </TableCell>
 
                         {/* 1. CELULA CANTITATE */}
-                        <TableCell className='text-right align-center py-1 lg:py-0 xl:py-1.5 2xl:py-2'>
+                        <TableCell className='text-right align-center py-1 lg:py-0 xl:py-0.5'>
                           <div className='flex flex-col gap-0'>
                             {/* Cantitate Principală */}
                             <span className='font-bold text-xs xl:text-sm leading-none'>
