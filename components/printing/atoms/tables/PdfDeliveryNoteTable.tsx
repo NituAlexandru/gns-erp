@@ -1,7 +1,7 @@
 import React from 'react'
 import { View, Text, StyleSheet, Image } from '@react-pdf/renderer' // Importat Image
 import { PDF_COLORS } from '../../config/styles'
-
+//
 const styles = StyleSheet.create({
   tableContainer: { flexDirection: 'column', marginTop: 2, width: '100%' },
   headerRow: {

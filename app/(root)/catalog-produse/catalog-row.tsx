@@ -60,7 +60,7 @@ export function CatalogRow({
   })
 
   // 2. CALCULĂM CELELALTE PREȚURI FOLOSIND FACTORUL COMUN
-  // Dacă factorul e 50 (Palet), înmulțim toate prețurile de bază cu 50.
+  // Dacă factorul e 50 (Pal), înmulțim toate prețurile de bază cu 50.
   const fullTruckPrice = item.fullTruckPrice * conversionFactor
   const smallBizPrice = item.smallDeliveryBusinessPrice * conversionFactor
   const retailPrice = item.retailPrice * conversionFactor

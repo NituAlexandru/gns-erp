@@ -454,4 +454,5 @@ export const ROMANIAN_BANKS = [
   'TechVentures Bank (fost Vista Bank)',
   'UniCredit Bank',
   'CitiBank',
+  'Allianz Bank Bulgaria AD',
 ]

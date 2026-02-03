@@ -83,6 +83,7 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # Foarte important
 
+- bug filtru data plati - nu gaseste tot din data respectriva. de ce?
 - de inchis cumva Aviz retur paleti - TRb generat nir cu cantitatile negative
 - receptie - mentiuni livrare in lista + blocaj la cantitati pana selecteaza UM
 - fisa client - LM FINANCIAL CONTA SERVICES S.R.L. bug sume 0
