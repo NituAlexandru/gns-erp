@@ -203,14 +203,28 @@ export function generateSplitInvoiceInputs(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { _id, ...cleanCommonData } = commonData as any
 
-  // 2. Calculăm Totalul General Original (Ținta noastră)
-  // Definim variabila AICI, la începutul funcției
+  // 2. CLASIFICARE: Separăm Ambalajele de Restul
+  const packagingItems = originalItems.filter(
+    (i) => i.stockableItemType === 'Packaging',
+  )
+  // "Orice nu e Packaging" intră aici (Produse, Servicii, Manuale, etc.)Asta garantează că nu pierdem nimic.
+  const otherItems = originalItems.filter(
+    (i) => i.stockableItemType !== 'Packaging',
+  )
+
+  // 3. CALCUL TOTALURI PENTRU ȚINTE
+  // Ținta Faza 1: Doar valoarea ambalajelor
+  const totalPackagingValue = packagingItems.reduce(
+    (acc, i) => acc + i.lineTotal,
+    0,
+  )
+  // Ținta Faza 2 (Finală): Valoarea întregii facturi
   const grandTotalOriginal = originalItems.reduce(
     (acc, i) => acc + i.lineTotal,
     0,
   )
 
-  // 3. Setup Trackers
+  // 4. Setup Trackers
   const clientItemsMap = new Map<string, InvoiceLineInput[]>()
   const balanceTrackers = new Map<string, ClientBalanceTracker>()
 
@@ -219,29 +233,64 @@ export function generateSplitInvoiceInputs(
     balanceTrackers.set(c.clientId, {
       clientId: c.clientId,
       targetPercentage: c.percentage,
-      accumulatedValue: 0,
+      accumulatedValue: 0, // Pornim de la 0
     })
   })
 
-  // 4. SORTARE CRITICĂ: Cantitate CRESCĂTOARE (a.quantity - b.quantity)
-  const sortedItems = [...originalItems].sort((a, b) => a.quantity - b.quantity)
-
-  // 5. Distribuim fiecare linie
-  for (const item of sortedItems) {
-    const distributedLines = distributeLineItem(
-      item,
-      splitConfigs,
-      balanceTrackers,
-      grandTotalOriginal, // Pasăm variabila calculată la pasul 2
+  // =========================================================
+  // FAZA 1: DISTRIBUIREA AMBALAJELOR
+  // Prioritate maximă: Împărțim paletii echitabil conform cotelor
+  // =========================================================
+  if (packagingItems.length > 0) {
+    // Sortăm cantitate crescătoare
+    const sortedPackaging = [...packagingItems].sort(
+      (a, b) => a.quantity - b.quantity,
     )
 
-    distributedLines.forEach((line, index) => {
-      const clientId = splitConfigs[index].clientId
-      clientItemsMap.get(clientId)?.push(line)
-    })
+    for (const item of sortedPackaging) {
+      const distributedLines = distributeLineItem(
+        item,
+        splitConfigs,
+        balanceTrackers,
+        totalPackagingValue, // <--- ȚINTA ESTE DOAR VALOAREA AMBALAJELOR
+      )
+
+      distributedLines.forEach((line, index) => {
+        const clientId = splitConfigs[index].clientId
+        clientItemsMap.get(clientId)?.push(line)
+      })
+    }
   }
 
-  // 6. Creăm facturile finale
+  // La finalul Fazei 1, `balanceTrackers` au acumulat valoarea ambalajelor.
+  // Dacă Client A are 50% și a primit fix 50% din ambalaje, e perfect.
+  // Dacă a primit mai mult (că nu s-a putut împărți paletul), va avea un surplus
+  // pe care îl vom compensa în Faza 2.
+
+  // =========================================================
+  // FAZA 2: DISTRIBUIREA RESTULUI (PRODUSE, SERVICII, ETC.)
+  // Scop: Echilibrarea Totalului General
+  // =========================================================
+  if (otherItems.length > 0) {
+    // Sortăm cantitate crescătoare
+    const sortedOthers = [...otherItems].sort((a, b) => a.quantity - b.quantity)
+
+    for (const item of sortedOthers) {
+      const distributedLines = distributeLineItem(
+        item,
+        splitConfigs,
+        balanceTrackers,
+        grandTotalOriginal, // <--- ȚINTA ESTE TOTALUL GENERAL (Include și ce s-a dat la amb)
+      )
+
+      distributedLines.forEach((line, index) => {
+        const clientId = splitConfigs[index].clientId
+        clientItemsMap.get(clientId)?.push(line)
+      })
+    }
+  }
+
+  // 5. Creăm facturile finale
   const invoices = splitConfigs.map((config) => {
     const items = clientItemsMap.get(config.clientId) || []
 
@@ -261,7 +310,7 @@ export function generateSplitInvoiceInputs(
     }
   })
 
-  // 7. Global Fail-Safe (Corecția fină de 0.01 RON)
+  // 6. Global Fail-Safe (Corecția fină de 0.01 RON)
   const generatedGrandTotal = invoices.reduce(
     (acc, inv) => acc + inv.totals.grandTotal,
     0,
