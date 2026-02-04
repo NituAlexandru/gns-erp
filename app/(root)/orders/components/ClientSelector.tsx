@@ -36,11 +36,13 @@ import { LOCKING_STATUS } from '@/lib/db/modules/client/summary/client-summary.c
 interface ClientSelectorProps {
   onClientSelect: (client: IClientDoc | null) => void
   selectedClient: ClientWithSummary | null
+  isDisabled?: boolean
 }
 
 export function ClientSelector({
   onClientSelect,
   selectedClient,
+  isDisabled = false,
 }: ClientSelectorProps) {
   const [open, setOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -102,6 +104,7 @@ export function ClientSelector({
             role='combobox'
             aria-expanded={open}
             className='w-full justify-between'
+            disabled={isDisabled}
           >
             {displayName}
             <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
@@ -173,11 +176,11 @@ export function ClientSelector({
                   'font-bold',
                   (selectedClient.summary?.outstandingBalance || 0) > 0.01
                     ? 'text-red-500'
-                    : 'text-green-500'
+                    : 'text-green-500',
                 )}
               >
                 {formatCurrency(
-                  selectedClient.summary?.outstandingBalance || 0
+                  selectedClient.summary?.outstandingBalance || 0,
                 )}
               </span>
             </div>

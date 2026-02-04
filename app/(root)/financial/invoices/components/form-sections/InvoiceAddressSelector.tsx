@@ -15,11 +15,13 @@ import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 interface InvoiceAddressSelectorProps {
   client: IClientDoc | null
   onAddressSelect: (address: IAddress | null) => void
+  isDisabled?: boolean
 }
 
 export function InvoiceAddressSelector({
   client,
   onAddressSelect,
+  isDisabled = false,
 }: InvoiceAddressSelectorProps) {
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(null)
 
@@ -27,7 +29,8 @@ export function InvoiceAddressSelector({
     return client?.deliveryAddresses.filter((addr) => addr.isActive) || []
   }, [client])
 
-  const isDisabled = !client || activeDeliveryAddresses.length === 0
+  const isLocalDisabled =
+    isDisabled || !client || activeDeliveryAddresses.length === 0
 
   // Setează o valoare default (prima adresă) când clientul se schimbă
   useEffect(() => {
@@ -45,7 +48,7 @@ export function InvoiceAddressSelector({
 
   const handleSelectChange = (addressId: string) => {
     const addressObject = activeDeliveryAddresses.find(
-      (addr) => addr._id?.toString() === addressId
+      (addr) => addr._id?.toString() === addressId,
     )
     if (addressObject) {
       setSelectedAddress(addressObject)
@@ -69,7 +72,7 @@ export function InvoiceAddressSelector({
         </label>
         <Select
           onValueChange={handleSelectChange}
-          disabled={isDisabled}
+          disabled={isLocalDisabled}
           value={selectedAddress?._id?.toString() || ''}
         >
           <SelectTrigger>

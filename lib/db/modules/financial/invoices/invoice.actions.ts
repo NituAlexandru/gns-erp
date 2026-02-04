@@ -1715,6 +1715,14 @@ export async function updateInvoice(
         )
       }
 
+      if (originalInvoice.splitGroupId) {
+        validatedData.clientId = originalInvoice.clientId.toString()
+        validatedData.deliveryAddressId =
+          originalInvoice.deliveryAddressId.toString()
+        validatedData.deliveryAddress = originalInvoice.deliveryAddress
+        validatedData.seriesName = originalInvoice.seriesName
+      }
+
       // 4. Recalculează totalurile
       const newTotals = calculateInvoiceTotals(validatedData.items)
 

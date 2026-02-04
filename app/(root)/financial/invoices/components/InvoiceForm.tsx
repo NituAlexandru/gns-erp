@@ -980,6 +980,7 @@ export function InvoiceForm({
             onAddressSelect={setSelectedAddress}
             onShowNoteLoader={() => setShowNoteLoaderModal(true)}
             initialData={initialData}
+            isReadOnly={isSplitGroupMember}
           />
           <InvoiceFormItems
             fields={fields}

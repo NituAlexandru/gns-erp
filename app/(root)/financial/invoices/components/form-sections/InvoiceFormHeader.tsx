@@ -56,6 +56,7 @@ interface InvoiceFormHeaderProps {
   onAddressSelect: (address: IAddress | null) => void
   onShowNoteLoader: () => void
   initialData: Partial<InvoiceInput> | null
+  isReadOnly?: boolean
 }
 
 export function InvoiceFormHeader({
@@ -65,6 +66,7 @@ export function InvoiceFormHeader({
   onAddressSelect,
   onShowNoteLoader,
   initialData,
+  isReadOnly = false,
 }: InvoiceFormHeaderProps) {
   const form = useFormContext<InvoiceInput>()
   const watchedInvoiceType = form.watch('invoiceType')
@@ -165,6 +167,7 @@ export function InvoiceFormHeader({
                 <FormItem className='flex flex-col'>
                   <ClientSelector
                     selectedClient={selectedClient}
+                    isDisabled={isReadOnly}
                     onClientSelect={(client) => {
                       field.onChange(client?._id.toString() || undefined)
                       onAddressSelect(null)
@@ -178,6 +181,7 @@ export function InvoiceFormHeader({
               <InvoiceAddressSelector
                 client={selectedClient}
                 onAddressSelect={onAddressSelect}
+                isDisabled={isReadOnly}
               />
             )}
           </div>
@@ -198,7 +202,7 @@ export function InvoiceFormHeader({
                             variant={'outline'}
                             className={cn(
                               'pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
+                              !field.value && 'text-muted-foreground',
                             )}
                           >
                             {field.value ? (
@@ -236,7 +240,7 @@ export function InvoiceFormHeader({
                             variant={'outline'}
                             className={cn(
                               'pl-3 text-left font-normal',
-                              !field.value && 'text-muted-foreground'
+                              !field.value && 'text-muted-foreground',
                             )}
                           >
                             {field.value ? (
