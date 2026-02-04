@@ -51,10 +51,8 @@ export interface CreateSplitInvoicesInput {
     InvoiceInput,
     'clientId' | 'clientSnapshot' | 'items' | 'totals' | 'companySnapshot'
   >
-
   // Lista de itemi originali (sursa)
   originalItems: InvoiceLineInput[]
-
   // Configurația de split (cine primește ce cotă)
   splitConfigs: {
     clientId: string
@@ -130,12 +128,17 @@ export async function createSplitInvoices(
       let relatedOrderIds: Types.ObjectId[] = []
       let relatedDeliveryIds: Types.ObjectId[] = []
 
+      let allUITs = ''
+      let allDrivers = ''
+      let allVehicles = ''
+      let allTrailers = ''
+
       if (sourceNoteIds.length > 0) {
         const sourceNotes = await DeliveryNoteModel.find({
           _id: { $in: sourceNoteIds },
         })
           .select(
-            'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId',
+            'orderNumberSnapshot deliveryNumberSnapshot seriesName noteNumber orderId deliveryId uitCode driverName vehicleNumber vehicleType trailerNumber',
           )
           .lean()
           .session(session)
@@ -149,6 +152,19 @@ export async function createSplitInvoices(
         const deliveryNoteNumbers = [
           ...new Set(sourceNotes.map((n) => `${n.seriesName}-${n.noteNumber}`)),
         ]
+
+        allUITs = [
+          ...new Set(sourceNotes.map((n) => n.uitCode).filter(Boolean)),
+        ].join(', ')
+        allDrivers = [
+          ...new Set(sourceNotes.map((n) => n.driverName).filter(Boolean)),
+        ].join(' / ')
+        allVehicles = [
+          ...new Set(sourceNotes.map((n) => n.vehicleNumber).filter(Boolean)),
+        ].join(' / ')
+        allTrailers = [
+          ...new Set(sourceNotes.map((n) => n.trailerNumber).filter(Boolean)),
+        ].join(' / ')
 
         // Convertim string -> ObjectId pentru referințe
         relatedOrderIds = [...new Set(sourceNotes.map((n) => n.orderId))].map(
@@ -227,10 +243,11 @@ export async function createSplitInvoices(
               deliveryNotesSnapshot: invoiceData.deliveryNotesSnapshot,
 
               // --- Detalii Transport ---
-              driverName: invoiceData.driverName,
-              vehicleNumber: invoiceData.vehicleNumber,
-              vehicleType: invoiceData.vehicleType,
-              trailerNumber: invoiceData.trailerNumber,
+              driverName: invoiceData.driverName || allDrivers,
+              vehicleNumber: invoiceData.vehicleNumber || allVehicles,
+              vehicleType: invoiceData.vehicleType, 
+              trailerNumber: invoiceData.trailerNumber || allTrailers,
+              uitCode: invoiceData.uitCode || allUITs,
 
               // --- Plăți (Default) ---
               paidAmount: 0,

@@ -43,14 +43,11 @@ export function SelectAvizeModal({
       setIsLoading(true)
       const result = await getUninvoicedDeliveryNotes(clientId, addressId)
       if (result.success && result.data) {
-        // --- 3. FILTREAZĂ REZULTATELE ---
         const filteredAvize = result.data.filter(
           (note) => !alreadyLoadedNoteIds.includes(note._id.toString()),
         )
-        setAvize(filteredAvize) // Setează lista deja filtrată
-        // --- SFÂRȘIT MODIFICARE ---
+        setAvize(filteredAvize) 
       } else {
-        // TODO: Arată o eroare toast
         console.error(result.message)
       }
       setIsLoading(false)
