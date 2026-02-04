@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
-    TableBody,
+  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -143,8 +143,14 @@ export function ReceivablesList({
                     </TableCell>
 
                     <TableCell className='py-1 font-medium uppercase'>
-                      {payment.seriesName ? `${payment.seriesName} - ` : ''}
-                      {payment.paymentNumber}
+                      <span
+                        className='cursor-pointer hover:underline hover:text-primary transition-colors'
+                        onClick={() => onOpenAllocationModal(payment)}
+                        title='Vezi Detalii Plată'
+                      >
+                        {payment.seriesName ? `${payment.seriesName} - ` : ''}
+                        {payment.paymentNumber}
+                      </span>
                     </TableCell>
 
                     <TableCell className='py-1'>

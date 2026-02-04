@@ -16,12 +16,13 @@ import { revalidatePath } from 'next/cache'
 import { connectToDatabase } from '@/lib/db'
 import ClientModel from '../../../client/client.model'
 import { recalculateClientSummary } from '../../../client/summary/client-summary.actions'
-import { RECEIVABLES_PAGE_SIZE } from '@/lib/constants'
+import { RECEIVABLES_PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import {
   getNextReceiptNumberPreview,
   incrementReceiptNumber,
 } from '../../../numbering/receipt-numbering.actions'
 import { getInvoiceById } from '../../invoices/invoice.actions'
+import { fromZonedTime } from 'date-fns-tz'
 
 type PopulatedClientPayment = ClientPaymentDTO & {
   clientId: {
@@ -238,12 +239,16 @@ export async function getClientPayments(
     if (filters?.from || filters?.to) {
       matchStage.paymentDate = {}
       if (filters.from) {
-        matchStage.paymentDate.$gte = new Date(filters.from)
+        matchStage.paymentDate.$gte = fromZonedTime(
+          `${filters.from} 00:00:00.000`,
+          TIMEZONE,
+        )
       }
       if (filters.to) {
-        const toDate = new Date(filters.to)
-        toDate.setHours(23, 59, 59, 999)
-        matchStage.paymentDate.$lte = toDate
+        matchStage.paymentDate.$lte = fromZonedTime(
+          `${filters.to} 23:59:59.999`,
+          TIMEZONE,
+        )
       }
     }
 

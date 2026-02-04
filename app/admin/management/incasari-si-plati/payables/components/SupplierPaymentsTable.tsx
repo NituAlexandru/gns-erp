@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter, usePathname, useSearchParams } from 'next/navigation' // <-- Importuri noi
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
   TableBody,
@@ -32,7 +32,7 @@ import {
 import { cancelSupplierPayment } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.actions'
 import { SUPPLIER_PAYMENT_STATUS_MAP } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.constants'
 import { PopulatedSupplierPayment } from './SupplierAllocationModal'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatCurrency, formatDateTime, toSlug } from '@/lib/utils'
 import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
 import { getPaymentMethodName } from '@/lib/db/modules/setting/efactura/anaf.constants'
@@ -80,7 +80,7 @@ export function SupplierPaymentsTable({
       const result = await cancelSupplierPayment(paymentToCancel._id)
       if (result.success) {
         toast.success(result.message)
-        router.refresh() // Reîmprospătăm datele
+        router.refresh()
       } else {
         toast.error(result.message)
       }
@@ -133,21 +133,40 @@ export function SupplierPaymentsTable({
                       {globalIndex}
                     </TableCell>
                     <TableCell className='font-medium py-0.5'>
-                      {/* Logică de afișare Serie/Număr */}
-                      {(() => {
-                        const series = payment.seriesName?.toUpperCase()
-                        const number = payment.paymentNumber || 'N/A'
-
-                        // Dacă avem serie, o afișăm cu liniuță. Dacă nu, afișăm doar numărul.
-                        return series ? `${series} - ${number}` : number
-                      })()}
+                      {/* 1. Am adăugat wrapper-ul SPAN clickabil */}
+                      <span
+                        className='cursor-pointer hover:underline hover:text-primary transition-colors'
+                        onClick={() => onOpenAllocationModal(payment)}
+                        title='Gestionează Plata / Alocările'
+                      >
+                        {(() => {
+                          const series = payment.seriesName?.toUpperCase()
+                          const number = payment.paymentNumber || 'N/A'
+                          return series ? `${series} - ${number}` : number
+                        })()}
+                      </span>
 
                       <div className='text-[10px] text-muted-foreground'>
                         {getPaymentMethodName(payment.paymentMethod)}
                       </div>
                     </TableCell>
                     <TableCell className='py-1'>
-                      {payment.supplierId?.name || 'Furnizor Șters'}
+                      {payment.supplierId ? (
+                        <span
+                          className='cursor-pointer hover:underline hover:text-primary transition-colors'
+                          onClick={() => {
+                            router.push(
+                              `/admin/management/suppliers/${payment.supplierId._id}/${toSlug(
+                                payment.supplierId.name,
+                              )}?tab=payments`,
+                            )
+                          }}
+                        >
+                          {payment.supplierId.name}
+                        </span>
+                      ) : (
+                        'Furnizor Șters'
+                      )}
                     </TableCell>
                     <TableCell className='py-1'>
                       {formatDateTime(new Date(payment.paymentDate)).dateOnly}

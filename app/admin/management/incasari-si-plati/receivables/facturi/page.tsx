@@ -12,6 +12,7 @@ export default async function InvoicesTab({
     status?: string
     from?: string
     to?: string
+    dateType?: string
   }>
 }) {
   const params = await searchParams
@@ -19,9 +20,10 @@ export default async function InvoicesTab({
 
   const invoicesData = await getAllUnpaidInvoices(page, RECEIVABLES_PAGE_SIZE, {
     search: params.q,
-    status: (await searchParams).status,
-    from: (await searchParams).from,
-    to: (await searchParams).to,
+    status: params.status,
+    from: params.from,
+    to: params.to,
+    dateType: params.dateType,
   })
 
   return (

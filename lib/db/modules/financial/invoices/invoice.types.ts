@@ -133,10 +133,27 @@ export interface PopulatedInvoice
     IInvoiceDoc,
     'clientId' | 'salesAgentId' | 'cancelledBy' | 'cancelledAt'
   > {
-  clientId: IClientDoc // Obiectul client complet
+  clientId: IClientDoc 
   salesAgentId: Pick<IUser, '_id' | 'name'> // Doar ID și nume agent
   cancelledBy?: string | any
   cancellationReason?: string
   cancelledByName?: string
   cancelledAt?: Date | string
+}
+
+export type ClientBalanceSummary = {
+  clientId: string
+  clientName: string
+  totalBalance: number
+  invoicesCount: number
+  invoices: {
+    _id: string
+    seriesName: string
+    invoiceNumber: string
+    invoiceDate: Date
+    dueDate: Date
+    grandTotal: number
+    remainingAmount: number
+    daysOverdue: number
+  }[]
 }

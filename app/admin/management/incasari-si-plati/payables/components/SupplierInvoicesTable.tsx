@@ -20,7 +20,7 @@ import {
 import { MoreHorizontal, Loader2 } from 'lucide-react'
 import { SupplierInvoiceListItem } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 import { SUPPLIER_INVOICE_STATUS_MAP } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.constants'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatCurrency, formatDateTime, toSlug } from '@/lib/utils'
 import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
 import { createSupplierCompensationPayment } from '@/lib/db/modules/financial/treasury/payables/supplier-allocation.actions'
 import { toast } from 'sonner'
@@ -80,7 +80,7 @@ export function SupplierInvoicesTable({
 
       if (result.success) {
         toast.success(result.message)
-        router.refresh() 
+        router.refresh()
       } else {
         toast.error('Eroare:', { description: result.message })
       }
@@ -144,9 +144,14 @@ export function SupplierInvoicesTable({
 
                     <TableCell className='py-1'>
                       <div className='flex items-center gap-2'>
-                        <span className='font-medium uppercase'>
+                        {/* 1. Am adăugat onClick și clasele de styling pe acest SPAN */}
+                        <span
+                          className='font-medium uppercase cursor-pointer hover:underline hover:text-primary transition-colors'
+                          onClick={() => onOpenDetailsSheet(inv._id)}
+                        >
                           {inv.invoiceSeries} - {inv.invoiceNumber}
                         </span>
+
                         {showNewBadge && (
                           <Badge
                             variant='success'
@@ -159,7 +164,22 @@ export function SupplierInvoicesTable({
                     </TableCell>
 
                     <TableCell className='py-1'>
-                      {inv.supplierId?.name || 'Furnizor Necunoscut'}
+                      {inv.supplierId ? (
+                        <span
+                          className='cursor-pointer hover:underline hover:text-primary transition-colors'
+                          onClick={() => {
+                            router.push(
+                              `/admin/management/suppliers/${inv.supplierId?._id}/${toSlug(
+                                inv.supplierId?.name || '',
+                              )}?tab=invoices`,
+                            )
+                          }}
+                        >
+                          {inv.supplierId.name}
+                        </span>
+                      ) : (
+                        'Furnizor Necunoscut'
+                      )}
                     </TableCell>
 
                     <TableCell className='py-1'>

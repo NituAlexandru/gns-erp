@@ -23,6 +23,7 @@ import {
   PopulatedInvoice,
   InvoiceFilters,
   SeriesStat,
+  ClientBalanceSummary,
 } from './invoice.types'
 import { ISettingInput } from '../../setting/types'
 import { IClientDoc } from '../../client/types'
@@ -37,7 +38,7 @@ import { round2 } from '@/lib/utils'
 import { IOrderLineItem } from '../../order/types'
 import { InvoiceLineInput } from './invoice.types'
 import Order, { IOrder } from '../../order/order.model'
-import { addDays, format, sub } from 'date-fns'
+import { addDays, differenceInDays, format, sub } from 'date-fns'
 import { ISeries } from '../../numbering/series.model'
 import { CreateStornoInput, CreateStornoSchema } from './storno.validator'
 import { CreateReturnNoteInput } from '../return-notes/return-note.validator'
@@ -2396,5 +2397,122 @@ export async function cancelInvoice(
     if (session.inTransaction()) await session.abortTransaction()
     await session.endSession()
     return { success: false, message: (error as Error).message }
+  }
+}
+
+export async function getClientBalances(
+  searchQuery?: string,
+): Promise<ClientBalanceSummary[]> {
+  try {
+    await connectToDatabase()
+
+    const pipeline: any[] = [
+      // 1. Filtrare de bază
+      {
+        $match: {
+          remainingAmount: { $ne: 0 }, // Doar ce are sold (pozitiv sau negativ)
+          status: { $ne: 'CANCELLED' }, // Excludem anulatele
+          invoiceType: { $ne: 'PROFORMA' }, // Excludem proformele
+          seriesName: { $ne: 'INIT-AMB' }, // Excludem ambalajele (opțional, după preferință)
+        },
+      },
+      // 2. Grupare pe Client
+      {
+        $group: {
+          _id: '$clientId',
+          // Încercăm să luăm snapshot-ul, dar facem și lookup mai jos pentru siguranță
+          clientSnapshot: { $first: '$clientSnapshot' },
+          totalBalance: { $sum: '$remainingAmount' },
+          invoicesCount: { $sum: 1 },
+          invoices: {
+            $push: {
+              _id: '$_id',
+              seriesName: '$seriesName',
+              invoiceNumber: '$invoiceNumber',
+              invoiceDate: '$invoiceDate',
+              dueDate: '$dueDate',
+              grandTotal: '$totals.grandTotal',
+              remainingAmount: '$remainingAmount',
+            },
+          },
+        },
+      },
+      // 3. Lookup pentru Nume Client Actualizat
+      {
+        $lookup: {
+          from: 'clients',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'clientDetails',
+        },
+      },
+      // 4. Pregătire pentru căutare (Flatten nume)
+      {
+        $addFields: {
+          computedName: {
+            $ifNull: [
+              { $arrayElemAt: ['$clientDetails.name', 0] },
+              '$clientSnapshot.name',
+              'Client Necunoscut',
+            ],
+          },
+        },
+      },
+    ]
+
+    // 5. Filtrare după Nume (Search)
+    if (searchQuery) {
+      pipeline.push({
+        $match: {
+          computedName: { $regex: searchQuery, $options: 'i' },
+        },
+      })
+    }
+
+    // 6. Sortare după Sold (Descrescător)
+    pipeline.push({ $sort: { totalBalance: -1 } })
+
+    const results = await InvoiceModel.aggregate(pipeline)
+    const today = new Date()
+
+    // 7. Procesare finală (Calcul Zile Depășite)
+    const formattedResults: ClientBalanceSummary[] = results.map((group) => {
+      const processedInvoices = group.invoices.map((inv: any) => {
+        const dueDate = new Date(inv.dueDate)
+        let daysOverdue = 0
+
+        // Calculăm zile doar pentru datorii active și scadență depășită
+        if (inv.remainingAmount > 0 && dueDate < today) {
+          daysOverdue = differenceInDays(today, dueDate)
+        }
+
+        return {
+          _id: inv._id.toString(),
+          seriesName: inv.seriesName,
+          invoiceNumber: inv.invoiceNumber,
+          invoiceDate: inv.invoiceDate,
+          dueDate: inv.dueDate,
+          grandTotal: inv.grandTotal,
+          remainingAmount: inv.remainingAmount,
+          daysOverdue: daysOverdue,
+        }
+      })
+
+      // Sortare internă facturi: cele mai depășite primele
+      processedInvoices.sort((a: any, b: any) => b.daysOverdue - a.daysOverdue)
+
+      return {
+        clientId: group._id.toString(),
+        clientName: group.computedName,
+        totalBalance: group.totalBalance,
+        invoicesCount: group.invoicesCount,
+        invoices: processedInvoices,
+      }
+    })
+
+    return formattedResults
+  } catch (error) {
+    console.error('Eroare getClientBalances:', error)
+    return []
   }
 }

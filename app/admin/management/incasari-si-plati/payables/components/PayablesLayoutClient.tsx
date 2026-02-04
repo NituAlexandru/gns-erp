@@ -52,6 +52,7 @@ export function PayablesLayoutClient({
   // Dacă suntem pe /payables/facturi -> tab-ul 'facturi' e activ
   const activeTab = useMemo(() => {
     if (pathname.includes('/plati')) return 'payments'
+    if (pathname.includes('/solduri')) return 'balances'
     if (pathname.includes('/mesaje-spv')) return 'anaf-inbox'
     if (pathname.includes('/logs')) return 'logs'
     return 'invoices' // Default
@@ -157,7 +158,14 @@ export function PayablesLayoutClient({
                     </Badge>
                   </TabsTrigger>
                 </Link>
-
+                <Link href='/admin/management/incasari-si-plati/payables/solduri'>
+                  <TabsTrigger
+                    value='balances'
+                    className='border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-1 cursor-pointer'
+                  >
+                    Solduri
+                  </TabsTrigger>
+                </Link>
                 <Link href='/admin/management/incasari-si-plati/payables/mesaje-spv'>
                   <TabsTrigger
                     value='anaf-inbox'

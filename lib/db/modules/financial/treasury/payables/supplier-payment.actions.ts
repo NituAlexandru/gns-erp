@@ -22,12 +22,13 @@ import Supplier from '../../../suppliers/supplier.model'
 import BudgetCategoryModel from '../budgeting/budget-category.model'
 import { PopulatedSupplierPayment } from '@/app/admin/management/incasari-si-plati/payables/components/SupplierAllocationModal'
 import { SupplierPaymentStatus } from './supplier-payment.constants'
-import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
+import { PAYABLES_PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 import {
   getNextPaymentNumberPreview,
   incrementPaymentNumber,
 } from '../../../numbering/payment-numbering.actions'
+import { fromZonedTime } from 'date-fns-tz'
 
 type AllocationDetail = { invoiceNumber: string; allocatedAmount: number }
 
@@ -306,7 +307,11 @@ export async function getSupplierPayments(
   try {
     await connectToDatabase()
     const skip = (page - 1) * limit
-    const startOfYear = new Date(new Date().getFullYear(), 0, 1)
+
+    const startOfYear = fromZonedTime(
+      `${new Date().getFullYear()}-01-01 00:00:00`,
+      TIMEZONE,
+    )
 
     const query: any = {}
 
@@ -333,11 +338,21 @@ export async function getSupplierPayments(
 
     if (filters?.from || filters?.to) {
       query.paymentDate = {}
-      if (filters.from) query.paymentDate.$gte = new Date(filters.from)
+
+      if (filters.from) {
+        // Ora 00:00:00 RO -> UTC
+        query.paymentDate.$gte = fromZonedTime(
+          `${filters.from} 00:00:00.000`,
+          TIMEZONE,
+        )
+      }
+
       if (filters.to) {
-        const toDate = new Date(filters.to)
-        toDate.setHours(23, 59, 59, 999)
-        query.paymentDate.$lte = toDate
+        // Ora 23:59:59 RO -> UTC
+        query.paymentDate.$lte = fromZonedTime(
+          `${filters.to} 23:59:59.999`,
+          TIMEZONE,
+        )
       }
     }
 

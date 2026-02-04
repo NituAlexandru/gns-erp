@@ -47,6 +47,7 @@ export default async function InvoicesPage({
     status?: string
     from?: string
     to?: string
+    dateType?: string
   }>
 }) {
   const session = await auth()
@@ -60,6 +61,7 @@ export default async function InvoicesPage({
         status: params.status,
         from: params.from,
         to: params.to,
+        dateType: params.dateType,
       }),
       getAllSuppliersForAdmin({ limit: 1000 }),
       getBudgetCategories(),

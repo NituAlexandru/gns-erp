@@ -16,12 +16,18 @@ import { ISettingInput } from '../../../setting/types'
 import { connectToDatabase } from '@/lib/db'
 import Supplier from '../../../suppliers/supplier.model'
 import { SupplierInvoiceStatus } from './supplier-invoice.constants'
-import { CLIENT_DETAIL_PAGE_SIZE, PAYABLES_PAGE_SIZE } from '@/lib/constants'
+import {
+  CLIENT_DETAIL_PAGE_SIZE,
+  PAYABLES_PAGE_SIZE,
+  TIMEZONE,
+} from '@/lib/constants'
 import { recalculateSupplierSummary } from '../../../suppliers/summary/supplier-summary.actions'
 import NirModel from '../../nir/nir.model'
 import { generateNextDocumentNumber } from '../../../numbering/numbering.actions'
 import { CreateOpeningBalanceInput } from '../../initial-balance/initial-balance.validator'
 import SupplierAllocationModel from './supplier-allocation.model'
+import { fromZonedTime } from 'date-fns-tz'
+import { differenceInDays } from 'date-fns'
 
 type SupplierInvoiceActionResult = {
   success: boolean
@@ -68,6 +74,23 @@ export interface ReceptionListItem {
   invoiceReference: string
   warehouseName: string
   totalValue: number
+}
+
+export type SupplierBalanceSummary = {
+  supplierId: string
+  supplierName: string
+  totalBalance: number
+  invoicesCount: number
+  invoices: {
+    _id: string
+    seriesName: string
+    invoiceNumber: string
+    invoiceDate: Date
+    dueDate: Date
+    grandTotal: number
+    remainingAmount: number
+    daysOverdue: number
+  }[]
 }
 
 function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
@@ -178,18 +201,20 @@ export async function getSupplierInvoices(
     status?: string
     from?: string
     to?: string
+    dateType?: string
   },
 ) {
   try {
     await connectToDatabase()
 
     const skip = (page - 1) * limit
-    const startOfYear = new Date(new Date().getFullYear(), 0, 1)
+    const startOfYear = fromZonedTime(
+      `${new Date().getFullYear()}-01-01 00:00:00`,
+      TIMEZONE,
+    )
 
-    // 1. Construim Query-ul (LA FEL CA ÎNAINTE)
-    const query: FilterQuery<typeof SupplierInvoiceModel> = {
-      invoiceSeries: { $ne: 'INIT-F' },
-    }
+    // 1. Construim Query-ul
+    const query: FilterQuery<typeof SupplierInvoiceModel> = {}
 
     if (filters?.q) {
       const regex = new RegExp(filters.q, 'i')
@@ -214,12 +239,24 @@ export async function getSupplierInvoices(
     }
 
     if (filters?.from || filters?.to) {
-      query.invoiceDate = {}
-      if (filters.from) query.invoiceDate.$gte = new Date(filters.from)
+      const dateField = filters?.dateType === 'due' ? 'dueDate' : 'invoiceDate'
+      query[dateField] = {}
+
+      if (filters.from) {
+        // Transformăm "2026-01-26" (RO) -> UTC-ul corespunzător orei 00:00 în RO
+        // Ex: 2026-01-26 00:00:00 RO devine 2026-01-25 22:00:00 UTC
+        const fromDateRO = fromZonedTime(
+          `${filters.from} 00:00:00.000`,
+          TIMEZONE,
+        )
+        query[dateField].$gte = fromDateRO
+      }
+
       if (filters.to) {
-        const toDate = new Date(filters.to)
-        toDate.setHours(23, 59, 59, 999)
-        query.invoiceDate.$lte = toDate
+        // Transformăm "2026-01-26" (RO) -> UTC-ul corespunzător orei 23:59 în RO
+        // Ex: 2026-01-26 23:59:59 RO devine 2026-01-26 21:59:59 UTC
+        const toDateRO = fromZonedTime(`${filters.to} 23:59:59.999`, TIMEZONE)
+        query[dateField].$lte = toDateRO
       }
     }
 
@@ -756,5 +793,119 @@ export async function deleteSupplierInvoice(
     await session.endSession()
     console.error('❌ Eroare deleteSupplierInvoice:', error)
     return { success: false, message: (error as Error).message }
+  }
+}
+
+export async function getSupplierBalances(
+  searchQuery?: string,
+): Promise<SupplierBalanceSummary[]> {
+  try {
+    await connectToDatabase()
+
+    // Construim pipeline-ul de agregare
+    const pipeline: any[] = [
+      // 1. Filtrăm doar facturile care mai au rest de plată SAU sunt storno active
+      // (Dacă vrei să vezi și istoricul celor plătite în lista asta, scoate remainingAmount: { $ne: 0 })
+      // Dar pentru "Solduri", de obicei vrei doar ce e activ.
+      {
+        $match: {
+          remainingAmount: { $ne: 0 },
+          status: { $ne: 'ANULATA' },
+        },
+      },
+      {
+        $group: {
+          _id: '$supplierId',
+          supplierSnapshot: { $first: '$supplierSnapshot' },
+          totalBalance: { $sum: '$remainingAmount' },
+          invoicesCount: { $sum: 1 },
+          invoices: {
+            $push: {
+              _id: '$_id',
+              seriesName: '$invoiceSeries',
+              invoiceNumber: '$invoiceNumber',
+              invoiceDate: '$invoiceDate',
+              dueDate: '$dueDate',
+              grandTotal: '$totals.grandTotal',
+              remainingAmount: '$remainingAmount',
+            },
+          },
+        },
+      },
+      // Lookup pentru a ne asigura că avem numele cel mai recent
+      {
+        $lookup: {
+          from: 'suppliers',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'supplierDetails',
+        },
+      },
+      // Adăugăm un câmp 'computedName' pentru filtrare ușoară
+      {
+        $addFields: {
+          computedName: {
+            $ifNull: [
+              { $arrayElemAt: ['$supplierDetails.name', 0] },
+              '$supplierSnapshot.name',
+            ],
+          },
+        },
+      },
+    ]
+
+    // --- FILTRARE DUPĂ NUME (Dacă există query) ---
+    if (searchQuery) {
+      pipeline.push({
+        $match: {
+          computedName: { $regex: searchQuery, $options: 'i' }, // Case insensitive
+        },
+      })
+    }
+
+    // Sortare finală
+    pipeline.push({ $sort: { totalBalance: -1 } })
+
+    const results = await SupplierInvoiceModel.aggregate(pipeline)
+    const today = new Date()
+
+    // 2. Procesare rezultate (calcul zile depășire)
+    const formattedResults: SupplierBalanceSummary[] = results.map((group) => {
+      const processedInvoices = group.invoices.map((inv: any) => {
+        const dueDate = new Date(inv.dueDate)
+        let daysOverdue = 0
+        // Calculăm zile doar pentru datorii active
+        if (inv.remainingAmount > 0 && dueDate < today) {
+          daysOverdue = differenceInDays(today, dueDate)
+        }
+
+        return {
+          _id: inv._id.toString(),
+          seriesName: inv.seriesName,
+          invoiceNumber: inv.invoiceNumber,
+          invoiceDate: inv.invoiceDate,
+          dueDate: inv.dueDate,
+          grandTotal: inv.grandTotal,
+          remainingAmount: inv.remainingAmount,
+          daysOverdue: daysOverdue,
+        }
+      })
+
+      // Sortare internă
+      processedInvoices.sort((a: any, b: any) => b.daysOverdue - a.daysOverdue)
+
+      return {
+        supplierId: group._id.toString(),
+        supplierName: group.computedName || 'Furnizor Necunoscut',
+        totalBalance: group.totalBalance,
+        invoicesCount: group.invoicesCount,
+        invoices: processedInvoices,
+      }
+    })
+
+    return formattedResults
+  } catch (error) {
+    console.error('Eroare getSupplierBalances:', error)
+    return []
   }
 }

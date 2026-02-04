@@ -35,6 +35,7 @@ export function ReceivablesLayoutClient({
   // --- DETERMINARE TAB ACTIV ---
   const activeTab = useMemo(() => {
     if (pathname.includes('/receivables/incasari')) return 'receipts'
+    if (pathname.includes('/receivables/solduri')) return 'balances'
     return 'invoices'
   }, [pathname])
 
@@ -103,6 +104,15 @@ export function ReceivablesLayoutClient({
                     <Badge variant='secondary' className='ml-2'>
                       {counts.receipts}
                     </Badge>
+                  </TabsTrigger>
+                </Link>
+
+                <Link href='/admin/management/incasari-si-plati/receivables/solduri'>
+                  <TabsTrigger
+                    value='balances'
+                    className='rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 cursor-pointer font-medium'
+                  >
+                    Solduri
                   </TabsTrigger>
                 </Link>
               </TabsList>

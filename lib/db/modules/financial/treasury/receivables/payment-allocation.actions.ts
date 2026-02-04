@@ -16,7 +16,8 @@ import { connectToDatabase } from '@/lib/db'
 import { ClientPaymentDTO, IClientPaymentDoc } from './client-payment.types'
 import { recalculateClientSummary } from '../../../client/summary/client-summary.actions'
 import ClientModel from '../../../client/client.model'
-import { RECEIVABLES_PAGE_SIZE } from '@/lib/constants'
+import { RECEIVABLES_PAGE_SIZE, TIMEZONE } from '@/lib/constants'
+import { fromZonedTime } from 'date-fns-tz'
 
 // Tipul de răspuns pentru acțiunile de alocare
 type AllocationActionResult = {
@@ -459,6 +460,7 @@ export async function getAllUnpaidInvoices(
     status?: string // 'ALL', 'APPROVED', 'PARTIAL_PAID'
     from?: string // 'YYYY-MM-DD'
     to?: string // 'YYYY-MM-DD'
+    dateType?: string
   },
 ) {
   try {
@@ -486,17 +488,25 @@ export async function getAllUnpaidInvoices(
     }
 
     // --- FILTRU DATĂ (Invoice Date) ---
+
     if (filters?.from || filters?.to) {
-      matchStage.invoiceDate = {}
+      // Determinăm câmpul: 'dueDate' (default) sau 'invoiceDate'
+      const dateField =
+        filters?.dateType === 'invoice' ? 'invoiceDate' : 'dueDate'
+
+      const dateMatch: any = {}
+
       if (filters.from) {
-        matchStage.invoiceDate.$gte = new Date(filters.from)
+        // Ora 00:00:00 RO -> UTC
+        dateMatch.$gte = fromZonedTime(`${filters.from} 00:00:00.000`, TIMEZONE)
       }
       if (filters.to) {
-        // Setăm ora la sfârșitul zilei pentru 'to' (23:59:59)
-        const toDate = new Date(filters.to)
-        toDate.setHours(23, 59, 59, 999)
-        matchStage.invoiceDate.$lte = toDate
+        // Ora 23:59:59 RO -> UTC
+        dateMatch.$lte = fromZonedTime(`${filters.to} 23:59:59.999`, TIMEZONE)
       }
+
+      // Aplicăm filtrul pe câmpul dinamic
+      matchStage[dateField] = dateMatch
     }
 
     pipeline.push({ $match: matchStage })

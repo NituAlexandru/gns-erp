@@ -1,10 +1,10 @@
 'use client'
 
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
-import { ro } from 'date-fns/locale' // Pentru limba română la calendar
-import { Calendar as CalendarIcon, Search, X } from 'lucide-react'
+import { ro } from 'date-fns/locale'
+import { CalendarClock, Calendar as CalendarIcon, X } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -27,17 +27,19 @@ export function PayablesFilterBar() {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-
   const isInvoices = pathname.includes('/facturi')
   const isPayments = pathname.includes('/plati')
   const isInbox = pathname.includes('/mesaje-spv')
   const isLogs = pathname.includes('/logs')
+  const isBalances = pathname.includes('/solduri')
 
-  // --- STATE ---
   const [text, setText] = useState(searchParams.get('q') || '')
   const [status, setStatus] = useState(searchParams.get('status') || 'ALL')
+  const [dateType, setDateType] = useState(
+    searchParams.get('dateType') || 'due',
+  )
+  const isMounted = useRef(false)
 
-  // Datele le ținem ca Date objects pentru Calendar, dar le convertim la string pentru URL
   const [fromDate, setFromDate] = useState<Date | undefined>(
     searchParams.get('from') ? new Date(searchParams.get('from')!) : undefined,
   )
@@ -49,6 +51,7 @@ export function PayablesFilterBar() {
   useEffect(() => {
     setText(searchParams.get('q') || '')
     setStatus(searchParams.get('status') || 'ALL')
+    setDateType(searchParams.get('dateType') || 'due')
     setFromDate(
       searchParams.get('from')
         ? new Date(searchParams.get('from')!)
@@ -59,40 +62,70 @@ export function PayablesFilterBar() {
     )
   }, [pathname, searchParams])
 
-  // --- ACTIONS ---
-  const applyFilters = () => {
+  // --- LOGICĂ ACTUALIZARE URL ---
+  const updateUrl = (
+    currentText: string,
+    currentStatus: string,
+    currentDateType: string,
+    currentFrom?: Date,
+    currentTo?: Date,
+  ) => {
     const params = new URLSearchParams(searchParams)
-    params.set('page', '1')
+    params.set('page', '1') // Resetăm pagina la 1
 
-    if (text) params.set('q', text)
+    if (currentText) params.set('q', currentText)
     else params.delete('q')
 
-    if (status && status !== 'ALL') params.set('status', status)
+    if (currentStatus && currentStatus !== 'ALL')
+      params.set('status', currentStatus)
     else params.delete('status')
 
-    if (fromDate) params.set('from', format(fromDate, 'yyyy-MM-dd'))
+    if (isInvoices) {
+      params.set('dateType', currentDateType)
+    } else {
+      params.delete('dateType')
+    }
+
+    if (currentFrom) params.set('from', format(currentFrom, 'yyyy-MM-dd'))
     else params.delete('from')
 
-    if (toDate) params.set('to', format(toDate, 'yyyy-MM-dd'))
+    if (currentTo) params.set('to', format(currentTo, 'yyyy-MM-dd'))
     else params.delete('to')
 
     router.push(`${pathname}?${params.toString()}`)
   }
 
+  // EFECT 1: Debounce Text
+  useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true
+      return
+    }
+    const timer = setTimeout(() => {
+      updateUrl(text, status, dateType, fromDate, toDate)
+    }, 500)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text])
+
+  // EFECT 2: Filtrare Instantanee (cu fix pentru bucla infinită)
+  useEffect(() => {
+    if (isMounted.current) {
+      updateUrl(text, status, dateType, fromDate, toDate)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, dateType, fromDate?.getTime(), toDate?.getTime()])
+
   const clearFilters = () => {
     setText('')
     setStatus('ALL')
+    setDateType('due')
     setFromDate(undefined)
     setToDate(undefined)
     router.push(pathname)
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') applyFilters()
-  }
-
-  // --- OPTIONS CONFIG ---
-  // Aici am reparat eroarea de TS definind tipul explicit
+  // Configurare opțiuni status
   let statusOptions: { value: string; label: string }[] = []
 
   if (isInvoices) {
@@ -127,99 +160,117 @@ export function PayablesFilterBar() {
 
   return (
     <div className='flex flex-wrap items-center gap-2'>
-      {/* 1. SEARCH TEXT */}
+      {/* 1. SEARCH TEXT - Rămâne vizibil pe Solduri */}
       {!isLogs && !isInbox && (
         <div className='relative'>
           <Input
             placeholder='Caută...'
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
             className='w-[180px] h-8 text-xs bg-background'
           />
         </div>
       )}
 
-      {/* 2. SHADCN SELECT (STATUS) */}
-      <Select value={status} onValueChange={setStatus}>
-        <SelectTrigger className='max-h-8.5 w-[120px] text-xs bg-background cursor-pointer'>
-          <SelectValue placeholder='Status' />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value='ALL'>Toate</SelectItem>
-          {statusOptions.map((opt) => (
-            <SelectItem
-              key={opt.value}
-              value={opt.value}
-              className='cursor-pointer'
-            >
-              {opt.label}
+      {/* 2. STATUS SELECT - ASCUNS PE SOLDURI */}
+      {!isBalances && (
+        <Select value={status} onValueChange={setStatus}>
+          <SelectTrigger className='max-h-8.5 w-[120px] text-xs bg-background cursor-pointer'>
+            <SelectValue placeholder='Status' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>Toate</SelectItem>
+            {statusOptions.map((opt) => (
+              <SelectItem
+                key={opt.value}
+                value={opt.value}
+                className='cursor-pointer'
+              >
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* 3. TIP DATĂ - Doar pe facturi */}
+      {isInvoices && (
+        <Select value={dateType} onValueChange={setDateType}>
+          <SelectTrigger className='h-8 w-[150px] text-xs bg-background cursor-pointer border-dashed'>
+            <div className='flex items-center gap-2'>
+              <CalendarClock className='h-3 w-3' />
+              <SelectValue placeholder='Tip Dată' />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='invoice' className='cursor-pointer'>
+              Dată Factură
             </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+            <SelectItem value='due' className='cursor-pointer'>
+              Dată Scadență
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      )}
 
-      {/* 3. DATE PICKERS (SHADCN POPOVER + CALENDAR) */}
-      <div className='flex items-center gap-1'>
-        {/* FROM DATE */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant={'outline'}
-              className={cn(
-                'h-8 w-[110px] justify-start text-left font-normal text-xs px-2 bg-background',
-                !fromDate && 'text-muted-foreground',
-              )}
-            >
-              <CalendarIcon className='mr-2 h-3 w-3' />
-              {fromDate ? format(fromDate, 'dd.MM.yyyy') : <span>De la</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className='w-auto p-0' align='start'>
-            <Calendar
-              mode='single'
-              selected={fromDate}
-              onSelect={setFromDate}
-              initialFocus
-              locale={ro}
-            />
-          </PopoverContent>
-        </Popover>
+      {/* 4. DATE PICKERS - ASCUNS PE SOLDURI */}
+      {!isBalances && (
+        <div className='flex items-center gap-1'>
+          {/* FROM DATE */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={'outline'}
+                className={cn(
+                  'h-8 w-[120px] justify-start text-left font-normal text-xs px-2 bg-background',
+                  !fromDate && 'text-muted-foreground',
+                )}
+              >
+                <CalendarIcon className='mr-2 h-3 w-3' />
+                {fromDate ? format(fromDate, 'dd.MM.yyyy') : <span>De la</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className='w-auto p-0' align='start'>
+              <Calendar
+                mode='single'
+                selected={fromDate}
+                onSelect={setFromDate}
+                initialFocus
+                locale={ro}
+              />
+            </PopoverContent>
+          </Popover>
 
-        <span className='text-muted-foreground text-xs'>-</span>
+          <span className='text-muted-foreground text-xs'>-</span>
 
-        {/* TO DATE */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant={'outline'}
-              className={cn(
-                'h-8 w-[110px] justify-start text-left font-normal text-xs px-2 bg-background',
-                !toDate && 'text-muted-foreground',
-              )}
-            >
-              <CalendarIcon className='mr-2 h-3 w-3' />
-              {toDate ? format(toDate, 'dd.MM.yyyy') : <span>Până la</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className='w-auto p-0' align='start'>
-            <Calendar
-              mode='single'
-              selected={toDate}
-              onSelect={setToDate}
-              initialFocus
-              locale={ro}
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
+          {/* TO DATE */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={'outline'}
+                className={cn(
+                  'h-8 w-[120px] justify-start text-left font-normal text-xs px-2 bg-background',
+                  !toDate && 'text-muted-foreground',
+                )}
+              >
+                <CalendarIcon className='mr-2 h-3 w-3' />
+                {toDate ? format(toDate, 'dd.MM.yyyy') : <span>Până la</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className='w-auto p-0' align='start'>
+              <Calendar
+                mode='single'
+                selected={toDate}
+                onSelect={setToDate}
+                initialFocus
+                locale={ro}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      )}
 
-      {/* 4. BUTTONS */}
-      <Button size='sm' onClick={applyFilters} className='h-8 text-xs px-3'>
-        <Search className='h-3 w-3 mr-1' />
-        Filtrează
-      </Button>
-
+      {/* Butonul de RESET */}
       {(text || status !== 'ALL' || fromDate || toDate) && (
         <Button
           variant='ghost'

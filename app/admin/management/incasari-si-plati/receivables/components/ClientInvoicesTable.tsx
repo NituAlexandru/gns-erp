@@ -141,7 +141,11 @@ export function ClientInvoicesTable({
 
                     <TableCell className='py-1'>
                       <div className='flex items-center gap-2'>
-                        <span className='font-semibold text-foreground uppercase'>
+                        <span
+                          className='font-semibold text-foreground uppercase cursor-pointer hover:underline hover:text-primary transition-colors'
+                          onClick={() => onViewInvoice(inv._id)}
+                          title='Vezi Detalii Factură'
+                        >
                           {inv.seriesName} - {inv.invoiceNumber}
                         </span>
                         {isNew(inv.invoiceDate) && (
