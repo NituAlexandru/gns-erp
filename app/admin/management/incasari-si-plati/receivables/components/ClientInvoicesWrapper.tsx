@@ -15,10 +15,12 @@ import { ClientInvoiceDetails } from './ClientInvoiceDetails'
 
 interface ClientInvoicesWrapperProps {
   initialData: any
+  currentUser: { id: string; name?: string | null }
 }
 
 export function ClientInvoicesWrapper({
   initialData,
+  currentUser,
 }: ClientInvoicesWrapperProps) {
   const router = useRouter()
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
@@ -81,6 +83,7 @@ export function ClientInvoicesWrapper({
         data={initialData}
         onOpenCreatePayment={handleOpenPayment}
         onViewInvoice={handleViewInvoice}
+        currentUser={currentUser}
       />
 
       {/* 1. MODAL ÎNCASARE (Create Payment) */}

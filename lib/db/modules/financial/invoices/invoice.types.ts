@@ -133,7 +133,7 @@ export interface PopulatedInvoice
     IInvoiceDoc,
     'clientId' | 'salesAgentId' | 'cancelledBy' | 'cancelledAt'
   > {
-  clientId: IClientDoc 
+  clientId: IClientDoc
   salesAgentId: Pick<IUser, '_id' | 'name'> // Doar ID și nume agent
   cancelledBy?: string | any
   cancellationReason?: string

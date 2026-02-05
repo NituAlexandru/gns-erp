@@ -2,6 +2,7 @@ import { getAllUnpaidInvoices } from '@/lib/db/modules/financial/treasury/receiv
 import { RECEIVABLES_PAGE_SIZE } from '@/lib/constants'
 import { ReceivablesSummaryCard } from '../components/ReceivablesSummaryCard'
 import { ClientInvoicesWrapper } from '../components/ClientInvoicesWrapper'
+import { auth } from '@/auth'
 
 export default async function InvoicesTab({
   searchParams,
@@ -17,6 +18,10 @@ export default async function InvoicesTab({
 }) {
   const params = await searchParams
   const page = Number(params.page) || 1
+  const session = await auth()
+  const currentUser = session?.user
+    ? { id: session.user.id || '', name: session.user.name }
+    : { id: '' }
 
   const invoicesData = await getAllUnpaidInvoices(page, RECEIVABLES_PAGE_SIZE, {
     search: params.q,
@@ -35,7 +40,10 @@ export default async function InvoicesTab({
       />
 
       <div className='flex-1 min-h-0'>
-        <ClientInvoicesWrapper initialData={invoicesData} />
+        <ClientInvoicesWrapper
+          initialData={invoicesData}
+          currentUser={currentUser}
+        />
       </div>
     </div>
   )

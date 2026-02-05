@@ -19,9 +19,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreHorizontal, Loader2 } from 'lucide-react'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatCurrency, formatDateTime, toSlug } from '@/lib/utils'
 import { INVOICE_STATUS_MAP } from '@/lib/db/modules/financial/invoices/invoice.constants'
 import { RECEIVABLES_PAGE_SIZE } from '@/lib/constants'
+import { createCompensationPayment } from '@/lib/db/modules/financial/treasury/receivables/payment-allocation.actions'
+import { toast } from 'sonner'
 
 // Tipul datelor returnate de funcția getAllUnpaidInvoices
 interface UnpaidInvoiceItem {
@@ -51,26 +53,54 @@ interface ClientInvoicesTableProps {
       totalPages: number
     }
   }
-  // Funcția care deschide modalul de plată precompletat
   onOpenCreatePayment: (
     clientId: string,
     clientName: string,
     invoiceId?: string,
   ) => void
   onViewInvoice: (invoiceId: string) => void
+  currentUser?: { id: string; name?: string | null }
 }
 
 export function ClientInvoicesTable({
   data,
   onOpenCreatePayment,
   onViewInvoice,
+  currentUser,
 }: ClientInvoicesTableProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-
   const currentPage = Number(searchParams.get('page')) || 1
   const [isPending, setIsPending] = useState(false)
+  const [processingId, setProcessingId] = useState<string | null>(null)
+
+  const handleCompensate = async (invoice: UnpaidInvoiceItem) => {
+    if (!currentUser?.id) {
+      toast.error('Eroare: Utilizator neidentificat.')
+      return
+    }
+
+    setProcessingId(invoice._id)
+    try {
+      const result = await createCompensationPayment(
+        invoice._id,
+        currentUser.id,
+        currentUser.name || 'Operator',
+      )
+
+      if (result.success) {
+        toast.success(result.message)
+        router.refresh()
+      } else {
+        toast.error('Eroare:', { description: result.message })
+      }
+    } catch {
+      toast.error('A apărut o eroare neașteptată.')
+    } finally {
+      setProcessingId(null)
+    }
+  }
 
   // Funcție schimbare pagină
   const handlePageChange = (newPage: number) => {
@@ -160,7 +190,22 @@ export function ClientInvoicesTable({
                     </TableCell>
 
                     <TableCell className='py-1 font-medium'>
-                      {inv.clientId?.name || 'Client Necunoscut'}
+                      {inv.clientId ? (
+                        <span
+                          className='cursor-pointer hover:underline hover:text-primary transition-colors'
+                          onClick={() => {
+                            router.push(
+                              `/clients/${inv.clientId._id}/${toSlug(
+                                inv.clientId.name,
+                              )}?tab=payments`,
+                            )
+                          }}
+                        >
+                          {inv.clientId.name}
+                        </span>
+                      ) : (
+                        'Client Necunoscut'
+                      )}
                     </TableCell>
 
                     <TableCell className='py-1 text-muted-foreground'>
@@ -219,19 +264,32 @@ export function ClientInvoicesTable({
                             Vezi Detalii
                           </DropdownMenuItem>
 
-                          {/* 2. Modificat: Schimbat textul în "Înregistrează Plată" */}
-                          <DropdownMenuItem
-                            className=' cursor-pointer font-medium'
-                            onClick={() =>
-                              onOpenCreatePayment(
-                                inv.clientId._id,
-                                inv.clientId.name,
-                                inv._id,
-                              )
-                            }
-                          >
-                            Adaugă Încasare
-                          </DropdownMenuItem>
+                          {isNegative ? (
+                            <DropdownMenuItem
+                              onClick={() => handleCompensate(inv)}
+                              disabled={processingId === inv._id}
+                              className='text-red-500 focus:text-red-600 focus:bg-red-50 cursor-pointer'
+                            >
+                              {processingId === inv._id ? (
+                                <Loader2 className='h-4 w-4 mr-2 animate-spin' />
+                              ) : null}
+                              Generează Compensare
+                            </DropdownMenuItem>
+                          ) : (
+                            /* Altfel -> Arătăm Încasare Normală */
+                            <DropdownMenuItem
+                              className='cursor-pointer font-medium'
+                              onClick={() =>
+                                onOpenCreatePayment(
+                                  inv.clientId._id,
+                                  inv.clientId.name,
+                                  inv._id,
+                                )
+                              }
+                            >
+                              Adaugă Încasare
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

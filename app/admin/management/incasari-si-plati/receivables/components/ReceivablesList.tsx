@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { formatCurrency, formatDateTime } from '@/lib/utils'
+import { formatCurrency, formatDateTime, toSlug } from '@/lib/utils'
 import { PopulatedClientPayment } from '@/lib/db/modules/financial/treasury/receivables/client-payment.types'
 import { CLIENT_PAYMENT_STATUS_MAP } from '@/lib/db/modules/financial/treasury/receivables/client-payment.constants'
 import { cancelClientPayment } from '@/lib/db/modules/financial/treasury/receivables/client-payment.actions'
@@ -154,7 +154,22 @@ export function ReceivablesList({
                     </TableCell>
 
                     <TableCell className='py-1'>
-                      {payment.clientId?.name || 'N/A'}
+                      {payment.clientId ? (
+                        <span
+                          className='cursor-pointer hover:underline hover:text-primary transition-colors'
+                          onClick={() => {
+                            router.push(
+                              `/clients/${payment.clientId._id}/${toSlug(
+                                payment.clientId.name,
+                              )}?tab=payments`,
+                            )
+                          }}
+                        >
+                          {payment.clientId.name}
+                        </span>
+                      ) : (
+                        'N/A'
+                      )}
                     </TableCell>
 
                     <TableCell className='py-1 text-muted-foreground'>

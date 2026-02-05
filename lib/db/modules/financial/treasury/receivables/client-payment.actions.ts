@@ -379,6 +379,10 @@ export async function cancelClientPayment(
         await ClientPaymentModel.findById(paymentId).session(session)
       if (!payment) throw new Error('Încasarea nu a fost găsită.')
 
+      if (payment.paymentMethod === 'COMPENSARE') {
+        throw new Error('Plățile de tip COMPENSARE nu pot fi anulate manual.')
+      }
+
       // SALVĂM ID-UL CLIENTULUI PENTRU RECALCULARE ULTERIOARĂ
       clientIdToRecalc = payment.clientId.toString()
 
