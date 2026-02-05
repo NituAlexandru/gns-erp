@@ -18,6 +18,20 @@ const ClientPaymentSchema = new Schema<IClientPaymentDoc>(
     },
     paymentDate: { type: Date, required: true, default: Date.now },
     paymentMethod: { type: String, required: true, enum: PAYMENT_METHODS },
+    currency: {
+      type: String,
+      default: 'RON',
+      required: true,
+    },
+    exchangeRate: {
+      type: Number,
+      default: 1,
+      required: true,
+    },
+    originalCurrencyAmount: {
+      type: Number,
+      required: false,
+    },
     totalAmount: { type: Number, required: true },
     unallocatedAmount: { type: Number, required: true },
     referenceDocument: {

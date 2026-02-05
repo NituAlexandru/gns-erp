@@ -17,6 +17,9 @@ export const SupplierPaymentPayloadSchema = z.object({
     required_error: 'Data plății este obligatorie.',
   }),
   paymentMethod: z.enum(PAYMENT_METHODS),
+  currency: z.string().default('RON'), // RON, EUR, USD
+  exchangeRate: z.number().optional().default(1), // Cursul
+  originalCurrencyAmount: z.number().optional(), // Suma în valută
   totalAmount: z
     .number({ required_error: 'Suma este obligatorie.' })
     .positive('Suma trebuie să fie mai mare ca 0.'),

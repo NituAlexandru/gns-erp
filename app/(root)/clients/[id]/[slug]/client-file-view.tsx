@@ -76,6 +76,8 @@ export default function ClientFileView({
       status: 'NEALOCATA',
       createdByName: '',
       createdAt: new Date().toISOString(),
+      currency: 'RON',
+      exchangeRate: 1,
     }
     setSelectedPayment(pseudoPayment)
   }

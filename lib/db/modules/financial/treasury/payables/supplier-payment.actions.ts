@@ -90,6 +90,13 @@ export async function createSupplierPayment(
       const validatedData = CreateSupplierPaymentFormSchema.parse(data)
       const totalAmount = Number(validatedData.totalAmount)
 
+      // Dacă utilizatorul a ales RON, ne asigurăm că cursul este 1 și suma originală este identică cu totalul
+      if (validatedData.currency === 'RON') {
+        validatedData.exchangeRate = 1
+        validatedData.originalCurrencyAmount = totalAmount
+      }
+      // ---------------------------------------------
+
       const expectedAutoNumber = await getNextPaymentNumberPreview()
 
       if (validatedData.paymentNumber === expectedAutoNumber) {

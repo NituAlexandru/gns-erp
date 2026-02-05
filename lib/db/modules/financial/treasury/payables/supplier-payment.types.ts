@@ -1,4 +1,4 @@
-import { Types, Document } from 'mongoose' 
+import { Types, Document } from 'mongoose'
 import { z } from 'zod'
 import { ISupplierDoc } from '../../../suppliers/types'
 import { SupplierPaymentPayloadSchema } from './supplier-payment.validator'
@@ -31,7 +31,9 @@ export interface ISupplierPaymentDoc extends Document {
   notes?: string
   status: SupplierPaymentStatus
 
-  // --- Adăugăm snapshot-ul opțional ---
+  currency: string
+  exchangeRate: number
+  originalCurrencyAmount?: number
   budgetCategorySnapshot?: BudgetCategorySnapshot
 
   createdBy: Types.ObjectId
@@ -49,9 +51,12 @@ export interface SupplierPaymentDTO {
   sequenceNumber: number | null
   supplierId: string
   supplierName?: string
-  paymentDate: string 
+  paymentDate: string
   paymentMethod: string
   totalAmount: number
+  currency: string
+  exchangeRate: number
+  originalCurrencyAmount?: number
   unallocatedAmount: number
   referenceDocument?: string
   notes?: string

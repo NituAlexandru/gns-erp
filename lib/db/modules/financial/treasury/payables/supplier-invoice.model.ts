@@ -18,7 +18,7 @@ const FiscalAddressSubSchema = new Schema(
     tara: { type: String, required: true },
     alteDetalii: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const CompanySnapshotSubSchema = new Schema<OurCompanySnapshot>(
@@ -34,7 +34,7 @@ const CompanySnapshotSubSchema = new Schema<OurCompanySnapshot>(
     currency: { type: String, required: true },
     contactName: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const SupplierSnapshotSubSchema = new Schema<SupplierSnapshot>(
@@ -51,7 +51,7 @@ const SupplierSnapshotSubSchema = new Schema<SupplierSnapshot>(
     contactPhone: { type: String },
     contactEmail: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const SupplierInvoiceLineSubSchema = new Schema<SupplierInvoiceLine>(
@@ -74,8 +74,9 @@ const SupplierInvoiceLineSubSchema = new Schema<SupplierInvoiceLine>(
     allowanceAmount: { type: Number },
     description: { type: String },
     cpvCode: { type: String },
+    originalCurrencyAmount: { type: Number },
   },
-  { _id: true }
+  { _id: true },
 )
 const ReferencesSubSchema = new Schema(
   {
@@ -91,7 +92,7 @@ const ReferencesSubSchema = new Schema(
       oldInvoiceDate: Date,
     },
   },
-  { _id: false }
+  { _id: false },
 )
 const SupplierInvoiceTotalsSubSchema = new Schema<SupplierInvoiceTotals>(
   {
@@ -110,8 +111,9 @@ const SupplierInvoiceTotalsSubSchema = new Schema<SupplierInvoiceTotals>(
     prepaidAmount: { type: Number },
     globalDiscount: { type: Number },
     globalTax: { type: Number },
+    originalCurrencyTotal: { type: Number },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
@@ -136,7 +138,8 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
     invoiceDate: { type: Date, required: true, index: true },
     dueDate: { type: Date, required: true },
     taxPointDate: { type: Date },
-    exchangeRate: Number,
+    originalCurrency: { type: String },
+    exchangeRate: { type: Number, default: 1 },
     items: [SupplierInvoiceLineSubSchema],
     totals: { type: SupplierInvoiceTotalsSubSchema, required: true },
     taxSubtotals: [
@@ -150,7 +153,7 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
     paymentId: { type: String },
     buyerReference: { type: String },
     paymentMethodCode: { type: String },
-    invoiceCurrency: { type: String },
+    invoiceCurrency: { type: String, default: 'RON' },
     references: { type: ReferencesSubSchema },
     invoicePeriod: {
       startDate: Date,
@@ -172,7 +175,7 @@ const SupplierInvoiceSchema = new Schema<ISupplierInvoiceDoc>(
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     createdByName: { type: String, required: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 // Hook pentru a seta 'remainingAmount' la creare

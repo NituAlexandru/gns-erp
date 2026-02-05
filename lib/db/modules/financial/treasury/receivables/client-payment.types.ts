@@ -12,6 +12,9 @@ export interface IClientPaymentDoc extends Document {
   paymentDate: Date
   paymentMethod: string
   totalAmount: number
+  currency: string
+  exchangeRate: number
+  originalCurrencyAmount?: number
   unallocatedAmount: number
   referenceDocument?: string
   notes?: string
@@ -32,6 +35,9 @@ export interface ClientPaymentDTO {
   paymentDate: string // ISO Date
   paymentMethod: string
   totalAmount: number
+  currency: string
+  exchangeRate: number
+  originalCurrencyAmount?: number
   unallocatedAmount: number
   referenceDocument?: string
   notes?: string

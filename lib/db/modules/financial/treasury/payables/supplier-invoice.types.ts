@@ -47,6 +47,7 @@ export interface SupplierInvoiceLine {
   allowanceAmount?: number
   description?: string
   cpvCode?: string
+  originalCurrencyAmount?: number
 }
 export interface SupplierInvoiceReferences {
   contract?: string
@@ -78,6 +79,7 @@ export interface SupplierInvoiceTotals {
   prepaidAmount?: number
   globalDiscount?: number
   globalTax?: number
+  originalCurrencyTotal?: number
 }
 
 export interface ISupplierInvoiceDoc extends Document {
@@ -104,6 +106,7 @@ export interface ISupplierInvoiceDoc extends Document {
   buyerReference?: string
   paymentMethodCode?: string
   invoiceCurrency?: string
+  originalCurrency?: string
   references?: SupplierInvoiceReferences
   invoicePeriod?: {
     startDate: Date

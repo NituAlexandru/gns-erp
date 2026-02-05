@@ -37,6 +37,7 @@ export const SupplierInvoiceLineSchema = z.object({
   allowanceAmount: z.number().optional(),
   description: z.string().optional(),
   cpvCode: z.string().optional(),
+  originalCurrencyAmount: z.number().optional(),
 })
 
 // Totalurile de pe factura primită
@@ -56,6 +57,7 @@ export const SupplierInvoiceTotalsSchema = z.object({
   prepaidAmount: z.number().optional(),
   globalDiscount: z.number().optional(),
   globalTax: z.number().optional(),
+  originalCurrencyTotal: z.number().optional(),
 })
 
 // Schema de creare (pentru formularul manual)
@@ -83,13 +85,14 @@ export const CreateSupplierInvoiceSchema = z.object({
         taxAmount: z.number(),
         percent: z.number(),
         categoryCode: z.string(),
-      })
+      }),
     )
     .optional(),
   paymentId: z.string().optional(),
   buyerReference: z.string().optional(),
   paymentMethodCode: z.string().optional(),
-  invoiceCurrency: z.string().optional(),
+  invoiceCurrency: z.string().default('RON'),
+  originalCurrency: z.string().default('RON'),
   references: z
     .object({
       contract: z.string().optional(),
@@ -113,6 +116,6 @@ export const CreateSupplierInvoiceSchema = z.object({
       endDate: z.date(),
     })
     .optional(),
-  exchangeRate: z.number().optional(),
+  exchangeRate: z.number().default(1),
   // TODO: De adăugat 'sourceReceiptIds' când e gata
 })

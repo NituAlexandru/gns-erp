@@ -64,6 +64,11 @@ export async function createClientPayment(
 
       const validatedData = CreateClientPaymentSchema.parse(data)
 
+      if (validatedData.currency === 'RON') {
+        validatedData.exchangeRate = 1
+        validatedData.originalCurrencyAmount = validatedData.totalAmount
+      }
+
       // --- LOGICĂ NUMEROTARE AUTOMATĂ ---
       const expectedAutoNumber = await getNextReceiptNumberPreview()
 

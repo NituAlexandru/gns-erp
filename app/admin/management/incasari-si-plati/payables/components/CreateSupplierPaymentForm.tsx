@@ -32,7 +32,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, AlertCircle, Copy } from 'lucide-react'
+import { Loader2, AlertCircle, Copy, Calculator } from 'lucide-react'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 import {
   PAYMENT_METHODS,
@@ -49,6 +49,7 @@ import { IBudgetCategoryTree } from '@/lib/db/modules/financial/treasury/payable
 import { getUnpaidSupplierInvoices } from '@/lib/db/modules/financial/treasury/payables/supplier-allocation.actions'
 import { UnpaidSupplierInvoice } from './SupplierAllocationModal'
 import { getNextPaymentNumberPreview } from '@/lib/db/modules/numbering/payment-numbering.actions'
+import { getBNRRates } from '@/lib/finance/bnr.actions'
 
 interface CreateSupplierPaymentFormProps {
   suppliers: ISupplierDoc[]
@@ -74,6 +75,9 @@ export function CreateSupplierPaymentForm({
       paymentDate: new Date(),
       totalAmount: 0,
       paymentMethod: 'ORDIN_DE_PLATA',
+      currency: 'RON',
+      exchangeRate: 1,
+      originalCurrencyAmount: 0,
       seriesName: '',
       paymentNumber: '',
       referenceDocument: '',
@@ -84,16 +88,95 @@ export function CreateSupplierPaymentForm({
 
   const { isSubmitting } = form.formState
   const { control, setValue } = form
-
-  // --- STATE-URI NOI ---
+  const [isLoadingRate, setIsLoadingRate] = useState(false)
   const [allInvoices, setAllInvoices] = useState<UnpaidSupplierInvoice[]>([])
   const [loadingInvoices, setLoadingInvoices] = useState(false)
-  // Selecție (folosim un Set pentru performanță, dar îl convertim la array pt calcule)
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([])
 
   // Watchers
   const watchedSupplierId = useWatch({ control, name: 'supplierId' })
   const watchedMainCategory = useWatch({ control, name: 'mainCategoryId' })
+  const watchedCurrency = useWatch({ control: form.control, name: 'currency' })
+  const watchedOriginalAmount = useWatch({
+    control: form.control,
+    name: 'originalCurrencyAmount',
+  })
+  const watchedRate = useWatch({ control: form.control, name: 'exchangeRate' })
+  const isForeignCurrency = watchedCurrency !== 'RON'
+  const watchedTotalAmount = useWatch({
+    control: form.control,
+    name: 'totalAmount',
+  })
+
+  const selectedInvoicesTotal = useMemo(() => {
+    return allInvoices
+      .filter((inv) => selectedInvoiceIds.includes(inv._id))
+      .reduce((acc, inv) => acc + inv.remainingAmount, 0)
+  }, [allInvoices, selectedInvoiceIds])
+
+  const recalculateTotalFromSelection = (selectedIds: string[]) => {
+    // 1. Calculăm suma facturilor selectate (care e mereu în RON)
+    const totalRon = allInvoices
+      .filter((inv) => selectedIds.includes(inv._id))
+      .reduce((acc, inv) => acc + inv.remainingAmount, 0)
+
+    const roundedRon = round2(totalRon)
+
+    // 2. Setăm întotdeauna suma în RON
+    setValue('totalAmount', roundedRon, { shouldValidate: true })
+
+    if (isForeignCurrency) {
+      const rate = form.getValues('exchangeRate') || 1
+      if (rate > 0) {
+        setValue('originalCurrencyAmount', round2(roundedRon / rate))
+      }
+    }
+  }
+
+  // --- LOGICĂ MONEDĂ (Handlers) ---
+
+  // A. Calcul Automat: Când scrii în Valută sau schimbi Cursul -> Actualizăm LEI
+  useEffect(() => {
+    if (isForeignCurrency) {
+      const amount = Number(watchedOriginalAmount) || 0
+      const rate = Number(watchedRate) || 0
+
+      // Calculăm LEI
+      const ronTotal = round2(amount * rate)
+
+      // Punem rezultatul în inputul de LEI (care va fi Read-Only visual)
+      form.setValue('totalAmount', ronTotal, { shouldValidate: true })
+    }
+  }, [watchedOriginalAmount, watchedRate, isForeignCurrency, form])
+
+  // B. Handler Schimbare Monedă
+  const handleCurrencyChange = async (newCurrency: string) => {
+    form.setValue('currency', newCurrency)
+
+    if (newCurrency === 'RON') {
+      form.setValue('exchangeRate', 1)
+      form.setValue('originalCurrencyAmount', 0)
+    } else {
+      setIsLoadingRate(true)
+      const result = await getBNRRates()
+      setIsLoadingRate(false)
+
+      if (result.success && result.data && result.data[newCurrency]) {
+        const rate = result.data[newCurrency]
+        form.setValue('exchangeRate', rate)
+        toast.success(`Curs BNR: 1 ${newCurrency} = ${rate} RON`)
+
+        // Dacă aveam deja o sumă în LEI (ex: din facturi selectate), recalculăm valuta
+        const currentRon = form.getValues('totalAmount') || 0
+        if (currentRon > 0) {
+          form.setValue('originalCurrencyAmount', round2(currentRon / rate))
+        }
+      } else {
+        toast.warning('Introdu cursul manual.')
+        form.setValue('exchangeRate', 0)
+      }
+    }
+  }
 
   useEffect(() => {
     // Rulăm doar dacă avem facturi încărcate și un ID inițial de selectat
@@ -108,8 +191,7 @@ export function CreateSupplierPaymentForm({
 
         // 2. Setăm suma totală cu restul de plată al acelei facturi
         setValue('totalAmount', round2(targetInvoice.remainingAmount))
-
-       }
+      }
     }
   }, [allInvoices, initialInvoiceId, setValue])
 
@@ -132,7 +214,7 @@ export function CreateSupplierPaymentForm({
         console.error(error)
       } finally {
         setLoadingInvoices(false)
-       setSelectedInvoiceIds([])
+        setSelectedInvoiceIds([])
         setValue('totalAmount', 0)
       }
     }
@@ -188,44 +270,23 @@ export function CreateSupplierPaymentForm({
 
   // 3. LOGICA DE SELECȚIE
   const handleToggleInvoice = (invoiceId: string) => {
-    // 1. Calculăm noua listă de ID-uri
     let newIds: string[] = []
     if (selectedInvoiceIds.includes(invoiceId)) {
       newIds = selectedInvoiceIds.filter((id) => id !== invoiceId)
     } else {
       newIds = [...selectedInvoiceIds, invoiceId]
     }
-
-    // 2. Actualizăm starea vizuală (bifele)
     setSelectedInvoiceIds(newIds)
-
-    // 3. Calculăm și setăm suma imediat
-    const totalSelected = allInvoices
-      .filter((inv) => newIds.includes(inv._id))
-      // Folosim round2 la fiecare adunare sau la final pentru siguranță
-      .reduce((acc, inv) => acc + inv.remainingAmount, 0)
-
-    // Rotunjim finalul la 2 zecimale
-    setValue('totalAmount', round2(totalSelected))
+    recalculateTotalFromSelection(newIds)
   }
 
   const handleSelectAll = (checked: boolean) => {
     let newIds: string[] = []
-
     if (checked) {
-      //  Folosim direct allInvoices
       newIds = allInvoices.map((inv) => inv._id)
-    } else {
-      newIds = []
     }
-
     setSelectedInvoiceIds(newIds)
-
-    const totalSelected = allInvoices
-      .filter((inv) => newIds.includes(inv._id))
-      .reduce((acc, inv) => acc + inv.remainingAmount, 0)
-
-    setValue('totalAmount', round2(totalSelected))
+    recalculateTotalFromSelection(newIds)
   }
 
   // Subcategorii (existent)
@@ -247,6 +308,10 @@ export function CreateSupplierPaymentForm({
       const payload = {
         ...data,
         selectedInvoiceIds: selectedInvoiceIds,
+        originalCurrencyAmount: isForeignCurrency
+          ? Number(data.originalCurrencyAmount)
+          : undefined,
+        exchangeRate: isForeignCurrency ? Number(data.exchangeRate) : 1,
       }
       const result = await createSupplierPayment(payload)
 
@@ -365,60 +430,173 @@ export function CreateSupplierPaymentForm({
           />
         </div>
 
-        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-          <FormField
-            control={control}
-            name='totalAmount'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className='flex justify-between items-center'>
-                  <span>Sumă Plătită</span>
-                  {selectedInvoiceIds.length > 0 && (
-                    <span className='text-xs text-green-600 font-medium animate-pulse'>
-                      (Calculat din {selectedInvoiceIds.length} facturi)
-                    </span>
-                  )}
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    type='number'
-                    step='0.01'
-                    placeholder='0.00'
-                    {...field}
-                    onChange={(e) => field.onChange(Number(e.target.value))}
+        {/* === RÂNDUL 2: MONEDĂ, SUME & METODĂ === */}
+        <div className='bg-muted/10 p-3 rounded-lg border space-y-4'>
+          <div className='grid grid-cols-12 gap-3'>
+            {/* 1. SELECTOR MONEDĂ (2 Coloane) */}
+            <div className='col-span-6 md:col-span-2  w-full'>
+              <FormField
+                control={form.control}
+                name='currency'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className='text-xs'>Monedă</FormLabel>
+                    <Select
+                      onValueChange={(val) => handleCurrencyChange(val)}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger className='bg-background h-9'>
+                          <SelectValue placeholder='RON' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value='RON'>RON</SelectItem>
+                        <SelectItem value='EUR'>EUR</SelectItem>
+                        <SelectItem value='USD'>USD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* 2. CÂMPURI VALUTĂ (2 + 2 Coloane) - Apar doar dacă NU e RON */}
+            {isForeignCurrency && (
+              <>
+                <div className='col-span-6 md:col-span-2'>
+                  <FormField
+                    control={form.control}
+                    name='originalCurrencyAmount'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className='text-xs'>
+                          Sumă ({watchedCurrency})
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type='number'
+                            step='0.01'
+                            className='bg-background font-semibold border-primary h-9'
+                            placeholder='0.00'
+                            {...field}
+                            onChange={(e) =>
+                              field.onChange(Number(e.target.value))
+                            }
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
                   />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+                </div>
+
+                <div className='col-span-6 md:col-span-2'>
+                  <FormField
+                    control={form.control}
+                    name='exchangeRate'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className='text-xs'>Curs</FormLabel>
+                        <div className='relative'>
+                          <Input
+                            type='number'
+                            step='0.0001'
+                            className='bg-background pr-7 h-9'
+                            {...field}
+                            onChange={(e) =>
+                              field.onChange(Number(e.target.value))
+                            }
+                          />
+                          {isLoadingRate && (
+                            <Loader2 className='absolute right-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground' />
+                          )}
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </>
             )}
-          />
-          <FormField
-            control={control}
-            name='paymentMethod'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Metodă de Plată</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder='Selectează o metodă...' />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {PAYMENT_METHODS.map((method) => (
-                      <SelectItem key={method} value={method}>
-                        {PAYMENT_METHOD_MAP[method].name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+
+            {/* 3. INPUTUL DE LEI (3 Coloane pe Valută / 5 pe RON) */}
+            <div
+              className={
+                isForeignCurrency
+                  ? 'col-span-6 md:col-span-3'
+                  : 'col-span-6 md:col-span-5'
+              }
+            >
+              <FormField
+                control={form.control}
+                name='totalAmount'
+                render={({ field }) => (
+                  <FormItem>
+                    <div className='flex justify-between items-center'>
+                      <FormLabel className='text-xs'>
+                        {isForeignCurrency ? 'Echivalent (LEI)' : 'Sumă (LEI)'}
+                      </FormLabel>
+                      {isForeignCurrency && (
+                        <span className='text-[10px] text-muted-foreground bg-muted px-1 rounded'>
+                          Auto
+                        </span>
+                      )}
+                    </div>
+                    <div className='relative'>
+                      <Input
+                        type='number'
+                        step='0.01'
+                        placeholder='0.00'
+                        readOnly={isForeignCurrency}
+                        className={`font-bold text-lg h-9 ${isForeignCurrency ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : 'bg-background'}`}
+                        {...field}
+                        onChange={(e) => field.onChange(Number(e.target.value))}
+                      />
+                      {isForeignCurrency && (
+                        <Calculator className='absolute right-3 top-2.5 h-4 w-4 text-muted-foreground opacity-50' />
+                      )}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* 4. METODA PLATA (3 Coloane pe Valută / 5 pe RON) - Mereu pe același rând */}
+            <div
+              className={
+                isForeignCurrency
+                  ? 'col-span-12 md:col-span-3'
+                  : 'col-span-12 md:col-span-5'
+              }
+            >
+              <FormField
+                control={form.control}
+                name='paymentMethod'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className='text-xs'>Metodă Plată</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger className='bg-background h-9'>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {PAYMENT_METHODS.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            {PAYMENT_METHOD_MAP[m].name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         </div>
 
         <div className='grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-6'>
@@ -585,7 +763,7 @@ export function CreateSupplierPaymentForm({
                         Total:
                       </span>
                       <span className='font-bold text-lg text-primary'>
-                        {formatCurrency(form.getValues('totalAmount'))}
+                        {formatCurrency(selectedInvoicesTotal)}
                       </span>
                     </div>
                   </div>

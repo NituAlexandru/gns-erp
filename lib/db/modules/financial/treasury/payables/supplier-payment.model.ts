@@ -41,7 +41,20 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
       default: 'NEALOCATA',
       required: true,
     },
-    // ---Adăugăm câmpul în schema principală ---
+    currency: {
+      type: String,
+      default: 'RON',
+      required: true,
+    },
+    exchangeRate: {
+      type: Number,
+      default: 1,
+      required: true,
+    },
+    originalCurrencyAmount: {
+      type: Number,
+      required: false,
+    },
     budgetCategorySnapshot: {
       type: BudgetCategorySnapshotSchema,
       required: false,

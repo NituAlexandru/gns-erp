@@ -19,7 +19,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Loader2 } from 'lucide-react'
 import { formatCurrency, round2 } from '@/lib/utils'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
-// --- IMPORT NOU ---
 import {
   createSupplierInvoice,
   updateSupplierInvoice,
@@ -45,7 +44,9 @@ import {
   SUPPLIER_INVOICE_TYPE_LABELS,
   SUPPLIER_INVOICE_TYPES,
 } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.constants'
+import { getBNRRates } from '@/lib/finance/bnr.actions'
 
+// Extindem schema pentru a include câmpurile de monedă în formular
 const FormInputSchema = CreateSupplierInvoiceSchema.pick({
   supplierId: true,
   invoiceType: true,
@@ -55,6 +56,9 @@ const FormInputSchema = CreateSupplierInvoiceSchema.pick({
   dueDate: true,
   items: true,
   notes: true,
+  invoiceCurrency: true,
+  originalCurrency: true,
+  exchangeRate: true,
 })
 
 export type InvoiceFormValues = z.infer<typeof FormInputSchema>
@@ -90,6 +94,8 @@ export function CreateSupplierInvoiceForm({
           dueDate: new Date(initialData.dueDate),
           items: initialData.items,
           notes: initialData.notes || '',
+          invoiceCurrency: initialData.invoiceCurrency || 'RON',
+          exchangeRate: initialData.exchangeRate || 1,
         }
       : {
           supplierId: '',
@@ -100,41 +106,113 @@ export function CreateSupplierInvoiceForm({
           dueDate: new Date(),
           items: [],
           notes: '',
+          invoiceCurrency: 'RON',
+          exchangeRate: 1,
         },
   })
 
   const { isSubmitting } = form.formState
-  const { control } = form
+  const { control, setValue, getValues } = form
+
+  // --- Watchers & Monedă ---
   const watchedItems = useWatch({ control, name: 'items' })
+  const watchedCurrency = useWatch({ control, name: 'originalCurrency' })
+  const watchedRate = useWatch({ control, name: 'exchangeRate' })
+  const isForeignCurrency = watchedCurrency !== 'RON'
+  const [isLoadingRate, setIsLoadingRate] = useState(false)
 
-  // Definim stările pentru totalurile vizuale
-  // Inițializăm stările corect dacă suntem pe EDIT
-  const [subtotal, setSubtotal] = useState(0)
-  const [vatTotal, setVatTotal] = useState(0)
-  const [grandTotal, setGrandTotal] = useState(0)
+  // Stare pentru totaluri vizuale (RON vs Foreign)
+  const [displayTotals, setDisplayTotals] = useState({
+    ron: 0,
+    foreign: 0,
+    subtotalRon: 0,
+    vatRon: 0,
+  })
 
-  // --- USE EFFECT PENTRU CALCUL TOTALURI ---
+  // --- LOGICĂ SCHIMBARE MONEDĂ ---
+  const handleCurrencyChange = async (newCurrency: string) => {
+    setValue('originalCurrency', newCurrency)
+    setValue('invoiceCurrency', 'RON')
+
+    if (newCurrency === 'RON') {
+      setValue('exchangeRate', 1)
+      // Când revenim la RON, e bine să recalculăm vizual sau să lăsăm utilizatorul să editeze
+    } else {
+      setIsLoadingRate(true)
+      const result = await getBNRRates()
+      setIsLoadingRate(false)
+
+      if (result.success && result.data && result.data[newCurrency]) {
+        const rate = result.data[newCurrency]
+        setValue('exchangeRate', rate)
+        toast.success(`Curs BNR: 1 ${newCurrency} = ${rate} RON`)
+
+        // Recalculăm automat prețurile în RON pentru liniile existente
+        const currentItems = getValues('items')
+        currentItems.forEach((item, index) => {
+          if (item.originalCurrencyAmount) {
+            const newRonPrice = round2(item.originalCurrencyAmount * rate)
+            setValue(`items.${index}.unitPrice`, newRonPrice)
+          }
+        })
+      } else {
+        toast.warning('Introdu cursul manual.')
+        setValue('exchangeRate', 0)
+      }
+    }
+  }
+
+  // Recalcul automat la schimbarea manuală a cursului
+  useEffect(() => {
+    if (isForeignCurrency && watchedRate > 0) {
+      const currentItems = getValues('items')
+      currentItems.forEach((item, index) => {
+        if (item.originalCurrencyAmount) {
+          const newRonPrice = round2(item.originalCurrencyAmount * watchedRate)
+          setValue(`items.${index}.unitPrice`, newRonPrice)
+        }
+      })
+    }
+  }, [watchedRate, isForeignCurrency, getValues, setValue])
+
+  // --- CALCUL TOTALURI (VIZUAL) ---
   useEffect(() => {
     if (!watchedItems) return
-    let totalSubtotal = 0
-    let totalVat = 0
+    let totalSubtotalRon = 0
+    let totalVatRon = 0
+    let totalForeign = 0
+
     watchedItems.forEach((item) => {
-      const quantity = item.quantity || 0
-      const unitPrice = item.unitPrice || 0
+      // 1. Calcul RON Standard (Asta se salvează ca bază)
+      const q = item.quantity || 0
+      const pRon = item.unitPrice || 0
       const vatRate = item.vatRateDetails.rate || 0
-      const lineValue = round2(quantity * unitPrice)
-      const vatValue = round2(lineValue * (vatRate / 100))
-      totalSubtotal += lineValue
-      totalVat += vatValue
+
+      const lineValRon = round2(q * pRon)
+      const lineVatRon = round2(lineValRon * (vatRate / 100))
+
+      totalSubtotalRon += lineValRon
+      totalVatRon += lineVatRon
+
+      // 2. Calcul Foreign (Asta e doar pentru afișare/referință)
+      if (isForeignCurrency) {
+        const pForeign = item.originalCurrencyAmount || 0
+        const lineValForeign = round2(q * pForeign)
+        const vatValForeign = round2(lineValForeign * (vatRate / 100))
+        totalForeign += round2(lineValForeign + vatValForeign)
+      }
     })
-    const grandTotal = round2(totalSubtotal + totalVat)
 
-    setSubtotal(totalSubtotal)
-    setVatTotal(totalVat)
-    setGrandTotal(grandTotal)
-  }, [watchedItems])
+    const grandTotalRon = round2(totalSubtotalRon + totalVatRon)
 
-  // Verificarea TVA (după Hook-uri)
+    setDisplayTotals({
+      ron: grandTotalRon,
+      foreign: totalForeign,
+      subtotalRon: totalSubtotalRon,
+      vatRon: totalVatRon,
+    })
+  }, [watchedItems, isForeignCurrency])
+
   if (!defaultVatRate) {
     return (
       <div className='flex items-center justify-center h-full p-8 text-center'>
@@ -145,11 +223,10 @@ export function CreateSupplierInvoiceForm({
     )
   }
 
-  // Funcția onSubmit
+  // --- SUBMIT ---
   async function onSubmit(data: InvoiceFormValues) {
     try {
       const selectedSupplier = suppliers.find((s) => s._id === data.supplierId)
-
       if (!selectedSupplier) {
         toast.error('Furnizorul selectat nu a fost găsit.')
         return
@@ -157,7 +234,7 @@ export function CreateSupplierInvoiceForm({
 
       const supplierAddress = selectedSupplier.address || {}
 
-      // 1. Creăm Snapshot-ul
+      // 1. Snapshot Furnizor
       const supplierSnapshot: z.infer<typeof SupplierSnapshotSchema> = {
         name: selectedSupplier.name,
         cui: selectedSupplier.fiscalCode || '',
@@ -175,27 +252,41 @@ export function CreateSupplierInvoiceForm({
         iban: selectedSupplier.bankAccountLei?.iban || '',
       }
 
-      // 2. Creăm Liniile finale
+      // 2. Liniile Finale (Calcul corect RON + Valută opțional)
       const finalItems = data.items.map((item) => {
+        // RON
         const lineValue = round2((item.quantity || 0) * (item.unitPrice || 0))
         const vatValue = round2(
           lineValue * ((item.vatRateDetails.rate || 0) / 100),
         )
+
         return {
           ...item,
+          // RON Fields
           lineValue: lineValue,
           vatRateDetails: { ...item.vatRateDetails, value: vatValue },
           lineTotal: round2(lineValue + vatValue),
+
+          // Foreign Fields (Optional)
+          originalCurrencyAmount: isForeignCurrency
+            ? item.originalCurrencyAmount
+            : undefined,
         }
       })
 
-      // 3. Creăm Totalurile finale (din stările locale)
+      // 3. Totaluri Finale (Structura Backend)
       const finalTotals = {
-        subtotal: subtotal,
-        vatTotal: vatTotal,
-        grandTotal: grandTotal,
-        productsSubtotal: subtotal,
-        productsVat: vatTotal,
+        subtotal: displayTotals.subtotalRon,
+        vatTotal: displayTotals.vatRon,
+        grandTotal: displayTotals.ron, // BAZA DE DATE VEDE DOAR RON CA SUMA PRINCIPALA
+
+        // Salvăm totalul în valută doar informativ
+        originalCurrencyTotal: isForeignCurrency
+          ? displayTotals.foreign
+          : undefined,
+
+        productsSubtotal: displayTotals.subtotalRon,
+        productsVat: displayTotals.vatRon,
         packagingSubtotal: 0,
         packagingVat: 0,
         servicesSubtotal: 0,
@@ -204,15 +295,15 @@ export function CreateSupplierInvoiceForm({
         manualVat: 0,
       }
 
-      // 4. Creăm payload-ul FINAL
       const payload = {
         ...data,
+        invoiceCurrency: 'RON',
+        originalCurrency: data.originalCurrency,
         items: finalItems,
         totals: finalTotals,
         supplierSnapshot: supplierSnapshot,
       }
 
-      // Validare finală
       const validation = CreateSupplierInvoiceSchema.safeParse(payload)
       if (!validation.success) {
         console.error('Eroare validare payload final:', validation.error.errors)
@@ -222,10 +313,8 @@ export function CreateSupplierInvoiceForm({
 
       let result
       if (initialData) {
-        // Suntem pe EDIT
         result = await updateSupplierInvoice(initialData._id, validation.data)
       } else {
-        // Suntem pe CREATE
         result = await createSupplierInvoice(validation.data)
       }
 
@@ -243,7 +332,6 @@ export function CreateSupplierInvoiceForm({
     }
   }
 
-  // Funcția onInvalid
   const onInvalid = (errors: FieldErrors<InvoiceFormValues>) => {
     console.error('--- VALIDARE EȘUATĂ ---', errors)
     toast.error('Formularul conține erori. Verificați datele introduse.')
@@ -258,6 +346,7 @@ export function CreateSupplierInvoiceForm({
         onSubmit={form.handleSubmit(onSubmit, onInvalid)}
         className='space-y-6'
       >
+        {/* RÂND 1: Furnizor, Tip, Serie */}
         <div className='grid grid-cols-1 gap-x-4 gap-y-6 md:grid-cols-5'>
           <FormField
             control={control}
@@ -337,6 +426,69 @@ export function CreateSupplierInvoiceForm({
           />
         </div>
 
+        {/* --- RÂND 2: MONEDĂ & CURS (IDENTIC CU PLĂȚI) --- */}
+        <div className='bg-muted/10 p-3 rounded-lg border space-y-4'>
+          <div className='grid grid-cols-12 gap-3'>
+            {/* 1. SELECTOR MONEDĂ */}
+            <div className='col-span-6 md:col-span-2'>
+              <FormField
+                control={control}
+                name='originalCurrency'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className='text-xs'>Monedă</FormLabel>
+                    <Select
+                      onValueChange={handleCurrencyChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger className='bg-background h-9'>
+                          <SelectValue placeholder='RON' />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value='RON'>RON</SelectItem>
+                        <SelectItem value='EUR'>EUR</SelectItem>
+                        <SelectItem value='USD'>USD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* 2. CURS (Doar dacă e valută) */}
+            {isForeignCurrency && (
+              <div className='col-span-6 md:col-span-2'>
+                <FormField
+                  control={control}
+                  name='exchangeRate'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className='text-xs'>Curs</FormLabel>
+                      <div className='relative'>
+                        <Input
+                          type='number'
+                          step='0.0001'
+                          className='bg-background pr-7 h-9'
+                          {...field}
+                          onChange={(e) =>
+                            field.onChange(Number(e.target.value))
+                          }
+                        />
+                        {isLoadingRate && (
+                          <Loader2 className='absolute right-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground' />
+                        )}
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RÂND 3: Date & Note & Totaluri */}
         <div className='grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3'>
           <FormField
             control={control}
@@ -395,37 +547,55 @@ export function CreateSupplierInvoiceForm({
                 </FormItem>
               )}
             />
+
+            {/* ZONA TOTALURI (Actualizată) */}
             <div className='flex flex-col justify-end p-4 space-y-1 text-sm rounded-md border bg-muted'>
+              {isForeignCurrency && (
+                <p className='flex justify-between font-normal text-muted-foreground border-b pb-2 mb-2'>
+                  <span>Total {watchedCurrency}:</span>
+                  <span className='font-bold text-foreground'>
+                    {displayTotals.foreign.toLocaleString('ro-RO', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    {watchedCurrency}
+                  </span>
+                </p>
+              )}
+
               <p className='flex justify-between font-normal text-muted-foreground'>
-                <span>Subtotal:</span>
+                <span>Subtotal (RON):</span>
                 <span className='font-bold text-foreground'>
-                  {formatCurrency(subtotal || 0)}
+                  {formatCurrency(displayTotals.subtotalRon)}{' '}
                 </span>
               </p>
               <p className='flex justify-between font-normal text-muted-foreground'>
-                <span>TVA:</span>
+                <span>TVA (RON):</span>
                 <span className='font-bold text-foreground'>
-                  {formatCurrency(vatTotal || 0)}
+                  {formatCurrency(displayTotals.vatRon)}
                 </span>
               </p>
               <div className='pt-2 border-t border-border'></div>
               <p className='flex justify-between text-lg font-bold text-red-500'>
                 <span>TOTAL GENERAL:</span>
-                <span>{formatCurrency(grandTotal || 0)}</span>
+                <span>{formatCurrency(displayTotals.ron)}</span>
               </p>
             </div>
           </div>
         </div>
 
+        {/* EDITOR LINII - TRIMITEM PROPS COMPLETE PENTRU LOGICA MONEDEI */}
         <SupplierInvoiceLineEditor
           control={control}
+          setValue={setValue}
           unitsOfMeasure={UNITS as unknown as string[]}
           vatRates={vatRateNumbers}
           defaultVat={defaultVat}
+          invoiceCurrency={watchedCurrency}
+          exchangeRate={watchedRate}
         />
         <FormMessage>{form.formState.errors.items?.root?.message}</FormMessage>
 
-        {/* --- MODIFICARE AICI: BUTONUL --- */}
         <Button type='submit' disabled={isSubmitting} className='w-full'>
           {isSubmitting ? (
             <Loader2 className='mr-2 h-4 w-4 animate-spin' />
