@@ -138,6 +138,7 @@ export async function getSupplierLedger(supplierId: string): Promise<{
         $match: {
           supplierId: id,
           status: { $ne: 'ANULATA' },
+          paymentMethod: { $ne: 'COMPENSARE' },
         },
       },
       // Lookup Robust pentru Avans

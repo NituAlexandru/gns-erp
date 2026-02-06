@@ -270,7 +270,13 @@ export async function getClientLedger(
     )
 
     const creditPipeline: PipelineStage[] = [
-      { $match: { clientId: id, status: { $ne: 'ANULATA' } } },
+      {
+        $match: {
+          clientId: id,
+          status: { $ne: 'ANULATA' },
+          paymentMethod: { $ne: 'COMPENSARE' },
+        },
+      },
       // 1. Găsim alocările din tabela de legătură (PaymentAllocation)
       {
         $lookup: {
