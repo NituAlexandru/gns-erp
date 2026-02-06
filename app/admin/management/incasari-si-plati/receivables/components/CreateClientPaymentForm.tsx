@@ -35,9 +35,9 @@ import {
 import { createClientPayment } from '@/lib/db/modules/financial/treasury/receivables/client-payment.actions'
 import { CreateClientPaymentSchema } from '@/lib/db/modules/financial/treasury/receivables/client-payment.validator'
 import { SimpleClientSearch } from './SimpleClientSearch'
-import { getNextReceiptNumberPreview } from '@/lib/db/modules/numbering/receipt-numbering.actions'
 import { getUnpaidInvoicesByClient } from '@/lib/db/modules/financial/treasury/receivables/payment-allocation.actions'
 import { getBNRRates } from '@/lib/finance/bnr.actions'
+import { getNextClientReceiptNumberPreview } from '@/lib/db/modules/numbering/ClientReceiptCounter/actions'
 
 interface CreateClientPaymentFormProps {
   onFormSubmit: () => void
@@ -165,22 +165,33 @@ export function CreateClientPaymentForm({
     }
   }
 
-  // --- EFFECT: Numerotare Automată ---
+  // --- Numerotare Automată PER CLIENT ---
   useEffect(() => {
     let isMounted = true
+
     const fetchNumber = async () => {
-      if (!form.getValues('paymentNumber')) {
-        const nextNum = await getNextReceiptNumberPreview()
+      // Dacă nu avem client selectat, nu generăm număr
+      if (!watchedClientId) return
+
+      try {
+        // Apelăm funcția nouă trimițând ID-ul clientului
+        const nextNum = await getNextClientReceiptNumberPreview(watchedClientId)
+
         if (isMounted && nextNum) {
+          // Setăm noul număr (ex: 0001)
           setValue('paymentNumber', nextNum)
         }
+      } catch (error) {
+        console.error('Eroare la preluarea numărului:', error)
       }
     }
+
     fetchNumber()
+
     return () => {
       isMounted = false
     }
-  }, [form, setValue])
+  }, [watchedClientId, setValue])
 
   // --- EFFECT: Props Inițiale ---
   useEffect(() => {
@@ -273,7 +284,16 @@ export function CreateClientPaymentForm({
         onFormSubmit()
         form.reset()
       } else {
-        toast.error('Eroare la salvare:', { description: result.message })
+        if (
+          result.message.toLowerCase().includes('duplicate') ||
+          result.message.toLowerCase().includes('există deja')
+        ) {
+          toast.error('Număr duplicat', {
+            description: `Numărul de încasare ${data.paymentNumber} există deja pentru acest client în anul curent. Te rugăm să verifici sau să alegi alt număr.`,
+          })
+        } else {
+          toast.error('Eroare la salvare:', { description: result.message })
+        }
       }
     } catch {
       toast.error('A apărut o eroare neașteptată.')

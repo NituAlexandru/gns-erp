@@ -17,12 +17,12 @@ import { connectToDatabase } from '@/lib/db'
 import ClientModel from '../../../client/client.model'
 import { recalculateClientSummary } from '../../../client/summary/client-summary.actions'
 import { RECEIVABLES_PAGE_SIZE, TIMEZONE } from '@/lib/constants'
-import {
-  getNextReceiptNumberPreview,
-  incrementReceiptNumber,
-} from '../../../numbering/receipt-numbering.actions'
 import { getInvoiceById } from '../../invoices/invoice.actions'
 import { fromZonedTime } from 'date-fns-tz'
+import {
+  getNextClientReceiptNumberPreview,
+  updateClientReceiptCounter,
+} from '../../../numbering/ClientReceiptCounter/actions'
 
 type PopulatedClientPayment = ClientPaymentDTO & {
   clientId: {
@@ -69,12 +69,26 @@ export async function createClientPayment(
         validatedData.originalCurrencyAmount = validatedData.totalAmount
       }
 
-      // --- LOGICĂ NUMEROTARE AUTOMATĂ ---
-      const expectedAutoNumber = await getNextReceiptNumberPreview()
+      // --- 2. LOGICĂ NUMEROTARE INTELIGENTĂ ---
 
-      // Dacă userul a păstrat numărul propus, incrementăm contorul
-      if (validatedData.paymentNumber === expectedAutoNumber) {
-        await incrementReceiptNumber()
+      const suggestedNumberString = await getNextClientReceiptNumberPreview(
+        validatedData.clientId,
+      )
+
+      // Verificăm dacă utilizatorul a păstrat numărul sugerat
+      if (validatedData.paymentNumber === suggestedNumberString) {
+        const numberValue = parseInt(validatedData.paymentNumber, 10)
+
+        // Dacă e număr valid, actualizăm contorul
+        if (!isNaN(numberValue)) {
+          await updateClientReceiptCounter(
+            validatedData.clientId,
+            numberValue,
+            {
+              session,
+            },
+          )
+        }
       }
 
       // 3. Crearea Încasării
