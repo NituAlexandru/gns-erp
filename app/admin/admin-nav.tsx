@@ -50,6 +50,10 @@ const links = [
     title: 'Setări',
     href: '/admin/settings',
   },
+  {
+    title: 'Rapoarte',
+    href: '/admin/reports',
+  },
 ]
 export function AdminNav({
   className,
@@ -60,7 +64,7 @@ export function AdminNav({
     <nav
       className={cn(
         'flex items-center flex-wrap overflow-hidden gap-2 md:gap-4',
-        className
+        className,
       )}
       {...props}
     >
@@ -70,7 +74,7 @@ export function AdminNav({
           href={item.href}
           className={cn(
             '',
-            pathname.includes(item.href) ? '' : 'text-muted-foreground'
+            pathname.includes(item.href) ? '' : 'text-muted-foreground',
           )}
         >
           {item.title}
