@@ -17,7 +17,7 @@ export async function GET() {
     let updatedCount = 0
 
     console.log(
-      `🚀 Încep restaurarea a ${AVAILABLE_PALLET_TYPES.length} ambalaje...`
+      `🚀 Încep restaurarea a ${AVAILABLE_PALLET_TYPES.length} ambalaje...`,
     )
 
     for (const p of AVAILABLE_PALLET_TYPES) {
@@ -62,14 +62,26 @@ export async function GET() {
         weight: p.weightKg,
       }
 
-      // Upsert
-      await PackagingModel.findByIdAndUpdate(p.id, packagingData, {
-        upsert: true,
-        new: true,
-        setDefaultsOnInsert: true,
-      })
+      // Upsert - actualizeaza
+      // await PackagingModel.findByIdAndUpdate(p.id, packagingData, {
+      //   upsert: true,
+      //   new: true,
+      //   setDefaultsOnInsert: true,
+      // })
+      // updatedCount++
 
-      updatedCount++
+      // Doar creaza ---------------------------------
+      const exists = await PackagingModel.exists({ _id: p.id })
+
+      if (!exists) {
+        await PackagingModel.create(packagingData)
+        console.log(`✅ Adăugat ambalaj nou: ${p.name}`)
+        updatedCount++
+      } else {
+        console.log(`🟡 Ignorat (există deja): ${p.name}`)
+      }
+
+      // pana aici --------------------------------
     }
 
     return NextResponse.json({
@@ -80,7 +92,9 @@ export async function GET() {
     console.error('Seed Error:', error)
     return NextResponse.json(
       { success: false, error: error.message },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
+
+// Ruta - http://localhost:3000/api/seed-packaging
