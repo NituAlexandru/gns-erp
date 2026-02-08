@@ -20,6 +20,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import {
   AlertDialog,
@@ -36,7 +37,11 @@ import type { PopulatedReception } from '@/lib/db/modules/reception/types'
 import { SearchFilters } from '@/components/shared/receptions/search-filters'
 import { PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
-import { generateNirForReceptionAction } from '@/lib/db/modules/financial/nir/nir.actions'
+import {
+  cancelNirAction,
+  generateNirForReceptionAction,
+  syncNirFromReceptionAction,
+} from '@/lib/db/modules/financial/nir/nir.actions'
 import { Eye, Loader2, Printer } from 'lucide-react'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
@@ -146,7 +151,6 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-
   const [nirModalOpen, setNirModalOpen] = useState(false)
   const [nirTargetRec, setNirTargetRec] = useState<string | null>(null)
   const [isGeneratingNir, setIsGeneratingNir] = useState(false)
@@ -157,6 +161,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
   const [previewRec, setPreviewRec] = useState<PopulatedReception | null>(null)
   const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
+  const [showNirChoice, setShowNirChoice] = useState(false)
 
   const receptions = initialData.data
   const total = initialData.total
@@ -218,22 +223,38 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
     })
   }
 
-  async function handleRevokeConfirm() {
+  // 1. Logica de decizie (Intermediară)
+  const handleRevokeConfirm = () => {
     if (!revokeTarget) return
 
-    setIsRevoking(true) // Setează starea de încărcare la început
-    const targetId = revokeTarget._id // Definim funcția de fetch pentru a o folosi cu toast.promise
+    // Dacă are NIR, închidem primul modal și îl deschidem pe al doilea
+    if (revokeTarget.nirId) {
+      setShowNirChoice(true)
+    } else {
+      executeRevocation(true)
+    }
+  }
+
+  // 2. Funcția care face fetch-ul efectiv (Execuția)
+  async function executeRevocation(cancelNir: boolean) {
+    if (!revokeTarget) return
+    setIsRevoking(true)
+
+    const targetId = revokeTarget._id
 
     const revokePromise = async () => {
       const response = await fetch(
         `/api/admin/management/receptions/${targetId}/revoke`,
-        { method: 'POST' },
+        {
+          method: 'POST',
+          body: JSON.stringify({ shouldCancelNir: cancelNir }),
+        },
       )
 
       if (!response.ok) {
-        const result = await response.json() // Aruncăm o eroare care va fi prinsă de 'error' din toast.promise
+        const result = await response.json()
         throw new Error(result.message || 'A apărut o eroare la revocare.')
-      } // Nu este neapărat nevoie să returnăm ceva, dar putem returna true
+      }
       return true
     }
 
@@ -242,29 +263,21 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
         loading: 'Se revocă confirmarea...',
         success: () => {
           router.refresh()
-
-          toast.success('Recepție revocată!', {
-            description: 'Recepția a fost adusă în starea "Ciornă" (Draft).',
-            action: {
-              label: 'Editează Acum',
-              onClick: () =>
-                router.push(`/admin/management/reception/${targetId}/edit`),
-            },
-            duration: 20000,
-          })
-
-          return 'Operațiune finalizată.'
+          return cancelNir
+            ? 'Recepție revocată și NIR anulat.'
+            : 'Recepție revocată. NIR-ul a fost păstrat.'
         },
         error: (err) => err.message,
       })
     } catch (error) {
-      // Acest bloc prinde erori neașteptate, deși toast.promise le gestionează pe majoritatea
       console.error('Revocarea a eșuat:', error)
     } finally {
-      setIsRevoking(false) // Oprește starea de încărcare la final
-      setRevokeTarget(null) // Închide dialogul
+      setIsRevoking(false)
+      setRevokeTarget(null)
+      setShowNirChoice(false)
     }
   }
+
   // --- LOGICĂ GENERARE NIR ---
   async function handleGenerateNIR(receptionId: string, seriesName?: string) {
     setIsGeneratingNir(true)
@@ -301,13 +314,6 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
     }
   }
 
-  // Placeholder pentru printare
-  const handlePrintNirPdf = (nirId: string) => {
-    toast.info('Printarea va fi implementată curând.', {
-      description: `NIR ID: ${nirId}`,
-    })
-  }
-
   const handlePrintPreview = async (nirId: string) => {
     setIsGeneratingPdf(nirId)
     try {
@@ -326,6 +332,36 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
     } finally {
       setIsGeneratingPdf(null)
     }
+  }
+
+  const handleCancelNirOnly = async (nirId: string) => {
+    const promise = cancelNirAction(nirId)
+    toast.promise(promise, {
+      loading: 'Se anulează NIR-ul...',
+      success: (res) => {
+        if (!res.success) throw new Error(res.message)
+        router.refresh()
+        return 'NIR anulat cu succes (Recepția a rămas intactă).'
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  const handleSyncNir = async (receptionId: string, nirId: string) => {
+    const promise = syncNirFromReceptionAction(receptionId, nirId)
+    toast.promise(promise, {
+      loading: 'Se actualizează NIR-ul din recepție...',
+      success: (res) => {
+        if (!res.success) throw new Error(res.message)
+        router.refresh()
+        return 'Datele din NIR au fost resincronizate.'
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  const handleEditNirManual = (nirId: string) => {
+    router.push(`/admin/management/reception/nir/${nirId}/edit`)
   }
 
   return (
@@ -609,34 +645,67 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                               </DropdownMenuItem>
                             )}
 
-                            {rec.nirNumber && (
+                            {rec.nirNumber && rec.nirId && (
                               <>
-                                {rec.nirNumber && (
-                                  <>
-                                    <DropdownMenuItem
-                                      className='cursor-pointer'
-                                      onSelect={() =>
-                                        router.push(
-                                          `/admin/management/reception/nir/${rec.nirId}`,
-                                        )
-                                      }
-                                    >
-                                      Vezi Detalii NIR
-                                    </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuLabel className='hidden text-xs text-muted-foreground ml-2'>
+                                  Opțiuni NIR
+                                </DropdownMenuLabel>
 
-                                    <DropdownMenuItem
-                                      className='cursor-pointer'
-                                      onSelect={() => {
-                                        setPreviewRec(rec)
-                                        handlePrintPreview(rec.nirId!)
-                                      }}
-                                      disabled={!!isGeneratingPdf}
-                                    >
-                                      <Printer className='mr-2 h-4 w-4' />{' '}
-                                      Printează NIR
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
+                                {/* 1. Vizualizare */}
+                                <DropdownMenuItem
+                                  className='cursor-pointer'
+                                  onSelect={() =>
+                                    router.push(
+                                      `/admin/management/reception/nir/${rec.nirId}`,
+                                    )
+                                  }
+                                >
+                                  Vezi Detalii NIR
+                                </DropdownMenuItem>
+
+                                {/* 2. Actualizare (Sync) */}
+                                <DropdownMenuItem
+                                  className='cursor-pointer'
+                                  onSelect={() =>
+                                    handleSyncNir(rec._id, rec.nirId!)
+                                  }
+                                  disabled={rec.status !== 'CONFIRMAT'} // Nu actualizam daca receptia nu e confirmata (teoretic)
+                                >
+                                  Actualizează din Recepție
+                                </DropdownMenuItem>
+
+                                {/* 3. Modificare Manuală */}
+                                <DropdownMenuItem
+                                  className='cursor-pointer'
+                                  onSelect={() =>
+                                    handleEditNirManual(rec.nirId!)
+                                  }
+                                >
+                                  Modifică NIR (Manual)
+                                </DropdownMenuItem>
+
+                                {/* 4. Print */}
+                                <DropdownMenuItem
+                                  className='cursor-pointer'
+                                  onSelect={() => {
+                                    setPreviewRec(rec)
+                                    handlePrintPreview(rec.nirId!)
+                                  }}
+                                  disabled={!!isGeneratingPdf}
+                                >
+                                  Printează NIR
+                                </DropdownMenuItem>
+
+                                {/* 5. Anulare NIR */}
+                                <DropdownMenuItem
+                                  className='text-red-600 focus:text-red-700 cursor-pointer'
+                                  onSelect={() =>
+                                    handleCancelNirOnly(rec.nirId!)
+                                  }
+                                >
+                                  Anulează NIR
+                                </DropdownMenuItem>
                               </>
                             )}
                             <DropdownMenuSeparator />
@@ -690,33 +759,85 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
           </AlertDialogContent>
         </AlertDialog>
       )}
-      {/* --- DIALOG NOU PENTRU REVOCARE --- */}
-      {revokeTarget && (
+
+      {/* --- MODAL 1: CONFIRMARE STANDARD (Apare doar dacă NU suntem la alegere NIR) --- */}
+      {revokeTarget && !showNirChoice && (
         <AlertDialog
-          open={!!revokeTarget}
-          onOpenChange={() => setRevokeTarget(null)}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) setRevokeTarget(null)
+          }}
         >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Confirmi revocarea?</AlertDialogTitle>
               <AlertDialogDescription>
                 Această acțiune va anula mișcările de stoc corespunzătoare și va
-                readuce recepția la starea (Draft), permițând modificarea ei.
-                Ești sigur?
+                readuce recepția la starea (Draft).
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Anulează</AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleRevokeConfirm}
-                disabled={isRevoking}
+                onClick={(e) => {
+                  e.preventDefault()
+                  handleRevokeConfirm()
+                }}
               >
-                {isRevoking ? 'Se revocă...' : 'Da, revocă'}
+                Da, revocă
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
       )}
+
+      {/* --- MODAL 2: DECIZIE NIR (Apare doar dacă suntem la pasul 2) --- */}
+      {revokeTarget && showNirChoice && (
+        <AlertDialog
+          open={true}
+          onOpenChange={() => {
+            setShowNirChoice(false)
+            setRevokeTarget(null)
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className='text-red-600'>
+                Recepția are NIR generat!
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Există deja documentul NIR <b>{revokeTarget.nirNumber}</b>{' '}
+                asociat.
+                <br />
+                Cum dorești să procedezi cu documentul contabil?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className='flex-col gap-2 sm:gap-0 sm:flex-row sm:justify-end'>
+              <Button
+                variant='outline'
+                disabled={isRevoking}
+                onClick={() => executeRevocation(false)}
+              >
+                Păstrează NIR-ul
+              </Button>
+
+              <Button
+                variant='destructive'
+                className='sm:ml-2'
+                disabled={isRevoking}
+                onClick={() => executeRevocation(true)}
+              >
+                {isRevoking ? (
+                  <Loader2 className='h-4 w-4 animate-spin' />
+                ) : (
+                  'Anulează și NIR-ul'
+                )}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+
       {/* Paginare */}
       {totalPages > 1 && (
         <div className='flex justify-center items-center gap-4 mt-auto py-4'>
@@ -733,7 +854,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
           <Button
             variant='outline'
             onClick={() => handleUpdateParams({ page: currentPage + 1 })}
-            disabled={currentPage >= totalPages || isPending} // Aici era isLoading
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
           </Button>

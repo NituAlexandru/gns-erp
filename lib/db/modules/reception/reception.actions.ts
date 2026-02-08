@@ -725,6 +725,7 @@ export async function revokeConfirmation(
   receptionId: string,
   userId: string,
   userName: string,
+  shouldCancelNir: boolean = true,
 ): Promise<ActionResultWithData<PopulatedReception>> {
   const session = await mongoose.startSession()
   try {
@@ -754,26 +755,27 @@ export async function revokeConfirmation(
 
       // Verificăm dacă există un NIR asociat
       if (reception.nirId) {
-        // A. Anulăm NIR-ul (Logica din cancelNir mutată aici în tranzacție)
-        await NirModel.findByIdAndUpdate(
-          reception.nirId,
-          {
-            status: 'CANCELLED',
-            cancellationReason: 'Revocare automată (Recepție revocată)',
-            cancelledAt: new Date(),
-            cancelledBy: new Types.ObjectId(userId),
-            cancelledByName: userName,
-          },
-          { session },
-        )
+        if (shouldCancelNir) {
+          // 1. Anulăm documentul NIR
+          await NirModel.findByIdAndUpdate(
+            reception.nirId,
+            {
+              status: 'CANCELLED',
+              cancellationReason: 'Revocare automată (Recepție revocată)',
+              cancelledAt: new Date(),
+              cancelledBy: new Types.ObjectId(userId),
+              cancelledByName: userName,
+            },
+            { session },
+          )
 
-        // B. Rupem legătura din Recepție
-        // Setăm pe undefined ca să dispară din DB și să permită generarea unuia nou
-        reception.nirId = undefined
-        reception.nirNumber = undefined
-        reception.nirDate = undefined
+          // 2. Ștergem legătura de pe recepție
+          reception.nirId = undefined
+          reception.nirNumber = undefined
+          reception.nirDate = undefined
+        }
+        // ELSE: Nu facem nimic. NIR-ul rămâne valid, legătura rămâne.
       }
-      // --------------------------------
 
       await reverseStockMovementsByReference(receptionId, session)
 
@@ -843,8 +845,9 @@ export async function revokeConfirmation(
 
       return {
         success: true,
-        message:
-          'Confirmarea revocată, mișcările de stoc inversate și prețurile restaurate.',
+        message: shouldCancelNir
+          ? 'Recepție revocată și NIR anulat.'
+          : 'Recepție revocată. NIR-ul a fost păstrat (nu uita să îl actualizezi manual dacă e cazul).',
         data: JSON.parse(JSON.stringify(reception)),
       }
     })

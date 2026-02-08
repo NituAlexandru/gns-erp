@@ -122,3 +122,11 @@ export const UpdateNirStatusSchema = z.object({
 })
 
 export type CreateNirInput = z.infer<typeof CreateNirSchema>
+
+export const EditNirSchema = CreateNirSchema.extend({
+  nirNumber: z.string().min(1, 'Numărul NIR este obligatoriu.'),
+  nirDate: z.coerce.date({ required_error: 'Data este obligatorie.' }),
+  items: z.array(NirLineSchema).min(1, 'Lista de articole nu poate fi goală.'),
+})
+
+export type EditNirInput = z.infer<typeof EditNirSchema>

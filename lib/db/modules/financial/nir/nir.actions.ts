@@ -15,6 +15,8 @@ import { CreateNirResult, NirDTO, NirLineDTO } from './nir.types'
 import { ISeries } from '../../numbering/series.model'
 import { PAGE_SIZE } from '@/lib/constants'
 import { auth } from '@/auth'
+import { CreateNirInput, CreateNirSchema } from './nir.validator'
+import z from 'zod'
 
 // -------------------------------------------------------------
 // 1. CREATE NIR FROM RECEPTION
@@ -389,8 +391,8 @@ export async function getNirs(
     status?: string
     supplierId?: string
     q?: string
-    startDate?: string 
-    endDate?: string 
+    startDate?: string
+    endDate?: string
   } = {},
 ): Promise<{ data: NirDTO[]; totalPages: number; totalSum: number }> {
   try {
@@ -498,6 +500,251 @@ export async function generateNirForReceptionAction(
     return result
   } catch (error) {
     console.error('Error generateNirForReceptionAction:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+// -------------------------------------------------------------
+// 7. UPDATE NIR (Decuplat de Stoc/Recepție)
+// -------------------------------------------------------------
+
+export async function updateNir({
+  nirId,
+  data,
+  userId,
+  userName,
+}: {
+  nirId: string
+  data: CreateNirInput
+  userId: string
+  userName: string
+}): Promise<{ success: boolean; message: string }> {
+  try {
+    await connectToDatabase()
+
+    // 1. Validăm payload-ul (totaluri, structură)
+    const payload = CreateNirSchema.parse(data)
+
+    // 2. Verificăm existența și statusul
+    const existingNir = await NirModel.findById(nirId)
+    if (!existingNir) {
+      throw new Error('NIR-ul nu a fost găsit.')
+    }
+
+    if (existingNir.status === 'CANCELLED') {
+      throw new Error('Nu poți modifica un NIR anulat.')
+    }
+
+    // 3. Pregătim datele pentru update
+    // Păstrăm identitatea documentului (Număr, Serie) intactă din baza de date
+    const updatePayload = {
+      ...payload,
+      nirNumber: existingNir.nirNumber,
+      seriesName: existingNir.seriesName,
+      sequenceNumber: existingNir.sequenceNumber,
+      year: existingNir.year,
+
+      updatedAt: new Date(),
+    }
+
+    // 4. Executăm Update-ul DOAR pe NIR
+    await NirModel.findByIdAndUpdate(nirId, updatePayload, {
+      new: true,
+      runValidators: true,
+    })
+
+    // Nu atingem Recepția, nu atingem Stocul.
+
+    revalidatePath('/financial/nir')
+    revalidatePath(`/financial/nir/${nirId}`)
+
+    return { success: true, message: 'NIR actualizat cu succes.' }
+  } catch (error) {
+    console.error('❌ Eroare updateNir:', error)
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        message: `Date invalide: ${JSON.stringify(error.flatten().fieldErrors)}`,
+      }
+    }
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+// -------------------------------------------------------------
+// 8. SYNC NIR FROM RECEPTION (Recalculează valorile)
+// -------------------------------------------------------------
+export async function syncNirFromReceptionAction(
+  receptionId: string,
+  nirId: string,
+) {
+  try {
+    const session = await auth()
+    if (!session?.user) throw new Error('Nu ești autentificat.')
+
+    await connectToDatabase()
+
+    // 1. Luăm datele actuale din Recepție
+    const reception: any = await ReceptionModel.findById(receptionId).lean()
+    if (!reception) throw new Error('Recepția nu a fost găsită.')
+
+    // 2. Refacem calculele (LOGICĂ COPIATĂ DIN CREATE - pentru a asigura sincronizarea perfectă)
+    // --- LOGICA DE CALCUL ---
+    const nirItems: NirLineDTO[] = []
+    let productsSubtotal = 0
+    let productsVat = 0
+    let packagingSubtotal = 0
+    let packagingVat = 0
+    let transportSubtotal = 0
+    let transportVat = 0
+
+    // Produse
+    if (reception.products && reception.products.length > 0) {
+      for (const item of reception.products) {
+        const qtyDoc = item.documentQuantity || item.quantity
+        const qtyRec = item.quantity
+        const qtyDiff = round6(qtyRec - qtyDoc)
+        const invoicePrice = round6(item.invoicePricePerUnit || 0)
+        const vatRate = item.vatRate || 0
+        const lineNet = round2(qtyRec * invoicePrice)
+        const lineVat = round2(lineNet * (vatRate / 100))
+        const lineTotal = round2(lineNet + lineVat)
+        const landedCost = item.landedCostPerUnit || invoicePrice
+        const distTranspUnit = round6(landedCost - invoicePrice)
+        const lineTranspVal = round2(qtyRec * distTranspUnit)
+        const lineTranspVat = round2(lineTranspVal * (vatRate / 100))
+
+        transportSubtotal += lineTranspVal
+        transportVat += lineTranspVat
+        productsSubtotal += lineNet
+        productsVat += lineVat
+
+        const pId =
+          item.product && (item.product._id || item.product)
+            ? new Types.ObjectId((item.product._id || item.product).toString())
+            : undefined
+
+        nirItems.push({
+          receptionLineId: item._id,
+          stockableItemType: 'ERPProduct',
+          productId: pId,
+          productName: item.productName,
+          productCode: item.productCode || '',
+          unitMeasure: item.unitMeasure,
+          documentQuantity: qtyDoc,
+          quantity: qtyRec,
+          quantityDifference: qtyDiff,
+          invoicePricePerUnit: invoicePrice,
+          vatRate: vatRate,
+          distributedTransportCostPerUnit: distTranspUnit,
+          landedCostPerUnit: landedCost,
+          lineValue: lineNet,
+          lineVatValue: lineVat,
+          lineTotal: lineTotal,
+          qualityDetails: item.qualityDetails,
+        })
+      }
+    }
+
+    // Ambalaje
+    if (reception.packagingItems && reception.packagingItems.length > 0) {
+      for (const item of reception.packagingItems) {
+        const qtyDoc = item.documentQuantity || item.quantity
+        const qtyRec = item.quantity
+        const qtyDiff = round6(qtyRec - qtyDoc)
+        const invoicePrice = round6(item.invoicePricePerUnit || 0)
+        const vatRate = item.vatRate || 0
+        const lineNet = round2(qtyRec * invoicePrice)
+        const lineVat = round2(lineNet * (vatRate / 100))
+        const lineTotal = round2(lineNet + lineVat)
+        const landedCost = item.landedCostPerUnit || invoicePrice
+        const distTranspUnit = round6(landedCost - invoicePrice)
+        const lineTranspVal = round2(qtyRec * distTranspUnit)
+        const lineTranspVat = round2(lineTranspVal * (vatRate / 100))
+
+        transportSubtotal += lineTranspVal
+        transportVat += lineTranspVat
+        packagingSubtotal += lineNet
+        packagingVat += lineVat
+
+        const packId =
+          item.packaging && (item.packaging._id || item.packaging)
+            ? new Types.ObjectId(
+                (item.packaging._id || item.packaging).toString(),
+              )
+            : undefined
+
+        nirItems.push({
+          receptionLineId: item._id,
+          stockableItemType: 'Packaging',
+          packagingId: packId,
+          productName: item.packagingName,
+          productCode: item.productCode || '',
+          unitMeasure: item.unitMeasure,
+          documentQuantity: qtyDoc,
+          quantity: qtyRec,
+          quantityDifference: qtyDiff,
+          invoicePricePerUnit: invoicePrice,
+          vatRate: vatRate,
+          distributedTransportCostPerUnit: distTranspUnit,
+          landedCostPerUnit: landedCost,
+          lineValue: lineNet,
+          lineVatValue: lineVat,
+          lineTotal: lineTotal,
+          qualityDetails: item.qualityDetails,
+        })
+      }
+    }
+
+    const subtotal = round2(
+      productsSubtotal + packagingSubtotal + transportSubtotal,
+    )
+    const vatTotal = round2(productsVat + packagingVat + transportVat)
+    const grandTotal = round2(subtotal + vatTotal)
+    const totalEntryValue = subtotal
+
+    // 3. Update NIR
+    await NirModel.findByIdAndUpdate(nirId, {
+      items: nirItems,
+      totals: {
+        productsSubtotal: round2(productsSubtotal),
+        productsVat: round2(productsVat),
+        packagingSubtotal: round2(packagingSubtotal),
+        packagingVat: round2(packagingVat),
+        transportSubtotal: round2(transportSubtotal),
+        transportVat: round2(transportVat),
+        subtotal: subtotal,
+        vatTotal: vatTotal,
+        grandTotal: grandTotal,
+        totalEntryValue: totalEntryValue,
+      },
+      updatedAt: new Date(),
+    })
+
+    revalidatePath('/financial/nir')
+    revalidatePath(`/admin/management/reception`) // Refresh la lista de receptii poate e nevoie pt totaluri
+    return { success: true, message: 'NIR actualizat cu datele din recepție.' }
+  } catch (error) {
+    console.error('Error syncNirFromReceptionAction:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+// -------------------------------------------------------------
+// 9. CANCEL NIR ACTION (Wrapper pentru UI)
+// -------------------------------------------------------------
+export async function cancelNirAction(nirId: string) {
+  try {
+    const session = await auth()
+    if (!session?.user) throw new Error('Nu ești autentificat.')
+
+    return await cancelNir({
+      nirId,
+      reason: 'Anulare manuală din lista de recepții',
+      userId: session.user.id!,
+      userName: session.user.name!,
+    })
+  } catch (error) {
     return { success: false, message: (error as Error).message }
   }
 }
