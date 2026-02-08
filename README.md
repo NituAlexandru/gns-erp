@@ -83,34 +83,17 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # Foarte important
 
-- bug filtru data plati - nu gaseste tot din data respectriva. de ce?
 - de inchis cumva Aviz retur paleti - TRb generat nir cu cantitatile negative
 - receptie - mentiuni livrare in lista + blocaj la cantitati pana selecteaza UM
 - fisa client - LM FINANCIAL CONTA SERVICES S.R.L. bug sume 0
-- pe facturile split nu se preia CODUL UIT, de verificat adresa de livrare, se preia prima de la fiecare client in parte. nu cea selectata.
-- bug comanda, cand se deschide formul de edit, se incarca un pret aiurea, nu cel salvat.
-- scot nota interna compensare din fisa
 - solduri
-- bug lista livrari la filtre
 - lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26
 - scoate restrictie cont creare furnizori / clienti ca sa accepte si banca straina + de adaugat trezorerii + TBI bank
 - de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
 - aspect factura - de verificat la fact mai mari de o pagina
 - paletii storno
-- la miscari de stoc cauta doar dupa nume produs, de adaugat si codul.
 - la produse in aplicatie, sa se afiseze cate buc sunt la palet
-- La facturi, când modific ceva aș vrea să rămână la aceeași pagină - cu factura modificată
-- LA PRODUSE, CAND CAUT UN PRODUS SA IMI RAMANA ACEL PRODUS , NU SA DISPARA CAND DAU BACK
 - Printare multiplă facturi iesire
 - eroare la anularea facturii
 - NU MA LASA SA ADAUG LINIE CU MINUS, SI AM FACTURI CU DISCOUNT
 - La facturile introduse manual in plăti furnizori ma obliga sa bag serie
-
-# Incasari & Plati
-
-- de scos proformele din lista de alocari!
-- la facturi de la funizori, sa poata fi cautate dupa furnizori (incasari si plati)
-- adaugare alte monezi, EUR, USD
-- filtre, cautare dupa client, incasari totale/zi
-- in modalele de adaugare, afisare sold pana la data (selectabila data)
-- afisare facturi restante la fel ca in modalul de plati

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useTransition, useRef } from 'react'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -32,19 +32,27 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import Link from 'next/link'
-import type {
-  PopulatedReception,
-  ReceptionFilters,
-} from '@/lib/db/modules/reception/types'
+import type { PopulatedReception } from '@/lib/db/modules/reception/types'
 import { SearchFilters } from '@/components/shared/receptions/search-filters'
 import { PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
-import { useDebounce } from '@/hooks/use-debounce'
 import { generateNirForReceptionAction } from '@/lib/db/modules/financial/nir/nir.actions'
-import { Loader2, Printer } from 'lucide-react'
+import { Eye, Loader2, Printer } from 'lucide-react'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
+import { ReceptionPreviewCard } from './ReceptionPreviewCard'
 
 // ——— HELPER: calculează totalurile în RON pentru o recepție ———
 function computeReceptionTotals(rec: PopulatedReception) {
@@ -124,19 +132,21 @@ type ReceptionRow = PopulatedReception & {
   nirId?: string
 }
 
-export default function ReceptionList() {
+interface ReceptionListProps {
+  initialData: {
+    data: PopulatedReception[]
+    total: number
+    totalPages: number
+    currentPage: number
+  }
+}
+
+export default function ReceptionList({ initialData }: ReceptionListProps) {
   const router = useRouter()
-  const [receptions, setReceptions] = useState<PopulatedReception[]>([])
-  const [total, setTotal] = useState(0)
-  const [totalPages, setTotalPages] = useState(0)
-  const [isLoading, setIsLoading] = useState(true)
-  const [filters, setFilters] = useState<ReceptionFilters>({
-    q: '',
-    status: 'ALL',
-    createdBy: 'ALL',
-    page: 1,
-    pageSize: PAGE_SIZE,
-  })
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [isPending, startTransition] = useTransition()
+
   const [nirModalOpen, setNirModalOpen] = useState(false)
   const [nirTargetRec, setNirTargetRec] = useState<string | null>(null)
   const [isGeneratingNir, setIsGeneratingNir] = useState(false)
@@ -144,55 +154,35 @@ export default function ReceptionList() {
   const [deleteTarget, setDeleteTarget] = useState<ReceptionRow | null>(null)
   const [revokeTarget, setRevokeTarget] = useState<ReceptionRow | null>(null)
   const [isRevoking, setIsRevoking] = useState(false)
-  const debouncedFilters = useDebounce(filters, 300)
   const [previewRec, setPreviewRec] = useState<PopulatedReception | null>(null)
   const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
 
-  const fetchReceptions = useCallback(
-    async (currentFilters: ReceptionFilters) => {
-      setIsLoading(true)
-      const params = new URLSearchParams({
-        page: String(currentFilters.page),
-        pageSize: String(currentFilters.pageSize),
-        status: currentFilters.status || 'ALL',
-        createdBy: currentFilters.createdBy || 'ALL',
-        q: currentFilters.q || '',
-      })
+  const receptions = initialData.data
+  const total = initialData.total
+  const totalPages = initialData.totalPages
+  const currentPage = initialData.currentPage
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-      try {
-        const response = await fetch(
-          `/api/admin/management/receptions/list?${params.toString()}`,
-        )
-        if (!response.ok) throw new Error('Eroare la preluarea recepțiilor')
+  const handleUpdateParams = (newParams: Record<string, string | number>) => {
+    const params = new URLSearchParams(searchParams.toString())
 
-        const result = await response.json()
-        setReceptions(result.data)
-        setTotal(result.total)
-        setTotalPages(result.totalPages)
-      } catch (error) {
-        toast.error((error as Error).message)
-      } finally {
-        setIsLoading(false)
+    Object.entries(newParams).forEach(([key, value]) => {
+      if (value && value !== 'ALL') {
+        params.set(key, String(value))
+      } else {
+        params.delete(key)
       }
-    },
-    [],
-  )
+    })
 
-  useEffect(() => {
-    fetchReceptions(debouncedFilters)
-  }, [debouncedFilters, fetchReceptions])
+    // Resetăm la pagina 1 dacă schimbăm filtrele (dar nu și dacă schimbăm doar pagina)
+    if (!newParams.page) {
+      params.set('page', '1')
+    }
 
-  const handleFiltersChange = useCallback(
-    (newFilters: Partial<ReceptionFilters>) => {
-      setFilters((prev) => ({ ...prev, ...newFilters, page: 1 }))
-    },
-    [],
-  )
-
-  function fetchPage(newPage: number) {
-    if (newPage < 1 || newPage > totalPages) return
-    setFilters((prev) => ({ ...prev, page: newPage }))
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`)
+    })
   }
 
   async function handleDeleteConfirm() {
@@ -215,7 +205,7 @@ export default function ReceptionList() {
     toast.promise(promise, {
       loading: 'Se șterge recepția...',
       success: () => {
-        fetchReceptions(filters)
+        router.refresh()
         setDeleteOpen(false)
         setDeleteTarget(null)
         return 'Recepția a fost ștearsă cu succes!'
@@ -251,7 +241,7 @@ export default function ReceptionList() {
       await toast.promise(revokePromise(), {
         loading: 'Se revocă confirmarea...',
         success: () => {
-          fetchReceptions(filters) // <-- Reîmprospătează lista automat
+          router.refresh()
 
           toast.success('Recepție revocată!', {
             description: 'Recepția a fost adusă în starea "Ciornă" (Draft).',
@@ -294,7 +284,7 @@ export default function ReceptionList() {
         }
       } else {
         toast.success('NIR generat cu succes!', { id: toastId })
-        fetchReceptions(filters) // Refresh listă
+        router.refresh()
         setNirModalOpen(false)
         setNirTargetRec(null)
       }
@@ -339,22 +329,34 @@ export default function ReceptionList() {
   }
 
   return (
-    <div className='space-y-4'>
+    <div className='flex flex-col h-[calc(100vh-100px)] space-y-4'>
       {/* Header + filtre */}
       <div className='flex flex-wrap items-end justify-between gap-4'>
         <h1 className='text-2xl font-bold'>Recepții</h1>
 
         <div className='flex gap-2'>
-          <SearchFilters initial={filters} onChange={handleFiltersChange} />
+          <SearchFilters
+            initial={{
+              q: searchParams.get('q') || '',
+              status: searchParams.get('status') || 'ALL',
+              createdBy: searchParams.get('createdBy') || 'ALL',
+              page: Number(searchParams.get('page')) || 1,
+              pageSize: PAGE_SIZE,
+              from: searchParams.get('from') || '',
+              to: searchParams.get('to') || '',
+            }}
+            onChange={(newValues) => handleUpdateParams(newValues as any)}
+          />
           <Button
             variant='outline'
             onClick={() =>
-              handleFiltersChange({
+              handleUpdateParams({
                 q: '',
                 status: 'ALL',
                 createdBy: 'ALL',
                 page: 1,
-                pageSize: filters.pageSize,
+                from: '',
+                to: '',
               })
             }
           >
@@ -368,16 +370,13 @@ export default function ReceptionList() {
           </Link>
         </Button>
       </div>
-
       {/* Info paginare */}
       <p className='text-sm text-muted-foreground'>
-        Afișez{' '}
-        {receptions.length > 0 ? (filters.page - 1) * filters.pageSize + 1 : 0}–
-        {Math.min(filters.page * filters.pageSize, total)} din {total} recepții
+        Afișez {receptions.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–
+        {Math.min(currentPage * PAGE_SIZE, total)} din {total} recepții
       </p>
-
       {/* Tabel */}
-      <div className='overflow-x-auto'>
+      <div className='overflow-x-auto flex-1'>
         <Table>
           <TableHeader>
             <TableRow className='bg-muted'>
@@ -394,7 +393,7 @@ export default function ReceptionList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isPending ? (
               <TableRow>
                 <TableCell colSpan={9} className='h-24 text-center'>
                   Se încarcă...
@@ -413,9 +412,12 @@ export default function ReceptionList() {
                 const totals = computeReceptionTotals(rec)
 
                 return (
-                  <TableRow key={rec._id}>
+                  <TableRow
+                    key={rec._id}
+                    className='even:bg-muted/50 hover:bg-muted'
+                  >
                     {/* --- COLOANĂ NIR --- */}
-                    <TableCell className='py-1'>
+                    <TableCell className='py-1.5'>
                       {rec.nirNumber ? (
                         <div className='flex items-center gap-1'>
                           {/* Buton Print (Placeholder) */}
@@ -458,21 +460,38 @@ export default function ReceptionList() {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Link href={`/admin/management/reception/${rec._id}`}>
-                        {rec.supplier?.name || '–'}
-                      </Link>
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm max-w-[150px]'>
+                      <TooltipProvider>
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <Link
+                              href={`/admin/management/reception/${rec._id}`}
+                              className='block truncate w-full hover:underline'
+                            >
+                              {rec.supplier?.name || '–'}
+                            </Link>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{rec.supplier?.name || '–'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </TableCell>
-                    <TableCell>
-                      {format(new Date(rec.receptionDate), 'dd/MM/yyyy HH:mm')}
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                      {format(new Date(rec.receptionDate), 'dd/MM/yyyy ')}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
                       {deliveries.length > 0
                         ? deliveries.map((d, i) => (
-                            <div key={i}>
-                              {d.dispatchNoteSeries?.toUpperCase()}
-                              {' - '}
-                              {d.dispatchNoteNumber} –{' '}
+                            <div key={i} className='leading-tight'>
+                              {[
+                                d.dispatchNoteSeries?.toUpperCase(),
+                                d.dispatchNoteNumber,
+                              ]
+                                .filter(Boolean)
+                                .join(' - ')}
+
+                              {' – '}
                               {format(
                                 new Date(d.dispatchNoteDate),
                                 'dd/MM/yyyy',
@@ -481,18 +500,24 @@ export default function ReceptionList() {
                           ))
                         : '-'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
                       {invoices.length > 0
                         ? invoices.map((inv, i) => (
-                            <div key={i}>
-                              {inv.series?.toUpperCase()} – {inv.number} –{' '}
+                            <div key={i} className='leading-tight'>
+                              {[inv.series?.toUpperCase(), inv.number]
+                                .filter(Boolean)
+                                .join(' - ')}
+
+                              {' – '}
                               {format(new Date(inv.date), 'dd/MM/yyyy')}
                             </div>
                           ))
                         : '-'}
                     </TableCell>
-                    <TableCell>{formatCurrency(totals.generalRON)}</TableCell>
-                    <TableCell>
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                      {formatCurrency(totals.generalRON)}
+                    </TableCell>
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
                       <Badge
                         variant={
                           rec.status === 'DRAFT' ? 'secondary' : 'default'
@@ -501,110 +526,134 @@ export default function ReceptionList() {
                         {rec.status}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
                       {rec.createdByName || rec.createdBy?.name || '–'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
                       {rec.createdAt
-                        ? format(new Date(rec.createdAt), 'dd/MM/yyyy HH:mm')
+                        ? format(new Date(rec.createdAt), 'dd/MM/yyyy ')
                         : '-'}
                     </TableCell>
-                    <TableCell className='text-center'>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            Acțiuni
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end'>
-                          <DropdownMenuItem
-                            className='cursor-pointer'
-                            onSelect={() =>
-                              router.push(
-                                `/admin/management/reception/${rec._id}`,
-                              )
-                            }
-                          >
-                            Vizualizează
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className='cursor-pointer'
-                            onSelect={() =>
-                              router.push(
-                                `/admin/management/reception/${rec._id}/edit`,
-                              )
-                            }
-                            disabled={rec.status === 'CONFIRMAT'}
-                          >
-                            Editează
-                          </DropdownMenuItem>
-
-                          <DropdownMenuItem
-                            className='text-orange-400 focus:text-yellow-500 cursor-pointer'
-                            onSelect={() => setRevokeTarget(rec)}
-                            disabled={rec.status !== 'CONFIRMAT'}
-                          >
-                            Revocă Confirmarea
-                          </DropdownMenuItem>
-                          {/* --- ACȚIUNI NIR --- */}
-                          {rec.status === 'CONFIRMAT' && !rec.nirNumber && (
-                            <DropdownMenuItem
-                              className='cursor-pointer text-emerald-600 focus:text-emerald-700'
-                              onSelect={() => handleGenerateNIR(rec._id)}
-                              disabled={isGeneratingNir}
+                    <TableCell className='text-center py-1.5'>
+                      <div className='flex items-center justify-center gap-1'>
+                        {/* --- PREVIEW CARD --- */}
+                        <HoverCard>
+                          <HoverCardTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              className='h-7 w-7'
                             >
-                              Generează NIR
-                            </DropdownMenuItem>
-                          )}
-
-                          {rec.nirNumber && (
-                            <>
-                              {rec.nirNumber && (
-                                <>
-                                  <DropdownMenuItem
-                                    className='cursor-pointer'
-                                    onSelect={() =>
-                                      router.push(
-                                        `/admin/management/reception/nir/${rec.nirId}`,
-                                      )
-                                    }
-                                  >
-                                    Vezi Detalii NIR
-                                  </DropdownMenuItem>
-
-                                  <DropdownMenuItem
-                                    className='cursor-pointer'
-                                    onSelect={() => {
-                                      setPreviewRec(rec)
-                                      handlePrintPreview(rec.nirId!)
-                                    }}
-                                    disabled={!!isGeneratingPdf}
-                                  >
-                                    <Printer className='mr-2 h-4 w-4' />{' '}
-                                    Printează NIR
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </>
-                          )}
-                          <DropdownMenuSeparator />
-
-                          <DropdownMenuItem
-                            className='text-red-500 focus:text-red-600 cursor-pointer'
-                            onSelect={() => {
-                              setDeleteTarget(rec)
-                              setDeleteOpen(true)
-                            }}
-                            disabled={rec.status === 'CONFIRMAT'}
+                              <Eye className='h-4 w-4 text-muted-foreground hover:text-primary transition-colors' />
+                            </Button>
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            side='left'
+                            align='start'
+                            sideOffset={16}
+                            alignOffset={-10}
+                            collisionPadding={20}
+                            className='w-auto max-w-none p-0 border-none shadow-xl bg-transparent z-50'
                           >
-                            Șterge
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <ReceptionPreviewCard reception={rec} />
+                          </HoverCardContent>
+                        </HoverCard>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant='outline'
+                              size='sm'
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Acțiuni
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align='end'>
+                            <DropdownMenuItem
+                              className='cursor-pointer'
+                              onSelect={() =>
+                                router.push(
+                                  `/admin/management/reception/${rec._id}`,
+                                )
+                              }
+                            >
+                              Vizualizează
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className='cursor-pointer'
+                              onSelect={() =>
+                                router.push(
+                                  `/admin/management/reception/${rec._id}/edit`,
+                                )
+                              }
+                              disabled={rec.status === 'CONFIRMAT'}
+                            >
+                              Editează
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                              className='text-orange-400 focus:text-yellow-500 cursor-pointer'
+                              onSelect={() => setRevokeTarget(rec)}
+                              disabled={rec.status !== 'CONFIRMAT'}
+                            >
+                              Revocă Confirmarea
+                            </DropdownMenuItem>
+                            {/* --- ACȚIUNI NIR --- */}
+                            {rec.status === 'CONFIRMAT' && !rec.nirNumber && (
+                              <DropdownMenuItem
+                                className='cursor-pointer text-emerald-600 focus:text-emerald-700'
+                                onSelect={() => handleGenerateNIR(rec._id)}
+                                disabled={isGeneratingNir}
+                              >
+                                Generează NIR
+                              </DropdownMenuItem>
+                            )}
+
+                            {rec.nirNumber && (
+                              <>
+                                {rec.nirNumber && (
+                                  <>
+                                    <DropdownMenuItem
+                                      className='cursor-pointer'
+                                      onSelect={() =>
+                                        router.push(
+                                          `/admin/management/reception/nir/${rec.nirId}`,
+                                        )
+                                      }
+                                    >
+                                      Vezi Detalii NIR
+                                    </DropdownMenuItem>
+
+                                    <DropdownMenuItem
+                                      className='cursor-pointer'
+                                      onSelect={() => {
+                                        setPreviewRec(rec)
+                                        handlePrintPreview(rec.nirId!)
+                                      }}
+                                      disabled={!!isGeneratingPdf}
+                                    >
+                                      <Printer className='mr-2 h-4 w-4' />{' '}
+                                      Printează NIR
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </>
+                            )}
+                            <DropdownMenuSeparator />
+
+                            <DropdownMenuItem
+                              className='text-red-500 focus:text-red-600 cursor-pointer'
+                              onSelect={() => {
+                                setDeleteTarget(rec)
+                                setDeleteOpen(true)
+                              }}
+                              disabled={rec.status === 'CONFIRMAT'}
+                            >
+                              Șterge
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>{' '}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -613,7 +662,6 @@ export default function ReceptionList() {
           </TableBody>
         </Table>
       </div>
-
       {/* Dialog Ștergere */}
       {deleteTarget && (
         <AlertDialog
@@ -642,7 +690,6 @@ export default function ReceptionList() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-
       {/* --- DIALOG NOU PENTRU REVOCARE --- */}
       {revokeTarget && (
         <AlertDialog
@@ -670,24 +717,23 @@ export default function ReceptionList() {
           </AlertDialogContent>
         </AlertDialog>
       )}
-
       {/* Paginare */}
       {totalPages > 1 && (
-        <div className='flex justify-center items-center gap-4 mt-4'>
+        <div className='flex justify-center items-center gap-4 mt-auto py-4'>
           <Button
             variant='outline'
-            onClick={() => fetchPage(filters.page - 1)}
-            disabled={filters.page <= 1 || isLoading}
+            onClick={() => handleUpdateParams({ page: currentPage - 1 })}
+            disabled={currentPage <= 1 || isPending}
           >
             Anterior
           </Button>
           <span>
-            Pagina {filters.page} din {totalPages}
+            Pagina {currentPage} din {totalPages}
           </span>
           <Button
             variant='outline'
-            onClick={() => fetchPage(filters.page + 1)}
-            disabled={filters.page >= totalPages || isLoading}
+            onClick={() => handleUpdateParams({ page: currentPage + 1 })}
+            disabled={currentPage >= totalPages || isPending} // Aici era isLoading
           >
             Următor
           </Button>

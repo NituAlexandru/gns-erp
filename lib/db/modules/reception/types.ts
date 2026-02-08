@@ -78,11 +78,13 @@ export type PopulatedReception = Omit<
 }
 
 export interface ReceptionFilters {
-  q?: string // text liber
-  status?: string // "DRAFT", "CONFIRMAT" etc.
+  q?: string
+  status?: string
   createdBy?: string
   page: number
   pageSize: number
+  from?: string
+  to?: string
 }
 export type PopulatedProductDetails = {
   _id: string

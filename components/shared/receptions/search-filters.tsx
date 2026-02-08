@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -10,7 +10,19 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 import type { ReceptionFilters } from '@/lib/db/modules/reception/types'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
+import { DateRange } from 'react-day-picker'
+import { format } from 'date-fns'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { CalendarIcon } from 'lucide-react'
+import { formatInTimeZone } from 'date-fns-tz'
 
 interface Props {
   initial?: Partial<ReceptionFilters>
@@ -19,16 +31,21 @@ interface Props {
 
 export function SearchFilters({ initial = {}, onChange }: Props) {
   const [q, setQ] = useState(initial.q ?? '')
-  const [status, setStatus] = useState(initial.status ?? 'ALL')
-  const [createdBy, setCreatedBy] = useState(initial.createdBy ?? 'ALL')
   const [users, setUsers] = useState<{ _id: string; name: string }[]>([])
-
+  const [date, setDate] = useState<DateRange | undefined>(() => {
+    if (initial.from) {
+      return {
+        from: new Date(initial.from),
+        to: initial.to ? new Date(initial.to) : undefined,
+      }
+    }
+    return undefined
+  })
   useEffect(() => {
     setQ(initial.q ?? '')
-    setStatus(initial.status ?? 'ALL')
-    setCreatedBy(initial.createdBy ?? 'ALL')
-  }, [initial.q, initial.status, initial.createdBy])
+  }, [initial.q])
 
+  // Încărcăm userii (asta e OK)
   useEffect(() => {
     fetch('/api/admin/users')
       .then((r) => r.json())
@@ -38,15 +55,65 @@ export function SearchFilters({ initial = {}, onChange }: Props) {
       .catch(console.error)
   }, [])
 
+  // --- LOGICA DEBOUNCE PENTRU SEARCH (TEXT) ---
   useEffect(() => {
+    if (q === (initial.q ?? '')) return
+
+    const timer = setTimeout(() => {
+      onChange({
+        ...initial,
+        q,
+        page: 1,
+      } as ReceptionFilters)
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [q, initial, onChange])
+
+  // --- HANDLERS PENTRU DROPDOWNS (IMEDIAT) ---
+  const handleStatusChange = (val: string) => {
     onChange({
-      q,
-      status,
-      createdBy,
+      ...initial,
+      status: val,
       page: 1,
-      pageSize: initial.pageSize ?? PAGE_SIZE,
-    })
-  }, [q, status, createdBy, onChange, initial.pageSize])
+    } as ReceptionFilters)
+  }
+
+  const handleUserChange = (val: string) => {
+    onChange({
+      ...initial,
+      createdBy: val,
+      page: 1,
+    } as ReceptionFilters)
+  }
+
+  const handleDateSelect = (newDate: DateRange | undefined) => {
+    setDate(newDate)
+
+    if (newDate?.from) {
+      // Folosim formatInTimeZone + TIMEZONE pentru a fi siguri de data corectă
+      const fromStr = formatInTimeZone(newDate.from, TIMEZONE, 'yyyy-MM-dd')
+
+      const toStr = newDate.to
+        ? formatInTimeZone(newDate.to, TIMEZONE, 'yyyy-MM-dd')
+        : ''
+
+      onChange({
+        ...initial,
+        from: fromStr,
+        to: toStr,
+        page: 1,
+      } as any)
+    } else {
+      // Resetare
+      onChange({
+        ...initial,
+        from: '',
+        to: '',
+        page: 1,
+      } as any)
+    }
+  }
 
   return (
     <div className='flex flex-wrap gap-4'>
@@ -62,7 +129,10 @@ export function SearchFilters({ initial = {}, onChange }: Props) {
 
       {/* Status dropdown */}
       <div className='min-w-[160px]'>
-        <Select value={status} onValueChange={(v) => setStatus(v)}>
+        <Select
+          value={initial.status || 'ALL'}
+          onValueChange={handleStatusChange}
+        >
           <SelectTrigger aria-label='Filtrează după status' className='w-full'>
             <SelectValue placeholder='Status' />
           </SelectTrigger>
@@ -76,7 +146,10 @@ export function SearchFilters({ initial = {}, onChange }: Props) {
 
       {/* Created by dropdown */}
       <div className='min-w-[160px]'>
-        <Select value={createdBy} onValueChange={(v) => setCreatedBy(v)}>
+        <Select
+          value={initial.createdBy || 'ALL'}
+          onValueChange={handleUserChange}
+        >
           <SelectTrigger
             aria-label='Filtrează după utilizator'
             className='w-full'
@@ -92,6 +165,46 @@ export function SearchFilters({ initial = {}, onChange }: Props) {
             ))}
           </SelectContent>
         </Select>
+      </div>
+      {/* Date Range Picker */}
+      <div className={cn('grid gap-2', 'min-w-[240px]')}>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              id='date'
+              variant={'outline'}
+              className={cn(
+                'w-full justify-start text-left font-normal truncate',
+                !date && 'text-muted-foreground',
+              )}
+            >
+              <CalendarIcon className='mr-2 h-4 w-4' />
+              {date?.from ? (
+                date.to ? (
+                  <>
+                    {formatInTimeZone(date.from, TIMEZONE, 'dd/MM/yyyy')} -{' '}
+                    {formatInTimeZone(date.to, TIMEZONE, 'dd/MM/yyyy')}
+                  </>
+                ) : (
+                  formatInTimeZone(date.from, TIMEZONE, 'dd/MM/yyyy')
+                )
+              ) : (
+                <span>Filtrează după dată</span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className='w-auto p-0' align='start'>
+            <Calendar
+              initialFocus
+              mode='range'
+              defaultMonth={date?.from}
+              selected={date}
+              onSelect={handleDateSelect}
+              numberOfMonths={2}
+              locale={undefined}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
     </div>
   )

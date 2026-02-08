@@ -32,6 +32,8 @@ import {
   removeReceptionFromOrder,
 } from '../supplier-orders/supplier-order.actions'
 import NirModel from '../financial/nir/nir.model'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
+import { fromZonedTime } from 'date-fns-tz'
 
 export type ActionResultWithData<T> =
   | { success: true; data: T; message?: string }
@@ -882,25 +884,84 @@ export async function deleteReception(
   }
 }
 
-export async function getAllReceptions() {
+export async function getAllReceptions({
+  page = 1,
+  pageSize = PAGE_SIZE,
+  status = 'ALL',
+  createdBy = 'ALL',
+  q = '',
+  from,
+  to,
+}: {
+  page?: number
+  pageSize?: number
+  status?: string
+  createdBy?: string
+  q?: string
+  from?: string
+  to?: string
+} = {}) {
   await connectToDatabase()
 
-  const receptions = await ReceptionModel.find({})
-    .populate({ path: 'supplier', model: Supplier, select: 'name' })
-    .populate({ path: 'createdBy', model: User, select: 'name' })
-    .populate({
-      path: 'products.product',
-      model: 'ERPProduct',
-      select: 'name unit packagingUnit packagingQuantity itemsPerPallet',
-    })
-    .populate({
-      path: 'packagingItems.packaging',
-      model: 'Packaging',
-      select: 'name unit packagingUnit packagingQuantity',
-    })
-    .sort({ createdAt: -1 })
-    .lean()
-  return JSON.parse(JSON.stringify(receptions))
+  // 1. Construim filtrul
+  const filter: any = {}
+
+  if (status && status !== 'ALL') filter.status = status
+  if (createdBy && createdBy !== 'ALL' && mongoose.isValidObjectId(createdBy)) {
+    filter.createdBy = createdBy
+  }
+
+  if (from) {
+    // 1. Calculăm începutul zilei în fusul orar specificat (00:00:00)
+    // Conversia returnează un obiect Date (UTC) care corespunde cu 00:00 în RO
+    const startDate = fromZonedTime(`${from} 00:00:00`, TIMEZONE)
+    filter.receptionDate = filter.receptionDate || {}
+    filter.receptionDate.$gte = startDate
+  }
+
+  if (to) {
+    // 2. Calculăm sfârșitul zilei în fusul orar specificat (23:59:59.999)
+    const endDate = fromZonedTime(`${to} 23:59:59.999`, TIMEZONE)
+
+    filter.receptionDate = filter.receptionDate || {}
+    filter.receptionDate.$lte = endDate
+  }
+
+  // Logica de căutare (copiată din route.ts)
+  if (q) {
+    const regex = new RegExp(q, 'i')
+    const matchingSuppliers = await Supplier.find({ name: regex }).select('_id')
+    const supplierIds = matchingSuppliers.map((s) => s._id)
+
+    filter.$or = [
+      { supplier: { $in: supplierIds } },
+      { nirNumber: regex },
+      { 'invoices.number': regex },
+      { 'deliveries.dispatchNoteSeries': regex },
+      { 'deliveries.dispatchNoteNumber': regex },
+    ]
+  }
+
+  // 2. Executăm interogările
+  const skip = (page - 1) * pageSize
+
+  const [data, total] = await Promise.all([
+    ReceptionModel.find(filter)
+      .populate('supplier', 'name')
+      .populate('createdBy', 'name')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(pageSize)
+      .lean(),
+    ReceptionModel.countDocuments(filter),
+  ])
+
+  return {
+    data: JSON.parse(JSON.stringify(data)),
+    total,
+    totalPages: Math.ceil(total / pageSize),
+    currentPage: page,
+  }
 }
 
 export async function getReceptionById(
