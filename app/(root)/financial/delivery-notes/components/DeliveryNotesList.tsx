@@ -48,6 +48,8 @@ import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { useSession } from 'next-auth/react'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
+import Link from 'next/link'
+import { DeliveryNotePreview } from './DeliveryNotePreview'
 
 interface DeliveryNotesListProps {
   data: DeliveryNoteDTO[]
@@ -290,9 +292,13 @@ export function DeliveryNotesList({
                   <TableRow key={note._id} className='hover:bg-muted/50'>
                     <TableCell className='text-[10px] lg:text-xs xl:text-sm py-1'>
                       <div className='flex flex-col'>
-                        <span>
+                        <Link
+                          href={`/financial/delivery-notes/${note._id}`}
+                          className='font-medium hover:underline hover:text-primary transition-colors'
+                        >
                           {note.seriesName}-{note.noteNumber}
-                        </span>
+                        </Link>
+
                         {note.deliveryNumberSnapshot && (
                           <span className='text-[8px] lg:text-[10px] xl:text-xs text-muted-foreground truncate max-w-[100px] lg:max-w-[100px]'>
                             Livr.: {note.deliveryNumberSnapshot}
@@ -322,84 +328,88 @@ export function DeliveryNotesList({
                       {addressString}
                     </TableCell>
                     <TableCell className='text-right py-1'>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            disabled={!!actionLoadingId}
-                          >
-                            {actionLoadingId === note._id ? (
-                              <Loader2 className='h-4 w-4 animate-spin' />
-                            ) : (
-                              <MoreHorizontal className='h-4 w-4' />
-                            )}
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align='end'>
-                          <DropdownMenuItem
-                            onSelect={() =>
-                              router.push(
-                                `/financial/delivery-notes/${note._id}`,
-                              )
-                            }
-                          >
-                            Vizualizează
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() => {
-                              setPreviewNote(note)
-                              handlePrintPreview(note._id)
-                            }}
-                            disabled={!!isGeneratingPdf}
-                          >
-                            Printează
-                            {isGeneratingPdf === note._id && (
-                              <Loader2 className='h-3 w-3 animate-spin ml-2' />
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {note.status === 'IN_TRANSIT' && (
-                            <>
-                              <DropdownMenuItem
-                                className='text-green-600'
-                                onSelect={() => handleConfirmClick(note)}
-                              >
-                                Confirmă Livrarea
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className='text-destructive'
-                                onSelect={() => {
-                                  setNoteToCancel(note)
-                                  setIsCancelModalOpen(true)
-                                }}
-                              >
-                                Anulează Avizul
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                          {note.status === 'DELIVERED' && !note.isInvoiced && (
-                            <>
-                              <DropdownMenuItem
-                                onSelect={() => handleGenerateInvoice(note)}
-                              >
-                                Generează Factură Automată
-                              </DropdownMenuItem>
-                              {isSuperAdmin && (
+                      <div className='flex items-center justify-end gap-1'>
+                        <DeliveryNotePreview note={note} />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant='ghost'
+                              size='icon'
+                              disabled={!!actionLoadingId}
+                            >
+                              {actionLoadingId === note._id ? (
+                                <Loader2 className='h-4 w-4 animate-spin' />
+                              ) : (
+                                <MoreHorizontal className='h-4 w-4' />
+                              )}
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align='end'>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                router.push(
+                                  `/financial/delivery-notes/${note._id}`,
+                                )
+                              }
+                            >
+                              Vizualizează
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                setPreviewNote(note)
+                                handlePrintPreview(note._id)
+                              }}
+                              disabled={!!isGeneratingPdf}
+                            >
+                              Printează
+                              {isGeneratingPdf === note._id && (
+                                <Loader2 className='h-3 w-3 animate-spin ml-2' />
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {note.status === 'IN_TRANSIT' && (
+                              <>
                                 <DropdownMenuItem
-                                  className='text-red-500'
+                                  className='text-green-600'
+                                  onSelect={() => handleConfirmClick(note)}
+                                >
+                                  Confirmă Livrarea
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className='text-destructive'
                                   onSelect={() => {
-                                    setNoteToRevoke(note)
-                                    setIsRevokeModalOpen(true)
+                                    setNoteToCancel(note)
+                                    setIsCancelModalOpen(true)
                                   }}
                                 >
-                                  Anulează Confirmarea
+                                  Anulează Avizul
                                 </DropdownMenuItem>
+                              </>
+                            )}
+                            {note.status === 'DELIVERED' &&
+                              !note.isInvoiced && (
+                                <>
+                                  <DropdownMenuItem
+                                    onSelect={() => handleGenerateInvoice(note)}
+                                  >
+                                    Generează Factură Automată
+                                  </DropdownMenuItem>
+                                  {isSuperAdmin && (
+                                    <DropdownMenuItem
+                                      className='text-red-500'
+                                      onSelect={() => {
+                                        setNoteToRevoke(note)
+                                        setIsRevokeModalOpen(true)
+                                      }}
+                                    >
+                                      Anulează Confirmarea
+                                    </DropdownMenuItem>
+                                  )}
+                                </>
                               )}
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )

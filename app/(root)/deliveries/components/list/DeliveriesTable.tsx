@@ -15,8 +15,9 @@ import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Eye } from 'lucide-react'
+import { Package } from 'lucide-react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { DeliveryPreview } from './DeliveryPreview'
 
 interface DeliveriesTableProps {
   deliveries: IDelivery[]
@@ -114,12 +115,21 @@ export function DeliveriesTable({
                       {delivery.createdByName}
                     </TableCell>
                     <TableCell className='text-right py-1'>
-                      <Button asChild variant='ghost' size='icon'>
-                        <Link href={`/orders/${delivery.orderId.toString()}`}>
-                          <Eye className='h-4 w-4' />
-                          <span className='sr-only'>Vezi Detalii</span>
-                        </Link>
-                      </Button>
+                      <div className='flex justify-end gap-1'>
+                        <DeliveryPreview delivery={delivery} />
+                        <Button
+                          asChild
+                          variant='ghost'
+                          size='icon'
+                          className='h-8 w-8 hover:bg-muted'
+                          title='Mergi la Comandă'
+                        >
+                          <Link href={`/orders/${delivery.orderId.toString()}`}>
+                            <Package className='h-4 w-4 text-muted-foreground' />
+                            <span className='sr-only'>Mergi la Comandă</span>
+                          </Link>
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )

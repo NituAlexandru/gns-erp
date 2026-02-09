@@ -670,7 +670,27 @@ export async function getAllOrders(
           { $sort: { createdAt: -1 } },
           { $skip: skipAmount },
           { $limit: PAGE_SIZE },
-          // Proiectăm structura finală similară cu populate
+          {
+            $lookup: {
+              from: 'deliveries',
+              localField: '_id',
+              foreignField: 'orderId',
+              as: 'deliveries',
+              pipeline: [
+                {
+                  $project: {
+                    _id: 1,
+                    deliveryNumber: 1,
+                    status: 1,
+                    deliveryDate: 1,
+                    requestedDeliveryDate: 1,
+                    deliveryNoteId: 1,
+                    deliveryNoteNumber: 1,
+                  },
+                },
+              ],
+            },
+          },
           {
             $addFields: {
               client: { $arrayElemAt: ['$clientDetails', 0] },

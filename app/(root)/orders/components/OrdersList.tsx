@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   Table,
@@ -11,10 +11,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { PopulatedOrder, OrderFilters } from '@/lib/db/modules/order/types'
+import { PopulatedOrder } from '@/lib/db/modules/order/types'
 import { OrdersFilters } from './OrdersFilters'
-import { useDebounce } from '@/hooks/use-debounce'
-import qs from 'query-string'
 import { OrderStatusBadge } from './OrderStatusBadge'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -40,6 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { OrderPreview } from './OrderPreview'
 
 interface OrdersListProps {
   orders: PopulatedOrder[]
@@ -137,7 +136,12 @@ export function OrdersList({
               orders.map((order) => (
                 <TableRow key={order._id} className='hover:bg-muted/50'>
                   <TableCell className='font-medium'>
-                    {order.orderNumber}
+                    <Link
+                      href={`/orders/${order._id}`}
+                      className='text-foreground decoration-transparent underline-offset-4 transition-colors hover:underline hover:decoration-primary hover:text-primary'
+                    >
+                      {order.orderNumber}
+                    </Link>
                   </TableCell>
                   <TableCell>{order.client?.name || 'N/A'}</TableCell>
                   <TableCell>{order.salesAgent?.name || 'N/A'}</TableCell>
@@ -151,72 +155,72 @@ export function OrdersList({
                     {formatCurrency(order.totals.grandTotal)}
                   </TableCell>
                   <TableCell className='text-right'>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant='ghost' size='sm'>
-                          Acțiuni
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align='end'>
-                        <DropdownMenuItem
-                          onSelect={() => router.push(`/orders/${order._id}`)}
-                        >
-                          Vizualizează
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            router.push(`/orders/${order._id}/edit`)
-                          }
-                          // Activăm doar dacă statusul permite editarea
-                          disabled={!editableStatuses.includes(order.status)}
-                        >
-                          Modifică Comanda
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            router.push(`/deliveries/new?orderId=${order._id}`)
-                          }
-                          // Activăm doar dacă statusul permite planificarea
-                          disabled={
-                            !allowedDeliveryStatuses.includes(order.status)
-                          }
-                        >
-                          Planifică Livrări
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className='text-red-500'
-                          onSelect={() => {
-                            // Facem verificarea înainte să deschidem dialogul
-                            startTransition(async () => {
-                              const check =
-                                await checkOrderCancellationEligibility(
-                                  order._id,
-                                )
+                    <div className='flex items-center justify-end gap-0'>
+                      <OrderPreview order={order} />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant='ghost' size='sm'>
+                            Acțiuni
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align='end'>
+                          <DropdownMenuItem
+                            onSelect={() => router.push(`/orders/${order._id}`)}
+                          >
+                            Vizualizează
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              router.push(`/orders/${order._id}/edit`)
+                            }
+                            disabled={!editableStatuses.includes(order.status)}
+                          >
+                            Modifică Comanda
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              router.push(
+                                `/deliveries/new?orderId=${order._id}`,
+                              )
+                            }
+                            disabled={
+                              !allowedDeliveryStatuses.includes(order.status)
+                            }
+                          >
+                            Planifică Livrări
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className='text-red-500'
+                            onSelect={() => {
+                              startTransition(async () => {
+                                const check =
+                                  await checkOrderCancellationEligibility(
+                                    order._id,
+                                  )
 
-                              if (!check.allowed) {
-                                // Caz BLOCANT: Afișăm eroare și NU deschidem modalul
-                                toast.error('Anulare imposibilă', {
-                                  description: check.message,
-                                })
-                                return
-                              }
+                                if (!check.allowed) {
+                                  toast.error('Anulare imposibilă', {
+                                    description: check.message,
+                                  })
+                                  return
+                                }
 
-                              // Caz PERMIS: Setăm mesajul de avertizare (dacă există livrări) și deschidem
-                              setCancellationWarning(check.message) // Poate fi null sau textul cu "X livrări"
-                              setOrderToCancel(order)
-                              setIsConfirmOpen(true)
-                            })
-                          }}
-                          disabled={
-                            order.status === 'COMPLETED' ||
-                            order.status === 'CANCELLED'
-                          }
-                        >
-                          Anulează Comanda
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                                setCancellationWarning(check.message) // Poate fi null sau textul cu "X livrări"
+                                setOrderToCancel(order)
+                                setIsConfirmOpen(true)
+                              })
+                            }}
+                            disabled={
+                              order.status === 'COMPLETED' ||
+                              order.status === 'CANCELLED'
+                            }
+                          >
+                            Anulează Comanda
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

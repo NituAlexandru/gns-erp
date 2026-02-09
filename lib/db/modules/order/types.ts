@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { Types } from 'mongoose'
 import { IOrder } from './order.model'
 import { CreateOrderInputSchema, OrderLineItemInputSchema } from './validator'
+import { IDelivery } from '../deliveries/delivery.model'
 
 export interface IOrderLineItem extends Types.Subdocument {
   productId?: Types.ObjectId
@@ -45,10 +46,7 @@ export interface IOrderLineItem extends Types.Subdocument {
   packagingQuantity?: number
 }
 
-// Tipul de date pentru formularul de creare a unei comenzi
 export type CreateOrderInput = z.infer<typeof CreateOrderInputSchema>
-
-// Tipul de date pentru o singură linie din formularul de comandă
 export type OrderLineItemInput = z.infer<typeof OrderLineItemInputSchema>
 
 export type FullOrder = IOrder & {
@@ -68,6 +66,7 @@ export type PopulatedOrder = Omit<IOrder, 'client'> & {
     productId?: string | null
     serviceId?: string | null
   })[]
+  deliveries?: IDelivery[]
 }
 
 export { CreateOrderInputSchema }

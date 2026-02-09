@@ -8,30 +8,54 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Box, Hash, ScanBarcode } from 'lucide-react'
+import { Box, Hash } from 'lucide-react'
 import { getSmartDescription } from './DeliveryNoteDetails.helpers'
 import { Barcode } from '@/components/barcode/barcode-image'
+import { cn, formatCurrency } from '@/lib/utils'
 
 interface DeliveryNoteItemsTableProps {
   items: DeliveryNoteDTO['items']
+  isPreview?: boolean
 }
 
-export function DeliveryNoteItemsTable({ items }: DeliveryNoteItemsTableProps) {
-  // Calculăm totalurile grupate pe UM
+export function DeliveryNoteItemsTable({
+  items,
+  isPreview = false,
+}: DeliveryNoteItemsTableProps) {
   const totalsByUM = items.reduce(
     (acc, item) => {
       const um = item.unitOfMeasure.toLowerCase()
       acc[um] = (acc[um] || 0) + item.quantity
       return acc
     },
-    {} as Record<string, number>
+    {} as Record<string, number>,
   )
+
+  const financialTotals = items.reduce(
+    (acc, item) => {
+      acc.net += item.lineValue || 0
+      acc.vat += item.lineVatValue || 0
+      acc.gross += item.lineTotal || 0
+      return acc
+    },
+    { net: 0, vat: 0, gross: 0 },
+  )
+
+  const rowHeightClass = isPreview ? 'py-0 h-6' : 'py-1'
+  const textSizeClass = isPreview ? 'text-xs' : 'text-sm'
+  const headerTextSize = isPreview ? 'text-[10px]' : 'text-xs'
 
   return (
     <Card className='py-2 gap-0'>
       <CardHeader className='pl-1'>
-        <CardTitle className='text-base font-semibold flex items-center gap-2'>
-          <Box className='h-4 w-4' /> Produse Livrate
+        <CardTitle
+          className={cn(
+            'font-semibold flex items-center gap-2',
+            isPreview ? 'text-sm' : 'text-base',
+          )}
+        >
+          <Box className={cn(isPreview ? 'h-3 w-3' : 'h-4 w-4')} /> Produse
+          Livrate
         </CardTitle>
       </CardHeader>
       <CardContent className='p-0'>
@@ -39,33 +63,43 @@ export function DeliveryNoteItemsTable({ items }: DeliveryNoteItemsTableProps) {
           <TableHeader className='bg-muted/50'>
             {/* Rândul 1: Titluri */}
             <TableRow>
-              <TableHead className='w-[40px]'>#</TableHead>
-              <TableHead>Cod Produs</TableHead>
-              <TableHead>Cod Bare</TableHead>
-              <TableHead>Descriere Produs</TableHead>
-              <TableHead className='w-[80px] text-center'>UM</TableHead>
-              <TableHead className='text-right'>Cantitate</TableHead>
+              <TableHead className={cn('w-[40px]', textSizeClass)}>#</TableHead>
+              <TableHead className={textSizeClass}>Cod Produs</TableHead>
+              <TableHead className={textSizeClass}>Cod Bare</TableHead>
+              <TableHead className={textSizeClass}>Descriere Produs</TableHead>
+              <TableHead className={cn('w-[80px] text-center', textSizeClass)}>
+                UM
+              </TableHead>
+              <TableHead className={cn('text-right', textSizeClass)}>
+                Cantitate
+              </TableHead>
+              <TableHead className={cn('text-right', textSizeClass)}>
+                Preț Unitar
+              </TableHead>
+              <TableHead className={cn('text-right', textSizeClass)}>
+                Valoare
+              </TableHead>
+              <TableHead className={cn('text-right', textSizeClass)}>
+                TVA
+              </TableHead>
+              <TableHead className={cn('text-right', textSizeClass)}>
+                Total
+              </TableHead>
             </TableRow>
-            {/* Rândul 2: Numerotare (0-5) */}
             <TableRow className='h-6 hover:bg-transparent border-t-0'>
-              <TableHead className='h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                0
-              </TableHead>
-              <TableHead className='h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                1
-              </TableHead>
-              <TableHead className='h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                2
-              </TableHead>
-              <TableHead className='h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                3
-              </TableHead>
-              <TableHead className='h-6 py-0 text-[10px] font-normal text-muted-foreground text-center'>
-                4
-              </TableHead>
-              <TableHead className='text-right h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                5
-              </TableHead>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                <TableHead
+                  key={i}
+                  className={cn(
+                    'h-6 py-0 font-normal text-muted-foreground',
+                    headerTextSize,
+                    i === 4 && 'text-center',
+                    i >= 5 && 'text-right',
+                  )}
+                >
+                  {i}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
 
@@ -74,14 +108,27 @@ export function DeliveryNoteItemsTable({ items }: DeliveryNoteItemsTableProps) {
               const smartDesc = getSmartDescription(item)
 
               return (
-                <TableRow key={index}>
-                  <TableCell className='text-xs text-muted-foreground font-mono py-0'>
+                <TableRow key={index} className={rowHeightClass}>
+                  <TableCell
+                    className={cn(
+                      'text-muted-foreground font-mono py-0',
+                      textSizeClass,
+                    )}
+                  >
                     {index + 1}
                   </TableCell>
                   <TableCell className='py-0'>
                     {item.productCode && item.productCode !== 'N/A' ? (
-                      <div className='text-muted-foreground flex items-center gap-1 text-sm'>
-                        <Hash className='h-3 w-3' /> {item.productCode}
+                      <div
+                        className={cn(
+                          'text-muted-foreground flex items-center gap-1',
+                          textSizeClass,
+                        )}
+                      >
+                        <Hash
+                          className={cn(isPreview ? 'h-2.5 w-2.5' : 'h-3 w-3')}
+                        />{' '}
+                        {item.productCode}
                       </div>
                     ) : (
                       '-'
@@ -92,53 +139,105 @@ export function DeliveryNoteItemsTable({ items }: DeliveryNoteItemsTableProps) {
                       <div className='py-0'>
                         <Barcode
                           text={item.productBarcode}
-                          width={250}
-                          height={70}
+                          width={isPreview ? 150 : 250}
+                          height={isPreview ? 40 : 70}
                           type='code128'
                         />
                       </div>
                     ) : (
-                      <div
-                        className='flex items-center gap-2 opacity-20 select-none'
-                        title='Fără cod de bare'
-                      ></div>
+                      <div className='flex items-center gap-2 opacity-20 select-none'></div>
                     )}
                   </TableCell>
                   <TableCell className='py-0'>
-                    <div className='font-medium'>{item.productName}</div>
+                    <div className={cn('font-medium', textSizeClass)}>
+                      {item.productName}
+                    </div>
                     {smartDesc && (
-                      <div className='text-[11px] text-muted-foreground font-medium'>
+                      <div
+                        className={cn(
+                          'text-muted-foreground font-medium',
+                          isPreview ? 'text-[10px]' : 'text-[11px]',
+                        )}
+                      >
                         {smartDesc}
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className='text-sm py-0 lowercase text-muted-foreground text-center'>
+                  <TableCell
+                    className={cn(
+                      'py-0 lowercase text-muted-foreground text-center',
+                      textSizeClass,
+                    )}
+                  >
                     {item.unitOfMeasure}
                   </TableCell>
-                  <TableCell className='text-right py-0 font-bold text-base'>
+                  <TableCell
+                    className={cn(
+                      'text-right py-0 font-bold',
+                      isPreview ? 'text-sm' : 'text-base',
+                    )}
+                  >
                     {item.quantity}
+                  </TableCell>
+
+                  <TableCell className={cn('text-right py-0', textSizeClass)}>
+                    {formatCurrency(item.priceAtTimeOfOrder)}
+                  </TableCell>
+                  <TableCell className={cn('text-right py-0', textSizeClass)}>
+                    {formatCurrency(item.lineValue)}
+                  </TableCell>
+                  <TableCell className={cn('text-right py-0', textSizeClass)}>
+                    {formatCurrency(item.lineVatValue)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      'text-right py-0 font-semibold',
+                      textSizeClass,
+                    )}
+                  >
+                    {formatCurrency(item.lineTotal)}
                   </TableCell>
                 </TableRow>
               )
             })}
 
-            {/* Rândul de TOTALURI */}
             <TableRow className='bg-muted/30 border-t-2 p-0'>
               <TableCell
-                colSpan={4}
-                className='text-right align-top py-1 font-semibold text-muted-foreground'
+                colSpan={5}
+                className={cn(
+                  'text-right align-center font-semibold text-muted-foreground',
+                  isPreview ? 'py-1 text-xs' : 'py-1 text-sm',
+                )}
               >
-                Total Cantitate:
+                Totaluri:
               </TableCell>
-              <TableCell colSpan={2} className='text-right align-top '>
+
+              {/* Total Cantități (Sub coloana Cantitate) */}
+              <TableCell className='text-right align-top'>
                 <div className='flex flex-col gap-0 items-end'>
                   {Object.entries(totalsByUM).map(([um, qty]) => (
-                    <div key={um} className='flex gap-1 text-sm'>
+                    <div key={um} className={cn('flex gap-1', textSizeClass)}>
                       <span className='font-bold'>{qty}</span>
-                      <span className=' lowercase'>{um}</span>
+                      <span className='lowercase'>{um}</span>
                     </div>
                   ))}
                 </div>
+              </TableCell>
+              <TableCell className='py-0' />
+              <TableCell
+                className={cn('text-right align-top font-bold', textSizeClass)}
+              >
+                {formatCurrency(financialTotals.net)}
+              </TableCell>
+              <TableCell
+                className={cn('text-right align-top font-bold', textSizeClass)}
+              >
+                {formatCurrency(financialTotals.vat)}
+              </TableCell>
+              <TableCell
+                className={cn('text-right align-top font-bold', textSizeClass)}
+              >
+                {formatCurrency(financialTotals.gross)}
               </TableCell>
             </TableRow>
           </TableBody>

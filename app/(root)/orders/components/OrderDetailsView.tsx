@@ -20,7 +20,15 @@ import {
 } from '@/lib/db/modules/deliveries/delivery.model'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
-import { Download, Pencil, Truck } from 'lucide-react'
+import {
+  Download,
+  FileCheck,
+  FileText,
+  Loader2,
+  Pencil,
+  Printer,
+  Truck,
+} from 'lucide-react'
 import { useState } from 'react' // Am scos 'useMemo'
 import { formatMinutes } from '@/lib/db/modules/client/client.utils'
 import { Button } from '@/components/ui/button'
@@ -48,6 +56,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
+import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 
 interface OrderDetailsViewProps {
   order: PopulatedOrder
@@ -75,12 +85,35 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
       .join(', ')
   }
   const deliveryAddressString = formatAddress(order.deliveryAddress)
-
   const [isProformaModalOpen, setIsProformaModalOpen] = useState(false)
   const [proformaSeries, setProformaSeries] = useState<SeriesDTO[]>([])
   const [selectedSeries, setSelectedSeries] = useState<string>('')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
+  const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null)
 
+  const handlePrintAviz = async (deliveryNoteId: string) => {
+    setGeneratingPdfId(deliveryNoteId)
+    try {
+      const { getPrintData } = await import(
+        '@/lib/db/modules/printing/printing.actions'
+      )
+      const result = await getPrintData(deliveryNoteId, 'DELIVERY_NOTE')
+
+      if (result.success) {
+        setPrintData(result.data)
+        setIsPreviewOpen(true)
+      } else {
+        toast.error(result.message)
+      }
+    } catch (error) {
+      toast.error('Eroare la generarea datelor de printare.')
+      console.error(error)
+    } finally {
+      setGeneratingPdfId(null)
+    }
+  }
   const handleGenerateProforma = async (seriesName: string) => {
     if (!seriesName) {
       toast.error('Vă rugăm selectați o serie.')
@@ -120,7 +153,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
     try {
       const documentType = 'Proforma' as unknown as DocumentType
       const series = (await getActiveSeriesForDocumentType(
-        documentType
+        documentType,
       )) as SeriesDTO[]
 
       if (!series || series.length === 0) {
@@ -151,9 +184,9 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
   }
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-1'>
       {/* 1. Header Pagina  */}
-      <div className='flex flex-col sm:flex-row justify-between sm:items-start gap-4'>
+      <div className='flex flex-col sm:flex-row justify-between sm:items-start gap-1'>
         <div>
           <h1 className='text-2xl font-bold'>Comandă #{order.orderNumber}</h1>
           <p className='text-muted-foreground'>
@@ -161,7 +194,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
             {order.salesAgent?.name || 'N/A'}
           </p>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex items-center gap-1'>
           <Button variant='outline' asChild title='Editează Comanda'>
             <Link href={`/orders/${order._id}/edit`}>
               Modifică Comanda <Pencil className='h-3 w-3' />
@@ -185,7 +218,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
         </div>
       </div>
 
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-6'>
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-2'>
         {/* Coloana Stângă (Detalii) */}
         <div className='lg:col-span-2 space-y-6'>
           {/* Card Detalii Client și Livrare */}
@@ -194,7 +227,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
               <CardTitle>Detalii Client și Livrare</CardTitle>
             </CardHeader>
             <CardContent className='text-sm space-y-4'>
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+              <div className='grid grid-cols-1 md:grid-cols-3 gap-2'>
                 {/* Date Facturare */}
                 <div className='col-span-1'>
                   <h3 className='font-semibold mb-1'>Date Facturare</h3>
@@ -263,7 +296,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                       {order.estimatedVehicleType}
                     </span>
                   </p>
-                  <div className='flex gap-2'>
+                  <div className='flex gap-1'>
                     <p className='text-muted-foreground'>
                       Distanță:{' '}
                       <span className='font-medium text-foreground'>
@@ -302,14 +335,12 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
         </div>
 
         {/* Coloana Dreaptă (Totaluri) */}
-        <Card className='flex flex-col'>
+        <Card className='flex flex-col gap-2'>
           <CardHeader>
             <CardTitle>Sumar Financiar</CardTitle>
           </CardHeader>
           <CardContent className='flex-grow flex flex-col text-sm'>
-            {/* --- ACESTA ESTE BLOCUL MODIFICAT --- */}
-            <div className='flex-grow space-y-1'>
-              {/* Afișăm totalurile direct din order.totals */}
+            <div className='flex-grow space-y-0'>
               <div className='flex justify-between font-medium'>
                 <span>Subtotal Articole</span>
                 <span>{formatCurrency(order.totals.productsSubtotal)}</span>
@@ -321,8 +352,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                 </span>
               </div>
 
-              {/* SECȚIUNEA NOUĂ PENTRU AMBALAJE */}
-              <div className='flex justify-between font-medium mt-2'>
+              <div className='flex justify-between font-medium '>
                 <span>Subtotal Ambalaje</span>
                 <span>{formatCurrency(order.totals.packagingSubtotal)}</span>
               </div>
@@ -333,7 +363,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                 </span>
               </div>
 
-              <div className='flex justify-between font-medium mt-2'>
+              <div className='flex justify-between font-medium '>
                 <span>Subtotal Servicii</span>
                 <span>{formatCurrency(order.totals.servicesSubtotal)}</span>
               </div>
@@ -344,7 +374,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                 </span>
               </div>
 
-              <div className='flex justify-between font-medium mt-2'>
+              <div className='flex justify-between font-medium '>
                 <span>Subtotal Manual</span>
                 <span>{formatCurrency(order.totals.manualSubtotal)}</span>
               </div>
@@ -355,20 +385,18 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                 </span>
               </div>
             </div>
-            {/* --- SFÂRȘITUL BLOCULUI MODIFICAT --- */}
 
             <div className='mt-auto'>
               <Separator className='my-2' />
-              {/* Afișăm totalurile finale din order.totals */}
-              <div className='flex justify-between text-md font-semibold'>
+              <div className='flex justify-between text-sm font-semibold'>
                 <span>Subtotal General</span>
                 <span>{formatCurrency(order.totals.subtotal)}</span>
               </div>
-              <div className='flex justify-between text-md font-semibold'>
+              <div className='flex justify-between text-sm font-semibold'>
                 <span>TVA General</span>
                 <span>{formatCurrency(order.totals.vatTotal)}</span>
               </div>
-              <div className='flex justify-between text-lg font-bold mt-2'>
+              <div className='flex justify-between text-sm font-bold '>
                 <span>Total General</span>
                 <span>{formatCurrency(order.totals.grandTotal)}</span>
               </div>
@@ -378,7 +406,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
 
         {/* Card 3: Articole Comandă (Neschimbat) */}
         <div className='lg:col-span-3'>
-          <Card>
+          <Card className='gap-0'>
             <CardHeader>
               <CardTitle>Articole Comandă</CardTitle>
             </CardHeader>
@@ -438,7 +466,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
               <CardHeader>
                 <CardTitle>Livrări Planificate ({deliveries.length})</CardTitle>
               </CardHeader>
-              <CardContent className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>
+              <CardContent className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-1'>
                 {deliveries.map((delivery) => {
                   const statusInfo = DELIVERY_STATUS_MAP[delivery.status] || {
                     name: 'Necunoscut',
@@ -448,32 +476,96 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                   return (
                     <Card
                       key={delivery._id.toString()}
-                      className='bg-muted/50 flex flex-col'
+                      className='bg-muted/50 flex flex-col gap-1'
                     >
-                      <CardHeader className='p-4 pb-2'>
-                        {/* Am folosit flexbox pentru aliniere */}
-                        <div className='flex flex-row items-center justify-between gap-2'>
-                          {/* Titlu cu numărul livrării */}
+                      <CardHeader className='p-0 px-4'>
+                        <div className='flex flex-row items-start justify-between gap-1'>
                           <CardTitle className='text-base font-semibold flex items-center gap-1 flex-wrap'>
                             <h3 className='font-mono text-xs sm:text-sm whitespace-nowrap'>
                               Livrarea Nr. {delivery.deliveryNumber}
                             </h3>
                           </CardTitle>
-                          {/* Container dreapta pt badge și buton aviz */}
-                          <div className='flex items-center gap-1 flex-shrink-0'>
-                            {/* Badge-ul de status (adăugat) */}
+                          <div className='flex flex-col items-center gap-1 flex-shrink-0'>
                             <Badge
                               variant={statusInfo.variant}
                               className='text-xs'
                             >
                               {statusInfo.name}
                             </Badge>
+                            <div className='flex flex-row'>
+                              {delivery.deliveryNoteId ? (
+                                <div className='flex gap-1'>
+                                  {/* Buton Vizualizare (Link) */}
+                                  <Button
+                                    size='sm'
+                                    variant='outline'
+                                    className='h-7 w-7 p-0'
+                                    asChild
+                                    title='Vezi Aviz'
+                                  >
+                                    <Link
+                                      href={`/financial/delivery-notes/${delivery.deliveryNoteId}`}
+                                    >
+                                      <FileText className='h-3.5 w-3.5 ' />
+                                    </Link>
+                                  </Button>
 
-                            {/* Buton Aviz (ajustat stil) */}
-                            <Button size='sm' variant='outline'>
-                              <Download className='h-3 w-3 sm:mr-1' />
-                              <span className='hidden sm:inline'>Aviz</span>
-                            </Button>
+                                  {/* Buton Printare (Activ) */}
+                                  <Button
+                                    size='sm'
+                                    variant='outline'
+                                    className='h-7 w-7 p-0'
+                                    onClick={() =>
+                                      handlePrintAviz(
+                                        delivery.deliveryNoteId!.toString(),
+                                      )
+                                    }
+                                    disabled={
+                                      generatingPdfId ===
+                                      delivery.deliveryNoteId.toString()
+                                    }
+                                    title='Printează Aviz'
+                                  >
+                                    {generatingPdfId ===
+                                    delivery.deliveryNoteId.toString() ? (
+                                      <Loader2 className='h-3.5 w-3.5 animate-spin' />
+                                    ) : (
+                                      <Printer className='h-3.5 w-3.5' />
+                                    )}
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Button
+                                  size='sm'
+                                  variant='ghost'
+                                  disabled
+                                  className='h-7 w-7 p-0 opacity-50'
+                                >
+                                  <FileText className='h-3.5 w-3.5' />
+                                </Button>
+                              )}
+                              {delivery.relatedInvoices &&
+                                delivery.relatedInvoices.length > 0 && (
+                                  <div className='flex gap-1 items-center border-l pl-1 ml-1 border-gray-200 dark:border-gray-700'>
+                                    {delivery.relatedInvoices.map((inv) => (
+                                      <Button
+                                        key={inv.invoiceId.toString()}
+                                        size='sm'
+                                        variant='outline'
+                                        className='h-7 w-7 p-0 border-green-200 hover:bg-green-50 dark:border-green-900 dark:hover:bg-green-900/20'
+                                        asChild
+                                        title={`Vezi Factura ${inv.invoiceNumber}`}
+                                      >
+                                        <Link
+                                          href={`/financial/invoices/${inv.invoiceId}`}
+                                        >
+                                          <FileCheck className='h-3.5 w-3.5 text-green-600 dark:text-green-400' />
+                                        </Link>
+                                      </Button>
+                                    ))}
+                                  </div>
+                                )}
+                            </div>
                           </div>
                         </div>
                       </CardHeader>
@@ -487,7 +579,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                               {format(
                                 new Date(delivery.deliveryDate), // Folosim deliveryDate
                                 'PPP',
-                                { locale: ro }
+                                { locale: ro },
                               )}
                               {delivery.deliverySlots && ( // Verificăm și afișăm deliverySlot
                                 <>
@@ -505,7 +597,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                               {format(
                                 new Date(delivery.requestedDeliveryDate), // Folosim requestedDeliveryDate
                                 'PPP',
-                                { locale: ro }
+                                { locale: ro },
                               )}
                               {delivery.requestedDeliverySlots && ( // Verificăm și afișăm requestedDeliverySlot
                                 <>
@@ -606,6 +698,12 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        data={printData}
+        isLoading={false}
+      />
     </div>
   )
 }

@@ -40,7 +40,7 @@ export default async function OrderDetailsPage({
   const deliveries = sanitizeForClient(deliveriesRaw) as IDelivery[]
 
   return (
-    <div className='p-4 sm:p-6 lg:p-8'>
+    <div className='p-0'>
       <OrderDetailsView order={order} deliveries={deliveries} />
     </div>
   )

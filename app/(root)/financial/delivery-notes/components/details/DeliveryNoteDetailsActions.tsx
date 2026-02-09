@@ -10,10 +10,12 @@ import {
   Printer,
   X,
   Loader2,
+  FileCheck,
+  Truck,
+  Package,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
 import { DeliveryNoteStatusBadge } from '../DeliveryNoteStatusBadge'
 import { createInvoiceFromSingleNote } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { InvoiceActionResult } from '@/lib/db/modules/financial/invoices/invoice.types'
@@ -37,6 +39,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import Link from 'next/link'
 
 interface DeliveryNoteDetailsActionsProps {
   note: DeliveryNoteDTO
@@ -51,7 +54,6 @@ export function DeliveryNoteDetailsActions({
 }: DeliveryNoteDetailsActionsProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  // Modale state
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [showInvoiceModal, setShowInvoiceModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -59,7 +61,8 @@ export function DeliveryNoteDetailsActions({
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
-  // HANDLERS
+
+  
   const handleConfirm = () => {
     startTransition(async () => {
       const result = await confirmDeliveryNote({
@@ -155,8 +158,57 @@ export function DeliveryNoteDetailsActions({
 
         {/* Butoane Acțiuni */}
         <div className='flex flex-wrap items-center gap-2'>
+          <div className='flex items-center gap-2'>
+            {/* Link Comandă */}
+            <Button
+              variant='outline'
+              size='sm'
+              className='h-7 px-3 text-xs gap-1.5'
+              asChild
+              title='Vezi Comanda'
+            >
+              <Link href={`/orders/${note.orderId}`}>
+                <Package className='h-4 w-4 text-muted-foreground' />
+                <span>Comandă</span>
+              </Link>
+            </Button>
+
+            {/* Link Livrare */}
+            <Button
+              variant='outline'
+              size='sm'
+              className='h-7 px-3 text-xs gap-1.5'
+              asChild
+              title='Vezi Livrarea'
+            >
+              <Link href={`/deliveries/new?orderId=${note.orderId}`}>
+                <Truck className='h-4 w-4 text-muted-foreground' />
+                <span>Livrare</span>
+              </Link>
+            </Button>
+
+            {/* Link Factură (dacă există) */}
+            {note.isInvoiced && note.relatedInvoices?.[0] && (
+              <Button
+                variant='outline'
+                size='sm'
+                className='h-7 px-3 text-xs gap-1.5'
+                asChild
+                title='Vezi Factura'
+              >
+                <Link
+                  href={`/financial/invoices/${note.relatedInvoices[0].invoiceId}`}
+                >
+                  <FileCheck className='h-4 w-4' />
+                  <span>Factură</span>
+                </Link>
+              </Button>
+            )}
+          </div>
           <Button
             variant='outline'
+            size='sm'
+            className='h-7 px-3 text-xs gap-1.5'
             onClick={handlePrintPreview}
             disabled={isGeneratingPdf}
           >
@@ -171,7 +223,8 @@ export function DeliveryNoteDetailsActions({
           {/* Confirmare - Doar IN_TRANSIT */}
           {note.status === 'IN_TRANSIT' && (
             <Button
-              className='bg-green-600 hover:bg-green-700 text-white'
+              size='sm'
+              className='h-7 px-3 text-xs gap-1.5 bg-green-600 hover:bg-green-700 text-white border-transparent'
               onClick={() => setShowConfirmModal(true)}
               disabled={isPending}
             >
@@ -187,7 +240,8 @@ export function DeliveryNoteDetailsActions({
           {/* Facturare - Doar DELIVERED si nefacturat */}
           {note.status === 'DELIVERED' && !note.isInvoiced && (
             <Button
-              variant='default'
+              size='sm'
+              className='h-7 px-3 text-xs gap-1.5 bg-green-600 hover:bg-green-700 text-white border-transparent'
               onClick={() => handleGenerateInvoice()}
               disabled={isPending}
             >
@@ -204,6 +258,8 @@ export function DeliveryNoteDetailsActions({
           {note.status === 'IN_TRANSIT' && (
             <Button
               variant='destructive'
+              size='sm'
+              className='h-7 px-3 text-xs gap-1.5'
               onClick={() => setShowCancelModal(true)}
               disabled={isPending}
             >
