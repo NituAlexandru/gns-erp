@@ -39,7 +39,7 @@ export default function ClientForm() {
     Partial<IAddress>
   >({ tara: 'RO', persoanaContact: '', telefonContact: '', isActive: true })
   const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(
-    null
+    null,
   )
   const [isCalculating, setIsCalculating] = useState(false)
   const [isSearchingAnaf, setIsSearchingAnaf] = useState(false)
@@ -87,17 +87,27 @@ export default function ClientForm() {
 
   const handleCopyBillingAddress = () => {
     const billingAddress = getValues('address')
+
     if (!billingAddress.judet) {
       toast.error('Completează mai întâi adresa de facturare.')
       return
     }
-    setCurrentDeliveryAddress(billingAddress)
+
+    const { _id, ...addressDataWithoutId } = billingAddress as any
+
+    setCurrentDeliveryAddress({
+      ...addressDataWithoutId,
+      isActive: true,
+      tara: billingAddress.tara || 'RO',
+    })
+
+    setEditingAddressIndex(null)
     toast.success('Adresa de facturare a fost copiată.')
   }
 
   // Logica pentru adăugarea unei adrese de livrare
   const handleSaveDeliveryAddress = async (
-    field: ControllerRenderProps<IClientCreate, 'deliveryAddresses'>
+    field: ControllerRenderProps<IClientCreate, 'deliveryAddresses'>,
   ) => {
     const addr = currentDeliveryAddress
     if (
@@ -111,7 +121,7 @@ export default function ClientForm() {
       !addr.telefonContact
     ) {
       toast.error(
-        'Toate câmpurile adresei de livrare (fără "alte detalii") sunt obligatorii.'
+        'Toate câmpurile adresei de livrare (fără "alte detalii") sunt obligatorii.',
       )
       return
     }
@@ -245,7 +255,7 @@ export default function ClientForm() {
     <Form {...form}>
       <form
         onSubmit={handleSubmit(onSubmit, (errors) =>
-          console.log('🛑 Validation errors:', errors)
+          console.log('🛑 Validation errors:', errors),
         )}
         className='space-y-3'
       >
@@ -902,7 +912,7 @@ export default function ClientForm() {
                         size='sm'
                         onClick={() => {
                           const newAddresses = field.value.filter(
-                            (_, i) => i !== index
+                            (_, i) => i !== index,
                           )
                           field.onChange(newAddresses)
                         }}

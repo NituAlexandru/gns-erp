@@ -101,6 +101,7 @@ export interface StornoSourceInvoiceDTO {
   invoiceDate: string
   grandTotal: number
   remainingToStorno: number // Cât a mai rămas de stornat din ea
+  deliveryAddress?: ClientSnapshot['address']
 }
 
 export interface StornableProductDTO {

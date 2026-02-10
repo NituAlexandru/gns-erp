@@ -359,7 +359,6 @@ export function SplitInvoiceModal({
                     {previewData.map((inv) => (
                       <TabsTrigger
                         key={inv.clientId}
-                        // Folosim || '' pentru a evita undefined la value
                         value={inv.clientId || ''}
                         className='px-4 py-2 h-auto flex flex-col items-start gap-1 cursor-pointer data-[state=active]:bg-white data-[state=active]:shadow-sm'
                       >
@@ -397,7 +396,6 @@ export function SplitInvoiceModal({
                   {previewData.map((inv) => (
                     <TabsContent
                       key={inv.clientId}
-                      // Folosim || '' pentru a evita undefined la value
                       value={inv.clientId || ''}
                       className='flex-1 overflow-hidden flex flex-col border rounded-md bg-card shadow-sm mt-0'
                     >
@@ -444,7 +442,6 @@ export function SplitInvoiceModal({
                           </TableHeader>
                           <TableBody>
                             {inv.items.map((item, idx) => {
-                              // 🔴 MODIFICARE: Calcul Cotă Reală
                               // Căutăm itemul original pentru a compara valorile
                               const originalItem = originalItems.find(
                                 (oi) => oi.productName === item.productName,

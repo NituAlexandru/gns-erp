@@ -58,7 +58,7 @@ export default function ClientEditForm({ initialValues }: Props) {
 
   // Stare pentru editare (indexul din array-ul local)
   const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(
-    null
+    null,
   )
   const [isCalculating, setIsCalculating] = useState(false)
   const [isSearchingAnaf, setIsSearchingAnaf] = useState(false)
@@ -110,7 +110,7 @@ export default function ClientEditForm({ initialValues }: Props) {
 
   // 1. Funcția de Salvare Adresă (Adăugare sau Update)
   const handleSaveDeliveryAddress = async (
-    field: ControllerRenderProps<IClientUpdate, 'deliveryAddresses'>
+    field: ControllerRenderProps<IClientUpdate, 'deliveryAddresses'>,
   ) => {
     const addr = currentDeliveryAddress
 
@@ -125,7 +125,7 @@ export default function ClientEditForm({ initialValues }: Props) {
       !addr.telefonContact
     ) {
       toast.error(
-        'Toate câmpurile adresei de livrare (fără "alte detalii") sunt obligatorii.'
+        'Toate câmpurile adresei de livrare (fără "alte detalii") sunt obligatorii.',
       )
       return
     }
@@ -202,7 +202,7 @@ export default function ClientEditForm({ initialValues }: Props) {
   const handleToggleAddressStatus = (
     index: number,
     currentStatus: boolean,
-    field: ControllerRenderProps<IClientUpdate, 'deliveryAddresses'>
+    field: ControllerRenderProps<IClientUpdate, 'deliveryAddresses'>,
   ) => {
     const currentList = [...(field.value || [])]
     if (currentList[index]) {
@@ -210,7 +210,7 @@ export default function ClientEditForm({ initialValues }: Props) {
       currentList[index].isActive = !currentStatus
       field.onChange(currentList)
       toast.success(
-        `Adresa a fost ${!currentStatus ? 'activată' : 'dezactivată'} (Salvează formularul pentru a aplica).`
+        `Adresa a fost ${!currentStatus ? 'activată' : 'dezactivată'} (Salvează formularul pentru a aplica).`,
       )
     }
   }
@@ -221,15 +221,20 @@ export default function ClientEditForm({ initialValues }: Props) {
       toast.error('Completează mai întâi adresa fiscală.')
       return
     }
+
+    const { _id, ...addressDataWithoutId } = billingAddress
+
     setCurrentDeliveryAddress({
-      ...billingAddress,
+      ...addressDataWithoutId,
       isActive: true,
-      // Ne asigurăm că avem valorile default pentru câmpurile noi
       tara: billingAddress.tara || 'RO',
       persoanaContact: billingAddress.persoanaContact || '',
       telefonContact: billingAddress.telefonContact || '',
       alteDetalii: billingAddress.alteDetalii || '',
     })
+
+    setEditingAddressIndex(null)
+
     toast.success('Adresa fiscală a fost copiată.')
   }
 
@@ -966,7 +971,7 @@ export default function ClientEditForm({ initialValues }: Props) {
                             handleToggleAddressStatus(
                               index,
                               !!addr.isActive,
-                              field
+                              field,
                             )
                           }
                         />

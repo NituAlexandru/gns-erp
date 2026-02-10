@@ -191,16 +191,13 @@ export async function getStornoSourceInvoices(
   try {
     await connectToDatabase()
 
-    if (
-      !Types.ObjectId.isValid(clientId) ||
-      !Types.ObjectId.isValid(deliveryAddressId)
-    ) {
+    if (!Types.ObjectId.isValid(clientId)) {
       return { success: true, data: [] }
     }
 
     const invoices = await InvoiceModel.find({
       clientId: new Types.ObjectId(clientId),
-      deliveryAddressId: new Types.ObjectId(deliveryAddressId),
+      // deliveryAddressId: new Types.ObjectId(deliveryAddressId),
       invoiceType: 'STANDARD',
       // Stornăm doar facturi finalizate (Aprobate sau Plătite)
       status: { $in: ['APPROVED', 'PARTIAL_PAID', 'PAID'] },
@@ -218,7 +215,7 @@ export async function getStornoSourceInvoices(
       },
     })
       .select(
-        'seriesName invoiceNumber invoiceDate totals items.quantity items.stornedQuantity',
+        'seriesName invoiceNumber invoiceDate totals items.quantity items.stornedQuantity deliveryAddress',
       )
       .sort({ invoiceDate: -1 }) // Cele mai noi prima dată
       .lean()
@@ -241,8 +238,8 @@ export async function getStornoSourceInvoices(
         invoiceNumber: inv.invoiceNumber,
         invoiceDate: inv.invoiceDate.toISOString(),
         grandTotal: inv.totals.grandTotal,
-        // Acest câmp e doar informativ, logica reală e pe linii
         remainingToStorno: totalQuantity - totalStorned,
+        deliveryAddress: inv.deliveryAddress,
       }
     })
 

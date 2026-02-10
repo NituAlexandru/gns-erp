@@ -10,7 +10,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
+import { Loader2, TriangleAlert } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
@@ -23,7 +23,6 @@ interface SelectStornoInvoicesModalProps {
   clientId: string
   addressId: string
   onClose: () => void
-  // Returnează un array de ID-uri de facturi
   onConfirm: (selectedInvoiceIds: string[]) => void
 }
 
@@ -104,7 +103,7 @@ export function SelectStornoInvoicesModal({
                   key={invId}
                   className={cn(
                     'flex items-center space-x-4 rounded-md border p-4 cursor-pointer',
-                    isSelected && 'border-primary ring-1 ring-primary'
+                    isSelected && 'border-primary ring-1 ring-primary',
                   )}
                   onClick={() => handleToggleSelect(invId)}
                 >
@@ -113,16 +112,34 @@ export function SelectStornoInvoicesModal({
                     onCheckedChange={() => handleToggleSelect(invId)}
                     aria-label={`Selectează factura ${inv.invoiceNumber}`}
                   />
-                  <div className='flex-1 grid grid-cols-3 gap-4 text-sm'>
-                    <div className='font-semibold'>
-                      {inv.seriesName}-{inv.invoiceNumber}
+                  <div className='flex-1 flex flex-col gap-3'>
+                    {/* Rândul 1: Informațiile Facturii */}
+                    <div className='grid grid-cols-3 gap-4 text-sm'>
+                      <div className='font-semibold'>
+                        {inv.seriesName}-{inv.invoiceNumber}
+                      </div>
+                      <div className='text-center'>
+                        {format(new Date(inv.invoiceDate), 'P', { locale: ro })}
+                      </div>
+                      <div className='text-right font-medium'>
+                        {formatCurrency(inv.grandTotal)}
+                      </div>
                     </div>
-                    <div>
-                      {format(new Date(inv.invoiceDate), 'P', { locale: ro })}
-                    </div>
-                    <div className='text-right font-medium'>
-                      {formatCurrency(inv.grandTotal)}
-                    </div>
+                    {inv.deliveryAddress && (
+                      <div className='m-0 flex items-center rounded-md bg-amber-50 p-1 text-xs text-amber-700 border border-amber-100 dark:bg-amber-900/10 dark:text-amber-400 dark:border-amber-900/20'>
+                        <TriangleAlert className='h-4 w-4 shrink-0' />
+                        <div className='flex gap-2'>
+                          <span className='font-semibold'>Adresă Livrare:</span>
+                          <span>
+                            Str. {inv.deliveryAddress.strada}, Nr.{' '}
+                            {inv.deliveryAddress.numar},{' '}
+                            {inv.deliveryAddress.judet},{' '}
+                            {inv.deliveryAddress.localitate},{' '}
+                            {inv.deliveryAddress.alteDetalii}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )
