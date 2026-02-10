@@ -64,6 +64,8 @@ export const buildAnafXml = ({
   //  Considerăm că e firmă doar dacă are CUI și CUI-ul e scurt (max 12 caractere)
   // CNP-urile au 13 caractere. Astfel eviți ca un CNP pus din greșeală la CUI să fie tratat ca firmă.
   const isCompany = !!clientSnapshot.cui && clientSnapshot.cui.length < 13
+  const hasRoPrefix =
+    clientSnapshot.cui && clientSnapshot.cui.toUpperCase().startsWith('RO')
   const clientCounty = getCountyCode(clientSnapshot.address.judet)
   const clientCity = formatAnafCity(
     clientSnapshot.address.localitate || '',
@@ -374,7 +376,7 @@ export const buildAnafXml = ({
             'cac:Country': { 'cbc:IdentificationCode': 'RO' },
           },
           // 4. Regim Fiscal -> RO Obligatoriu la TaxScheme
-          ...(isCompany
+          ...(isCompany && hasRoPrefix
             ? {
                 'cac:PartyTaxScheme': {
                   'cbc:CompanyID': clientSnapshot.cui, // Aici folosim strict CUI-ul existent
@@ -385,7 +387,10 @@ export const buildAnafXml = ({
           // 5. Entitate Legală -> AICI PUNEM J-ul (RegCom)
           'cac:PartyLegalEntity': {
             'cbc:RegistrationName': clientSnapshot.name,
-            'cbc:CompanyID': clientSnapshot.regCom || clientID,
+            'cbc:CompanyID':
+              hasRoPrefix && clientSnapshot.regCom
+                ? clientSnapshot.regCom
+                : clientID,
           },
         },
       },
