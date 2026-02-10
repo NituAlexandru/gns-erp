@@ -528,7 +528,7 @@ export function DeliveryNotesList({
       <AlertDialog open={isRevokeModalOpen} onOpenChange={setIsRevokeModalOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className='text-orange-600'>
+            <AlertDialogTitle className='text-red-600'>
               Revocare Confirmare
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -542,7 +542,7 @@ export function DeliveryNotesList({
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleRevokeConfirmation}
-              className='bg-orange-600'
+              className='bg-red-600'
             >
               Confirmă Revocarea
             </AlertDialogAction>

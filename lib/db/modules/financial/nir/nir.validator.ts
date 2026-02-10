@@ -130,3 +130,22 @@ export const EditNirSchema = CreateNirSchema.extend({
 })
 
 export type EditNirInput = z.infer<typeof EditNirSchema>
+
+// frontend edit form schema
+
+export const NirFormUiSchema = EditNirSchema.omit({ items: true })
+  .extend({
+    products: z.array(z.any()).optional(),
+    packagingItems: z.array(z.any()).optional(),
+  })
+  .refine(
+    (data) => {
+      const pCount = data.products?.length || 0
+      const pkgCount = data.packagingItems?.length || 0
+      return pCount + pkgCount > 0
+    },
+    {
+      message: 'Trebuie să adăugați cel puțin un produs sau un ambalaj.',
+      path: ['root'], // Eroarea va fi afișată general, nu pe un câmp anume
+    },
+  )

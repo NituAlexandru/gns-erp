@@ -82,35 +82,43 @@ export async function createNirFromReception({
       let packagingSubtotal = 0
       let packagingVat = 0
 
-      let transportSubtotal = 0
-      let transportVat = 0
+      const transportSubtotal = 0
+      const transportVat = 0
 
       // --- LOGICA PENTRU PRODUSE ---
       if (reception.products && reception.products.length > 0) {
         for (const item of reception.products) {
-          const qtyDoc = item.documentQuantity || item.quantity
-          const qtyRec = item.quantity
-          const qtyDiff = round6(qtyRec - qtyDoc)
+          // 1. Validare Strictă: Verificăm existența datelor originale
+          if (
+            item.originalDocumentQuantity == null ||
+            !item.originalUnitMeasure ||
+            item.originalInvoicePricePerUnit == null
+          ) {
+            throw new Error(
+              `Produsul "${item.productName}" nu are datele originale complete (Cantitate document, UM, Preț) în recepție. Verifică dacă recepția a fost salvată corect.`,
+            )
+          }
 
-          const invoicePrice = round6(item.invoicePricePerUnit || 0)
+          // 2. Preluare date originale (Factură)
+          const nirQty = item.originalDocumentQuantity
+          const nirUm = item.originalUnitMeasure
+          const nirPrice = round6(item.originalInvoicePricePerUnit) // Prețul de pe factură
           const vatRate = item.vatRate || 0
 
-          // Calcul Valoare Linie (Net Factură)
-          const lineNet = round2(qtyRec * invoicePrice)
+          // 3. Calcule Valori (Fără transport distribuit)
+          const lineNet = round2(nirQty * nirPrice)
           const lineVat = round2(lineNet * (vatRate / 100))
           const lineTotal = round2(lineNet + lineVat)
 
-          // Calcul Transport
-          const landedCost = item.landedCostPerUnit || invoicePrice
-          const distTranspUnit = round6(landedCost - invoicePrice)
-          const lineTranspVal = round2(qtyRec * distTranspUnit)
+          // NOTĂ: Pe NIR, prețul de intrare este strict cel de pe factură.
+          // Transportul distribuit rămâne doar în Recepție/Inventar pentru costul mediu ponderat.
+          const landedCost = nirPrice
+          const distTranspUnit = 0
 
-          // Calculăm TVA Transport (dacă transportul e purtător de TVA în recepție)
-          const lineTranspVat = round2(lineTranspVal * (vatRate / 100))
-          transportSubtotal += lineTranspVal
-          transportVat += lineTranspVat
+          // 4. Actualizare Totaluri NIR
           productsSubtotal += lineNet
           productsVat += lineVat
+          // NU mai adăugăm nimic la transportSubtotal aici
 
           // ID ca ObjectId
           const pId =
@@ -126,14 +134,23 @@ export async function createNirFromReception({
             productId: pId,
             productName: item.productName,
             productCode: item.productCode || '',
-            unitMeasure: item.unitMeasure,
-            documentQuantity: qtyDoc,
-            quantity: qtyRec,
-            quantityDifference: qtyDiff,
-            invoicePricePerUnit: invoicePrice,
+
+            // --- FOLOSIM DATELE ORIGINALE ---
+            unitMeasure: nirUm,
+            documentQuantity: nirQty, // Cantitatea de pe document
+            quantity: nirQty, // Pe NIR, cantitatea "recepționată" este cea de pe document (scriptic)
+
+            // Cantitatea Diferență pe NIR este irelevantă față de conversie,
+            // dar o putem seta 0 sau null, deoarece NIR-ul atestă documentul.
+            quantityDifference: 0,
+
+            invoicePricePerUnit: nirPrice,
             vatRate: vatRate,
-            distributedTransportCostPerUnit: distTranspUnit,
+
+            // Fără transport distribuit pe linia de NIR
+            distributedTransportCostPerUnit: 0,
             landedCostPerUnit: landedCost,
+
             lineValue: lineNet,
             lineVatValue: lineVat,
             lineTotal: lineTotal,
@@ -143,34 +160,38 @@ export async function createNirFromReception({
       }
 
       // --- LOGICA PENTRU AMBALAJE ---
+
       if (reception.packagingItems && reception.packagingItems.length > 0) {
         for (const item of reception.packagingItems) {
-          const qtyDoc = item.documentQuantity || item.quantity
-          const qtyRec = item.quantity
-          const qtyDiff = round6(qtyRec - qtyDoc)
+          // 1. Validare Strictă
+          if (
+            item.originalDocumentQuantity == null ||
+            !item.originalUnitMeasure ||
+            item.originalInvoicePricePerUnit == null
+          ) {
+            throw new Error(
+              `Ambalajul "${item.packagingName}" nu are datele originale complete în recepție.`,
+            )
+          }
 
-          const invoicePrice = round6(item.invoicePricePerUnit || 0)
+          // 2. Preluare date originale
+          const nirQty = item.originalDocumentQuantity
+          const nirUm = item.originalUnitMeasure
+          const nirPrice = round6(item.originalInvoicePricePerUnit)
           const vatRate = item.vatRate || 0
 
-          // Calcule
-          const lineNet = round2(qtyRec * invoicePrice)
+          // 3. Calcule
+          const lineNet = round2(nirQty * nirPrice)
           const lineVat = round2(lineNet * (vatRate / 100))
           const lineTotal = round2(lineNet + lineVat)
 
-          // Transport (de obicei 0 la ambalaje, dar calculăm oricum)
-          const landedCost = item.landedCostPerUnit || invoicePrice
-          const distTranspUnit = round6(landedCost - invoicePrice)
-          const lineTranspVal = round2(qtyRec * distTranspUnit)
+          const landedCost = nirPrice
 
-          // Calculăm TVA Transport
-          const lineTranspVat = round2(lineTranspVal * (vatRate / 100))
-          transportSubtotal += lineTranspVal
-          transportVat += lineTranspVat
-
+          // 4. Actualizare Totaluri
           packagingSubtotal += lineNet
           packagingVat += lineVat
+          // Fără transport
 
-          // ID ca ObjectId
           const packId =
             item.packaging && (item.packaging._id || item.packaging)
               ? new Types.ObjectId(
@@ -181,17 +202,22 @@ export async function createNirFromReception({
           nirItems.push({
             receptionLineId: item._id,
             stockableItemType: 'Packaging',
-            packagingId: packId, // <--- ObjectId Corect
+            packagingId: packId,
             productName: item.packagingName,
             productCode: item.productCode || '',
-            unitMeasure: item.unitMeasure,
-            documentQuantity: qtyDoc,
-            quantity: qtyRec,
-            quantityDifference: qtyDiff,
-            invoicePricePerUnit: invoicePrice,
+
+            // --- DATE ORIGINALE ---
+            unitMeasure: nirUm,
+            documentQuantity: nirQty,
+            quantity: nirQty,
+            quantityDifference: 0,
+
+            invoicePricePerUnit: nirPrice,
             vatRate: vatRate,
-            distributedTransportCostPerUnit: distTranspUnit,
+
+            distributedTransportCostPerUnit: 0,
             landedCostPerUnit: landedCost,
+
             lineValue: lineNet,
             lineVatValue: lineVat,
             lineTotal: lineTotal,
@@ -574,6 +600,7 @@ export async function updateNir({
 // -------------------------------------------------------------
 // 8. SYNC NIR FROM RECEPTION (Recalculează valorile)
 // -------------------------------------------------------------
+
 export async function syncNirFromReceptionAction(
   receptionId: string,
   nirId: string,
@@ -588,34 +615,44 @@ export async function syncNirFromReceptionAction(
     const reception: any = await ReceptionModel.findById(receptionId).lean()
     if (!reception) throw new Error('Recepția nu a fost găsită.')
 
-    // 2. Refacem calculele (LOGICĂ COPIATĂ DIN CREATE - pentru a asigura sincronizarea perfectă)
-    // --- LOGICA DE CALCUL ---
+    // 2. Refacem calculele (LOGICĂ ACTUALIZATĂ - DATE ORIGINALE)
     const nirItems: NirLineDTO[] = []
+
     let productsSubtotal = 0
     let productsVat = 0
     let packagingSubtotal = 0
     let packagingVat = 0
-    let transportSubtotal = 0
-    let transportVat = 0
 
-    // Produse
+    // Transportul distribuit este 0 pe NIR
+    const transportSubtotal = 0
+    const transportVat = 0
+
+    // --- PRODUSE ---
     if (reception.products && reception.products.length > 0) {
       for (const item of reception.products) {
-        const qtyDoc = item.documentQuantity || item.quantity
-        const qtyRec = item.quantity
-        const qtyDiff = round6(qtyRec - qtyDoc)
-        const invoicePrice = round6(item.invoicePricePerUnit || 0)
+        // Validare
+        if (
+          item.originalDocumentQuantity == null ||
+          !item.originalUnitMeasure ||
+          item.originalInvoicePricePerUnit == null
+        ) {
+          throw new Error(
+            `Produsul "${item.productName}" nu are datele originale complete.`,
+          )
+        }
+
+        const nirQty = item.originalDocumentQuantity
+        const nirUm = item.originalUnitMeasure
+        const nirPrice = round6(item.originalInvoicePricePerUnit)
         const vatRate = item.vatRate || 0
-        const lineNet = round2(qtyRec * invoicePrice)
+
+        const lineNet = round2(nirQty * nirPrice)
         const lineVat = round2(lineNet * (vatRate / 100))
         const lineTotal = round2(lineNet + lineVat)
-        const landedCost = item.landedCostPerUnit || invoicePrice
-        const distTranspUnit = round6(landedCost - invoicePrice)
-        const lineTranspVal = round2(qtyRec * distTranspUnit)
-        const lineTranspVat = round2(lineTranspVal * (vatRate / 100))
 
-        transportSubtotal += lineTranspVal
-        transportVat += lineTranspVat
+        // Pe NIR, landedCost este prețul de factură (fără transport distribuit)
+        const landedCost = nirPrice
+
         productsSubtotal += lineNet
         productsVat += lineVat
 
@@ -630,14 +667,19 @@ export async function syncNirFromReceptionAction(
           productId: pId,
           productName: item.productName,
           productCode: item.productCode || '',
-          unitMeasure: item.unitMeasure,
-          documentQuantity: qtyDoc,
-          quantity: qtyRec,
-          quantityDifference: qtyDiff,
-          invoicePricePerUnit: invoicePrice,
+
+          // Date originale
+          unitMeasure: nirUm,
+          documentQuantity: nirQty,
+          quantity: nirQty,
+          quantityDifference: 0,
+
+          invoicePricePerUnit: nirPrice,
           vatRate: vatRate,
-          distributedTransportCostPerUnit: distTranspUnit,
+
+          distributedTransportCostPerUnit: 0,
           landedCostPerUnit: landedCost,
+
           lineValue: lineNet,
           lineVatValue: lineVat,
           lineTotal: lineTotal,
@@ -646,24 +688,30 @@ export async function syncNirFromReceptionAction(
       }
     }
 
-    // Ambalaje
+    // --- AMBALAJE ---
     if (reception.packagingItems && reception.packagingItems.length > 0) {
       for (const item of reception.packagingItems) {
-        const qtyDoc = item.documentQuantity || item.quantity
-        const qtyRec = item.quantity
-        const qtyDiff = round6(qtyRec - qtyDoc)
-        const invoicePrice = round6(item.invoicePricePerUnit || 0)
+        // Validare
+        if (
+          item.originalDocumentQuantity == null ||
+          !item.originalUnitMeasure ||
+          item.originalInvoicePricePerUnit == null
+        ) {
+          throw new Error(
+            `Ambalajul "${item.packagingName}" nu are datele originale complete.`,
+          )
+        }
+
+        const nirQty = item.originalDocumentQuantity
+        const nirUm = item.originalUnitMeasure
+        const nirPrice = round6(item.originalInvoicePricePerUnit)
         const vatRate = item.vatRate || 0
-        const lineNet = round2(qtyRec * invoicePrice)
+
+        const lineNet = round2(nirQty * nirPrice)
         const lineVat = round2(lineNet * (vatRate / 100))
         const lineTotal = round2(lineNet + lineVat)
-        const landedCost = item.landedCostPerUnit || invoicePrice
-        const distTranspUnit = round6(landedCost - invoicePrice)
-        const lineTranspVal = round2(qtyRec * distTranspUnit)
-        const lineTranspVat = round2(lineTranspVal * (vatRate / 100))
+        const landedCost = nirPrice
 
-        transportSubtotal += lineTranspVal
-        transportVat += lineTranspVat
         packagingSubtotal += lineNet
         packagingVat += lineVat
 
@@ -680,14 +728,19 @@ export async function syncNirFromReceptionAction(
           packagingId: packId,
           productName: item.packagingName,
           productCode: item.productCode || '',
-          unitMeasure: item.unitMeasure,
-          documentQuantity: qtyDoc,
-          quantity: qtyRec,
-          quantityDifference: qtyDiff,
-          invoicePricePerUnit: invoicePrice,
+
+          // Date originale
+          unitMeasure: nirUm,
+          documentQuantity: nirQty,
+          quantity: nirQty,
+          quantityDifference: 0,
+
+          invoicePricePerUnit: nirPrice,
           vatRate: vatRate,
-          distributedTransportCostPerUnit: distTranspUnit,
+
+          distributedTransportCostPerUnit: 0,
           landedCostPerUnit: landedCost,
+
           lineValue: lineNet,
           lineVatValue: lineVat,
           lineTotal: lineTotal,
@@ -722,8 +775,11 @@ export async function syncNirFromReceptionAction(
     })
 
     revalidatePath('/financial/nir')
-    revalidatePath(`/admin/management/reception`) // Refresh la lista de receptii poate e nevoie pt totaluri
-    return { success: true, message: 'NIR actualizat cu datele din recepție.' }
+    revalidatePath(`/admin/management/reception`)
+    return {
+      success: true,
+      message: 'NIR actualizat cu datele originale din recepție.',
+    }
   } catch (error) {
     console.error('Error syncNirFromReceptionAction:', error)
     return { success: false, message: (error as Error).message }

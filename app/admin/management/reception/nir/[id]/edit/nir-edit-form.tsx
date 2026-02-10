@@ -31,6 +31,7 @@ import {
   CreateNirInput,
   EditNirInput,
   EditNirSchema,
+  NirFormUiSchema,
 } from '@/lib/db/modules/financial/nir/nir.validator'
 import { NirDTO } from '@/lib/db/modules/financial/nir/nir.types'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
@@ -74,7 +75,7 @@ export function NirEditForm({
     .map((p) => ({ ...p, packaging: p.packagingId }))
 
   const form = useForm<any>({
-    resolver: zodResolver(EditNirSchema),
+    resolver: zodResolver(NirFormUiSchema),
     defaultValues: {
       ...initialData,
       nirDate: new Date(initialData.nirDate),
@@ -175,26 +176,42 @@ export function NirEditForm({
   const onSubmit = async (values: any) => {
     setIsSubmitting(true)
     try {
-      const combinedItems = [
-        ...(values.products || []).map((p: any) => ({
-          ...p,
-          stockableItemType: 'ERPProduct',
-          productId: p.product,
-          landedCostPerUnit: p.invoicePricePerUnit,
-        })),
-        ...(values.packagingItems || []).map((p: any) => ({
-          ...p,
-          stockableItemType: 'Packaging',
-          packagingId: p.packaging,
-          landedCostPerUnit: p.invoicePricePerUnit,
-        })),
-      ]
+      const mappedProducts = (values.products || []).map((p: any) => ({
+        ...p,
+        stockableItemType: 'ERPProduct',
+        productId: p.product,
+        quantity: parseFloat(p.quantity) || 0,
+        invoicePricePerUnit: parseFloat(p.invoicePricePerUnit) || 0,
+        vatRate: parseFloat(p.vatRate) || 0,
+        landedCostPerUnit:
+          parseFloat(p.landedCostPerUnit) ||
+          parseFloat(p.invoicePricePerUnit) ||
+          0,
+      }))
+
+      const mappedPackaging = (values.packagingItems || []).map((p: any) => ({
+        ...p,
+        stockableItemType: 'Packaging',
+        packagingId: p.packaging,
+        quantity: parseFloat(p.quantity) || 0,
+        invoicePricePerUnit: parseFloat(p.invoicePricePerUnit) || 0,
+        vatRate: parseFloat(p.vatRate) || 0,
+        landedCostPerUnit:
+          parseFloat(p.landedCostPerUnit) ||
+          parseFloat(p.invoicePricePerUnit) ||
+          0,
+      }))
+
+      const combinedItems = [...mappedProducts, ...mappedPackaging]
 
       const payload = {
         ...values,
         items: combinedItems,
         totals: calculatedTotals,
       }
+
+      delete payload.products
+      delete payload.packagingItems
 
       const result = await updateNir({
         nirId: initialData._id,
@@ -208,9 +225,10 @@ export function NirEditForm({
         router.push(`/admin/management/reception/nir/${initialData._id}`)
         router.refresh()
       } else {
-        toast.error('Eroare: ' + result.message)
+        toast.error('Eroare backend: ' + result.message)
       }
     } catch (error: any) {
+      console.error(error)
       toast.error('Eroare: ' + error.message)
     } finally {
       setIsSubmitting(false)

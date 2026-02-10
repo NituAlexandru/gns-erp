@@ -32,6 +32,7 @@ export const UNITS = [
   'punga',
   'balot',
   'colac',
+  'tona',
 ] as const
 // Resend
 export const SERVER_URL =

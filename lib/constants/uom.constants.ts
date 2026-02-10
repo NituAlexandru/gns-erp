@@ -23,6 +23,7 @@ export const uomToEFacturaMap: Record<InternalUoM, string> = {
   punga: 'H87', // 'punga' și 'sac' au același cod standard
   balot: 'H87',
   colac: 'H87',
+  tona: 'TNE',
 }
 
 // 2. Harta pentru IMPORT (ANAF -> Intern) - Aici e magia (Many-to-One)
