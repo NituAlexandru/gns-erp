@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Textarea } from '@/components/ui/textarea'
 import { Loader2 } from 'lucide-react'
-import { formatCurrency, round2 } from '@/lib/utils'
+import { formatCurrency, round2, round6 } from '@/lib/utils'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
 import {
   createSupplierInvoice,
@@ -95,6 +95,7 @@ export function CreateSupplierInvoiceForm({
           items: initialData.items,
           notes: initialData.notes || '',
           invoiceCurrency: initialData.invoiceCurrency || 'RON',
+          originalCurrency: initialData.originalCurrency || 'RON',
           exchangeRate: initialData.exchangeRate || 1,
         }
       : {
@@ -151,7 +152,7 @@ export function CreateSupplierInvoiceForm({
         const currentItems = getValues('items')
         currentItems.forEach((item, index) => {
           if (item.originalCurrencyAmount) {
-            const newRonPrice = round2(item.originalCurrencyAmount * rate)
+            const newRonPrice = round6(item.originalCurrencyAmount * rate)
             setValue(`items.${index}.unitPrice`, newRonPrice)
           }
         })
@@ -168,7 +169,7 @@ export function CreateSupplierInvoiceForm({
       const currentItems = getValues('items')
       currentItems.forEach((item, index) => {
         if (item.originalCurrencyAmount) {
-          const newRonPrice = round2(item.originalCurrencyAmount * watchedRate)
+          const newRonPrice = round6(item.originalCurrencyAmount * watchedRate)
           setValue(`items.${index}.unitPrice`, newRonPrice)
         }
       })

@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { formatCurrency, round2 } from '@/lib/utils'
+import { formatCurrency, round2, round6 } from '@/lib/utils'
 import { InvoiceFormValues } from './CreateSupplierInvoiceForm'
 
 interface SupplierInvoiceLineEditorProps {
@@ -68,7 +68,7 @@ function LineItem({
     ],
   })
 
-  const isForeign = invoiceCurrency !== 'RON'
+  const isForeign = invoiceCurrency && invoiceCurrency !== 'RON'
 
   // Calculăm totalurile liniei pentru afișare
   const lineValueRon = round2((quantity || 0) * (unitPrice || 0))
@@ -86,7 +86,7 @@ function LineItem({
   return (
     <div className='flex w-full items-start gap-3'>
       {/* 1. Nume Produs (35%) */}
-      <div className='flex-shrink-0 w-[35%]'>
+      <div className='flex-shrink-0 w-[25%]'>
         <FormField
           control={control}
           name={`items.${index}.productName`}
@@ -159,7 +159,7 @@ function LineItem({
       </div>
 
       {/* 4. PREȚ UNITAR */}
-      <div className='flex-shrink-0 w-[15%] ml-7'>
+      <div className='flex-shrink-0 w-[9%] ml-7'>
         <FormField
           control={control}
           name={
@@ -170,7 +170,7 @@ function LineItem({
           render={({ field }) => (
             <FormItem>
               <FormLabel className='text-[10px] font-normal text-muted-foreground px-1'>
-                {isForeign ? `Preț ${invoiceCurrency}` : 'Preț RON'}
+                {isForeign ? `Preț ${invoiceCurrency || '...'}` : 'Preț RON'}
               </FormLabel>
               <FormControl>
                 <div className='relative'>
@@ -188,7 +188,7 @@ function LineItem({
                       if (isForeign) {
                         setValue(
                           `items.${index}.unitPrice`,
-                          round2(val * exchangeRate),
+                          round6(val * exchangeRate),
                         )
                       }
                     }}
@@ -248,26 +248,37 @@ function LineItem({
           )}
         />
       </div>
-
+      <div className='flex-shrink-0 w-[13%]'>
+        <FormItem>
+          <FormLabel className='text-[10px] font-normal text-muted-foreground px-3 text-right block'>
+            Net
+          </FormLabel>
+          <div className='h-10 flex items-center justify-end px-3 rounded-md border border-transparent text-sm font-medium'>
+            {formatCurrency(lineValueRon)}
+          </div>
+        </FormItem>
+      </div>
       {/* 6. Total Linie */}
       <div className='flex-shrink-0 w-[15%]'>
-        <div className='h-full flex flex-col justify-end items-end pb-2'>
-          {/* Total RON - formatCurrency pune "RON" automat */}
-          <span className='text-sm font-bold text-foreground'>
-            {formatCurrency(lineTotalRon)}
-          </span>
-
-          {/* Total Valută - punem noi simbolul manual */}
-          {isForeign && (
-            <span className='text-[10px] text-muted-foreground'>
-              {lineTotalForeign.toLocaleString('ro-RO', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{' '}
-              {invoiceCurrency}
+        <FormItem>
+          <FormLabel className='text-[10px] font-normal text-muted-foreground px-1 text-right block'>
+            Total
+          </FormLabel>
+          <div className='h-10 flex flex-col justify-center items-end pr-1'>
+            <span className='text-sm font-bold text-foreground'>
+              {formatCurrency(lineTotalRon)}
             </span>
-          )}
-        </div>
+            {isForeign && (
+              <span className='text-[10px] text-muted-foreground'>
+                {lineTotalForeign.toLocaleString('ro-RO', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}{' '}
+                {invoiceCurrency}
+              </span>
+            )}
+          </div>
+        </FormItem>
       </div>
 
       {/* 7. Buton Ștergere */}
