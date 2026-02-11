@@ -1085,10 +1085,7 @@ export async function getStornableProductsList(
   try {
     await connectToDatabase()
 
-    if (
-      !Types.ObjectId.isValid(clientId) ||
-      !Types.ObjectId.isValid(deliveryAddressId)
-    ) {
+    if (!Types.ObjectId.isValid(clientId)) {
       return { success: true, data: [] }
     }
 
@@ -1099,7 +1096,6 @@ export async function getStornableProductsList(
     }
 
     const validClientId = new Types.ObjectId(clientId)
-    const validAddressId = new Types.ObjectId(deliveryAddressId)
     const oneYearAgo = sub(new Date(), { years: 1 })
 
     const stornableProducts: StornableProductDTO[] =
@@ -1108,7 +1104,6 @@ export async function getStornableProductsList(
         {
           $match: {
             clientId: validClientId,
-            deliveryAddressId: validAddressId,
             seriesName: { $nin: ['INIT-C'] },
             status: { $in: ['APPROVED', 'PARTIAL_PAID', 'PAID'] }, // <-- Asta e cheia!
           },
@@ -1188,7 +1183,7 @@ export async function generateStornoLinesForQuantity(
   clientId: string,
   deliveryAddressId: string,
   productId: string,
-  quantityToStorno: number, // Cantitatea e POZITIVĂ (ex: 100)
+  quantityToStorno: number,
 ): Promise<
   | {
       success: true
@@ -1208,7 +1203,6 @@ export async function generateStornoLinesForQuantity(
     await connectToDatabase()
 
     const validClientId = new Types.ObjectId(clientId)
-    const validAddressId = new Types.ObjectId(deliveryAddressId)
     const validProductId = new Types.ObjectId(productId)
     const oneYearAgo = sub(new Date(), { years: 1 })
 
@@ -1218,7 +1212,6 @@ export async function generateStornoLinesForQuantity(
       {
         $match: {
           clientId: validClientId,
-          deliveryAddressId: validAddressId,
           seriesName: { $nin: ['INIT-C'] },
           status: { $in: ['APPROVED', 'PARTIAL_PAID', 'PAID'] },
         },

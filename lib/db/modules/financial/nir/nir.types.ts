@@ -69,7 +69,7 @@ export interface NirDTO {
   sequenceNumber: number
   year: number
   nirDate: string
-  receptionId: string
+  receptionId: string[]
   supplierId: string
   invoices: {
     series?: string

@@ -67,36 +67,36 @@ export const NirLineSchema = z.object({
   productName: z.string().min(1),
   productCode: z.string().optional(),
   unitMeasure: z.string().min(1),
-  documentQuantity: z.number().nonnegative(),
-  quantity: z.number().nonnegative(),
+  documentQuantity: z.number(),
+  quantity: z.number(),
   quantityDifference: z.number(),
-  invoicePricePerUnit: z.number().nonnegative(),
-  vatRate: z.number().nonnegative(),
-  distributedTransportCostPerUnit: z.number().nonnegative().default(0),
-  landedCostPerUnit: z.number().nonnegative(),
-  lineValue: z.number().nonnegative(),
-  lineVatValue: z.number().nonnegative(),
-  lineTotal: z.number().nonnegative(),
+  invoicePricePerUnit: z.number(),
+  vatRate: z.number(),
+  distributedTransportCostPerUnit: z.number().default(0),
+  landedCostPerUnit: z.number(),
+  lineValue: z.number(),
+  lineVatValue: z.number(),
+  lineTotal: z.number(),
   qualityDetails: QualityDetailsSchema,
 })
 
 // --- Totaluri (Structura DeliveryNote) ---
 export const NirTotalsSchema = z.object({
-  productsSubtotal: z.number().nonnegative(),
-  productsVat: z.number().nonnegative(),
-  packagingSubtotal: z.number().nonnegative(),
-  packagingVat: z.number().nonnegative(),
-  transportSubtotal: z.number().nonnegative(),
-  transportVat: z.number().nonnegative(),
-  subtotal: z.number().nonnegative(),
-  vatTotal: z.number().nonnegative(),
-  grandTotal: z.number().nonnegative(),
-  totalEntryValue: z.number().nonnegative(),
+  productsSubtotal: z.number(),
+  productsVat: z.number(),
+  packagingSubtotal: z.number(),
+  packagingVat: z.number(),
+  transportSubtotal: z.number(),
+  transportVat: z.number(),
+  subtotal: z.number(),
+  vatTotal: z.number(),
+  grandTotal: z.number(),
+  totalEntryValue: z.number(),
 })
 
 // --- Schema Principală ---
 export const CreateNirSchema = z.object({
-  receptionId: MongoId,
+  receptionId: z.array(MongoId).default([]),
   supplierId: MongoId,
   invoices: z.array(InvoiceRefSchema).optional().default([]),
   deliveries: z.array(DeliveryRefSchema).optional().default([]),
@@ -111,6 +111,8 @@ export const CreateNirSchema = z.object({
   totals: NirTotalsSchema,
   destinationLocation: z.string(),
   orderRef: z.string().or(z.instanceof(Types.ObjectId)).nullable().optional(),
+  nirDate: z.coerce.date().optional(),
+  nirNumber: z.string().optional(),
 })
 
 export const UpdateNirStatusSchema = z.object({
@@ -146,6 +148,6 @@ export const NirFormUiSchema = EditNirSchema.omit({ items: true })
     },
     {
       message: 'Trebuie să adăugați cel puțin un produs sau un ambalaj.',
-      path: ['root'], // Eroarea va fi afișată general, nu pe un câmp anume
+      path: ['root'],
     },
   )

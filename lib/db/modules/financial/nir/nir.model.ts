@@ -11,12 +11,12 @@ export interface INirDoc extends Document {
   _id: Types.ObjectId
   // Header
   nirNumber: string
-  seriesName: string
+  seriesName?: string
   sequenceNumber: number
   year: number
   nirDate: Date
   // Relații
-  receptionId: Types.ObjectId
+  receptionId: Types.ObjectId[]
   supplierId: Types.ObjectId
   // Documente (Arrays)
   invoices: {
@@ -67,7 +67,7 @@ const InvoiceSchema = new Schema(
     vatValue: Number,
     totalWithVat: Number,
   },
-  { _id: false }
+  { _id: false },
 )
 
 // Schema pentru Avize (Actualizată cu toate câmpurile)
@@ -88,7 +88,7 @@ const DeliverySchema = new Schema(
       regCom: String,
     },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const SupplierSnapshotSchema = new Schema<SupplierSnapshotDTO>(
@@ -96,7 +96,7 @@ const SupplierSnapshotSchema = new Schema<SupplierSnapshotDTO>(
     name: { type: String, required: true },
     cui: { type: String, required: true },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const CompanySnapshotSchema = new Schema<CompanySnapshotDTO>(
@@ -110,7 +110,7 @@ const CompanySnapshotSchema = new Schema<CompanySnapshotDTO>(
     phones: Schema.Types.Mixed,
     emails: Schema.Types.Mixed,
   },
-  { _id: false }
+  { _id: false },
 )
 const QualityDetailsSchema = new Schema(
   {
@@ -119,7 +119,7 @@ const QualityDetailsSchema = new Schema(
     testReports: [String],
     additionalNotes: String,
   },
-  { _id: false }
+  { _id: false },
 )
 const NirLineSchema = new Schema<NirLineDTO>(
   {
@@ -146,7 +146,7 @@ const NirLineSchema = new Schema<NirLineDTO>(
     lineTotal: { type: Number, required: true },
     qualityDetails: QualityDetailsSchema,
   },
-  { _id: false }
+  { _id: false },
 )
 
 // Structura de totaluri aliniată cu DeliveryNote + Specific NIR
@@ -166,7 +166,7 @@ const NirTotalsSchema = new Schema<NirTotalsDTO>(
     // Valoare Stoc (Factura + Transport)
     totalEntryValue: { type: Number, default: 0 },
   },
-  { _id: false }
+  { _id: false },
 )
 
 // --- SCHEMA PRINCIPALĂ ---
@@ -178,12 +178,13 @@ const NirSchema = new Schema<INirDoc>(
     sequenceNumber: { type: Number, required: true },
     year: { type: Number, required: true },
     nirDate: { type: Date, required: true, default: Date.now },
-    receptionId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Reception',
-      required: true,
-      index: true,
-    },
+    receptionId: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Reception',
+        required: false, 
+      },
+    ],
     supplierId: {
       type: Schema.Types.ObjectId,
       ref: 'Supplier',
@@ -214,10 +215,11 @@ const NirSchema = new Schema<INirDoc>(
     cancelledBy: { type: Schema.Types.ObjectId, ref: 'User' },
     cancelledByName: String,
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 NirSchema.index({ seriesName: 1, sequenceNumber: 1, year: 1 }, { unique: true })
+NirSchema.index({ receptionId: 1 })
 
 const NirModel =
   (models.Nir as Model<INirDoc>) || model<INirDoc>('Nir', NirSchema)
