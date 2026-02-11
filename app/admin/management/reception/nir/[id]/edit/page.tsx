@@ -1,7 +1,7 @@
 import { auth } from '@/auth'
 import { getNirById } from '@/lib/db/modules/financial/nir/nir.actions'
 import { redirect } from 'next/navigation'
-import { NirEditForm } from './nir-edit-form'
+import { NirForm } from '../../components/nir-form'
 import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 
 export default async function EditNirPage({
@@ -20,11 +20,11 @@ export default async function EditNirPage({
     return <div>NIR-ul nu a fost găsit sau a apărut o eroare.</div>
   }
 
-  // 2. Luăm cotele TVA (Fix aici)
+  // 2. Luăm cotele TVA
   const vatRatesResult = await getVatRates()
   const vatRates = vatRatesResult.success ? vatRatesResult.data : []
 
-  // Găsim rata default (acum vatRates este array corect)
+  // Găsim rata default
   const defaultVat = vatRates.find((v: any) => v.isDefault) || null
 
   return (
@@ -47,7 +47,8 @@ export default async function EditNirPage({
         </div>
       </div>
 
-      <NirEditForm
+      {/* MODIFICARE AICI: Folosim componenta NirForm */}
+      <NirForm
         initialData={nirResult.data}
         userId={session.user.id!}
         userName={session.user.name!}

@@ -148,6 +148,8 @@ export interface DeliveryNoteDTO {
   cancelledBy?: string
   cancelledByName?: string
   cancelledAt?: string
+  isStornoInvoicedBySupplier?: boolean
+  supplierStornoInvoiceRef?: string
 }
 
 // -------------------------------------------------------------

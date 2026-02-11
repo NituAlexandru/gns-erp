@@ -164,6 +164,8 @@ export interface IDeliveryNoteDoc extends Document {
   transportCompany?: string
   createdAt: Date
   updatedAt: Date
+  isStornoInvoicedBySupplier?: boolean
+  supplierStornoInvoiceRef?: Types.ObjectId
 }
 
 // -------------------------------------------------------------
@@ -176,7 +178,7 @@ const QualityDetailsSchema = new Schema(
     testReports: { type: [String], default: [] },
     additionalNotes: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const CostBreakdownSchema = new Schema<ICostBreakdown>(
@@ -206,7 +208,7 @@ const CostBreakdownSchema = new Schema<ICostBreakdown>(
       required: false,
     },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const DeliveryNoteLineSchema = new Schema<IDeliveryNoteLine>(
@@ -246,7 +248,7 @@ const DeliveryNoteLineSchema = new Schema<IDeliveryNoteLine>(
     lineCostFIFO: { type: Number, required: false },
     costBreakdown: { type: [CostBreakdownSchema], required: false },
   },
-  { _id: true }
+  { _id: true },
 )
 
 const DeliveryNoteTotalsSchema = new Schema<IDeliveryNoteTotals>(
@@ -263,7 +265,7 @@ const DeliveryNoteTotalsSchema = new Schema<IDeliveryNoteTotals>(
     vatTotal: { type: Number, required: true },
     grandTotal: { type: Number, required: true },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const SnapshotAddressSchema = new Schema(
@@ -276,7 +278,7 @@ const SnapshotAddressSchema = new Schema(
     tara: { type: String, required: true },
     alteDetalii: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 const CompanySnapshotSchema = new Schema<ICompanySnapshot>(
   {
@@ -290,7 +292,7 @@ const CompanySnapshotSchema = new Schema<ICompanySnapshot>(
     iban: { type: String, required: true },
     currency: { type: String, required: true },
   },
-  { _id: false }
+  { _id: false },
 )
 const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
   {
@@ -376,13 +378,18 @@ const DeliveryNoteSchema = new Schema<IDeliveryNoteDoc>(
     eTransportCode: { type: String },
     vehicleRegistration: { type: String },
     transportCompany: { type: String },
+    isStornoInvoicedBySupplier: { type: Boolean, default: false },
+    supplierStornoInvoiceRef: {
+      type: Schema.Types.ObjectId,
+      ref: 'SupplierInvoice',
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 DeliveryNoteSchema.index(
   { seriesName: 1, sequenceNumber: 1, year: 1 },
-  { unique: true }
+  { unique: true },
 )
 
 const DeliveryNoteModel: Model<IDeliveryNoteDoc> =

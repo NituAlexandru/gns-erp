@@ -400,11 +400,20 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
           </Button>
         </div>
 
-        <Button asChild variant='default'>
-          <Link href='/admin/management/reception/create'>
-            Adaugă Recepție Nouă
-          </Link>
-        </Button>
+        <div className='flex gap-2'>
+          <Button asChild variant='default'>
+            <Link href='/admin/management/reception/nir/create'>
+              Adaugă NIR (Manual)
+            </Link>
+          </Button>
+
+          {/* Butonul vechi de Recepție */}
+          <Button asChild variant='default'>
+            <Link href='/admin/management/reception/create'>
+              Adaugă Recepție Nouă
+            </Link>
+          </Button>
+        </div>
       </div>
       {/* Info paginare */}
       <p className='text-sm text-muted-foreground'>

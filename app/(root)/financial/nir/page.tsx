@@ -4,6 +4,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { ShieldAlert } from 'lucide-react'
 import { MANAGEMENT_ROLES } from '@/lib/db/modules/user/user-roles'
 import { getNirs } from '@/lib/db/modules/financial/nir/nir.actions'
+import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 
 export default async function NirListPage({
   searchParams,
@@ -66,6 +68,11 @@ export default async function NirListPage({
         <h1 className='text-2xl font-bold tracking-tight'>
           Note de Intrare Recepție (NIR)
         </h1>
+        <Button asChild variant='default'>
+          <Link href='/admin/management/reception/nir/create'>
+            Adaugă NIR (Manual)
+          </Link>
+        </Button>
       </div>
 
       <NirList

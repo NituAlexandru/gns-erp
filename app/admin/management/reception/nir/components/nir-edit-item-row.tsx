@@ -21,7 +21,7 @@ import { formatCurrency, round2 } from '@/lib/utils'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { useEffect } from 'react'
 import { UNITS } from '@/lib/constants'
-import { AutocompleteSearch } from '../../../autocomplete-search'
+import { AutocompleteSearch } from '../../autocomplete-search'
 
 interface NirEditItemRowProps {
   index: number
@@ -38,14 +38,22 @@ export function NirEditItemRow({
   onRemove,
   vatRates,
 }: NirEditItemRowProps) {
-  const quantity = form.watch(`${itemType}.${index}.quantity`) || 0
-  const price = form.watch(`${itemType}.${index}.invoicePricePerUnit`) || 0
-  const vatRate = form.watch(`${itemType}.${index}.vatRate`) || 0
+  // 1. Urmărim valorile brute (pot fi string-uri gen "-" sau "")
+  const rawQuantity = form.watch(`${itemType}.${index}.quantity`)
+  const rawPrice = form.watch(`${itemType}.${index}.invoicePricePerUnit`)
+  const rawVatRate = form.watch(`${itemType}.${index}.vatRate`)
 
+  // 2. Convertim în numere sigure pentru calcule (fără NaN)
+  const quantity = isNaN(Number(rawQuantity)) ? 0 : Number(rawQuantity)
+  const price = isNaN(Number(rawPrice)) ? 0 : Number(rawPrice)
+  const vatRate = isNaN(Number(rawVatRate)) ? 0 : Number(rawVatRate)
+
+  // 3. Facem calculele
   const lineValue = round2(quantity * price)
   const lineVat = round2(lineValue * (vatRate / 100))
   const lineTotal = round2(lineValue + lineVat)
 
+  // 4. Actualizăm totalurile în form
   useEffect(() => {
     form.setValue(`${itemType}.${index}.lineValue`, lineValue)
     form.setValue(`${itemType}.${index}.lineVatValue`, lineVat)
@@ -58,6 +66,7 @@ export function NirEditItemRow({
         {index + 1}
       </td>
 
+      {/* --- AUTCOMPLETE PRODUS/AMBALAJ --- */}
       <td className='px-2 py-1 min-w-[200px]'>
         <FormField
           control={form.control}
@@ -121,6 +130,7 @@ export function NirEditItemRow({
         />
       </td>
 
+      {/* --- UNITATE DE MĂSURĂ --- */}
       <td className='px-2 py-1 w-[80px]'>
         <FormField
           control={form.control}
@@ -146,6 +156,7 @@ export function NirEditItemRow({
         />
       </td>
 
+      {/* --- CANTITATE (MODIFICAT PENTRU NEGATIV) --- */}
       <td className='px-2 py-1 w-[100px]'>
         <FormField
           control={form.control}
@@ -156,9 +167,15 @@ export function NirEditItemRow({
                 <Input
                   type='number'
                   {...field}
-                  onChange={(e) =>
-                    field.onChange(parseFloat(e.target.value) || 0)
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value
+                    // Permitem string gol sau "-" simplu
+                    if (val === '' || val === '-') {
+                      field.onChange(val)
+                    } else {
+                      field.onChange(parseFloat(val))
+                    }
+                  }}
                   className='h-8 text-right font-medium'
                 />
               </FormControl>
@@ -167,6 +184,7 @@ export function NirEditItemRow({
         />
       </td>
 
+      {/* --- PREȚ (MODIFICAT PENTRU NEGATIV) --- */}
       <td className='px-2 py-1 w-[120px]'>
         <FormField
           control={form.control}
@@ -177,9 +195,14 @@ export function NirEditItemRow({
                 <Input
                   type='number'
                   {...field}
-                  onChange={(e) =>
-                    field.onChange(parseFloat(e.target.value) || 0)
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (val === '' || val === '-') {
+                      field.onChange(val)
+                    } else {
+                      field.onChange(parseFloat(val))
+                    }
+                  }}
                   className='h-8 text-right'
                 />
               </FormControl>
@@ -188,6 +211,7 @@ export function NirEditItemRow({
         />
       </td>
 
+      {/* --- COTA TVA --- */}
       <td className='px-2 py-1 w-[100px]'>
         <FormField
           control={form.control}
@@ -216,10 +240,12 @@ export function NirEditItemRow({
         />
       </td>
 
+      {/* --- TOTAL LINIE (READ ONLY) --- */}
       <td className='px-2 py-1 text-right font-mono text-sm w-[120px] font-bold'>
         {formatCurrency(lineValue)}
       </td>
 
+      {/* --- DELETE BUTTON --- */}
       <td className='px-2 py-1 text-center w-[50px]'>
         <Button
           type='button'

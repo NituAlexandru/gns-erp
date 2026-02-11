@@ -251,20 +251,40 @@ export default function NirPage({ params }: Props) {
             </CardTitle>
           </CardHeader>
           <CardContent className='space-y-4'>
-            <div className='flex justify-between items-center p-2 rounded bg-muted/20 border'>
+            <div className='flex justify-between items-start p-2 rounded bg-muted/20 border'>
               <div className='flex flex-col'>
                 <span className='text-xs font-semibold text-muted-foreground uppercase'>
-                  Recepția Origine
+                  Recepție(i) Origine
                 </span>
                 <span className='text-xs text-muted-foreground'>
-                  Click pentru detalii
+                  {nir.receptionId && nir.receptionId.length > 0
+                    ? `${nir.receptionId.length} recepții atașate`
+                    : 'NIR Manual (Fără recepție)'}
                 </span>
               </div>
-              <Button size='sm' variant='ghost' asChild>
-                <Link href={`/admin/management/reception/${nir.receptionId}`}>
-                  <ExternalLink className='h-4 w-4' />
-                </Link>
-              </Button>
+
+              <div className='flex flex-col gap-1 items-end'>
+                {nir.receptionId && nir.receptionId.length > 0 ? (
+                  nir.receptionId.map((recId, idx) => (
+                    <Button
+                      key={recId}
+                      size='sm'
+                      variant='ghost'
+                      className='h-6 px-2 text-xs'
+                      asChild
+                    >
+                      <Link href={`/admin/management/reception/${recId}`}>
+                        <ExternalLink className='h-3 w-3 mr-1' />
+                        Vezi Recepția {idx + 1}
+                      </Link>
+                    </Button>
+                  ))
+                ) : (
+                  <span className='text-xs text-muted-foreground italic p-1'>
+                    -
+                  </span>
+                )}
+              </div>
             </div>
 
             {nir.invoices.map((inv: any, idx: number) => (

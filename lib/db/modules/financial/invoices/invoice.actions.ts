@@ -1570,7 +1570,6 @@ export async function approveInvoice(
     return { success: false, message: (error as Error).message }
   }
 }
-
 export async function rejectInvoice(
   invoiceId: string,
   reason: string,

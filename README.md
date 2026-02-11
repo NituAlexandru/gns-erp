@@ -102,3 +102,16 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - eroare la anularea facturii
 - NU MA LASA SA ADAUG LINIE CU MINUS, SI AM FACTURI CU DISCOUNT
 - La facturile introduse manual in plăti furnizori ma obliga sa bag serie
+
+# IMPORTANT
+
+- de adaugat coloane - produs - marje - pret- comanda
+
+Ar trebui așa.
+
+1. Livrare directă - atunci când pleacă direct de la furnizor și descarcă la client, apoi
+2. tir complet (aici pleacă de la noi din curte , însă a fost descărcat , încărcat din nou în altă mașină și livrat, implică costuri logistice, de manipulare/depozitare)
+3. ⁠Macara mare (mai avem și macara mică, dar o punem tot aici)
+4. ⁠Mașini mici (dube - poate rămâne livrare mică)
+5. ⁠Pf (persoane fizice)
+6. Retail (aici este link pentru revânzători)
