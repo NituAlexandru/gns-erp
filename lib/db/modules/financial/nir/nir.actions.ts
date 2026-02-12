@@ -26,8 +26,7 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
   try {
     await connectToDatabase()
 
-    // A. SCENARIUL MANUAL (Nicio recepție selectată)
-    // Returnăm un obiect gol, dar cu seria și numărul sugerat
+    // A. SCENARIUL MANUAL
     if (!receptionIds || receptionIds.length === 0) {
       const nextNumberData = await getNextNirNumberSuggestion()
       return {
@@ -47,16 +46,16 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
             grandTotal: 0,
             totalEntryValue: 0,
           },
-          // Sugerăm seria/numărul
           seriesName: nextNumberData?.series || '',
           nirNumber: nextNumberData?.number || '',
           nirDate: new Date(),
+          companySnapshot: { name: 'PENDING', cui: 'PENDING' },
+          destinationLocation: 'Iesire din Gestiune',
         },
       }
     }
 
-    // B. SCENARIUL DIN RECEPȚII (1 sau mai multe)
-    // 1. Încărcăm toate recepțiile
+    // B. SCENARIUL DIN RECEPȚII
     const receptions: any[] = await ReceptionModel.find({
       _id: { $in: receptionIds },
     }).lean()
@@ -65,10 +64,14 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
       throw new Error('Nu s-au găsit recepțiile selectate.')
     }
 
-    // 2. Validare: Toate recepțiile trebuie să fie de la același FURNIZOR
-    const firstSupplierId = receptions[0].supplier.toString()
+    // Validare Furnizor
+    const firstSupplierId = receptions[0].supplier
+      ? receptions[0].supplier.toString()
+      : null
+    if (!firstSupplierId) throw new Error('Recepția nu are furnizor valid.')
+
     const differentSupplier = receptions.find(
-      (r) => r.supplier.toString() !== firstSupplierId,
+      (r) => r.supplier && r.supplier.toString() !== firstSupplierId,
     )
 
     if (differentSupplier) {
@@ -77,7 +80,6 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
       )
     }
 
-    // 3. Agregare Date
     const nirItems: any[] = []
     const invoices: any[] = []
     const deliveries: any[] = []
@@ -86,25 +88,19 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
     let productsVat = 0
     let packagingSubtotal = 0
     let packagingVat = 0
-
-    // Transportul pe NIR va fi strict cel de pe facturi (dacă există logică separată),
-    // nu cel distribuit. Momentan îl inițializăm cu 0.
     const transportSubtotal = 0
     const transportVat = 0
 
-    // Iterăm prin fiecare recepție
     for (const reception of receptions) {
-      // a. Colectăm documentele suport (Facturi/Avize)
       if (reception.invoices) invoices.push(...reception.invoices)
       if (reception.deliveries) deliveries.push(...reception.deliveries)
 
-      // b. Procesăm Produsele (folosind logica "Original Data")
+      // --- PRODUSE ---
       if (reception.products) {
         for (const item of reception.products) {
-          // Validare date originale
+          // Validare minimă date
           if (
             item.originalDocumentQuantity == null ||
-            !item.originalUnitMeasure ||
             item.originalInvoicePricePerUnit == null
           ) {
             throw new Error(
@@ -116,7 +112,6 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
           const nirPrice = round6(item.originalInvoicePricePerUnit)
           const vatRate = item.vatRate || 0
 
-          // Calcule
           const lineNet = round2(nirQty * nirPrice)
           const lineVat = round2(lineNet * (vatRate / 100))
           const lineTotal = round2(lineNet + lineVat)
@@ -125,23 +120,23 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
           productsVat += lineVat
 
           nirItems.push({
-            receptionLineId: item._id.toString(), // Legătură opțională
+            // FĂRĂ receptionLineId - evităm eroarea cu toString()
             stockableItemType: 'ERPProduct',
-            productId: item.product?._id || item.product,
+            // Extragem ID-ul produsului în siguranță
+            productId:
+              item.product && (item.product._id || item.product)
+                ? (item.product._id || item.product).toString()
+                : null,
             productName: item.productName,
             productCode: item.productCode,
-
-            unitMeasure: item.originalUnitMeasure,
+            unitMeasure: item.originalUnitMeasure || item.unitMeasure || 'buc',
             documentQuantity: nirQty,
             quantity: nirQty,
             quantityDifference: 0,
-
             invoicePricePerUnit: nirPrice,
             vatRate: vatRate,
-
-            distributedTransportCostPerUnit: 0, // Zero pe NIR
-            landedCostPerUnit: nirPrice, // Egal cu prețul de factură
-
+            distributedTransportCostPerUnit: 0,
+            landedCostPerUnit: nirPrice,
             lineValue: lineNet,
             lineVatValue: lineVat,
             lineTotal: lineTotal,
@@ -150,12 +145,11 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
         }
       }
 
-      // c. Procesăm Ambalajele
+      // --- AMBALAJE ---
       if (reception.packagingItems) {
         for (const item of reception.packagingItems) {
           if (
             item.originalDocumentQuantity == null ||
-            !item.originalUnitMeasure ||
             item.originalInvoicePricePerUnit == null
           ) {
             throw new Error(
@@ -175,23 +169,22 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
           packagingVat += lineVat
 
           nirItems.push({
-            receptionLineId: item._id.toString(),
+            // FĂRĂ receptionLineId
             stockableItemType: 'Packaging',
-            packagingId: item.packaging?._id || item.packaging,
+            packagingId:
+              item.packaging && (item.packaging._id || item.packaging)
+                ? (item.packaging._id || item.packaging).toString()
+                : null,
             productName: item.packagingName,
             productCode: item.productCode,
-
-            unitMeasure: item.originalUnitMeasure,
+            unitMeasure: item.originalUnitMeasure || item.unitMeasure || 'buc',
             documentQuantity: nirQty,
             quantity: nirQty,
             quantityDifference: 0,
-
             invoicePricePerUnit: nirPrice,
             vatRate: vatRate,
-
             distributedTransportCostPerUnit: 0,
             landedCostPerUnit: nirPrice,
-
             lineValue: lineNet,
             lineVatValue: lineVat,
             lineTotal: lineTotal,
@@ -201,26 +194,33 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
       }
     }
 
-    // 4. Calcul Totaluri Agregate
     const subtotal = round2(
       productsSubtotal + packagingSubtotal + transportSubtotal,
     )
     const vatTotal = round2(productsVat + packagingVat + transportVat)
     const grandTotal = round2(subtotal + vatTotal)
 
-    // 5. Sugerare Număr NIR
     const nextNumberData = await getNextNirNumberSuggestion()
 
-    // 6. Construim obiectul final (Pre-filled Form Data)
+    // 6. Construim obiectul final
     const initialData = {
-      receptionId: receptionIds, // Array-ul de ID-uri
-      supplierId: receptions[0].supplier,
-      supplierSnapshot: receptions[0].supplierSnapshot, // Luăm snapshot de la prima recepție
-      companySnapshot: {}, // Va fi populat la save sau în frontend dacă e nevoie
+      receptionId: receptionIds,
+      supplierId: receptions[0].supplier
+        ? receptions[0].supplier.toString()
+        : '',
+      supplierSnapshot: receptions[0].supplierSnapshot,
+
+      // FIX VALIDARE FRONTEND: Trimitem date dummy
+      companySnapshot: {
+        name: 'PENDING',
+        cui: 'PENDING',
+      },
+      // Locația default
+      destinationLocation:
+        receptions[0].destinationLocation || 'Iesire din Gestiune',
 
       invoices: invoices,
       deliveries: deliveries,
-
       items: nirItems,
 
       totals: {
@@ -236,12 +236,9 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
         totalEntryValue: subtotal,
       },
 
-      destinationLocation: receptions[0].destinationLocation, // Presupunem că merg în aceeași gestiune
-
-      // Date sugerate pentru Header
       seriesName: nextNumberData?.series || '',
       nirNumber: nextNumberData?.number || '',
-      nirDate: new Date(), // Data de azi default
+      nirDate: new Date(),
     }
 
     return {

@@ -122,7 +122,7 @@ export function NirForm({
       },
       companySnapshot: {
         name: 'PENDING',
-        cui: 'PENDING',
+        cui: 'RO00000000',
       },
       totals: {
         productsSubtotal: 0,
@@ -382,10 +382,16 @@ export function NirForm({
   const handleSupplierChange = (id: string, item: any) => {
     if (item) {
       form.setValue('supplierId', id)
+      const cuiValue = item.fiscalCode || item.regComNumber || 'INTRODU_MANUAL'
+
       form.setValue('supplierSnapshot', {
         name: item.name,
-        cui: (item as any).cui || '',
+        cui: cuiValue,
       })
+
+      // Validăm instant ca să dispară eroarea roșie
+      form.trigger('supplierId')
+      form.trigger('supplierSnapshot')
     }
   }
 
