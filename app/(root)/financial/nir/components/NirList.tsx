@@ -34,6 +34,7 @@ import { NirDTO } from '@/lib/db/modules/financial/nir/nir.types'
 import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import { cancelNirAction } from '@/lib/db/modules/financial/nir/nir.actions'
 
 interface NirListProps {
   data: NirDTO[]
@@ -81,6 +82,23 @@ export function NirList({
     } finally {
       setIsGeneratingPdf(null)
     }
+  }
+
+  const handleCancelNirOnly = async (nirId: string) => {
+    const promise = cancelNirAction(nirId)
+    toast.promise(promise, {
+      loading: 'Se anulează NIR-ul...',
+      success: (res) => {
+        if (!res.success) throw new Error(res.message)
+        router.refresh()
+        return 'NIR anulat cu succes.'
+      },
+      error: (err) => err.message,
+    })
+  }
+
+  const handleEditNirManual = (nirId: string) => {
+    router.push(`/admin/management/reception/nir/${nirId}/edit`)
   }
 
   return (
@@ -219,6 +237,13 @@ export function NirList({
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className='cursor-pointer'
+                          onSelect={() => handleEditNirManual(nir._id)}
+                          disabled={nir.status === 'CANCELLED'}
+                        >
+                          Modifică NIR (Manual)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className='cursor-pointer'
                           onSelect={() => {
                             setPreviewNir(nir)
                             handlePrintPreview(nir._id)
@@ -227,6 +252,18 @@ export function NirList({
                         >
                           Printează NIR
                         </DropdownMenuItem>
+                        {nir.status !== 'CANCELLED' && (
+                          <>
+                            {/* Separator vizual opțional */}
+                            <div className='h-px bg-muted my-1' />
+                            <DropdownMenuItem
+                              className='text-red-500 focus:text-red-600 cursor-pointer'
+                              onSelect={() => handleCancelNirOnly(nir._id)}
+                            >
+                              Anulează NIR
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
