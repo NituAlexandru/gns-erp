@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache'
 import { Types } from 'mongoose'
 import SupplierInvoiceModel from '../treasury/payables/supplier-invoice.model'
 import DeliveryNoteModel from '../delivery-notes/delivery-note.model'
+import { getSetting } from '../../setting/setting.actions'
 
 // -------------------------------------------------------------
 // 1. SEARCH DELIVERY NOTES (Pentru Modal)
@@ -101,18 +102,28 @@ export async function searchSupplierInvoicesForStorno(query: string) {
 // -------------------------------------------------------------
 // 3. LOAD DATA FROM DELIVERY NOTE (Conversie Negativă)
 // -------------------------------------------------------------
-export async function loadNirDataFromDeliveryNote(deliveryNoteId: string) {
+export async function loadNirDataFromDeliveryNote(
+  deliveryNoteId: string,
+  invoiceId?: string,
+) {
   try {
     await connectToDatabase()
 
+    // 1. Încărcăm Avizul
     const note: any = await DeliveryNoteModel.findById(deliveryNoteId).lean()
     if (!note) throw new Error('Avizul nu a fost găsit.')
 
-    // Mapăm produsele cu CANTITĂȚI NEGATIVE
+    // 2. Încărcăm Factura (Dacă există ID trimis)
+    let invoice: any = null
+    if (invoiceId) {
+      invoice = await SupplierInvoiceModel.findById(invoiceId).lean()
+    }
+
+    // 3. Mapăm produsele cu CANTITĂȚI NEGATIVE
     const items = note.items.map((item: any) => {
       // Negăm cantitatea
       const negQty = -1 * Math.abs(item.quantity)
-      const price = item.priceAtTimeOfOrder || 0 // Prețul rămâne pozitiv
+      const price = item.priceAtTimeOfOrder || 0
 
       // Recalculăm valorile negative
       const lineNet = round2(negQty * price)
@@ -121,32 +132,25 @@ export async function loadNirDataFromDeliveryNote(deliveryNoteId: string) {
       const lineTotal = round2(lineNet + lineVat)
 
       return {
-        // Nu avem receptionLineId
         stockableItemType: item.stockableItemType || 'ERPProduct',
-        productId: item.productId,
+        productId: item.productId ? item.productId.toString() : null,
         productName: item.productName,
         productCode: item.productCode,
-
         unitMeasure: item.unitOfMeasure,
-
-        // Date "document"
         documentQuantity: negQty,
-        quantity: negQty, // Cantitatea recepționată (negativă)
+        quantity: negQty,
         quantityDifference: 0,
-
         invoicePricePerUnit: round6(price),
         vatRate: vatRate,
-
         distributedTransportCostPerUnit: 0,
         landedCostPerUnit: round6(price),
-
         lineValue: lineNet,
         lineVatValue: lineVat,
         lineTotal: lineTotal,
       }
     })
 
-    // Calculăm totalurile negative
+    // Calculăm totalurile negative pentru NIR (bazat pe items)
     const subtotal = items.reduce((sum: number, i: any) => sum + i.lineValue, 0)
     const vatTotal = items.reduce(
       (sum: number, i: any) => sum + i.lineVatValue,
@@ -157,40 +161,76 @@ export async function loadNirDataFromDeliveryNote(deliveryNoteId: string) {
       0,
     )
 
-    // Returnăm structura parțială pentru formular
-    return {
-      success: true,
-      data: {
-        supplierId: '', // Userul trebuie să îl confirme manual sau îl luăm din aviz dacă avem mapare
-        supplierSnapshot: {
-          name: note.clientSnapshot?.name, // În aviz, destinatarul e Furnizorul
-          cui: note.clientSnapshot?.cui,
-          regCom: note.clientSnapshot?.regCom,
-          address: {
-            // Mapăm adresa din snapshot
-            judet: note.clientSnapshot?.judet || '',
-            localitate: note.deliveryAddress?.localitate || '',
-            strada: note.deliveryAddress?.strada || '',
-            numar: note.deliveryAddress?.numar || '',
-            codPostal: note.deliveryAddress?.codPostal || '',
-            tara: 'RO',
-            alteDetalii: note.deliveryAddress?.alteDetalii,
-          },
-        },
-        items: items,
-        totals: {
-          productsSubtotal: round2(subtotal),
-          productsVat: round2(vatTotal),
-          packagingSubtotal: 0,
-          packagingVat: 0,
-          transportSubtotal: 0,
-          transportVat: 0,
-          subtotal: round2(subtotal),
-          vatTotal: round2(vatTotal),
-          grandTotal: round2(grandTotal),
-          totalEntryValue: round2(subtotal),
+    // Construim numărul auto (Auto / Remorcă)
+    const carParts = []
+    if (note.vehicleNumber) carParts.push(note.vehicleNumber)
+    if (note.trailerNumber) carParts.push(note.trailerNumber)
+    const fullCarNumber = carParts.join(' / ')
+
+    const deliveryData = {
+      dispatchNoteSeries: note.seriesName || '', // Serie Aviz
+      dispatchNoteNumber: note.noteNumber || '', // Număr Aviz
+      dispatchNoteDate: note.createdAt, // Data Aviz (folosim data creării)
+      driverName: note.driverName || '', // Nume Șofer
+      carNumber: fullCarNumber, // Număr Auto
+      // Regulile specifice:
+      transportType: 'INTERN', // Tip Transport: Intern
+      transportCost: 0,
+      isInternal: true, // Cost Logistic Propriu: BIFAT
+      notes: note.deliveryNotesSnapshot || '', // Mențiuni
+      transportVatRate: 0, // Default
+      tertiaryTransporterDetails: { name: '', cui: '', regCom: '' },
+    }
+
+    // 4. Construim obiectul de date
+    const rawData = {
+      supplierId: invoice?.supplierId ? invoice.supplierId.toString() : '',
+      supplierSnapshot: {
+        name: note.clientSnapshot?.name,
+        cui: note.clientSnapshot?.cui,
+        regCom: note.clientSnapshot?.regCom,
+        address: {
+          judet: note.clientSnapshot?.judet || '',
+          localitate: note.deliveryAddress?.localitate || '',
+          strada: note.deliveryAddress?.strada || '',
+          numar: note.deliveryAddress?.numar || '',
+          codPostal: note.deliveryAddress?.codPostal || '',
+          tara: 'RO',
+          alteDetalii: note.deliveryAddress?.alteDetalii,
         },
       },
+      items: items,
+      invoices: invoice
+        ? [
+            {
+              series: invoice.invoiceSeries || '',
+              number: invoice.invoiceNumber || '',
+              date: invoice.invoiceDate,
+              dueDate: invoice.dueDate,
+              amount: invoice.totals?.subtotal || 0,
+              currency: invoice.invoiceCurrency || 'RON',
+              vatRate: invoice.taxSubtotals?.[0]?.percent || 0,
+            },
+          ]
+        : [],
+      deliveries: [deliveryData],
+      totals: {
+        productsSubtotal: round2(subtotal),
+        productsVat: round2(vatTotal),
+        packagingSubtotal: 0,
+        packagingVat: 0,
+        transportSubtotal: 0,
+        transportVat: 0,
+        subtotal: round2(subtotal),
+        vatTotal: round2(vatTotal),
+        grandTotal: round2(grandTotal),
+        totalEntryValue: round2(subtotal),
+      },
+    }
+
+    return {
+      success: true,
+      data: JSON.parse(JSON.stringify(rawData)),
     }
   } catch (error: any) {
     return { success: false, message: error.message }
@@ -208,8 +248,33 @@ export async function createStornoNirAndLink(
   try {
     await connectToDatabase()
 
+    const settings = await getSetting()
+    if (!settings) {
+      throw new Error('Datele firmei nu sunt configurate în Setări!')
+    }
+
+    // 2. Construim payload-ul final completând câmpurile care lipseau
+    const finalPayload = {
+      ...nirData,
+      companySnapshot: {
+        name: settings.name,
+        cui: settings.cui,
+        regCom: settings.regCom,
+        address: settings.address,
+        bankAccounts: settings.bankAccounts,
+        phones: settings.phones,
+        emails: settings.emails,
+      },
+
+      destinationLocation: 'Iesire din Gestiune',
+      receivedBy: {
+        userId: nirData.userId,
+        name: nirData.userName,
+      },
+    }
+
     // 1. Creăm NIR-ul
-    const nirResult = await createNir(nirData)
+    const nirResult = await createNir(finalPayload)
 
     if (!nirResult.success) {
       throw new Error(nirResult.message)
@@ -265,7 +330,7 @@ export async function createStornoNirAndLink(
 
     // 4. Update FACTURĂ FURNIZOR (Dacă există) - Adăugăm notă și acolo
     if (supplierInvoiceId) {
-      const invoiceNote = `Factura aferentă Aviz retur seria ${nirData.items[0]?.productName ? '...' : ''} (NIR ${nirDoc.nirNumber})`
+      const invoiceNote = `Factura aferentă NIR ${nirDoc.nirNumber} din data ${nirDoc.nirDate}`
 
       await SupplierInvoiceModel.findByIdAndUpdate(supplierInvoiceId, [
         {

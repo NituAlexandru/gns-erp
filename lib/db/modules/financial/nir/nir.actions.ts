@@ -256,20 +256,30 @@ export async function loadNirDataFromReceptions(receptionIds: string[]) {
 }
 
 // Helper intern pentru a obține următorul număr (pentru UI)
-async function getNextNirNumberSuggestion() {
-  try {
-    const seriesList = await getActiveSeriesForDocumentType('NIR' as any)
-    if (seriesList.length === 1) {
-      const nextNum = seriesList[0].currentNumber + 1
-      return {
-        series: seriesList[0].name,
-        number: String(nextNum).padStart(5, '0'),
-      }
-    }
-    // Dacă sunt mai multe serii sau niciuna, nu putem sugera automat
-    return null
-  } catch (e) {
-    return null
+export async function getNextNirNumberSuggestion() {
+  await connectToDatabase()
+
+  // Luăm anul curent din data sistemului (2026, 2027, etc.)
+  const currentYear = new Date().getFullYear()
+
+  const counter: any = await DocumentCounter.findOne({
+    seriesName: 'NIR',
+    year: currentYear,
+  }).lean()
+
+  // Dacă nu găsește counter-ul, aruncăm eroare să știm de ce (nu mai punem '1' din burtă)
+  if (!counter) {
+    throw new Error(
+      `Counter-ul pentru seria NIR pe anul ${currentYear} nu a fost găsit în baza de date!`,
+    )
+  }
+
+  // Calcul matematic curat: 10 + 1 = 11
+  const nextNum = Number(counter.currentNumber) + 1
+
+  return {
+    series: 'NIR',
+    number: String(nextNum),
   }
 }
 
@@ -854,7 +864,7 @@ export async function updateNir({
     revalidatePath('/financial/nir')
     revalidatePath(`/financial/nir/${nirId}`)
     revalidatePath('/admin/management/reception')
-    
+
     return { success: true, message: 'NIR actualizat cu succes.' }
   } catch (error) {
     console.error('❌ Eroare updateNir:', error)
@@ -1168,34 +1178,39 @@ export async function createNir(
   try {
     await connectToDatabase()
 
-    // 1. Validare
     const payload = CreateNirSchema.parse(data)
-
-    // 2. Extragere Date Header
-    const finalNumber = payload.nirNumber
-    const finalSeries = payload.seriesName
-    let sequence = 0
-
-    // Dacă nu are număr, aruncăm eroare (ar trebui să vină din formular)
-    if (!finalNumber) {
-      throw new Error('Numărul NIR este obligatoriu.')
-    }
-
-    // Extragem secvența numerică (ex: "0055" -> 55)
-    sequence = parseInt(finalNumber.replace(/\D/g, '')) || 0
     const year = new Date(payload.nirDate!).getFullYear()
+    const finalSeries = payload.seriesName
 
     const session = await startSession()
+    let createdNirData = null
 
-    const newNir = await session.withTransaction(async (session) => {
-      // A. Creăm NIR-ul
+    await session.withTransaction(async (session) => {
+      // 1. INCREMENTARE ATOMICĂ (CRITIC: Se face rollback automat la eroare)
+      const counter = await DocumentCounter.findOneAndUpdate(
+        { seriesName: finalSeries, year: year },
+        { $inc: { currentNumber: 1 } }, // Incrementăm cu 1
+        {
+          upsert: true,
+          new: true,
+          session, // Legăm de sesiune
+          setDefaultsOnInsert: true,
+        },
+      )
+
+      if (!counter) throw new Error('Eroare la generarea numărului NIR.')
+
+      // 2. Formatăm numărul (Ex: 10 -> "00010")
+      const sequence = counter.currentNumber
+      const paddedNumber = String(sequence).padStart(5, '0')
+
+      // 3. Creăm NIR-ul cu numărul generat sigur
       const [created] = await NirModel.create(
         [
           {
             ...payload,
-            // Asigurăm maparea corectă a array-ului de recepții
             receptionIds: payload.receptionId,
-            nirNumber: finalNumber,
+            nirNumber: paddedNumber,
             sequenceNumber: sequence,
             year: year,
             status: 'CONFIRMED',
@@ -1208,14 +1223,14 @@ export async function createNir(
         { session },
       )
 
-      // B. Actualizăm Recepțiile (le legăm de acest NIR)
+      // 4. Update Recepții (dacă există)
       if (payload.receptionId && payload.receptionId.length > 0) {
         await ReceptionModel.updateMany(
           { _id: { $in: payload.receptionId } },
           {
             $set: {
               nirId: created._id,
-              nirNumber: `${finalSeries} ${finalNumber}`,
+              nirNumber: `${finalSeries} ${paddedNumber}`,
               nirDate: created.nirDate,
             },
           },
@@ -1223,32 +1238,17 @@ export async function createNir(
         )
       }
 
-      // C. Actualizăm Contorul (DocumentCounter)
-      // Folosim $max pentru a ne asigura că setăm contorul la valoarea curentă
-      // doar dacă aceasta este mai mare decât ce era înainte.
-      if (finalSeries) {
-        await DocumentCounter.findOneAndUpdate(
-          {
-            seriesName: finalSeries,
-            year: year,
-            documentType: 'NIR',
-          },
-          {
-            // Setăm contorul la numărul curent folosit (ex: 55),
-            // astfel următorul generateNext va da 56.
-            $max: { currentNumber: sequence },
-          },
-          { session, upsert: true, new: true },
-        )
-      }
-
-      return created
+      createdNirData = created
     })
 
     await session.endSession()
-    revalidatePath('/admin/management/reception/nir')
 
-    return { success: true, data: JSON.parse(JSON.stringify(newNir)) }
+    if (createdNirData) {
+      revalidatePath('/admin/management/reception/nir')
+      return { success: true, data: JSON.parse(JSON.stringify(createdNirData)) }
+    } else {
+      throw new Error('Tranzacția a eșuat.')
+    }
   } catch (error: any) {
     console.error('Error creating NIR:', error)
     return { success: false, message: error.message }

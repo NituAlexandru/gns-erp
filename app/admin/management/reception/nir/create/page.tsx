@@ -2,6 +2,7 @@ import { auth } from '@/auth'
 import { redirect } from 'next/navigation'
 import { NirForm } from '../components/nir-form'
 import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
+import { getNextNirNumberSuggestion } from '@/lib/db/modules/financial/nir/nir.actions'
 
 export default async function CreateNirPage() {
   const session = await auth()
@@ -11,6 +12,9 @@ export default async function CreateNirPage() {
   const vatRatesResult = await getVatRates()
   const vatRates = vatRatesResult.success ? vatRatesResult.data : []
   const defaultVat = vatRates.find((v: any) => v.isDefault) || null
+
+  const nextNumberData = await getNextNirNumberSuggestion()
+  const nextNumber = nextNumberData?.number || ''
 
   return (
     <div className='p-0 space-y-1'>
@@ -36,6 +40,7 @@ export default async function CreateNirPage() {
         userName={session.user.name!}
         vatRates={vatRates}
         defaultVatRate={defaultVat}
+        suggestedNirNumber={nextNumber}
       />
     </div>
   )

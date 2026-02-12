@@ -60,6 +60,7 @@ interface NirFormProps {
   userName: string
   vatRates: VatRateDTO[]
   defaultVatRate: VatRateDTO | null
+  suggestedNirNumber?: string
 }
 
 export function NirForm({
@@ -68,6 +69,7 @@ export function NirForm({
   userName,
   vatRates,
   defaultVatRate,
+  suggestedNirNumber,
 }: NirFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -111,8 +113,17 @@ export function NirForm({
       invoices: [],
       deliveries: [],
       receptionId: [],
-      seriesName: '',
-      nirNumber: '',
+      nirNumber: suggestedNirNumber || '',
+      seriesName: 'NIR',
+      destinationLocation: 'Iesire din Gestiune',
+      receivedBy: {
+        userId: userId,
+        name: userName,
+      },
+      companySnapshot: {
+        name: 'PENDING',
+        cui: 'PENDING',
+      },
       totals: {
         productsSubtotal: 0,
         productsVat: 0,
@@ -126,7 +137,7 @@ export function NirForm({
         totalEntryValue: 0,
       },
     }
-  }, [initialData])
+  }, [initialData, suggestedNirNumber, userId, userName])
 
   const form = useForm<any>({
     resolver: zodResolver(NirFormUiSchema),
@@ -232,6 +243,10 @@ export function NirForm({
 
     const transSum = watchedDeliveries.reduce(
       (acc: any, d: any) => {
+        if (d.isInternal) {
+          return acc
+        }
+
         const cost = parseFloat(d.transportCost) || 0
         const rate = parseFloat(d.transportVatRate) || 0
         const vat = round2(cost * (rate / 100))
@@ -376,44 +391,111 @@ export function NirForm({
 
   const handleImportStorno = async (deliveryId: string, invoiceId?: string) => {
     const loadingToast = toast.loading('Se încarcă datele din aviz...')
+
     try {
-      // 1. Încărcăm datele (Server Action)
-      const result = await loadNirDataFromDeliveryNote(deliveryId)
+      // 1. Apelăm serverul cu ambele ID-uri
+      const result = await loadNirDataFromDeliveryNote(deliveryId, invoiceId)
 
       if (!result.success || !result.data) {
         toast.error(result.message || 'Eroare la import')
-        toast.dismiss(loadingToast)
         return
       }
 
-      // 2. Populăm formularul cu datele negative
-      // Resetăm formularul cu valorile primite
-      // Atenție: Trebuie să păstrăm userul curent sau alte default-uri
-      form.reset({
-        ...result.data, // items, totals, supplierSnapshot
-        nirDate: new Date(),
-        // Asigură-te că mapezi corect câmpurile din formularul tău
-      })
+      const data = result.data
 
-      // 3. Salvăm contextul pentru final (Save)
+      if (data.supplierId) {
+        form.setValue('supplierId', data.supplierId)
+      }
+
+      // 2. Populăm Produsele (Mapare ID corectă)
+      const stornoProducts = (data.items || [])
+        .filter((i: any) => i.stockableItemType === 'ERPProduct')
+        .map((item: any) => ({
+          ...item,
+          product: item.productId,
+        }))
+      replaceProducts(stornoProducts)
+
+      // 3. Populăm Ambalajele (Mapare ID corectă)
+      const stornoPackaging = (data.items || [])
+        .filter((i: any) => i.stockableItemType === 'Packaging')
+        .map((item: any) => ({
+          ...item,
+          packaging: item.productId,
+        }))
+      replacePackaging(stornoPackaging)
+
+      // 4. Populăm Furnizorul
+      if (data.supplierSnapshot) {
+        form.setValue('supplierSnapshot', data.supplierSnapshot)
+      }
+
+      // 5. POPULĂM FACTURA (Toate câmpurile)
+      if (data.invoices && data.invoices.length > 0) {
+        form.setValue(
+          'invoices',
+          data.invoices.map((inv: any) => ({
+            series: inv.series || '',
+            number: inv.number || '',
+            date: inv.date ? new Date(inv.date) : new Date(),
+            dueDate: inv.dueDate ? new Date(inv.dueDate) : undefined,
+            amount: inv.amount || inv.amountNet || 0,
+            currency: inv.currency || 'RON',
+            vatRate: inv.vatRate || 0,
+          })),
+        )
+      }
+
+      // 5. --- POPULĂM LIVRAREA (Datele din Aviz) ---
+      if (data.deliveries && data.deliveries.length > 0) {
+        form.setValue(
+          'deliveries',
+          data.deliveries.map((d: any) => ({
+            ...d,
+            // Convertim string-ul datei în obiect Date pentru DatePicker
+            dispatchNoteDate: d.dispatchNoteDate
+              ? new Date(d.dispatchNoteDate)
+              : new Date(),
+            // Ne asigurăm că checkbox-ul primește boolean
+            isInternal: !!d.isInternal,
+          })),
+        )
+      }
+
+      // 6. Salvăm contextul și închidem
       setStornoContext({
         deliveryNoteId: deliveryId,
         supplierInvoiceId: invoiceId,
       })
 
-      toast.success('Datele de retur au fost încărcate. Verifică și Salvează.')
-    } catch (err) {
-      toast.error('Eroare neașteptată.')
+      setIsStornoModalOpen(false) // Închidem modalul
+      toast.success('Datele de retur și factura au fost încărcate!')
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Eroare neașteptată: ' + err.message)
     } finally {
       toast.dismiss(loadingToast)
     }
+  }
+
+  const onError = (errors: any) => {
+    console.error('❌ ERORI VALIDARE:', errors)
+    toast.error('Formularul conține erori! Verifică consola (F12).')
+
+    // Opțional: Loghează câmpurile cu probleme
+    Object.keys(errors).forEach((key) => {
+      toast.error(`Eroare la câmpul: ${key}`)
+    })
   }
 
   return (
     <>
       <FormProvider {...form}>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
+          <form
+            onSubmit={form.handleSubmit(onSubmit, onError)}
+            className='space-y-4'
+          >
             <Card>
               <CardHeader className='flex flex-row items-center justify-between'>
                 <CardTitle>
@@ -484,7 +566,8 @@ export function NirForm({
                               <Input
                                 {...field}
                                 className='font-mono font-semibold'
-                                placeholder='ex: 00055'
+                                disabled={true}
+                                placeholder='Generat automat la salvare'
                               />
                             </FormControl>
                           </FormItem>
