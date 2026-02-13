@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import {
   Table,
   TableBody,
@@ -12,13 +12,10 @@ import {
 import { Button } from '@/components/ui/button'
 import {
   PopulatedInvoice,
-  InvoiceFilters,
   SeriesStat,
 } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { InvoicesFilters } from './InvoicesFilters'
-import { useDebounce } from '@/hooks/use-debounce'
-import qs from 'query-string'
-import { cn, formatCurrency } from '@/lib/utils'
+import { cn, formatCurrency, toSlug } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,6 +76,8 @@ import {
   getSplitGroupPreview,
 } from '@/lib/db/modules/financial/invoices/split-invoice/split-invoice.actions'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import Link from 'next/link'
+import { InvoicePreview } from './details/InvoicePreview'
 
 interface InvoicesListProps {
   invoices: PopulatedInvoice[]
@@ -404,8 +403,8 @@ export function InvoicesList({
               <TableHead className='text-right'>Total</TableHead>
               {isAdmin && (
                 <>
-                  <TableHead className='text-right'>Profit</TableHead>
-                  <TableHead className='text-right'>Marjă</TableHead>
+                  <TableHead className='text-right'>Profit Prod.</TableHead>
+                  <TableHead className='text-right'>Marjă Prod.</TableHead>
                 </>
               )}
               <TableHead className='text-right'>Acțiuni</TableHead>
@@ -426,9 +425,13 @@ export function InvoicesList({
                 >
                   <TableCell className='font-medium py-1 text-[10px] lg:text-xs xl:text-sm'>
                     <div className='flex flex-col'>
-                      <span>
+                      <Link
+                        href={`/financial/invoices/${invoice._id}`}
+                        className=' hover:underline hover:text-red-600 transition-colors'
+                      >
                         {invoice.seriesName}-{invoice.invoiceNumber}
-                      </span>
+                      </Link>
+
                       <span className='text-[8px] lg:text-[10px] text-yellow-600 font-bold uppercase tracking-wider'>
                         {invoice.invoiceType}
                       </span>
@@ -441,7 +444,16 @@ export function InvoicesList({
                     {new Date(invoice.dueDate).toLocaleDateString('ro-RO')}
                   </TableCell>
                   <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm truncate max-w-[150px] lg:max-w-[200px] xl:max-w-[250px]'>
-                    {invoice.clientId?.name || 'N/A'}
+                    {invoice.clientId ? (
+                      <Link
+                        href={`/clients/${invoice.clientId._id}/${toSlug(invoice.clientId.name)}?tab=payments`}
+                        className='hover:underline hover:text-red-600 font-medium transition-colors'
+                      >
+                        {invoice.clientId.name}
+                      </Link>
+                    ) : (
+                      'N/A'
+                    )}
                   </TableCell>
                   <TableCell className='text-[10px] lg:text-xs xl:text-sm max-w-[150px]'>
                     {invoice.createdByName || 'N/A'}
@@ -562,34 +574,40 @@ export function InvoicesList({
                       <span className='text-muted-foreground text-xs'>-</span>
                     )}
                   </TableCell>
-                  <TableCell className='text-right text-[10px] lg:text-xs xl:text-sm py-1'>
+                  <TableCell className='text-right text-[10px] lg:text-xs py-1'>
                     {formatCurrency(invoice.totals.grandTotal)}
                   </TableCell>
                   {isAdmin && (
                     <>
                       <TableCell
                         className={cn(
-                          'text-right text-[10px] lg:text-xs xl:text-sm py-1',
-                          getProfitColorClass(invoice.totals.totalProfit),
+                          'text-right text-[10px] lg:text-xs py-1',
+                          getProfitColorClass(invoice.totals.productsProfit),
                         )}
                       >
                         {invoice.invoiceType !== 'STORNO'
-                          ? formatCurrency(invoice.totals.totalProfit)
+                          ? formatCurrency(invoice.totals.productsProfit)
                           : '-'}
                       </TableCell>
                       <TableCell
                         className={cn(
-                          'text-right text-[10px] lg:text-xs xl:text-sm py-1',
-                          getMarginColorClass(invoice.totals.profitMargin),
+                          'text-right text-[10px] lg:text-xs py-1',
+                          getMarginColorClass(invoice.totals.productsMargin),
                         )}
                       >
                         {invoice.invoiceType !== 'STORNO'
-                          ? `${invoice.totals.profitMargin}%`
+                          ? `${invoice.totals.productsMargin}%`
                           : '-'}
                       </TableCell>
                     </>
                   )}
                   <TableCell className='text-right py-1 '>
+                    <div className='flex items-center justify-end gap-1'></div>
+                    <InvoicePreview
+                      invoice={invoice}
+                      isAdmin={isAdmin}
+                      currentUserRole={isAdmin ? 'admin' : 'user'}
+                    />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant='ghost' size='icon'>

@@ -9,32 +9,51 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Hash, ShoppingCart } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import { getSmartDescription } from './InvoiceDetails.helpers'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 import {
   getMarginColorClass,
   getProfitColorClass,
 } from '@/lib/db/modules/financial/invoices/invoice.utils'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 interface InvoiceItemsTableProps {
   items: PopulatedInvoice['items']
   currentUserRole: string
+  isPreview?: boolean // <--- PROP NOU
 }
 
 export function InvoiceItemsTable({
   items,
   currentUserRole,
+  isPreview = false,
 }: InvoiceItemsTableProps) {
   const isAdmin = SUPER_ADMIN_ROLES.includes(
-    currentUserRole?.toLowerCase() || ''
+    currentUserRole?.toLowerCase() || '',
   )
+
+  // --- STILURI DINAMICE ---
+  const rowHeightClass = isPreview ? 'py-0 h-6' : 'py-1'
+  const textSizeClass = isPreview ? 'text-xs' : 'text-xs'
+  const headerTextSize = isPreview ? 'text-xs' : 'text-sm'
+  const iconSize = isPreview ? 'h-3 w-3' : 'h-4 w-4'
 
   return (
     <Card className='py-2 gap-0'>
       <CardHeader className='pl-1'>
-        <CardTitle className='text-base font-semibold flex items-center gap-2'>
-          <ShoppingCart className='h-4 w-4'/> Produse și Servicii
+        <CardTitle
+          className={cn(
+            'font-semibold flex items-center gap-2',
+            isPreview ? 'text-sm' : 'text-base',
+          )}
+        >
+          <ShoppingCart className={iconSize} /> Produse și Servicii
         </CardTitle>
       </CardHeader>
       <CardContent className='p-0'>
@@ -42,55 +61,54 @@ export function InvoiceItemsTable({
           <TableHeader className='bg-muted/50'>
             {/* Rândul 1: Titlurile Coloanelor */}
             <TableRow>
-              <TableHead className='w-[30px]'>#</TableHead>
-              <TableHead>Descriere Produs</TableHead>
-              <TableHead>Cant.</TableHead>
-              <TableHead>UM</TableHead>
-              <TableHead className='text-right'>Preț Unitar</TableHead>
-              <TableHead className='text-right'>Valoare</TableHead>
-              <TableHead className='text-right'>TVA %</TableHead>
-              <TableHead className='text-right'>Valoare TVA</TableHead>
-              <TableHead className='text-right'>Total</TableHead>
+              <TableHead className={cn('w-[30px]', headerTextSize)}>
+                #
+              </TableHead>
+              <TableHead className={headerTextSize}>Descriere Produs</TableHead>
+              <TableHead className={headerTextSize}>Cant.</TableHead>
+              <TableHead className={headerTextSize}>UM</TableHead>
+              <TableHead className={cn('text-right', headerTextSize)}>
+                Preț Unitar
+              </TableHead>
+              <TableHead className={cn('text-right', headerTextSize)}>
+                Valoare
+              </TableHead>
+              <TableHead className={cn('text-right', headerTextSize)}>
+                TVA %
+              </TableHead>
+              <TableHead className={cn('text-right', headerTextSize)}>
+                Valoare TVA
+              </TableHead>
+              <TableHead className={cn('text-right', headerTextSize)}>
+                Total
+              </TableHead>
               {isAdmin && (
-                <TableHead className='text-right text-green-600 w-[100px]'>
+                <TableHead
+                  className={cn(
+                    'text-right text-green-600 w-[100px]',
+                    headerTextSize,
+                  )}
+                >
                   Profit
                 </TableHead>
               )}
             </TableRow>
-            {/* 👇 Rândul 2 (NOU): Numerotarea Coloanelor (1-9) */}
+            {/* Rândul 2: Numerotarea Coloanelor */}
             <TableRow className='h-6 hover:bg-transparent border-t-0'>
-              <TableHead className=' h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                0
-              </TableHead>
-              <TableHead className=' h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                1
-              </TableHead>
-              <TableHead className=' h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                2
-              </TableHead>
-              <TableHead className='text-left h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                3
-              </TableHead>
-              <TableHead className='text-right h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                4
-              </TableHead>
-              <TableHead className='text-right h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                5
-              </TableHead>
-              <TableHead className='text-right h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                6
-              </TableHead>
-              <TableHead className='text-right h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                7
-              </TableHead>
-              <TableHead className='text-right h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                8
-              </TableHead>
-              {isAdmin && (
-                <TableHead className='text-right h-6 py-0 text-[10px] font-normal text-muted-foreground'>
-                  9
-                </TableHead>
-              )}
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, isAdmin ? 9 : null]
+                .filter((x) => x !== null)
+                .map((i) => (
+                  <TableHead
+                    key={i}
+                    className={cn(
+                      'h-6 py-0 font-normal text-muted-foreground',
+                      headerTextSize,
+                      i !== null && i >= 4 && 'text-right',
+                    )}
+                  >
+                    {i}
+                  </TableHead>
+                ))}
             </TableRow>
           </TableHeader>
 
@@ -99,61 +117,107 @@ export function InvoiceItemsTable({
               const smartDesc = getSmartDescription(item)
 
               return (
-                <TableRow key={item._id?.toString() || index}>
-                  <TableCell className='text-xs text-muted-foreground'>
+                <TableRow
+                  key={item._id?.toString() || index}
+                  className={rowHeightClass}
+                >
+                  <TableCell
+                    className={cn(
+                      'text-muted-foreground font-mono py-0',
+                      textSizeClass,
+                    )}
+                  >
                     {index + 1}
                   </TableCell>
                   <TableCell className='p-1 py-0'>
-                    <div className='font-medium'>{item.productName}</div>
+                    {/* Tooltip pentru Nume Produs */}
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={cn(
+                              'font-medium max-w-[250px] xl:max-w-[400px] truncate cursor-help', // Am adaugat truncate si cursor
+                              textSizeClass,
+                            )}
+                          >
+                            {item.productName}
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent className=' break-words'>
+                          <p className='text-xs'>{item.productName}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    {/* Restul conținutului (Cod, SmartDesc) rămâne neschimbat */}
                     <div className='flex gap-2 items-center'>
                       {item.productCode && item.productCode !== 'N/A' && (
-                        <div className='text-muted-foreground flex items-center gap-1 '>
-                          <Hash className='h-3 w-3' /> {item.productCode}
+                        <div
+                          className={cn(
+                            'text-muted-foreground flex items-center gap-1',
+                            textSizeClass,
+                          )}
+                        >
+                          <Hash className={cn(iconSize)} /> {item.productCode}
                         </div>
                       )}
                       {smartDesc && (
                         <span className='text-muted-foreground'>-</span>
                       )}
-
                       {smartDesc && (
-                        <div className='text-[11px] text-muted-foreground font-medium'>
+                        <div
+                          className={cn(
+                            'text-muted-foreground font-medium',
+                            isPreview ? 'text-xs' : 'text-[11px]',
+                          )}
+                        >
                           {smartDesc}
                         </div>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className=' font-medium'>
+                  <TableCell className={cn('font-medium', textSizeClass)}>
                     {item.quantity}
                   </TableCell>
-                  <TableCell className='text-xs lowercase'>
+                  <TableCell className={cn('lowercase', textSizeClass)}>
                     {item.unitOfMeasure}
                   </TableCell>
-                  <TableCell className='text-right'>
+                  <TableCell className={cn('text-right', textSizeClass)}>
                     {formatCurrency(item.unitPrice)}
                   </TableCell>
-                  <TableCell className='text-right font-medium'>
+                  <TableCell
+                    className={cn('text-right font-medium', textSizeClass)}
+                  >
                     {formatCurrency(item.lineValue)}
                   </TableCell>
-                  <TableCell className='text-right text-xs'>
+                  <TableCell className={cn('text-right', textSizeClass)}>
                     {item.vatRateDetails.rate}%
                   </TableCell>
-                  <TableCell className='text-right text-xs'>
+                  <TableCell className={cn('text-right', textSizeClass)}>
                     {formatCurrency(item.vatRateDetails.value)}
                   </TableCell>
-                  <TableCell className='text-right font-bold'>
+                  <TableCell
+                    className={cn('text-right font-bold', textSizeClass)}
+                  >
                     {formatCurrency(item.lineTotal)}
                   </TableCell>
                   {isAdmin && (
                     <TableCell className='text-right'>
                       <div className='flex flex-col items-end'>
-                        {/* 👇 AICI FOLOSIM FUNCȚIILE HELPER */}
                         <span
-                          className={`font-medium text-xs ${getProfitColorClass(item.lineProfit || 0)}`}
+                          className={cn(
+                            'font-medium',
+                            getProfitColorClass(item.lineProfit || 0),
+                            textSizeClass,
+                          )}
                         >
                           {formatCurrency(item.lineProfit || 0)}
                         </span>
                         <span
-                          className={`text-[10px] ${getMarginColorClass(item.lineMargin || 0)}`}
+                          className={cn(
+                            getMarginColorClass(item.lineMargin || 0),
+                            isPreview ? 'text-xs' : 'text-xs',
+                          )}
                         >
                           {item.lineMargin || 0}%
                         </span>
