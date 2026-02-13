@@ -16,6 +16,8 @@ export const ANAF_TVA_ENDPOINT =
 
 export const TIMEZONE = 'Europe/Bucharest'
 
+export const OTHER_COUNTRIES_PREFIXES = ['BG', 'HU', 'UA', 'MD', 'RS']
+
 export const UNITS = [
   'bucata',
   'kg',

@@ -9,6 +9,7 @@ import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
 import { UblInvoiceLine, UblTaxSubtotal } from './outgoing.types'
 import { PopulatedInvoice } from '../../../financial/invoices/invoice.types'
 import { PaymentMethodKey } from '../../../financial/treasury/payment.constants'
+import { OTHER_COUNTRIES_PREFIXES } from '@/lib/constants'
 
 interface BuildXmlOptions {
   invoice: PopulatedInvoice
@@ -61,11 +62,17 @@ export const buildAnafXml = ({
   // 3. Mapare Client
   const clientSnapshot = invoice.clientSnapshot
   const clientID = clientSnapshot.cui || clientSnapshot.cnp
+  const clientCountryCode = clientSnapshot.address.tara || 'RO'
   //  Considerăm că e firmă doar dacă are CUI și CUI-ul e scurt (max 12 caractere)
   // CNP-urile au 13 caractere. Astfel eviți ca un CNP pus din greșeală la CUI să fie tratat ca firmă.
   const isCompany = !!clientSnapshot.cui && clientSnapshot.cui.length < 13
   const hasRoPrefix =
     clientSnapshot.cui && clientSnapshot.cui.toUpperCase().startsWith('RO')
+  const hasNeighborPrefix =
+    clientSnapshot.cui &&
+    OTHER_COUNTRIES_PREFIXES.some((prefix) =>
+      clientSnapshot.cui!.toUpperCase().startsWith(prefix),
+    )
   const clientCounty = getCountyCode(clientSnapshot.address.judet)
   const clientCity = formatAnafCity(
     clientSnapshot.address.localitate || '',
@@ -81,6 +88,32 @@ export const buildAnafXml = ({
 
   const globalTaxCategoryCode =
     invoice.vatCategory || VAT_CATEGORY_CODES.STANDARD
+
+  const getDeliveryDateFromNumber = (): string => {
+    const deliveryNumber = invoice.logisticSnapshots?.deliveryNumbers?.[0]
+
+    if (deliveryNumber && deliveryNumber.includes('-')) {
+      const parts = deliveryNumber.split('-')
+
+      const datePart = parts[1]
+
+      if (datePart && datePart.length >= 8) {
+        const year = parseInt(datePart.substring(0, 4), 10)
+        const month = parseInt(datePart.substring(4, 6), 10) - 1
+        const day = parseInt(datePart.substring(6, 8), 10)
+
+        const extractedDate = new Date(year, month, day)
+
+        if (!isNaN(extractedDate.getTime())) {
+          return format(extractedDate, 'yyyy-MM-dd')
+        }
+      }
+    }
+
+    return format(new Date(invoice.invoiceDate), 'yyyy-MM-dd')
+  }
+
+  const actualDeliveryDate = getDeliveryDateFromNumber()
 
   // 4. Linii Factură & Taxe
   const invoiceLines: UblInvoiceLine[] = []
@@ -373,10 +406,10 @@ export const buildAnafXml = ({
             'cbc:StreetName': clientStreet,
             'cbc:CityName': clientCity,
             'cbc:CountrySubentity': clientCounty,
-            'cac:Country': { 'cbc:IdentificationCode': 'RO' },
+            'cac:Country': { 'cbc:IdentificationCode': clientCountryCode },
           },
           // 4. Regim Fiscal -> RO Obligatoriu la TaxScheme
-          ...(isCompany && hasRoPrefix
+          ...((isCompany && hasRoPrefix) || (isCompany && hasNeighborPrefix)
             ? {
                 'cac:PartyTaxScheme': {
                   'cbc:CompanyID': clientSnapshot.cui, // Aici folosim strict CUI-ul existent
@@ -398,13 +431,15 @@ export const buildAnafXml = ({
       ...(hasDelivery
         ? {
             'cac:Delivery': {
-              // Nu punem dată dacă nu o știm sigur, lăsăm doar locația
+              'cbc:ActualDeliveryDate': actualDeliveryDate,
               'cac:DeliveryLocation': {
                 'cac:Address': {
                   'cbc:StreetName': deliveryStreet || 'Adresa Livrare',
                   'cbc:CityName': deliveryCity || 'Necunoscut',
                   'cbc:CountrySubentity': deliveryCounty || getCountyCode(),
-                  'cac:Country': { 'cbc:IdentificationCode': 'RO' },
+                  'cac:Country': {
+                    'cbc:IdentificationCode': deliveryAddr?.tara || 'RO',
+                  },
                 },
               },
               ...(deliveryContactName

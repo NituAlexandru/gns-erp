@@ -105,6 +105,8 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # IMPORTANT
 
+- lista preturi / client cu ultimele livrari - colectie price history
+- de creat bon consum - documentul
 - de adaugat coloane - produs - marje - pret- comanda
 
 Ar trebui așa.
