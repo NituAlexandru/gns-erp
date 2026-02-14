@@ -12,15 +12,23 @@ import { Box, Hash } from 'lucide-react'
 import { getSmartDescription } from './DeliveryNoteDetails.helpers'
 import { Barcode } from '@/components/barcode/barcode-image'
 import { cn, formatCurrency } from '@/lib/utils'
+import {
+  getMarginColorClass,
+  getProfitColorClass,
+} from '@/lib/db/modules/financial/invoices/invoice.utils'
 
 interface DeliveryNoteItemsTableProps {
   items: DeliveryNoteDTO['items']
   isPreview?: boolean
+  isAdmin?: boolean
+  status?: string
 }
 
 export function DeliveryNoteItemsTable({
   items,
   isPreview = false,
+  isAdmin = false,
+  status = 'CREATED',
 }: DeliveryNoteItemsTableProps) {
   const totalsByUM = items.reduce(
     (acc, item) => {
@@ -36,14 +44,33 @@ export function DeliveryNoteItemsTable({
       acc.net += item.lineValue || 0
       acc.vat += item.lineVatValue || 0
       acc.gross += item.lineTotal || 0
+
+      const isProduct = item.stockableItemType === 'ERPProduct'
+
+      if (isProduct) {
+        const cost = item.lineCostFIFO || 0
+        const revenue = item.lineValue || 0
+        acc.productProfit += revenue - cost
+        acc.productRevenue += revenue
+      }
+
       return acc
     },
-    { net: 0, vat: 0, gross: 0 },
+    { net: 0, vat: 0, gross: 0, productProfit: 0, productRevenue: 0 },
   )
+
+  const totalMargin =
+    financialTotals.productRevenue > 0
+      ? (financialTotals.productProfit / financialTotals.productRevenue) * 100
+      : 0
 
   const rowHeightClass = isPreview ? 'py-0 h-6' : 'py-1'
   const textSizeClass = isPreview ? 'text-xs' : 'text-sm'
   const headerTextSize = isPreview ? 'text-[10px]' : 'text-xs'
+  const hasCostData = ['DELIVERED', 'INVOICED'].includes(status)
+  const headerIndices = isAdmin
+    ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
   return (
     <Card className='py-2 gap-0'>
@@ -85,9 +112,14 @@ export function DeliveryNoteItemsTable({
               <TableHead className={cn('text-right', textSizeClass)}>
                 Total
               </TableHead>
+              {isAdmin && (
+                <TableHead className={cn('text-right ', textSizeClass)}>
+                  Profit
+                </TableHead>
+              )}
             </TableRow>
             <TableRow className='h-6 hover:bg-transparent border-t-0'>
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+              {headerIndices.map((i) => (
                 <TableHead
                   key={i}
                   className={cn(
@@ -106,6 +138,14 @@ export function DeliveryNoteItemsTable({
           <TableBody>
             {items.map((item, index) => {
               const smartDesc = getSmartDescription(item)
+              const profit = (item.lineValue || 0) - (item.lineCostFIFO || 0)
+              const margin = item.lineValue
+                ? (profit / item.lineValue) * 100
+                : 0
+              const formattedProfit =
+                Math.round((profit + Number.EPSILON) * 100) / 100
+              const formattedMargin =
+                Math.round((margin + Number.EPSILON) * 100) / 100
 
               return (
                 <TableRow key={index} className={rowHeightClass}>
@@ -189,6 +229,7 @@ export function DeliveryNoteItemsTable({
                   <TableCell className={cn('text-right py-0', textSizeClass)}>
                     {formatCurrency(item.lineVatValue)}
                   </TableCell>
+
                   <TableCell
                     className={cn(
                       'text-right py-0 font-semibold',
@@ -197,6 +238,34 @@ export function DeliveryNoteItemsTable({
                   >
                     {formatCurrency(item.lineTotal)}
                   </TableCell>
+
+                  {isAdmin && (
+                    <TableCell className='text-right'>
+                      {hasCostData ? (
+                        <div className='flex flex-col items-end'>
+                          <span
+                            className={cn(
+                              'font-medium',
+                              getProfitColorClass(formattedProfit),
+                              textSizeClass,
+                            )}
+                          >
+                            {formatCurrency(formattedProfit)}
+                          </span>
+                          <span
+                            className={cn(
+                              getMarginColorClass(formattedMargin),
+                              isPreview ? 'text-[9px]' : 'text-[10px]',
+                            )}
+                          >
+                            {formattedMargin}%
+                          </span>
+                        </div>
+                      ) : (
+                        <span className='text-muted-foreground'>-</span>
+                      )}
+                    </TableCell>
+                  )}
                 </TableRow>
               )
             })}
@@ -239,6 +308,35 @@ export function DeliveryNoteItemsTable({
               >
                 {formatCurrency(financialTotals.gross)}
               </TableCell>
+
+              {isAdmin && (
+                <TableCell className='text-right align-top py-1'>
+                  {hasCostData ? (
+                    <div className='flex flex-col items-end leading-none'>
+                      <span
+                        className={cn(
+                          'font-bold',
+                          getProfitColorClass(financialTotals.productProfit),
+                          textSizeClass,
+                        )}
+                      >
+                        {formatCurrency(financialTotals.productProfit)}
+                      </span>
+                      <span
+                        className={cn(
+                          getMarginColorClass(totalMargin),
+                          isPreview ? 'text-[9px]' : 'text-[10px]',
+                        )}
+                      >
+                        {Math.round((totalMargin + Number.EPSILON) * 100) / 100}
+                        %
+                      </span>
+                    </div>
+                  ) : (
+                    <span className='text-muted-foreground'>-</span>
+                  )}
+                </TableCell>
+              )}
             </TableRow>
           </TableBody>
         </Table>

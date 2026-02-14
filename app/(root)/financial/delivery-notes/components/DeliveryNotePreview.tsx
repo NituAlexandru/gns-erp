@@ -16,9 +16,13 @@ import { DeliveryNoteItemsTable } from './details/DeliveryNoteItemsTable'
 
 interface DeliveryNotePreviewProps {
   note: DeliveryNoteDTO
+  isAdmin?: boolean
 }
 
-export function DeliveryNotePreview({ note }: DeliveryNotePreviewProps) {
+export function DeliveryNotePreview({
+  note,
+  isAdmin = false,
+}: DeliveryNotePreviewProps) {
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
@@ -33,7 +37,7 @@ export function DeliveryNotePreview({ note }: DeliveryNotePreviewProps) {
         align='start'
         sideOffset={10}
         collisionPadding={100}
-        className='w-[1200px] p-0 overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 
+        className='w-[1000px] xl:w-[1200px] 2xl:w-[1300px] p-0 overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 
                    data-[state=open]:animate-in data-[state=closed]:animate-out 
                    data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 
                    data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 
@@ -134,7 +138,12 @@ export function DeliveryNotePreview({ note }: DeliveryNotePreviewProps) {
 
               {/* Jos: Tabel Produse */}
               <div className='xl:col-span-3'>
-                <DeliveryNoteItemsTable items={note.items} isPreview={true} />
+                <DeliveryNoteItemsTable
+                  items={note.items}
+                  isPreview={true}
+                  isAdmin={isAdmin}
+                  status={note.status}
+                />
               </div>
             </div>
           </div>

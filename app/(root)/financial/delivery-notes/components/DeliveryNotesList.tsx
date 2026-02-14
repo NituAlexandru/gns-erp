@@ -50,6 +50,11 @@ import { useSession } from 'next-auth/react'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 import Link from 'next/link'
 import { DeliveryNotePreview } from './DeliveryNotePreview'
+import { cn, formatCurrency } from '@/lib/utils'
+import {
+  getMarginColorClass,
+  getProfitColorClass,
+} from '@/lib/db/modules/financial/invoices/invoice.utils'
 
 interface DeliveryNotesListProps {
   data: DeliveryNoteDTO[]
@@ -251,7 +256,7 @@ export function DeliveryNotesList({
                 Serie - Nr.
               </TableHead>
               <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
-                Data Emiterii
+                Data
               </TableHead>
               <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
                 Client
@@ -265,9 +270,19 @@ export function DeliveryNotesList({
               <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
                 Data Livrare
               </TableHead>
-              <TableHead className='max-w-[300px] text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='max-w-[300px] text-[10px] lg:text-xs xl:text-sm hidden xl:table-cell'>
                 Adresa Livrare
               </TableHead>
+              {isSuperAdmin && (
+                <>
+                  <TableHead className='text-right text-[10px] lg:text-xs xl:text-sm'>
+                    Profit
+                  </TableHead>
+                  <TableHead className='text-right text-[10px] lg:text-xs xl:text-sm'>
+                    Marjă
+                  </TableHead>
+                </>
+              )}
               <TableHead className='text-right text-[10px] lg:text-xs xl:text-sm'>
                 Acțiuni
               </TableHead>
@@ -288,9 +303,40 @@ export function DeliveryNotesList({
                   ? new Date(note.deliveryDate).toLocaleDateString('ro-RO')
                   : '-'
 
+                const hasCostData = ['DELIVERED', 'INVOICED'].includes(
+                  note.status,
+                )
+
+                let noteProfit = 0
+                let noteProductRevenue = 0
+
+                if (isSuperAdmin && hasCostData) {
+                  note.items.forEach((item) => {
+                    const isProduct = item.stockableItemType === 'ERPProduct'
+
+                    if (isProduct) {
+                      const cost = item.lineCostFIFO || 0
+                      const revenue = item.lineValue || 0
+                      noteProfit += revenue - cost
+                      noteProductRevenue += revenue
+                    }
+                  })
+                  noteProfit =
+                    Math.round((noteProfit + Number.EPSILON) * 100) / 100
+                }
+
+                const noteMargin =
+                  noteProductRevenue > 0
+                    ? Math.round(
+                        ((noteProfit / noteProductRevenue) * 100 +
+                          Number.EPSILON) *
+                          100,
+                      ) / 100
+                    : 0
+
                 return (
                   <TableRow key={note._id} className='hover:bg-muted/50'>
-                    <TableCell className='text-[10px] lg:text-xs xl:text-sm py-1'>
+                    <TableCell className='text-[10px] xl:text-xs 2xl:text-sm py-1'>
                       <div className='flex flex-col'>
                         <Link
                           href={`/financial/delivery-notes/${note._id}`}
@@ -306,13 +352,16 @@ export function DeliveryNotesList({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
+                    <TableCell className='py-1 text-[10px] xl:text-xs 2xl:text-sm'>
                       {new Date(note.createdAt).toLocaleDateString('ro-RO')}
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
+                    <TableCell
+                      className='py-1 text-[10px] xl:text-xs 2xl:text-sm max-w-[100px] lg:max-w-[150px] xl:max-w-[220px] truncate'
+                      title={note.clientSnapshot?.name}
+                    >
                       {note.clientSnapshot?.name || 'N/A'}
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
+                    <TableCell className='py-1 text-[10px] xl:text-xs 2xl:text-sm'>
                       {note.salesAgentSnapshot?.name || 'N/A'}
                     </TableCell>
                     <TableCell className='py-1'>
@@ -322,14 +371,37 @@ export function DeliveryNotesList({
                       {formattedDeliveryDate}
                     </TableCell>
                     <TableCell
-                      className='max-w-[200px] xl:max-w-[300px] text-[10px] lg:text-xs xl:text-sm text-muted-foreground truncate py-1'
+                      className='max-w-[100px] xl:max-w-[150px] 2xl:max-w-[200px] text-[10px] xl:text-xs 2xl:text-sm text-muted-foreground truncate py-1 hidden xl:table-cell cursor-pointer'
                       title={addressString}
                     >
                       {addressString}
                     </TableCell>
+                    {isSuperAdmin && (
+                      <>
+                        <TableCell
+                          className={cn(
+                            'text-right text-[10px] xl:text-xs 2xl:text-sm py-1',
+                            getProfitColorClass(noteProfit),
+                          )}
+                        >
+                          {hasCostData ? formatCurrency(noteProfit) : '-'}
+                        </TableCell>
+                        <TableCell
+                          className={cn(
+                            'text-right text-[10px] xl:text-xs 2xl:text-sm py-1',
+                            getMarginColorClass(noteMargin),
+                          )}
+                        >
+                          {hasCostData ? `${noteMargin}%` : '-'}
+                        </TableCell>
+                      </>
+                    )}
                     <TableCell className='text-right py-1'>
                       <div className='flex items-center justify-end gap-1'>
-                        <DeliveryNotePreview note={note} />
+                        <DeliveryNotePreview
+                          note={note}
+                          isAdmin={isSuperAdmin}
+                        />
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
