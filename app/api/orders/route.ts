@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/db'
 import Order, { IOrder } from '@/lib/db/modules/order/order.model'
 import mongoose from 'mongoose'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import { escapeRegex } from '@/lib/utils'
+import { fromZonedTime } from 'date-fns-tz'
 
 export async function GET(request: NextRequest) {
   try {
@@ -24,8 +25,14 @@ export async function GET(request: NextRequest) {
     const dateTo = searchParams.get('dateTo')
     if (dateFrom || dateTo) {
       query.createdAt = {}
-      if (dateFrom) query.createdAt.$gte = new Date(dateFrom)
-      if (dateTo) query.createdAt.$lte = new Date(dateTo)
+
+      if (dateFrom) {
+        query.createdAt.$gte = fromZonedTime(`${dateFrom} 00:00:00`, TIMEZONE)
+      }
+
+      if (dateTo) {
+        query.createdAt.$lte = fromZonedTime(`${dateTo} 23:59:59.999`, TIMEZONE)
+      }
     }
 
     const minTotal = searchParams.get('minTotal')

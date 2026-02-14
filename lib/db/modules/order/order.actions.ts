@@ -15,7 +15,7 @@ import { generateOrderNumber } from '../numbering/numbering.actions'
 import { auth } from '@/auth'
 import z from 'zod'
 import VehicleRate from '../setting/shipping-rates/shipping.model'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import './../client/client.model'
 import './../user/user.model'
 import { getShippingRates } from '../setting/shipping-rates/shipping.actions'
@@ -30,6 +30,7 @@ import { subHours } from 'date-fns'
 import DeliveryModel from '../deliveries/delivery.model'
 import DeliveryNoteModel from '../financial/delivery-notes/delivery-note.model'
 import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
+import { fromZonedTime } from 'date-fns-tz'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -612,11 +613,19 @@ export async function getAllOrders(
 
     if (dateFrom || dateTo) {
       matchQuery.createdAt = {}
-      if (dateFrom) matchQuery.createdAt.$gte = new Date(dateFrom)
+
+      if (dateFrom) {
+        matchQuery.createdAt.$gte = fromZonedTime(
+          `${dateFrom} 00:00:00`,
+          TIMEZONE,
+        )
+      }
+
       if (dateTo) {
-        const end = new Date(dateTo)
-        end.setHours(23, 59, 59, 999)
-        matchQuery.createdAt.$lte = end
+        matchQuery.createdAt.$lte = fromZonedTime(
+          `${dateTo} 23:59:59.999`,
+          TIMEZONE,
+        )
       }
     }
 

@@ -14,6 +14,7 @@ export default async function AdminReceptionsPage({
     q?: string
     from?: string
     to?: string
+    dateType?: string
   }>
 }) {
   const session = await auth()
@@ -43,6 +44,7 @@ export default async function AdminReceptionsPage({
     q: params.q,
     from: params.from,
     to: params.to,
+    dateType: params.dateType,
   })
 
   return <ReceptionList initialData={data} />

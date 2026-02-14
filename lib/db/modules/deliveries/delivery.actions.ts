@@ -916,13 +916,16 @@ export async function getFilteredDeliveries({
     // 3. Filtrare Dată (Exactă pe zi)
     if (startDate || endDate) {
       query.createdAt = {}
+
       if (startDate) {
-        query.createdAt.$gte = new Date(startDate)
+        query.createdAt.$gte = fromZonedTime(`${startDate} 00:00:00`, TIMEZONE)
       }
+
       if (endDate) {
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999) // Sfârșitul zilei
-        query.createdAt.$lte = end
+        query.createdAt.$lte = fromZonedTime(
+          `${endDate} 23:59:59.999`,
+          TIMEZONE,
+        )
       }
     }
 

@@ -32,13 +32,14 @@ import { IOrderLineItem } from '../../order/types'
 import { auth } from '@/auth'
 import Service from '../../setting/services/service.model'
 import { round2 } from '@/lib/utils'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import { DELIVERY_METHODS } from '../../order/constants'
 import {
   recordStockMovement,
   reverseStockMovementsByReference,
 } from '../../inventory/inventory.actions.core'
 import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
+import { fromZonedTime } from 'date-fns-tz'
 
 // -------------------------------------------------------------
 // CREATE DELIVERY NOTE
@@ -895,11 +896,16 @@ export async function getDeliveryNotes(
 
     if (startDate || endDate) {
       query.createdAt = {}
-      if (startDate) query.createdAt.$gte = new Date(startDate)
+
+      if (startDate) {
+        query.createdAt.$gte = fromZonedTime(`${startDate} 00:00:00`, TIMEZONE)
+      }
+
       if (endDate) {
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999)
-        query.createdAt.$lte = end
+        query.createdAt.$lte = fromZonedTime(
+          `${endDate} 23:59:59.999`,
+          TIMEZONE,
+        )
       }
     }
 

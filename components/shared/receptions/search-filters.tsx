@@ -10,9 +10,8 @@ import {
   SelectItem,
 } from '@/components/ui/select'
 import type { ReceptionFilters } from '@/lib/db/modules/reception/types'
-import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
+import { TIMEZONE } from '@/lib/constants'
 import { DateRange } from 'react-day-picker'
-import { format } from 'date-fns'
 import {
   Popover,
   PopoverContent,
@@ -25,8 +24,8 @@ import { CalendarIcon } from 'lucide-react'
 import { formatInTimeZone } from 'date-fns-tz'
 
 interface Props {
-  initial?: Partial<ReceptionFilters>
-  onChange: (filters: ReceptionFilters) => void
+  initial?: Partial<ReceptionFilters> & { dateType?: string }
+  onChange: (filters: ReceptionFilters & { dateType?: string }) => void
 }
 
 export function SearchFilters({ initial = {}, onChange }: Props) {
@@ -115,6 +114,14 @@ export function SearchFilters({ initial = {}, onChange }: Props) {
     }
   }
 
+  const handleDateTypeChange = (val: string) => {
+    onChange({
+      ...initial,
+      dateType: val,
+      page: 1,
+    } as any)
+  }
+
   return (
     <div className='flex flex-wrap gap-4'>
       {/* Free-text search */}
@@ -163,6 +170,20 @@ export function SearchFilters({ initial = {}, onChange }: Props) {
                 {u.name}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className='min-w-[140px]'>
+        <Select
+          value={initial.dateType || 'reception'}
+          onValueChange={handleDateTypeChange}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder='Tip Dată' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='reception'>Data Recepție</SelectItem>
+            <SelectItem value='invoice'>Data Factură</SelectItem>
           </SelectContent>
         </Select>
       </div>

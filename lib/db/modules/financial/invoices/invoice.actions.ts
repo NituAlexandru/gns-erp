@@ -44,7 +44,7 @@ import { CreateStornoInput, CreateStornoSchema } from './storno.validator'
 import { CreateReturnNoteInput } from '../return-notes/return-note.validator'
 import { createReturnNote } from '../return-notes/return-note.actions'
 import ReturnNoteModel from '../return-notes/return-note.model'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import { FilterQuery } from 'mongoose'
 import { revalidatePath } from 'next/cache'
 import { IUser } from '../../user/user.model'
@@ -58,6 +58,7 @@ import {
 } from '../initial-balance/initial-balance.validator'
 import PackagingModel from '../../packaging-products/packaging.model'
 import DeliveryModel from '../../deliveries/delivery.model'
+import { fromZonedTime } from 'date-fns-tz'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -1366,12 +1367,19 @@ export async function getAllInvoices(
 
     if (startDate || endDate) {
       matchStage.invoiceDate = {}
-      if (startDate) matchStage.invoiceDate.$gte = new Date(startDate)
-      // Setăm endDate la finalul zilei (23:59:59) ca să prindă și facturile din acea zi
+
+      if (startDate) {
+        matchStage.invoiceDate.$gte = fromZonedTime(
+          `${startDate} 00:00:00`,
+          TIMEZONE,
+        )
+      }
+
       if (endDate) {
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999)
-        matchStage.invoiceDate.$lte = end
+        matchStage.invoiceDate.$lte = fromZonedTime(
+          `${endDate} 23:59:59.999`,
+          TIMEZONE,
+        )
       }
     }
 

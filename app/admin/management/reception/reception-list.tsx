@@ -367,56 +367,58 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
   return (
     <div className='flex flex-col h-[calc(100vh-100px)] space-y-4'>
       {/* Header + filtre */}
-      <div className='flex flex-wrap items-end justify-between gap-4'>
+      <div className='flex flex-col justify-between gap-1 mb-1'>
         <h1 className='text-2xl font-bold'>Recepții</h1>
+        <div className='flex flex-col xl:flex-row justify-between gap-4'>
+          <div className='flex gap-2'>
+            <SearchFilters
+              initial={{
+                q: searchParams.get('q') || '',
+                status: searchParams.get('status') || 'ALL',
+                createdBy: searchParams.get('createdBy') || 'ALL',
+                page: Number(searchParams.get('page')) || 1,
+                pageSize: PAGE_SIZE,
+                from: searchParams.get('from') || '',
+                to: searchParams.get('to') || '',
+                dateType: searchParams.get('dateType') || 'reception',
+              }}
+              onChange={(newValues) => handleUpdateParams(newValues as any)}
+            />
+            <Button
+              variant='outline'
+              onClick={() =>
+                handleUpdateParams({
+                  q: '',
+                  status: 'ALL',
+                  createdBy: 'ALL',
+                  page: 1,
+                  from: '',
+                  to: '',
+                })
+              }
+            >
+              Resetează
+            </Button>
+          </div>
 
-        <div className='flex gap-2'>
-          <SearchFilters
-            initial={{
-              q: searchParams.get('q') || '',
-              status: searchParams.get('status') || 'ALL',
-              createdBy: searchParams.get('createdBy') || 'ALL',
-              page: Number(searchParams.get('page')) || 1,
-              pageSize: PAGE_SIZE,
-              from: searchParams.get('from') || '',
-              to: searchParams.get('to') || '',
-            }}
-            onChange={(newValues) => handleUpdateParams(newValues as any)}
-          />
-          <Button
-            variant='outline'
-            onClick={() =>
-              handleUpdateParams({
-                q: '',
-                status: 'ALL',
-                createdBy: 'ALL',
-                page: 1,
-                from: '',
-                to: '',
-              })
-            }
-          >
-            Resetează
-          </Button>
-        </div>
+          <div className='flex gap-2'>
+            <Button asChild variant='default'>
+              <Link href='/admin/management/reception/nir/create'>
+                Adaugă NIR (Manual)
+              </Link>
+            </Button>
 
-        <div className='flex gap-2'>
-          <Button asChild variant='default'>
-            <Link href='/admin/management/reception/nir/create'>
-              Adaugă NIR (Manual)
-            </Link>
-          </Button>
-
-          {/* Butonul vechi de Recepție */}
-          <Button asChild variant='default'>
-            <Link href='/admin/management/reception/create'>
-              Adaugă Recepție Nouă
-            </Link>
-          </Button>
+            {/* Butonul vechi de Recepție */}
+            <Button asChild variant='default'>
+              <Link href='/admin/management/reception/create'>
+                Adaugă Recepție Nouă
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
       {/* Info paginare */}
-      <p className='text-sm text-muted-foreground'>
+      <p className='text-sm text-muted-foreground mb-1'>
         Afișez {receptions.length > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0}–
         {Math.min(currentPage * PAGE_SIZE, total)} din {total} recepții
       </p>

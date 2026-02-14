@@ -18,12 +18,13 @@ import { ISeries } from '../../numbering/series.model'
 import { numberToWordsRo } from './receipt.utils'
 import { auth } from '@/auth'
 import { revalidatePath } from 'next/cache'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import { recalculateClientSummary } from '../../client/summary/client-summary.actions'
 import InvoiceModel from '../invoices/invoice.model'
 import PaymentAllocationModel from '../treasury/receivables/payment-allocation.model'
 import { round2 } from '@/lib/utils'
 import ClientPaymentModel from '../treasury/receivables/client-payment.model'
+import { fromZonedTime } from 'date-fns-tz'
 
 // -------------------------------------------------------------
 // CREATE RECEIPT
@@ -348,11 +349,16 @@ export async function getReceipts(
 
     if (startDate || endDate) {
       matchStage.date = {}
-      if (startDate) matchStage.date.$gte = new Date(startDate)
+
+      if (startDate) {
+        matchStage.date.$gte = fromZonedTime(`${startDate} 00:00:00`, TIMEZONE)
+      }
+
       if (endDate) {
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999)
-        matchStage.date.$lte = end
+        matchStage.date.$lte = fromZonedTime(
+          `${endDate} 23:59:59.999`,
+          TIMEZONE,
+        )
       }
     }
 

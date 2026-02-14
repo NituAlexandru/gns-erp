@@ -895,6 +895,7 @@ export async function getAllReceptions({
   q = '',
   from,
   to,
+  dateType = 'reception',
 }: {
   page?: number
   pageSize?: number
@@ -903,6 +904,7 @@ export async function getAllReceptions({
   q?: string
   from?: string
   to?: string
+  dateType?: string
 } = {}) {
   await connectToDatabase()
 
@@ -914,9 +916,21 @@ export async function getAllReceptions({
     filter.createdBy = createdBy
   }
 
+  if (from || to) {
+    const dateField = dateType === 'invoice' ? 'invoices.date' : 'receptionDate'
+
+    filter[dateField] = {}
+
+    if (from) {
+      filter[dateField].$gte = fromZonedTime(`${from} 00:00:00`, TIMEZONE)
+    }
+
+    if (to) {
+      filter[dateField].$lte = fromZonedTime(`${to} 23:59:59.999`, TIMEZONE)
+    }
+  }
+
   if (from) {
-    // 1. Calculăm începutul zilei în fusul orar specificat (00:00:00)
-    // Conversia returnează un obiect Date (UTC) care corespunde cu 00:00 în RO
     const startDate = fromZonedTime(`${from} 00:00:00`, TIMEZONE)
     filter.receptionDate = filter.receptionDate || {}
     filter.receptionDate.$gte = startDate

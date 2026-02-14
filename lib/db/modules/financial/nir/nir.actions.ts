@@ -13,11 +13,12 @@ import {
 import { round2, round6 } from '@/lib/utils'
 import { CreateNirResult, NirDTO, NirLineDTO } from './nir.types'
 import { ISeries } from '../../numbering/series.model'
-import { PAGE_SIZE } from '@/lib/constants'
+import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import { auth } from '@/auth'
 import { CreateNirInput, CreateNirSchema } from './nir.validator'
 import z from 'zod'
 import DocumentCounter from '../../numbering/documentCounter.model'
+import { fromZonedTime } from 'date-fns-tz'
 
 // -------------------------------------------------------------
 // HELPER: PRE-LOAD DATA FOR CREATE (Multi-Reception Logic)
@@ -712,11 +713,18 @@ export async function getNirs(
     // Filtrare Dată
     if (startDate || endDate) {
       matchStage.nirDate = {}
-      if (startDate) matchStage.nirDate.$gte = new Date(startDate)
+      if (startDate) {
+        matchStage.nirDate.$gte = fromZonedTime(
+          `${startDate} 00:00:00`,
+          TIMEZONE,
+        )
+      }
+
       if (endDate) {
-        const end = new Date(endDate)
-        end.setHours(23, 59, 59, 999)
-        matchStage.nirDate.$lte = end
+        matchStage.nirDate.$lte = fromZonedTime(
+          `${endDate} 23:59:59.999`,
+          TIMEZONE,
+        )
       }
     }
 
