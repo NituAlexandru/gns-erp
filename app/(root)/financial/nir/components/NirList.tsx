@@ -35,6 +35,7 @@ import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 import { cancelNirAction } from '@/lib/db/modules/financial/nir/nir.actions'
+import { NirPreview } from './NirPreview'
 
 interface NirListProps {
   data: NirDTO[]
@@ -218,54 +219,57 @@ export function NirList({
 
                   {/* Coloana 8: Acțiuni */}
                   <TableCell className='text-right py-0 xl:py-1'>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant='ghost' size='icon'>
-                          <MoreHorizontal className='h-4 w-4' />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align='end'>
-                        <DropdownMenuItem
-                          className='cursor-pointer'
-                          onSelect={() =>
-                            router.push(
-                              `/admin/management/reception/nir/${nir._id}`,
-                            )
-                          }
-                        >
-                          Vizualizează Detalii
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className='cursor-pointer'
-                          onSelect={() => handleEditNirManual(nir._id)}
-                          disabled={nir.status === 'CANCELLED'}
-                        >
-                          Modifică NIR (Manual)
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className='cursor-pointer'
-                          onSelect={() => {
-                            setPreviewNir(nir)
-                            handlePrintPreview(nir._id)
-                          }}
-                          disabled={!!isGeneratingPdf}
-                        >
-                          Printează NIR
-                        </DropdownMenuItem>
-                        {nir.status !== 'CANCELLED' && (
-                          <>
-                            {/* Separator vizual opțional */}
-                            <div className='h-px bg-muted my-1' />
-                            <DropdownMenuItem
-                              className='text-red-500 focus:text-red-600 cursor-pointer'
-                              onSelect={() => handleCancelNirOnly(nir._id)}
-                            >
-                              Anulează NIR
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className='flex items-center justify-end gap-1'>
+                      <NirPreview nir={nir} />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant='ghost' size='icon'>
+                            <MoreHorizontal className='h-4 w-4' />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align='end'>
+                          <DropdownMenuItem
+                            className='cursor-pointer'
+                            onSelect={() =>
+                              router.push(
+                                `/admin/management/reception/nir/${nir._id}`,
+                              )
+                            }
+                          >
+                            Vizualizează Detalii
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className='cursor-pointer'
+                            onSelect={() => handleEditNirManual(nir._id)}
+                            disabled={nir.status === 'CANCELLED'}
+                          >
+                            Modifică NIR (Manual)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className='cursor-pointer'
+                            onSelect={() => {
+                              setPreviewNir(nir)
+                              handlePrintPreview(nir._id)
+                            }}
+                            disabled={!!isGeneratingPdf}
+                          >
+                            Printează NIR
+                          </DropdownMenuItem>
+                          {nir.status !== 'CANCELLED' && (
+                            <>
+                              {/* Separator vizual opțional */}
+                              <div className='h-px bg-muted my-1' />
+                              <DropdownMenuItem
+                                className='text-red-500 focus:text-red-600 cursor-pointer'
+                                onSelect={() => handleCancelNirOnly(nir._id)}
+                              >
+                                Anulează NIR
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
