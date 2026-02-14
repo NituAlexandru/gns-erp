@@ -85,11 +85,9 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 - comanda, la creare si la modificare, se converteste doar pretul, nu si cantitatea
 - de adaugat posibilitatea adaugarii mentiunilor pe facturile descarcate din SPV
 - transfer stoc, de mutat btn si in receptii + de adaugat aviz pe transfer + de creat document intern transfer gestiune
-- de adaugat la faccturi numarul de zile in zi factura si zi scadenta + suma final rand sa fie si fara tva si cu tva
 - de scos compensarile din lista plati, de scos platile anulate din totalul calculat, de adaugat posibilitatea de a sterge o plata anulata
 - bug miscari de stoc - pretul de iesire este gresit.
-- de inchis cumva Aviz retur paleti - TRb generat nir cu cantitatile negative
-- receptie - mentiuni livrare in lista + blocaj la cantitati pana selecteaza UM
+- receptie - blocaj la cantitati pana selecteaza UM
 - fisa client - LM FINANCIAL CONTA SERVICES S.R.L. bug sume 0
 - solduri
 - lista de facturi plati catre furnizori, facturile storno trebuie afisate cu minus. factura din 01.01.26

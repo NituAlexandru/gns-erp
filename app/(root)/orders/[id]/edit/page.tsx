@@ -3,6 +3,8 @@ import { OrderForm } from '../../components/OrderForm'
 import { notFound } from 'next/navigation'
 import { Types } from 'mongoose'
 import { connectToDatabase } from '@/lib/db'
+import { auth } from '@/auth'
+import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 
 interface EditOrderPageProps {
   params: Promise<{ id: string }>
@@ -12,6 +14,7 @@ export default async function EditOrderPage({
   params: paramsPromise,
 }: EditOrderPageProps) {
   await connectToDatabase()
+  const session = await auth()
 
   const params = await paramsPromise
   const orderId = params.id
@@ -26,6 +29,9 @@ export default async function EditOrderPage({
   if (!orderData) {
     notFound()
   }
+
+  const userRole = session?.user?.role || 'user'
+  const isAdmin = SUPER_ADMIN_ROLES.includes(userRole)
 
   const canEdit = [
     'DRAFT',
@@ -49,7 +55,11 @@ export default async function EditOrderPage({
 
   return (
     <div className='p-4 md:p-6'>
-      <OrderForm isAdmin={true} initialOrderData={orderData} isEditing={true} />
+      <OrderForm
+        isAdmin={isAdmin}
+        initialOrderData={orderData}
+        isEditing={true}
+      />
     </div>
   )
 }

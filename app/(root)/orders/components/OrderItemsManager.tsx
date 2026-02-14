@@ -391,14 +391,14 @@ export function OrderItemsManager({
               {isAddingItem ? 'Se adaugă...' : 'Adaugă Articol'}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className='w-[650px] p-0' align='start'>
+          <PopoverContent className='w-[750px] p-0' align='start'>
             <Command className='bg-white dark:bg-muted'>
               <CommandInput
                 placeholder='Caută produs...'
                 value={itemSearchTerm}
                 onValueChange={setItemSearchTerm}
               />
-              <CommandList>
+              <CommandList className='max-h-[450px] overflow-y-auto'>
                 {isLoadingItems && (
                   <div className='p-2 text-sm'>Se caută...</div>
                 )}
@@ -411,7 +411,7 @@ export function OrderItemsManager({
                   {itemSearchResults.map((item) => (
                     <CommandItem
                       key={item._id}
-                      value={item.name}
+                      value={`${item.name} ${item.productCode}`}
                       onSelect={() => handleSelectItem(item)}
                       className='p-2'
                     >

@@ -2,7 +2,13 @@
 
 import { type UseFormReturn } from 'react-hook-form'
 import { useState, useEffect, useMemo } from 'react'
-import { Trash2, ChevronDown, ChevronUp, FileText } from 'lucide-react'
+import {
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  LockKeyhole,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   FormControl,
@@ -49,7 +55,7 @@ function convertBasePriceToDisplay(
     packagingUnit?: string
     packagingQuantity?: number
     itemsPerPallet?: number
-  }
+  },
 ): number {
   const { unit, packagingUnit, packagingQuantity, itemsPerPallet } = itemDetails
 
@@ -79,6 +85,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
 
   // State pentru acordeon
   const [isQualityOpen, setIsQualityOpen] = useState(false)
+  const [isUmConfirmed, setIsUmConfirmed] = useState(false)
 
   const {
     itemName,
@@ -304,7 +311,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
       onOpenChange={setIsQualityOpen}
       className={cn(
         'flex flex-col gap-3 rounded-lg border p-3 mb-3 transition-colors',
-        isQualityOpen ? 'bg-accent/5 border-primary/20' : 'bg-muted/20'
+        isQualityOpen ? 'bg-accent/5 border-primary/20' : 'bg-muted/20',
       )}
     >
       {/* Rândul Principal (Produs) */}
@@ -336,7 +343,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                           packagingUnit: itemDetails.packagingUnit,
                           packagingQuantity: itemDetails.packagingQuantity,
                           itemsPerPallet: itemDetails.itemsPerPallet,
-                        })
+                        }),
                       )}{' '}
                       / {selectedUM}{' '}
                       {priceDifferencePercentage != null && (
@@ -345,7 +352,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                             'font-semibold',
                             priceDifferencePercentage > 0
                               ? 'text-red-600'
-                              : 'text-green-600'
+                              : 'text-green-600',
                           )}
                         >
                           {priceDifferencePercentage > 0 ? '+' : ''}
@@ -385,21 +392,35 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
               <FormLabel className='text-xs text-muted-foreground whitespace-nowrap'>
                 Cantitate Document
               </FormLabel>
-              <FormControl>
-                <Input
-                  type='number'
-                  step='0.01'
-                  placeholder='Cantitate Document'
-                  {...field}
-                  value={field.value ?? ''}
-                  onChange={(e) =>
-                    field.onChange(
-                      e.target.value === '' ? '' : parseFloat(e.target.value)
-                    )
-                  }
-                  className='bg-muted/20'
-                />
-              </FormControl>
+              <div className='relative w-full'>
+                {!isUmConfirmed && (
+                  <div className='absolute top-full left-0 mb-1 w-full text-[10px] font-bold text-destructive animate-pulse whitespace-nowrap pointer-events-none'>
+                    Confirmă U.M. →
+                  </div>
+                )}
+                <FormControl>
+                  <Input
+                    type='number'
+                    step='0.01'
+                    disabled={!isUmConfirmed}
+                    placeholder='Cantitate Document'
+                    {...field}
+                    value={field.value ?? ''}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === '' ? '' : parseFloat(e.target.value),
+                      )
+                    }
+                    className={cn(
+                      'bg-muted/20',
+                      !isUmConfirmed && 'cursor-not-allowed opacity-50',
+                    )}
+                  />
+                </FormControl>
+                {!isUmConfirmed && (
+                  <LockKeyhole className='absolute right-2 top-2.5 h-4 w-4 text-destructive opacity-70' />
+                )}
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -412,18 +433,33 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
               <FormLabel className='font-bold text-primary whitespace-nowrap'>
                 Cant. Primită *
               </FormLabel>
-              <FormControl>
-                <Input
-                  type='number'
-                  step='0.01'
-                  {...field}
-                  onChange={(e) =>
-                    field.onChange(
-                      e.target.value === '' ? '' : parseFloat(e.target.value)
-                    )
-                  }
-                />
-              </FormControl>
+              <div className='relative w-full'>
+                {!isUmConfirmed && (
+                  <div className='absolute top-full left-0 mb-1 w-full text-[10px] font-bold text-destructive animate-pulse whitespace-nowrap pointer-events-none'>
+                    Confirmă U.M. →
+                  </div>
+                )}
+                <FormControl>
+                  <Input
+                    type='number'
+                    step='0.01'
+                    disabled={!isUmConfirmed}
+                    className={cn(
+                      !isUmConfirmed &&
+                        'cursor-not-allowed bg-muted text-muted-foreground',
+                    )}
+                    {...field}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value === '' ? '' : parseFloat(e.target.value),
+                      )
+                    }
+                  />
+                </FormControl>
+                {!isUmConfirmed && (
+                  <LockKeyhole className='absolute right-2 top-2.5 h-4 w-4 text-destructive opacity-70' />
+                )}
+              </div>
               <FormMessage />
             </FormItem>
           )}
@@ -436,12 +472,23 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
             <FormItem className='w-24'>
               <FormLabel>UM *</FormLabel>
               <Select
-                onValueChange={field.onChange}
+                onOpenChange={(open) => {
+                  if (open) setIsUmConfirmed(true)
+                }}
+                onValueChange={(val) => {
+                  field.onChange(val)
+                  setIsUmConfirmed(true)
+                }}
                 value={field.value}
                 disabled={!itemDetails}
               >
                 <FormControl>
-                  <SelectTrigger className='w-full'>
+                  <SelectTrigger
+                    className={cn(
+                      'w-full',
+                      !isUmConfirmed && 'ring-2 ring-red-500',
+                    )}
+                  >
                     <SelectValue placeholder='UM' />
                   </SelectTrigger>
                 </FormControl>
@@ -471,7 +518,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                   value={field.value ?? ''}
                   onChange={(e) =>
                     field.onChange(
-                      e.target.value === '' ? null : parseFloat(e.target.value)
+                      e.target.value === '' ? null : parseFloat(e.target.value),
                     )
                   }
                 />
@@ -532,7 +579,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
               'text-xs gap-2 px-2 h-7',
               isQualityOpen
                 ? 'text-primary bg-primary/10'
-                : 'text-muted-foreground'
+                : 'text-muted-foreground',
             )}
           >
             <FileText className='h-3.5 w-3.5' />
@@ -704,7 +751,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                     </div>
                     <div className='font-bold'>
                       {formatCurrency(
-                        calculatedValues.invoicePricePerPackagingUnit!
+                        calculatedValues.invoicePricePerPackagingUnit!,
                       )}
                     </div>
                   </div>
@@ -714,7 +761,7 @@ export function ReceptionItemRow(props: ReceptionItemRowProps) {
                     </div>
                     <div className='font-bold text-white'>
                       {formatCurrency(
-                        calculatedValues.landedCostPerPackagingUnit!
+                        calculatedValues.landedCostPerPackagingUnit!,
                       )}
                     </div>
                   </div>

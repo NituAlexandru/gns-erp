@@ -5,9 +5,17 @@ import { SeriesDTO } from '@/lib/db/modules/numbering/types'
 import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 import { getActiveServices } from '@/lib/db/modules/setting/services/service.actions'
 import { connectToDatabase } from '@/lib/db'
+import { auth } from '@/auth'
+import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 
 export default async function NewInvoicePage() {
   await connectToDatabase()
+  const session = await auth()
+
+  const userRole = session?.user?.role || 'user'
+  const isAdmin = SUPER_ADMIN_ROLES.map((r) => r.toLowerCase()).includes(
+    userRole.toLowerCase(),
+  )
 
   const companySettings = await getSetting()
 
@@ -38,6 +46,7 @@ export default async function NewInvoicePage() {
       <h1 className='text-2xl font-bold tracking-tight'>Factură Nouă</h1>
 
       <InvoiceForm
+        isAdmin={isAdmin}
         initialData={null}
         seriesList={invoiceSeries}
         companySettings={companySettings}

@@ -69,6 +69,7 @@ interface InvoiceFormProps {
   seriesList: SeriesDTO[]
   vatRates: VatRateDTO[]
   services: SearchedService[]
+  isAdmin: boolean
 }
 
 export function InvoiceForm({
@@ -77,13 +78,9 @@ export function InvoiceForm({
   seriesList,
   vatRates,
   services,
+  isAdmin,
 }: InvoiceFormProps) {
   const { data: session } = useSession()
-  const isAdmin = session?.user?.role
-    ? SUPER_ADMIN_ROLES.some(
-        (role) => role.toLowerCase() === session.user.role.toLowerCase(),
-      )
-    : false
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClient, setSelectedClient] = useState<IClientDoc | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<IAddress | null>(

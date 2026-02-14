@@ -9,6 +9,8 @@ import { getInvoiceById } from '@/lib/db/modules/financial/invoices/invoice.acti
 import { redirect } from 'next/navigation'
 import { InvoiceInput } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { connectToDatabase } from '@/lib/db'
+import { auth } from '@/auth'
+import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 
 interface InvoiceEditPageProps {
   params: Promise<{
@@ -20,18 +22,23 @@ export default async function EditInvoicePage({
   params: paramsPromise,
 }: InvoiceEditPageProps) {
   await connectToDatabase()
+  const session = await auth()
 
   const params = await paramsPromise
   // 1. Preluăm datele facturii existente
   const invoiceResult = await getInvoiceById(params.id)
 
   if (!invoiceResult.success || !invoiceResult.data) {
-    // TODO: Afișează un toast de eroare? Momentan facem redirect.
     console.error(invoiceResult.message)
     return redirect('/financial/invoices')
   }
 
   const invoiceData = invoiceResult.data
+
+  const userRole = session?.user?.role || 'user'
+  const isAdmin = SUPER_ADMIN_ROLES.map((r) => r.toLowerCase()).includes(
+    userRole.toLowerCase(),
+  )
 
   // 2. Protecție: Nu permitem editarea dacă nu e 'CREATED' sau 'REJECTED'
   if (invoiceData.status !== 'CREATED' && invoiceData.status !== 'REJECTED') {
@@ -85,6 +92,7 @@ export default async function EditInvoicePage({
       </h1>
 
       <InvoiceForm
+        isAdmin={isAdmin}
         initialData={initialData as unknown as Partial<InvoiceInput>}
         seriesList={invoiceSeries}
         companySettings={companySettings}
