@@ -81,7 +81,7 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
         },
       },
 
-      // 4. Calcul Net Quantity (Scădem Storno)
+      // 4. Calcul Net Quantity (Scădem Storno parțial dacă e cazul)
       {
         $addFields: {
           netQuantity: {
@@ -92,10 +92,10 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
           },
         },
       },
-      { $match: { netQuantity: { $gt: 0 } } },
+      // Eliminăm cantitățile 0, dar păstrăm negativele pentru moment (le tratăm cu abs mai jos)
+      { $match: { netQuantity: { $ne: 0 } } },
 
-      // 5. LOOKUP PRODUSE (Pentru conversii UM)
-      // Avem nevoie de datele produsului (câți saci sunt într-un palet, câte kg are un sac)
+      // 5. LOOKUP PRODUSE
       {
         $lookup: {
           from: 'erpproducts',
@@ -106,15 +106,13 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
       },
       { $unwind: { path: '$productDoc', preserveNullAndEmptyArrays: true } },
 
-      // 6. LOOKUP STOC (Pentru Fallback Price)
-      // Căutăm în InventoryItems prețul maxim de achiziție pentru acest produs
+      // 6. LOOKUP STOC
       {
         $lookup: {
           from: 'inventoryitems',
           let: { prodId: '$items.productId' },
           pipeline: [
             { $match: { $expr: { $eq: ['$stockableItem', '$$prodId'] } } },
-            // Sortăm descrescător după preț max, ca să luăm "cel mai scump" istoric (safe bet pentru profit)
             { $sort: { maxPurchasePrice: -1 } },
             { $limit: 1 },
             { $project: { maxPurchasePrice: 1, unitMeasure: 1 } },
@@ -124,12 +122,9 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
       },
       { $unwind: { path: '$stockData', preserveNullAndEmptyArrays: true } },
 
-      // 7. CALCULE COMPLEXE DE CONVERSIE ȘI COST
+      // 7. CALCULE FACTORI CONVERSIE
       {
         $addFields: {
-          // A. Calculăm factorul de conversie pentru linia din FACTURĂ
-          // Dacă factura e pe "Palet", vrem să știm câte unități de bază (ex: kg) înseamnă asta.
-          // Căutăm în snapshot-ul 'packagingOptions' din factură.
           invoiceLineBaseFactor: {
             $let: {
               vars: {
@@ -151,13 +146,9 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
               in: { $ifNull: ['$$matchedOption.baseUnitEquivalent', 1] },
             },
           },
-
-          // B. Calculăm factorul de conversie pentru STOC
-          // Dacă prețul din stoc e pe "Sac", vrem să știm câte unități de bază (kg) are un sac.
           stockPriceBaseFactor: {
             $switch: {
               branches: [
-                // Cazul 1: Stocul e în Unitatea de Ambalare (ex: Sac)
                 {
                   case: {
                     $eq: [
@@ -167,12 +158,10 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
                   },
                   then: { $ifNull: ['$productDoc.packagingQuantity', 1] },
                 },
-                // Cazul 2: Stocul e în Unitatea de Bază (ex: Kg/Buc)
                 {
                   case: { $eq: ['$stockData.unitMeasure', '$productDoc.unit'] },
                   then: 1,
                 },
-                // (Putem adăuga caz pentru Palet, dar e rar ca stocul să fie ținut în paleți ca UM principal)
               ],
               default: 1,
             },
@@ -180,31 +169,26 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
         },
       },
 
-      // 8. CALCUL FINAL AL COSTULUI (Cu Fallback)
+      // 8. CALCUL COST ESTIMAT & AUXILIARE
       {
         $addFields: {
-          // Prețul de bază unitar din stoc (ex: Preț per KG)
-          // = Preț Stoc (per Sac) / 40 (Kg/Sac)
-          fallbackBaseUnitTestPrice: {
+          // Folosim ABS la netQuantity aici pentru a calcula un cost fizic pozitiv inițial
+          absQuantity: { $abs: '$netQuantity' },
+          usageRatio: {
             $cond: [
-              { $gt: ['$stockPriceBaseFactor', 0] },
-              {
-                $divide: [
-                  { $ifNull: ['$stockData.maxPurchasePrice', 0] },
-                  '$stockPriceBaseFactor',
-                ],
-              },
+              { $ne: ['$items.quantity', 0] },
+              { $divide: ['$netQuantity', '$items.quantity'] },
               0,
             ],
           },
-
-          // Costul estimat al liniei = (Cantitate Factură * Factor Factură) * Preț Bază Stoc
-          // Ex: (1 Palet * 1600kg) * (0.5 RON/kg) = 800 RON
+        },
+      },
+      {
+        $addFields: {
           estimatedLineCost: {
             $multiply: [
-              { $multiply: ['$netQuantity', '$invoiceLineBaseFactor'] }, // Cantitate totală în unități de bază
+              { $multiply: ['$absQuantity', '$invoiceLineBaseFactor'] },
               {
-                // Prețul unitar de bază calculat mai sus
                 $cond: [
                   { $gt: ['$stockPriceBaseFactor', 0] },
                   {
@@ -218,32 +202,53 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
               },
             ],
           },
-
-          // Ratio pentru storno (folosit doar dacă avem cost FIFO valid)
-          usageRatio: { $divide: ['$netQuantity', '$items.quantity'] },
         },
       },
 
-      // 9. SELECTAREA COSTULUI FINAL
+      // 9. APLICARE SEMN (STORNO) ȘI CALCUL FINAL - FIXED
       {
         $addFields: {
-          // Venitul e simplu: valoarea liniei ajustată la storno
-          finalRevenue: { $multiply: ['$items.lineValue', '$usageRatio'] },
+          // IMPORTANT: Determinăm semnul strict după tipul facturii
+          signMultiplier: {
+            $cond: [{ $eq: ['$invoiceType', 'STORNO'] }, -1, 1],
+          },
+        },
+      },
+      {
+        $addFields: {
+          isFallback: { $lte: [{ $ifNull: ['$items.lineCostFIFO', 0] }, 1] },
 
-          // Costul e tricky:
+          // RECALCULĂM VENITUL: Cantitate ABSOLUTĂ * Pret * Semn
+          // Asta previne eroarea "-5 * -1 = +5". Acum e "|-5| * -1 = -5"
+          finalRevenue: {
+            $multiply: ['$absQuantity', '$items.unitPrice', '$signMultiplier'],
+          },
+
+          // COSTUL FINAL: Cost ABSOLUT * Semn
+          // Dacă e Storno, costul devine negativ (se scade din costul total al agentului)
           finalCost: {
-            $cond: [
-              // Dacă avem un cost FIFO valid (> 1 RON să zicem, ca să evităm 0.00), îl folosim
-              { $gt: ['$items.lineCostFIFO', 1] },
-              { $multiply: ['$items.lineCostFIFO', '$usageRatio'] },
-              // ALTFEL, folosim costul estimat din "Preț Max"
-              '$estimatedLineCost',
+            $multiply: [
+              {
+                $cond: [
+                  // Dacă avem cost FIFO valid, luăm valoarea absolută a lui (just in case)
+                  { $gt: [{ $abs: '$items.lineCostFIFO' }, 1] },
+                  {
+                    $multiply: [
+                      { $abs: '$items.lineCostFIFO' },
+                      { $abs: '$usageRatio' },
+                    ],
+                  },
+                  // Altfel costul estimat (care e deja calculat cu absQuantity)
+                  '$estimatedLineCost',
+                ],
+              },
+              '$signMultiplier',
             ],
           },
         },
       },
 
-      // 10. GRUPARE & FORMATARE (La fel ca înainte)
+      // 10. GRUPARE & FORMATARE
       {
         $group: {
           _id: '$salesAgentId',
@@ -265,7 +270,7 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
           invoiceCount: { $size: '$uniqueInvoices' },
           profitMargin: {
             $cond: [
-              { $gt: ['$totalRevenue', 0] },
+              { $ne: ['$totalRevenue', 0] },
               {
                 $multiply: [
                   {
@@ -363,7 +368,6 @@ export async function getAgentSalesDetails(filters: SalesFilterOptions) {
           },
         },
       },
-      // Adăugăm filtrarea opțională după agent, dacă filtrul există
       ...(filters.agentId && filters.agentId !== 'ALL'
         ? [{ $match: { salesAgentId: new Types.ObjectId(filters.agentId) } }]
         : []),
@@ -376,7 +380,7 @@ export async function getAgentSalesDetails(filters: SalesFilterOptions) {
           'items.isManualEntry': false,
         },
       },
-      // Lookup-uri pentru datele de produs și preț stoc
+      // Lookup-uri
       {
         $lookup: {
           from: 'erpproducts',
@@ -401,29 +405,13 @@ export async function getAgentSalesDetails(filters: SalesFilterOptions) {
       },
       { $unwind: { path: '$stockData', preserveNullAndEmptyArrays: true } },
 
+      // Calcule intermediare
       {
         $addFields: {
           netQuantity: {
             $subtract: [
               '$items.quantity',
               { $ifNull: ['$items.stornedQuantity', 0] },
-            ],
-          },
-          usageRatio: {
-            $cond: [
-              { $gt: ['$items.quantity', 0] },
-              {
-                $divide: [
-                  {
-                    $subtract: [
-                      '$items.quantity',
-                      { $ifNull: ['$items.stornedQuantity', 0] },
-                    ],
-                  },
-                  '$items.quantity',
-                ],
-              },
-              0,
             ],
           },
           invoiceLineBaseFactor: {
@@ -456,36 +444,76 @@ export async function getAgentSalesDetails(filters: SalesFilterOptions) {
           },
         },
       },
+      // Absolutizarea cantitatii si calcule cost
       {
         $addFields: {
-          // Detectăm dacă folosim Fallback (preț stoc) sau FIFO (preț real factură)
-          isFallback: { $lte: [{ $ifNull: ['$items.lineCostFIFO', 0] }, 1] },
-          finalRevenue: { $multiply: ['$items.lineValue', '$usageRatio'] },
-          finalCost: {
+          absQuantity: { $abs: '$netQuantity' },
+          usageRatio: {
             $cond: [
-              { $gt: ['$items.lineCostFIFO', 1] },
-              { $multiply: ['$items.lineCostFIFO', '$usageRatio'] },
+              { $ne: ['$items.quantity', 0] },
+              { $divide: ['$netQuantity', '$items.quantity'] },
+              0,
+            ],
+          },
+        },
+      },
+      {
+        $addFields: {
+          isFallback: { $lte: [{ $ifNull: ['$items.lineCostFIFO', 0] }, 1] },
+          estimatedLineCost: {
+            $multiply: [
+              { $multiply: ['$absQuantity', '$invoiceLineBaseFactor'] },
               {
-                $multiply: [
-                  { $multiply: ['$netQuantity', '$invoiceLineBaseFactor'] },
+                $cond: [
+                  { $gt: ['$stockPriceBaseFactor', 0] },
                   {
-                    $cond: [
-                      { $gt: ['$stockPriceBaseFactor', 0] },
-                      {
-                        $divide: [
-                          { $ifNull: ['$stockData.maxPurchasePrice', 0] },
-                          '$stockPriceBaseFactor',
-                        ],
-                      },
-                      0,
+                    $divide: [
+                      { $ifNull: ['$stockData.maxPurchasePrice', 0] },
+                      '$stockPriceBaseFactor',
                     ],
                   },
+                  0,
                 ],
               },
             ],
           },
         },
       },
+
+      // --- CALCUL FINAL CU STORNO (FIXED) ---
+      {
+        $addFields: {
+          signMultiplier: {
+            $cond: [{ $eq: ['$invoiceType', 'STORNO'] }, -1, 1],
+          },
+        },
+      },
+      {
+        $addFields: {
+          // Folosim absQuantity pentru a evita dubla negare
+          finalRevenue: {
+            $multiply: ['$absQuantity', '$items.unitPrice', '$signMultiplier'],
+          },
+          finalCost: {
+            $multiply: [
+              {
+                $cond: [
+                  { $gt: [{ $abs: '$items.lineCostFIFO' }, 1] },
+                  {
+                    $multiply: [
+                      { $abs: '$items.lineCostFIFO' },
+                      { $abs: '$usageRatio' },
+                    ],
+                  },
+                  '$estimatedLineCost',
+                ],
+              },
+              '$signMultiplier',
+            ],
+          },
+        },
+      },
+
       {
         $sort: {
           invoiceDate: 1,

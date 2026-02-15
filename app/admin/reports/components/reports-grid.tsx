@@ -4,19 +4,25 @@ import { useState } from 'react'
 import { ReportDefinition } from '@/lib/db/modules/reports/reports.types'
 import { ReportCard } from './report-card'
 import { InventoryReportDialog } from './inventory-report-dialog'
+import { AgentSalesReportDialog } from './agent-sales-report-dialog'
 
 export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(
     null,
   )
+
   const [isInventoryOpen, setIsInventoryOpen] = useState(false)
+  const [isAgentSalesOpen, setIsAgentSalesOpen] = useState(false)
 
   const handleSelectReport = (report: ReportDefinition) => {
-    if (report.category === 'inventory') {
-      setSelectedReport(report)
+    setSelectedReport(report)
+
+    // 3. LOGICA DE DESCHIDERE A MODALULUI CORECT
+    if (report.id === 'inventory-valuation') {
       setIsInventoryOpen(true)
+    } else if (report.id === 'agent-sales-performance') {
+      setIsAgentSalesOpen(true)
     } else {
-      // Aici vei pune logică pentru Client/Furnizor când le faci
       console.log('Acest raport încă nu are modal implementat.')
     }
   }
@@ -41,10 +47,20 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
         ))}
       </div>
 
-      {selectedReport && selectedReport.category === 'inventory' && (
+      {/* Modal Inventar */}
+      {selectedReport && selectedReport.id === 'inventory-valuation' && (
         <InventoryReportDialog
           open={isInventoryOpen}
           onOpenChange={setIsInventoryOpen}
+          report={selectedReport}
+        />
+      )}
+
+      {/* 4. MODAL VÂNZĂRI AGENTI */}
+      {selectedReport && selectedReport.id === 'agent-sales-performance' && (
+        <AgentSalesReportDialog
+          open={isAgentSalesOpen}
+          onOpenChange={setIsAgentSalesOpen}
           report={selectedReport}
         />
       )}

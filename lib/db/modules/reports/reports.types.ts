@@ -56,4 +56,13 @@ export const AVAILABLE_REPORTS: ReportDefinition[] = [
     icon: 'FileText',
     filters: ['dateRange'],
   },
+  {
+    id: 'agent-sales-performance',
+    title: 'Performanță Vânzări Agenți',
+    description:
+      'Raport detaliat cu vânzări, costuri și profit per agent (Sheet separat per agent).',
+    category: 'sales',
+    icon: 'Users',
+    filters: [],
+  },
 ]

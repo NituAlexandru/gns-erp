@@ -108,18 +108,33 @@ export function AgentSalesBreakdown({ data }: { data: any[] }) {
                   </TableHeader>
                   <TableBody>
                     {agent.lines.map((line: any, idx: number) => {
-                      const rowProfitMargin =
-                        line.lineValue > 0
+                      const isStorno = line.invoiceType === 'STORNO'
+
+                      // 1. CALCUL MARJĂ: Dacă e Storno, afișăm '-', altfel calculăm procentul
+                      const rowProfitMargin = isStorno
+                        ? '-'
+                        : line.lineValue !== 0
                           ? ((line.lineProfit / line.lineValue) * 100).toFixed(
                               1,
-                            )
-                          : '0'
+                            ) + '%'
+                          : '0%'
+
+                      // 2. CULORI: Roșu dacă e Storno sau negativ, Verde dacă e pozitiv
+                      const valueColorClass =
+                        line.lineValue < 0 || isStorno ? 'text-red-500' : ''
+                      const profitColorClass =
+                        line.lineProfit < 0 || isStorno
+                          ? 'text-red-500'
+                          : 'text-[#16a34a]'
 
                       return (
-                        <TableRow key={idx} className=' hover: h-8'>
+                        <TableRow
+                          key={idx}
+                          className='hover:bg-white/5 border-white/5 h-8'
+                        >
                           {/* 1. TIP FACTURA */}
                           <TableCell className='py-0 text-[10px] lg:text-xs 2xl:text-sm font-bold'>
-                            {line.invoiceType === 'STORNO' ? (
+                            {isStorno ? (
                               <span className='text-orange-500'>STORNO</span>
                             ) : (
                               <span className='text-blue-400'>FACT</span>
@@ -129,13 +144,11 @@ export function AgentSalesBreakdown({ data }: { data: any[] }) {
                           {/* 2. SERIE / NUMAR */}
                           <TableCell className='py-1 text-[10px] lg:text-sm font-mono w-[150px]'>
                             <div className='flex items-center gap-1'>
-                              {/* Componenta de preview (Ochiul) */}
                               <InvoicePreviewLazy
                                 invoiceId={line._id}
                                 isAdmin={true}
                                 currentUserRole='admin'
                               />
-                              {/* Textul facturii */}
                               <span className='truncate'>
                                 {line.invoiceSeries} - {line.invoiceNumber}
                               </span>
@@ -143,10 +156,11 @@ export function AgentSalesBreakdown({ data }: { data: any[] }) {
                           </TableCell>
 
                           {/* 3. DATA */}
-                          <TableCell className='py-0 text-[10px] lg:text-xs 2xl:text-sm  whitespace-nowrap'>
+                          <TableCell className='py-0 text-[10px] lg:text-xs 2xl:text-sm whitespace-nowrap'>
                             {format(new Date(line.invoiceDate), 'dd.MM.yyyy')}
                           </TableCell>
 
+                          {/* 4. CLIENT */}
                           <TableCell
                             className='py-0 text-[10px] lg:text-xs 2xl:text-sm max-w-[150px] truncate'
                             title={line.clientName}
@@ -154,12 +168,12 @@ export function AgentSalesBreakdown({ data }: { data: any[] }) {
                             {line.clientName}
                           </TableCell>
 
-                          {/* 4. COD PRODUS */}
-                          <TableCell className='py-0 text-[10px] lg:text-xs 2xl:text-sm font-mono '>
+                          {/* 5. COD PRODUS */}
+                          <TableCell className='py-0 text-[10px] lg:text-xs 2xl:text-sm font-mono'>
                             {line.productCode || '-'}
                           </TableCell>
 
-                          {/* 5. NUME PRODUS */}
+                          {/* 6. NUME PRODUS */}
                           <TableCell
                             className='py-0 text-[10px] lg:text-xs 2xl:text-sm max-w-[180px] truncate'
                             title={line.productName}
@@ -167,43 +181,51 @@ export function AgentSalesBreakdown({ data }: { data: any[] }) {
                             {line.productName}
                           </TableCell>
 
-                          {/* 6. UM */}
+                          {/* 7. UM */}
                           <TableCell className='py-0 text-[10px] lg:text-xs 2xl:text-sm text-center'>
                             {line.unitOfMeasure || 'buc'}
                           </TableCell>
 
-                          {/* 8. COST UNITAR */}
+                          {/* 8. COST UNITAR (Rămâne informativ, pozitiv vizual, dar marcat roșu dacă e storno) */}
                           <TableCell
                             className={`py-0 text-right font-mono text-[10px] lg:text-xs 2xl:text-sm ${line.isFallback ? 'text-amber-500/90' : ''}`}
                           >
                             {formatCurrency(
-                              line.quantity > 0
-                                ? line.costUsed / line.quantity
+                              line.quantity !== 0
+                                ? Math.abs(line.costUsed / line.quantity)
                                 : 0,
                             )}
                             {line.isFallback && (
                               <span className='text-[10px] block leading-none opacity-80'>
-                                COST ESTIMAT
+                                ESTIMAT
                               </span>
                             )}
                           </TableCell>
+
                           {/* 7. PRET UNITAR */}
                           <TableCell className='py-0 text-right font-mono text-[10px] lg:text-xs 2xl:text-sm'>
                             {formatCurrency(line.unitPrice)}
                           </TableCell>
-                          {/* 9. TOTAL (Redenumit din Total Linie) */}
-                          <TableCell className='py-0 text-right font-mono text-[10px] lg:text-xs 2xl:text-sm'>
+
+                          {/* 9. TOTAL (Roșu dacă e negativ/Storno) */}
+                          <TableCell
+                            className={`py-0 text-right font-mono text-[10px] lg:text-xs 2xl:text-sm ${valueColorClass}`}
+                          >
                             {formatCurrency(line.lineValue)}
                           </TableCell>
 
-                          {/* 10. PROFIT */}
-                          <TableCell className='py-0 text-right font-mono text-[10px] lg:text-xs 2xl:text-sm font-bold text-[#16a34a]'>
+                          {/* 10. PROFIT (Roșu dacă e negativ/Storno) */}
+                          <TableCell
+                            className={`py-0 text-right font-mono text-[10px] lg:text-xs 2xl:text-sm font-bold ${profitColorClass}`}
+                          >
                             {formatCurrency(line.lineProfit)}
                           </TableCell>
 
-                          {/* 11. PROFIT % */}
-                          <TableCell className='py-0 text-right font-mono text-[10px] lg:text-xs 2xl:text-sm text-[#16a34a]'>
-                            {rowProfitMargin}%
+                          {/* 11. PROFIT % (Ascuns/Liniuță dacă e Storno) */}
+                          <TableCell
+                            className={`py-0 text-right font-mono text-[10px] lg:text-xs 2xl:text-sm ${profitColorClass}`}
+                          >
+                            {rowProfitMargin}
                           </TableCell>
                         </TableRow>
                       )

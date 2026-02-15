@@ -3,6 +3,7 @@
 import ExcelJS from 'exceljs'
 import { connectToDatabase } from '@/lib/db'
 import { generateInventoryValuation } from './inventory/inventory.actions'
+import { generateAgentSalesReport } from './sales/agent-sales.report.action'
 
 // Definim tipul de răspuns standard
 type GenerateReportResult = {
@@ -33,6 +34,11 @@ export async function generateReportAction(
         // Nume sugestiv: Valoare_Stoc_DEPOZIT_2024...
         const locLabel = filters.location === 'ALL' ? 'Total' : filters.location
         filename = `Valoare_Stoc_${locLabel}_${new Date().toISOString().split('T')[0]}.xlsx`
+        break
+
+      case 'agent-sales-performance':
+        await generateAgentSalesReport(workbook, filters)
+        filename = `Vanzari_Agenti_${filters.startDate}_${filters.endDate}.xlsx`
         break
 
       default:
