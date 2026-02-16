@@ -20,8 +20,6 @@ import {
   Search,
 } from 'lucide-react'
 import Link from 'next/link'
-
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,6 +35,7 @@ import {
 
 import { getAgentSalesDetails } from '@/lib/db/modules/overview/agent-sales.actions'
 import { AgentSalesBreakdown } from './components/AgentSalesBreakdown'
+import { SalesListSelector } from './components/lists/SalesListSelector'
 
 export default function AgentSalesDetailsPage() {
   const [data, setData] = useState<any[]>([])
@@ -52,6 +51,7 @@ export default function AgentSalesDetailsPage() {
   const [period, setPeriod] = useState<string>('this-month')
   const [includeDrafts, setIncludeDrafts] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [useLists, setUseLists] = useState(true)
 
   const handlePeriodChange = (value: string) => {
     setPeriod(value)
@@ -87,6 +87,7 @@ export default function AgentSalesDetailsPage() {
           endDate: new Date(dateTo + 'T23:59:59'),
           includeDrafts: includeDrafts,
           period: 'month',
+          useManualAssignments: useLists,
         })
 
         if (res.success) {
@@ -101,7 +102,7 @@ export default function AgentSalesDetailsPage() {
 
     load()
     // Dependențele asigură că datele se reîncarcă automat la orice schimbare de filtru
-  }, [dateFrom, dateTo, includeDrafts])
+  }, [dateFrom, dateTo, includeDrafts, useLists])
 
   // Căutare locală (Client-side) pentru a fi instantanee
   const filteredData = useMemo(() => {
@@ -124,7 +125,7 @@ export default function AgentSalesDetailsPage() {
             Detalii Vânzări Agenți
           </h1>
         </div>
-
+        <SalesListSelector isChecked={useLists} onToggle={setUseLists} />
         {/* Search Input */}
         <div className='relative w-full md:w-64'>
           <Search className='absolute left-2.5 top-2.5 h-4 w-4 ' />

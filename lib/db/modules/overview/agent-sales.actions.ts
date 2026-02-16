@@ -6,6 +6,69 @@ import InvoiceModel from '@/lib/db/modules/financial/invoices/invoice.model'
 import { SalesFilterOptions, AgentOverviewResponse } from './agent-sales.types'
 import { TIMEZONE } from '@/lib/constants'
 
+async function buildAgentReassignmentStage(
+  useManualAssignments: boolean | undefined,
+) {
+  if (!useManualAssignments) return []
+
+  return [
+    // 1. LOOKUP robust folosind pipeline pentru a asigura match-ul de ID-uri
+    {
+      $lookup: {
+        from: 'agentclientlists',
+        let: { invoiceClientId: '$clientId' }, // Definim clientId din factură ca variabilă
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $in: ['$$invoiceClientId', '$clientIds'], // Verificăm apartenența în array-ul de ID-uri
+              },
+            },
+          },
+          { $project: { agentId: 1 } },
+        ],
+        as: 'matchedAgentList',
+      },
+    },
+    // 2. Aplicăm realocarea ID-ului agentului
+    {
+      $addFields: {
+        salesAgentId: {
+          $cond: [
+            { $gt: [{ $size: '$matchedAgentList' }, 0] },
+            { $arrayElemAt: ['$matchedAgentList.agentId', 0] },
+            '$salesAgentId',
+          ],
+        },
+        // Flag pentru debug (îl poți vedea în obiectul final dacă e nevoie)
+        isReassigned: { $gt: [{ $size: '$matchedAgentList' }, 0] },
+      },
+    },
+    // 3. Lookup pentru a lua numele proaspăt din colecția 'users'
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'salesAgentId',
+        foreignField: '_id',
+        as: 'reassignedUserDoc',
+      },
+    },
+    {
+      $addFields: {
+        // Punem numele nou în computedAgentName (folosit mai jos în grouping)
+        computedAgentName: {
+          $let: {
+            vars: { firstUser: { $arrayElemAt: ['$reassignedUserDoc', 0] } },
+            in: '$$firstUser.name',
+          },
+        },
+      },
+    },
+    // Curățăm câmpurile temporare
+    { $project: { matchedAgentList: 0, reassignedUserDoc: 0 } },
+  ]
+}
+
 export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
   success: boolean
   data?: AgentOverviewResponse
@@ -13,7 +76,9 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
 }> {
   try {
     await connectToDatabase()
-
+    const reassignmentStage = await buildAgentReassignmentStage(
+      filters.useManualAssignments,
+    )
     const allowedStatuses = [
       'APPROVED',
       'PAID',
@@ -65,6 +130,7 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
           },
         },
       },
+      ...reassignmentStage,
       ...(filters.agentId
         ? [{ $match: { salesAgentId: new Types.ObjectId(filters.agentId) } }]
         : []),
@@ -81,15 +147,10 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
         },
       },
 
-      // 4. Calcul Net Quantity (Scădem Storno parțial dacă e cazul)
+      // 4. Calcul Net Quantity (Folosim cantitatea brută, scăderea se face prin facturi Storno separate)
       {
         $addFields: {
-          netQuantity: {
-            $subtract: [
-              '$items.quantity',
-              { $ifNull: ['$items.stornedQuantity', 0] },
-            ],
-          },
+          netQuantity: '$items.quantity',
         },
       },
       // Eliminăm cantitățile 0, dar păstrăm negativele pentru moment (le tratăm cu abs mai jos)
@@ -252,7 +313,15 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
       {
         $group: {
           _id: '$salesAgentId',
-          agentName: { $first: '$salesAgentSnapshot.name' },
+          agentName: {
+            $first: {
+              $ifNull: [
+                '$computedAgentName',
+                '$salesAgentSnapshot.name',
+                'Necunoscut',
+              ],
+            },
+          },
           totalRevenue: { $sum: '$finalRevenue' },
           totalCost: { $sum: '$finalCost' },
           uniqueInvoices: { $addToSet: '$_id' },
@@ -318,6 +387,9 @@ export async function getAgentSalesStats(filters: SalesFilterOptions): Promise<{
 export async function getAgentSalesDetails(filters: SalesFilterOptions) {
   try {
     await connectToDatabase()
+    const reassignmentStage = await buildAgentReassignmentStage(
+      filters.useManualAssignments,
+    )
 
     const allowedStatuses = [
       'APPROVED',
@@ -368,6 +440,7 @@ export async function getAgentSalesDetails(filters: SalesFilterOptions) {
           },
         },
       },
+      ...reassignmentStage,
       ...(filters.agentId && filters.agentId !== 'ALL'
         ? [{ $match: { salesAgentId: new Types.ObjectId(filters.agentId) } }]
         : []),
@@ -408,12 +481,7 @@ export async function getAgentSalesDetails(filters: SalesFilterOptions) {
       // Calcule intermediare
       {
         $addFields: {
-          netQuantity: {
-            $subtract: [
-              '$items.quantity',
-              { $ifNull: ['$items.stornedQuantity', 0] },
-            ],
-          },
+          netQuantity: '$items.quantity',
           invoiceLineBaseFactor: {
             $let: {
               vars: {
@@ -525,7 +593,13 @@ export async function getAgentSalesDetails(filters: SalesFilterOptions) {
         $group: {
           _id: '$salesAgentId',
           agentName: {
-            $first: { $ifNull: ['$salesAgentSnapshot.name', 'Necunoscut'] },
+            $first: {
+              $ifNull: [
+                '$computedAgentName',
+                '$salesAgentSnapshot.name',
+                'Necunoscut',
+              ],
+            },
           },
           totalRevenue: { $sum: '$finalRevenue' },
           totalCost: { $sum: '$finalCost' },

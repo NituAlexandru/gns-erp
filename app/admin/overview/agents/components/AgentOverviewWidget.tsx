@@ -40,22 +40,20 @@ import {
 import { AgentSalesChart } from './AgentSalesChart'
 import { AgentSalesStats } from '@/lib/db/modules/overview/agent-sales.types'
 import { getAgentSalesStats } from '@/lib/db/modules/overview/agent-sales.actions'
+import { SalesListSelector } from './lists/SalesListSelector'
 
 export function AgentOverviewWidget() {
   const [isLoading, setIsLoading] = useState(true)
   const [agentData, setAgentData] = useState<AgentSalesStats[]>([])
-
   const [period, setPeriod] = useState<string>('this-month')
-
-  // Păstrăm valorile ca string pentru API, dar le convertim pentru Calendar
   const [dateFrom, setDateFrom] = useState<string>(
     format(startOfMonth(new Date()), 'yyyy-MM-dd'),
   )
   const [dateTo, setDateTo] = useState<string>(
     format(endOfMonth(new Date()), 'yyyy-MM-dd'),
   )
-
   const [includeDrafts, setIncludeDrafts] = useState(false)
+  const [useLists, setUseLists] = useState(true)
 
   const handlePeriodChange = (value: string) => {
     setPeriod(value)
@@ -101,6 +99,7 @@ export function AgentOverviewWidget() {
           endDate: new Date(dateTo + 'T23:59:59'),
           period: 'month',
           includeDrafts: includeDrafts,
+          useManualAssignments: useLists,
         })
 
         if (result.success && result.data) {
@@ -115,12 +114,12 @@ export function AgentOverviewWidget() {
       }
     }
     fetchData()
-  }, [dateFrom, dateTo, includeDrafts])
+  }, [dateFrom, dateTo, includeDrafts, useLists])
 
   return (
     <Card className='h-full flex flex-col shadow-md border-border/60'>
       <CardHeader className='pb-2 space-y-4'>
-        <div className='flex items-center justify-between'>
+        <div className='flex flex-col items-start justify-between'>
           <div>
             <CardTitle className='text-lg font-bold'>
               Top Vânzări Agenți
@@ -129,16 +128,19 @@ export function AgentOverviewWidget() {
               Performanța bazată pe produse livrate
             </CardDescription>
           </div>
-          <Button
-            variant='ghost'
-            size='sm'
-            className='h-8 gap-1 text-primary hover:text-primary/80'
-            asChild
-          >
-            <Link href='/admin/overview/agents'>
-              Vezi Detalii <ArrowRight className='h-3 w-3' />
-            </Link>
-          </Button>
+          <div className='flex flex-between items-center gap-2'>
+            <SalesListSelector isChecked={useLists} onToggle={setUseLists} />
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-8 gap-1 text-primary hover:text-primary/80'
+              asChild
+            >
+              <Link href='/admin/overview/agents'>
+                Vezi Detalii <ArrowRight className='h-3 w-3' />
+              </Link>
+            </Button>
+          </div>
         </div>
 
         <div className='flex flex-col xl:flex-row xl:items-center gap-4 bg-muted/40 p-2 rounded-lg border border-border/50'>

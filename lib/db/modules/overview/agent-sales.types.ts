@@ -1,4 +1,3 @@
-
 export interface AgentSalesStats {
   agentId: string
   agentName: string
@@ -26,4 +25,5 @@ export interface SalesFilterOptions {
   period: 'day' | 'week' | 'month' | 'year'
   includeDrafts?: boolean // Dacă true, include CREATED și REJECTED
   agentId?: string // Opțional, pentru filtrare pe un singur agent
+  useManualAssignments?: boolean
 }
