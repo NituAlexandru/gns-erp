@@ -349,14 +349,27 @@ export async function updateProductMarkup(
 ): Promise<{ success: boolean; message: string }> {
   try {
     await connectToDatabase()
-    const product = await ERPProductModel.findById(id)
-    if (!product) throw new Error('Produs inexistent.')
 
-    await ERPProductModel.findByIdAndUpdate(
+    // 1. Încercăm să actualizăm ca Produs ERP
+    let updatedItem = await ERPProductModel.findByIdAndUpdate(
       id,
       { defaultMarkups },
       { new: true },
     )
+
+    // 2. Dacă nu am găsit produsul, încercăm să actualizăm ca Ambalaj (Packaging)
+    if (!updatedItem) {
+      updatedItem = await PackagingModel.findByIdAndUpdate(
+        id,
+        { defaultMarkups },
+        { new: true },
+      )
+    }
+
+    // 3. Dacă nu a fost găsit în nicio colecție, aruncăm eroare
+    if (!updatedItem) {
+      throw new Error('Produs sau Ambalaj inexistent.')
+    }
 
     revalidatePath('/admin/products')
     return { success: true, message: 'Marja actualizata cu succes.' }
