@@ -36,9 +36,13 @@ export default async function EditInvoicePage({
   const invoiceData = invoiceResult.data
 
   const userRole = session?.user?.role || 'user'
+  const userId = session?.user?.id
+  const SPECIAL_USER_ID = '695f50ad9dfaf202582254ee'
+
   const isAdmin = SUPER_ADMIN_ROLES.map((r) => r.toLowerCase()).includes(
     userRole.toLowerCase(),
   )
+  const canOverridePrice = isAdmin || userId === SPECIAL_USER_ID
 
   // 2. Protecție: Nu permitem editarea dacă nu e 'CREATED' sau 'REJECTED'
   if (invoiceData.status !== 'CREATED' && invoiceData.status !== 'REJECTED') {
@@ -92,7 +96,7 @@ export default async function EditInvoicePage({
       </h1>
 
       <InvoiceForm
-        isAdmin={isAdmin}
+        isAdmin={canOverridePrice}
         initialData={initialData as unknown as Partial<InvoiceInput>}
         seriesList={invoiceSeries}
         companySettings={companySettings}

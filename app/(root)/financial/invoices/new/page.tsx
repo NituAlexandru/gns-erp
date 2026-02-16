@@ -13,9 +13,13 @@ export default async function NewInvoicePage() {
   const session = await auth()
 
   const userRole = session?.user?.role || 'user'
+  const userId = session?.user?.id
+  // ID-ul Monicăi (Udateanu Ionela Monica)
+  const SPECIAL_USER_ID = '695f50ad9dfaf202582254ee'
   const isAdmin = SUPER_ADMIN_ROLES.map((r) => r.toLowerCase()).includes(
     userRole.toLowerCase(),
   )
+  const canOverridePrice = isAdmin || userId === SPECIAL_USER_ID
 
   const companySettings = await getSetting()
 
@@ -46,7 +50,7 @@ export default async function NewInvoicePage() {
       <h1 className='text-2xl font-bold tracking-tight'>Factură Nouă</h1>
 
       <InvoiceForm
-        isAdmin={isAdmin}
+        isAdmin={canOverridePrice}
         initialData={null}
         seriesList={invoiceSeries}
         companySettings={companySettings}
