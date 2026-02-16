@@ -150,6 +150,7 @@ export interface UblInvoice {
   }
   AccountingSupplierParty?: {
     Party?: {
+      PartyIdentification?: { ID?: XmlTextValue } | Array<{ ID?: XmlTextValue }>
       PartyName?: { Name?: XmlTextValue }
       PartyLegalEntity?: {
         RegistrationName?: XmlTextValue
@@ -174,6 +175,7 @@ export interface UblInvoice {
   }
   AccountingCustomerParty?: {
     Party?: {
+      PartyIdentification?: { ID?: XmlTextValue } | Array<{ ID?: XmlTextValue }>
       PartyName?: { Name?: XmlTextValue }
       PartyLegalEntity?: {
         RegistrationName?: XmlTextValue

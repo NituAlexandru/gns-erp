@@ -23,6 +23,23 @@ const getText = (val: XmlTextValue): string => {
   return String(val)
 }
 
+const getPartyId = (
+  partyIdField:
+    | { ID?: XmlTextValue }
+    | Array<{ ID?: XmlTextValue }>
+    | undefined,
+): string => {
+  if (!partyIdField) return ''
+
+  // Dacă e array, luăm primul element
+  if (Array.isArray(partyIdField)) {
+    return getText(partyIdField[0]?.ID)
+  }
+
+  // Dacă e obiect simplu
+  return getText(partyIdField.ID)
+}
+
 const getNumber = (val: XmlNumberValue): number => {
   if (val === undefined || val === null) return 0
   if (typeof val === 'number') return val
@@ -52,10 +69,16 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
 
   //  FURNIZOR & ADRESA ---
   const supplierParty = invoice.AccountingSupplierParty?.Party
-  const supplierCui = getText(supplierParty?.PartyTaxScheme?.CompanyID)
+  let supplierCui = getText(supplierParty?.PartyTaxScheme?.CompanyID)
+  if (!supplierCui) {
+    supplierCui = getPartyId(supplierParty?.PartyIdentification)
+  }
+  if (!supplierCui) {
+    supplierCui = getText(supplierParty?.PartyLegalEntity?.CompanyID)
+  }
   const supplierRegCom = getText(supplierParty?.PartyLegalEntity?.CompanyID)
   const supplierCapital = getText(
-    supplierParty?.PartyLegalEntity?.CompanyLegalForm
+    supplierParty?.PartyLegalEntity?.CompanyLegalForm,
   )
   const supplierName =
     getText(supplierParty?.PartyName?.Name) ||
@@ -97,7 +120,11 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
 
   //  CLIENT ----------------
   const customerParty = invoice.AccountingCustomerParty?.Party
-  const customerCui = getText(customerParty?.PartyTaxScheme?.CompanyID)
+  let customerCui = getText(customerParty?.PartyTaxScheme?.CompanyID)
+
+  if (!customerCui) {
+    customerCui = getPartyId(customerParty?.PartyIdentification)
+  }
   const customerName =
     getText(customerParty?.PartyLegalEntity?.RegistrationName) || 'Client'
   const customerRegCom = getText(customerParty?.PartyLegalEntity?.CompanyID)
@@ -132,7 +159,7 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
   const supplierIban = getText(pm?.PayeeFinancialAccount?.ID)
   const supplierBank = getText(pm?.PayeeFinancialAccount?.Name)
   const supplierBic = getText(
-    pm?.PayeeFinancialAccount?.FinancialInstitutionBranch?.ID
+    pm?.PayeeFinancialAccount?.FinancialInstitutionBranch?.ID,
   )
   const paymentId = getText(pm?.PaymentID)
   const paymentMethodCode = getText(pm?.PaymentMeansCode)
@@ -179,10 +206,10 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
   const invoiceNumber = match && match[2] ? match[2] : rawInvoiceId
 
   const invoiceDate = new Date(
-    getText(invoice.IssueDate) || new Date().toISOString()
+    getText(invoice.IssueDate) || new Date().toISOString(),
   )
   const dueDate = new Date(
-    getText(invoice.DueDate) || invoiceDate.toISOString()
+    getText(invoice.DueDate) || invoiceDate.toISOString(),
   )
   const taxPointDate = invoice.TaxPointDate
     ? new Date(getText(invoice.TaxPointDate))
@@ -237,10 +264,10 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
     const description = [rawDesc, rawNote].filter(Boolean).join(' - ')
     const productCode = getText(
       line.Item?.SellersItemIdentification?.ID ||
-        line.Item?.StandardItemIdentification?.ID
+        line.Item?.StandardItemIdentification?.ID,
     )
     const commodityCode = getText(
-      line.Item?.CommodityClassification?.ItemClassificationCode
+      line.Item?.CommodityClassification?.ItemClassificationCode,
     )
     const originCountry = getText(line.Item?.OriginCountry?.IdentificationCode)
 
