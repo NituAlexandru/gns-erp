@@ -45,6 +45,7 @@ type ExtendedStockMovement = PopulatedStockMovement & {
   }
   lineCost?: number
   unitCost?: number
+  salePrice?: number
   packagingOptions?: {
     unitName: string
     baseUnitEquivalent: number
@@ -54,6 +55,7 @@ type ExtendedStockMovement = PopulatedStockMovement & {
 type MovementsTotals = {
   totalValueIn: number
   totalValueOut: number
+  totalSalesOut: number
   totalQtyIn: number | null
   totalQtyOut: number | null
   commonUnit: string
@@ -131,109 +133,123 @@ export default function StockMovementsPage() {
 
   return (
     <div className='h-[calc(100vh-6rem)] flex flex-col border-1 p-4 rounded-2xl'>
-      <div className='flex justify-between items-center mb-1'>
-        <div>
-          <h3 className='font-bold pt-1 text-sm lg:text-xs 2xl:text-base'>
-            Mișcări Stoc (Jurnal)
-          </h3>
-          {totalDocs > 0 && (
-            <span className='text-[10px] md:text-sm lg:text-xs text-muted-foreground '>
-              ({totalDocs} înregistrări)
-            </span>
+      <div className='flex flex-col justify-between items-start mb-1'>
+        <div className='flex'>
+          <div>
+            <h3 className='font-bold pt-1 text-sm lg:text-xs 2xl:text-base'>
+              Mișcări Stoc (Jurnal)
+            </h3>
+            {totalDocs > 0 && (
+              <span className='text-[10px] md:text-sm lg:text-xs text-muted-foreground '>
+                ({totalDocs} înregistrări)
+              </span>
+            )}
+          </div>
+          {totals && (
+            <div className='lg:flex items-center gap-2 px-2 border-l border-border 2xl:gap-4 2xl:px-4'>
+              {/* --- TOTAL INTRĂRI --- */}
+              <div className='flex flex-col items-center gap-0 text-green-600'>
+                <span className='text-xs font-semibold uppercase'>
+                  Total Intrări:
+                </span>
+                <span className='font-bold'>
+                  {formatCurrency(totals.totalValueIn)}
+                </span>
+
+                {totals.totalQtyIn !== null && (
+                  <div className='flex items-center gap-1 font-bold'>
+                    <span>
+                      ({(totals.totalQtyIn / headerFactor).toFixed(2)}
+                    </span>
+
+                    {/* DROPDOWN SELECT UM */}
+                    <Select value={headerUnit} onValueChange={setHeaderUnit}>
+                      <SelectTrigger className='cursor-pointer !h-6 min-h-0 py-0 min-w-[65px] px-2 text-xs border border-green-200 bg-green-50/50 dark:bg-green-900/20 dark:border-green-800 text-green-700 dark:text-green-400 font-bold rounded-md mx-1'>
+                        <SelectValue placeholder={totals.commonUnit}>
+                          {activeHeaderUnit}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Unitatea de Bază */}
+                        <SelectItem
+                          value='DEFAULT'
+                          className='text-xs cursor-pointer'
+                        >
+                          {totals.commonUnit}
+                        </SelectItem>
+                        {/* Opțiunile de Conversie */}
+                        {headerPackagingOptions?.map((opt, idx) => (
+                          <SelectItem
+                            key={idx}
+                            value={opt.unitName}
+                            className='text-xs cursor-pointer'
+                          >
+                            {opt.unitName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span>)</span>
+                  </div>
+                )}
+              </div>
+              <div className='w-px h-4 bg-border mx-1'></div>
+              {/* --- TOTAL IEȘIRI --- */}
+              <div className='flex flex-col items-center gap-0 text-red-600'>
+                <span className='text-xs font-semibold uppercase'>
+                  Cost Ieșiri (Gestiune)
+                </span>
+                <span className='font-bold'>
+                  {formatCurrency(totals.totalValueOut)}
+                </span>
+
+                {totals.totalQtyOut !== null && (
+                  <div className='flex items-center gap-1 font-bold'>
+                    <span>
+                      ({(totals.totalQtyOut / headerFactor).toFixed(2)}
+                    </span>
+
+                    {/* DROPDOWN SELECT UM (Sincronizat) */}
+                    <Select value={headerUnit} onValueChange={setHeaderUnit}>
+                      <SelectTrigger className='cursor-pointer !h-6 min-h-0 py-0 min-w-[65px] px-2 text-xs border border-red-200 bg-red-50/50 dark:bg-red-900/20 dark:border-red-800 text-red-700 dark:text-red-400 font-bold rounded-md mx-1'>
+                        <SelectValue placeholder={totals.commonUnit}>
+                          {activeHeaderUnit}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem
+                          value='DEFAULT'
+                          className='text-xs cursor-pointer'
+                        >
+                          {totals.commonUnit}
+                        </SelectItem>
+                        {headerPackagingOptions?.map((opt, idx) => (
+                          <SelectItem
+                            key={idx}
+                            value={opt.unitName}
+                            className='text-xs cursor-pointer'
+                          >
+                            {opt.unitName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span>)</span>
+                  </div>
+                )}
+              </div>
+              <div className='flex flex-col items-center ml-4 gap-0 text-red-600'>
+                <span className='text-xs font-semibold uppercase'>
+                  Total Vânzări (Est.)
+                </span>
+                <span className='font-bold'>
+                  {formatCurrency(totals.totalSalesOut)}
+                </span>
+                {/* Nu afișăm cantitate aici, e redundantă (e aceeași ca la Ieșiri) */}
+              </div>
+            </div>
           )}
         </div>
-        {totals && (
-          <div className=' lg:flex items-center gap-2 px-2 border-l border-border 2xl:gap-4 2xl:px-4'>
-            {' '}
-            {/* --- TOTAL INTRĂRI --- */}
-            <div className='flex flex-col items-center gap-0 text-green-600'>
-              <span className='text-xs font-semibold uppercase'>
-                Total Intrări:
-              </span>
-              <span className='font-bold'>
-                {formatCurrency(totals.totalValueIn)}
-              </span>
-
-              {totals.totalQtyIn !== null && (
-                <div className='flex items-center gap-1 font-bold'>
-                  <span>({(totals.totalQtyIn / headerFactor).toFixed(2)}</span>
-
-                  {/* DROPDOWN SELECT UM */}
-                  <Select value={headerUnit} onValueChange={setHeaderUnit}>
-                    <SelectTrigger className='cursor-pointer !h-6 min-h-0 py-0 min-w-[65px] px-2 text-xs border border-green-200 bg-green-50/50 dark:bg-green-900/20 dark:border-green-800 text-green-700 dark:text-green-400 font-bold rounded-md mx-1'>
-                      <SelectValue placeholder={totals.commonUnit}>
-                        {activeHeaderUnit}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Unitatea de Bază */}
-                      <SelectItem
-                        value='DEFAULT'
-                        className='text-xs cursor-pointer'
-                      >
-                        {totals.commonUnit}
-                      </SelectItem>
-                      {/* Opțiunile de Conversie */}
-                      {headerPackagingOptions?.map((opt, idx) => (
-                        <SelectItem
-                          key={idx}
-                          value={opt.unitName}
-                          className='text-xs cursor-pointer'
-                        >
-                          {opt.unitName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span>)</span>
-                </div>
-              )}
-            </div>
-            <div className='w-px h-4 bg-border mx-1'></div>
-            {/* --- TOTAL IEȘIRI --- */}
-            <div className='flex flex-col items-center gap-0 text-red-600'>
-              <span className='text-xs font-semibold uppercase'>
-                Total Ieșiri:
-              </span>
-              <span className='font-bold'>
-                {formatCurrency(totals.totalValueOut)}
-              </span>
-
-              {totals.totalQtyOut !== null && (
-                <div className='flex items-center gap-1 font-bold'>
-                  <span>({(totals.totalQtyOut / headerFactor).toFixed(2)}</span>
-
-                  {/* DROPDOWN SELECT UM (Sincronizat) */}
-                  <Select value={headerUnit} onValueChange={setHeaderUnit}>
-                    <SelectTrigger className='cursor-pointer !h-6 min-h-0 py-0 min-w-[65px] px-2 text-xs border border-red-200 bg-red-50/50 dark:bg-red-900/20 dark:border-red-800 text-red-700 dark:text-red-400 font-bold rounded-md mx-1'>
-                      <SelectValue placeholder={totals.commonUnit}>
-                        {activeHeaderUnit}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        value='DEFAULT'
-                        className='text-xs cursor-pointer'
-                      >
-                        {totals.commonUnit}
-                      </SelectItem>
-                      {headerPackagingOptions?.map((opt, idx) => (
-                        <SelectItem
-                          key={idx}
-                          value={opt.unitName}
-                          className='text-xs cursor-pointer'
-                        >
-                          {opt.unitName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <span>)</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
         {/* Componenta Filtre nu mai are nevoie de props, își ia starea din URL */}
         <MovementsFilters />
       </div>
@@ -410,38 +426,102 @@ export default function StockMovementsPage() {
                         {/* 3. CELULA PREȚ UNITAR (Aici facem conversia prin ÎNMULȚIRE) */}
                         <TableCell className='text-right align-center py-1 lg:py-0 xl:py-0.5'>
                           <div className='flex flex-col gap-0'>
-                            {/* Preț Principal */}
-                            <span className='font-mono text-xs xl:text-sm  leading-none'>
-                              {movement.unitCost
-                                ? formatCurrency(movement.unitCost)
-                                : '-'}
-                            </span>
-                            {/* Prețuri Convertite */}
-                            {movement.packagingOptions?.map((opt, idx) => {
-                              // Dacă avem preț, calculăm prețul pe unitatea mare (ex: Preț Palet = Preț Kg * Kg/Palet)
-                              const convertedPrice = movement.unitCost
-                                ? movement.unitCost * opt.baseUnitEquivalent
-                                : 0
+                            {(() => {
+                              let displayBasePrice = 0
+                              let showPrice = false
+
+                              if (isMovementIn) {
+                                // INTRARE: Arătăm Costul
+                                displayBasePrice = movement.unitCost || 0
+                                showPrice = true
+                              } else {
+                                // IEȘIRE: Arătăm DOAR dacă avem Sale Price. Fără fallback.
+                                if (movement.salePrice) {
+                                  displayBasePrice = movement.salePrice
+                                  showPrice = true
+                                } else {
+                                  showPrice = false
+                                }
+                              }
+
+                              const colorClass = isMovementIn
+                                ? 'text-green-600'
+                                : 'text-red-600'
 
                               return (
-                                <span
-                                  key={idx}
-                                  className='font-mono text-xs xl:text-sm leading-none'
-                                >
-                                  {movement.unitCost
-                                    ? formatCurrency(convertedPrice)
-                                    : '-'}
-                                </span>
+                                <>
+                                  <span
+                                    className={cn(
+                                      'font-mono text-xs xl:text-sm leading-none',
+                                      showPrice ? colorClass : '',
+                                    )}
+                                  >
+                                    {showPrice
+                                      ? formatCurrency(displayBasePrice)
+                                      : '-'}
+                                  </span>
+
+                                  {/* Conversii - apar doar dacă avem un preț valid de afișat */}
+                                  {showPrice &&
+                                    movement.packagingOptions?.map(
+                                      (opt, idx) => {
+                                        const convertedPrice =
+                                          displayBasePrice *
+                                          opt.baseUnitEquivalent
+                                        return (
+                                          <span
+                                            key={idx}
+                                            className={cn(
+                                              'font-mono text-xs xl:text-sm leading-none',
+                                              colorClass,
+                                            )}
+                                          >
+                                            {formatCurrency(convertedPrice)}
+                                          </span>
+                                        )
+                                      },
+                                    )}
+                                </>
                               )
-                            })}
+                            })()}
                           </div>
                         </TableCell>
 
                         {/* Coloana Valoare Totală */}
                         <TableCell className='text-right font-bold text-xs xl:text-sm 2xl:text-xs font-mono lg:py-0'>
-                          {movement.lineCost
-                            ? formatCurrency(movement.lineCost)
-                            : '-'}
+                          {(() => {
+                            let totalValue = 0
+                            let showValue = false
+
+                            if (isMovementIn) {
+                              // INTRARE: Afișăm Valoarea de Intrare (Costul)
+                              // De obicei lineCost vine din backend, dar ca fallback calculăm qty * unitCost
+                              totalValue =
+                                movement.lineCost ||
+                                movement.quantity * (movement.unitCost || 0)
+                              showValue = true
+                            } else {
+                              // IEȘIRE: Afișăm Valoarea de Vânzare (Qty * SalePrice)
+                              if (movement.salePrice) {
+                                totalValue =
+                                  movement.quantity * movement.salePrice
+                                showValue = true
+                              } else {
+                                showValue = false
+                              }
+                            }
+
+                            // Aceeași logică de culori ca la Preț Unitar
+                            const colorClass = isMovementIn
+                              ? 'text-green-600'
+                              : 'text-red-600'
+
+                            return (
+                              <span className={showValue ? colorClass : ''}>
+                                {showValue ? formatCurrency(totalValue) : '-'}
+                              </span>
+                            )
+                          })()}
                         </TableCell>
                         <TableCell className='text-xs'>
                           {locationName}

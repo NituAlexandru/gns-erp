@@ -948,6 +948,7 @@ export async function getStockMovements(
               qualityDetails: 1,
               lineCost: { $ifNull: ['$lineCost', 0] },
               unitCost: 1,
+              salePrice: { $ifNull: ['$salePrice', null] },
               responsibleUser: {
                 _id: '$responsibleUserDetails._id',
                 name: '$responsibleUserDetails.name',
@@ -1060,6 +1061,20 @@ export async function getStockMovements(
                   ],
                 },
               },
+              totalSalesOut: {
+                $sum: {
+                  $cond: [
+                    { $in: ['$movementType', outTypesArray] },
+                    {
+                      $multiply: [
+                        { $ifNull: ['$quantity', 0] },
+                        { $ifNull: ['$salePrice', 0] },
+                      ],
+                    },
+                    0,
+                  ],
+                },
+              },
               totalQtyIn: {
                 $sum: {
                   $cond: [
@@ -1085,6 +1100,7 @@ export async function getStockMovements(
             $project: {
               totalValueIn: 1,
               totalValueOut: 1,
+              totalSalesOut: 1,
               // Returnăm cantitatea doar dacă avem o singură unitate de măsură
               totalQtyIn: {
                 $cond: [
@@ -1121,6 +1137,7 @@ export async function getStockMovements(
     const totalsData = result[0].totals[0] || {
       totalValueIn: 0,
       totalValueOut: 0,
+      totalSalesOut: 0,
       totalQtyIn: null,
       totalQtyOut: null,
       commonUnit: 'MIXED',

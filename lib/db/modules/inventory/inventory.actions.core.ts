@@ -149,6 +149,7 @@ export async function recordStockMovement(
         ? new Types.ObjectId(payload.orderRef)
         : undefined,
       supplierOrderNumber: payload.supplierOrderNumber,
+      salePrice: payload.salePrice,
     })
 
     let costInfo: FifoCostInfo | null = null

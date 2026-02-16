@@ -13,7 +13,7 @@ const QualityDetailsSchema = new Schema(
     // Aici sunt MENȚIUNI SUPLIMENTARE (orice altceva scris de gestionar)
     additionalNotes: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 export interface IStockMovementDoc extends Document {
@@ -33,6 +33,7 @@ export interface IStockMovementDoc extends Document {
   status: 'ACTIVE' | 'CANCELLED'
   balanceAfter: number
   unitCost?: number // Costul unitar (pt INTRARI) sau Costul Mediu FIFO (pt IESIRI)
+  salePrice?: number
   lineCost?: number // Costul total al mișcării
   costBreakdown?: ICostBreakdownBatch[] // Detalierea loturilor (doar pt IESIRI)
   supplierId?: Types.ObjectId
@@ -67,7 +68,7 @@ export const CostBreakdownBatchSchema = new Schema<ICostBreakdownBatch>(
     supplierName: { type: String },
     qualityDetails: { type: QualityDetailsSchema },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const StockMovementSchema = new Schema<IStockMovementDoc>(
@@ -110,6 +111,7 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     balanceBefore: { type: Number, required: true },
     balanceAfter: { type: Number, required: true },
     unitCost: { type: Number, required: false },
+    salePrice: { type: Number, required: false },
     lineCost: { type: Number, required: false },
     costBreakdown: { type: [CostBreakdownBatchSchema], required: false },
     supplierId: { type: Schema.Types.ObjectId, ref: 'Supplier' },
@@ -121,7 +123,7 @@ const StockMovementSchema = new Schema<IStockMovementDoc>(
     orderRef: { type: Schema.Types.ObjectId, ref: 'SupplierOrder' },
     supplierOrderNumber: { type: String },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 const StockMovementModel: Model<IStockMovementDoc> =

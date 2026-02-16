@@ -363,6 +363,7 @@ export async function confirmDeliveryNote({
 
               quantity: item.quantityInBaseUnit,
               unitMeasure: item.baseUnit || item.unitOfMeasure,
+              salePrice: item.priceInBaseUnit,
               referenceId: note._id.toString(),
               responsibleUser: userId,
               clientId: note.clientId.toString(),

@@ -82,6 +82,7 @@ Livrari - bug la blocarile intervalelor, nu se blocheaza primele 2 intervale.
 
 # Foarte important
 
+- de finalizat stocul saptamana asta, pentru a inchide anul 2025 (stocul initial)
 - comanda, la creare si la modificare, se converteste doar pretul, nu si cantitatea
 - de adaugat posibilitatea adaugarii mentiunilor pe facturile descarcate din SPV
 - transfer stoc, de mutat btn si in receptii + de adaugat aviz pe transfer + de creat document intern transfer gestiune

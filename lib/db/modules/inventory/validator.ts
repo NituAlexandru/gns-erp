@@ -44,6 +44,7 @@ export const StockMovementSchema = z.object({
   referenceId: z.string(),
   note: z.string().optional(),
   unitCost: z.number().nonnegative().optional(),
+  salePrice: z.number().nonnegative().optional(),
   unitMeasure: z.string().optional(),
   responsibleUser: z.string().optional(),
   timestamp: z
