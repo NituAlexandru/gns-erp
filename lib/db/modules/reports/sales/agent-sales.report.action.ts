@@ -17,6 +17,8 @@ export async function generateAgentSalesReport(
     endDate: new Date(filters.endDate + 'T23:59:59'),
     includeDrafts: filters.includeDrafts,
     period: 'month',
+    useManualAssignments: filters.useManualAssignments,
+    agentId: 'ALL',
   })
 
   if (!response.success || !response.data) {

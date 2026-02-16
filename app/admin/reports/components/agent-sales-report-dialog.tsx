@@ -62,6 +62,7 @@ export function AgentSalesReportDialog({
     format(endOfMonth(new Date()), 'yyyy-MM-dd'),
   )
   const [includeDrafts, setIncludeDrafts] = useState(false)
+  const [useLists, setUseLists] = useState(true)
 
   // Reset la deschidere
   useEffect(() => {
@@ -70,6 +71,7 @@ export function AgentSalesReportDialog({
       setDateFrom(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
       setDateTo(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
       setIncludeDrafts(false)
+      setUseLists(true)
     }
   }, [open])
 
@@ -117,6 +119,7 @@ export function AgentSalesReportDialog({
       startDate: dateFrom,
       endDate: dateTo,
       includeDrafts,
+      useManualAssignments: useLists,
     }
 
     try {
@@ -262,7 +265,27 @@ export function AgentSalesReportDialog({
             </div>
           </div>
         </div>
+        <Separator className='bg-border/50 my-3' />
 
+        <div className='flex items-center justify-between'>
+          <div className='flex flex-col gap-0.5'>
+            <Label
+              htmlFor='use-lists-modal'
+              className='text-sm cursor-pointer font-medium'
+            >
+              Folosește Listele Personalizate
+            </Label>
+            <span className='text-[10px] text-muted-foreground'>
+              Realocă clienții conform listelor definite
+            </span>
+          </div>
+          <Switch
+            id='use-lists-modal'
+            checked={useLists}
+            onCheckedChange={setUseLists}
+            className='data-[state=checked]:bg-red-600'
+          />
+        </div>
         <DialogFooter>
           <Button
             variant='outline'

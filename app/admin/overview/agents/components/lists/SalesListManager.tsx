@@ -146,12 +146,12 @@ export function SalesListManager() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className='sm:max-w-[80vw] h-[85vh] flex flex-col p-0 gap-0 bg-zinc-950 border-zinc-800'>
-        <DialogHeader className='p-6 border-b border-white/10 flex flex-row items-center justify-between'>
+      <DialogContent className='sm:max-w-[80vw] h-[85vh] flex flex-col p-0 gap-0  '>
+        <DialogHeader className='p-6 border-b  flex flex-row items-center justify-between'>
           <DialogTitle>Configurare Liste Clienți per Agent</DialogTitle>
         </DialogHeader>
 
-        <div className='flex-1 overflow-y-auto p-6 bg-zinc-950/50'>
+        <div className='flex-1 overflow-y-auto p-6 /50'>
           {isLoading && !agents.length ? (
             <div className='flex justify-center p-10'>
               <Loader2 className='animate-spin' />
@@ -167,9 +167,7 @@ export function SalesListManager() {
                     key={agent._id}
                     className={cn(
                       'p-4 border rounded-lg flex flex-col gap-3 transition-colors',
-                      isModified
-                        ? 'border-blue-500/50 bg-blue-500/5'
-                        : 'border-white/10 bg-zinc-900',
+                      isModified ? 'border-blue-500/50 bg-blue-500/5' : ' ',
                     )}
                   >
                     <div className='flex justify-between items-center'>
@@ -186,7 +184,7 @@ export function SalesListManager() {
                         <Button
                           variant='outline'
                           role='combobox'
-                          className='justify-between w-full border-white/10 bg-zinc-950 text-muted-foreground hover:text-foreground'
+                          className='justify-between w-full text-muted-foreground hover:text-foreground'
                         >
                           {assignedCount > 0
                             ? `Gestionează (${assignedCount})`
@@ -196,10 +194,10 @@ export function SalesListManager() {
                       </PopoverTrigger>
 
                       <PopoverContent
-                        className='w-[450px] h-[500px] p-0 bg-zinc-950 border-white/10'
+                        className='w-[450px] h-[500px] p-0  '
                         align='start'
                       >
-                        <Command className='bg-zinc-950 w-full h-full flex flex-col'>
+                        <Command className='bg-secondary w-full h-full flex flex-col'>
                           <CommandInput
                             placeholder='Caută client...'
                             className='border-none focus:ring-0 h-10'
@@ -225,17 +223,17 @@ export function SalesListManager() {
                                         client._id,
                                       )
                                     }
-                                    className='cursor-pointer aria-selected:bg-white/10'
+                                    className='cursor-pointer hover:bg-primary'
                                   >
                                     <div
                                       className={cn(
                                         'mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
                                         isSelected
-                                          ? 'bg-primary text-primary-foreground'
+                                          ? 'text-primary-foreground bg-primary'
                                           : 'opacity-50 [&_svg]:invisible',
                                       )}
                                     >
-                                      <Check className={cn('h-4 w-4')} />
+                                      <Check className={cn('h-4 w-4 ')} />
                                     </div>
                                     <span>{client.name}</span>
                                   </CommandItem>
@@ -253,14 +251,14 @@ export function SalesListManager() {
           )}
         </div>
 
-        <DialogFooter className='p-4 border-t border-white/10 bg-zinc-900'>
+        <DialogFooter className='p-4 border-t  '>
           <Button variant='ghost' onClick={() => setIsOpen(false)}>
             Închide
           </Button>
           <Button
             onClick={handleSaveAll}
             disabled={isLoading || modifiedAgents.size === 0}
-            className='bg-green-600 hover:bg-green-700 min-w-[150px]'
+            className='bg-green-500 hover:bg-green-700 min-w-[150px]'
           >
             {isLoading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
             <Save className='mr-2 h-4 w-4' /> Salvează Modificările

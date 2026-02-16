@@ -105,8 +105,8 @@ export function SalesListViewer() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className='w-full sm:max-w-[80vw] h-[85vh] flex flex-col p-0 gap-0 bg-zinc-950 border-zinc-800'>
-        <DialogHeader className='p-6 border-b border-white/10'>
+      <DialogContent className='w-full sm:max-w-[80vw] h-[85vh] flex flex-col p-0 gap-0  '>
+        <DialogHeader className='p-6 border-b '>
           <DialogTitle>Vizualizare Liste Asignate</DialogTitle>
         </DialogHeader>
 
@@ -118,8 +118,8 @@ export function SalesListViewer() {
           ) : (
             <>
               {/* SIDEBAR: Lista Agenți */}
-              <div className='w-1/3 border-r border-white/10 bg-zinc-900/30 flex flex-col'>
-                <div className='p-4 border-b border-white/10 font-semibold text-sm text-muted-foreground'>
+              <div className='w-1/3 border-r   flex flex-col'>
+                <div className='p-4 border-b  font-semibold text-sm text-muted-foreground'>
                   Agenți Configurați ({lists.length})
                 </div>
                 <ScrollArea className='flex-1'>
@@ -134,8 +134,8 @@ export function SalesListViewer() {
                         className={cn(
                           'flex items-center justify-between p-3 rounded-md text-sm text-left transition-colors',
                           selectedAgentId === list.agentId._id
-                            ? 'bg-red-600/20 text-red-400 border border-red-600/30'
-                            : 'hover:bg-white/5 text-zinc-300',
+                            ? ' text-red-400 border border-red-600/30'
+                            : 'hover: text-zinc-300',
                         )}
                       >
                         <div className='flex items-center gap-2'>
@@ -144,10 +144,7 @@ export function SalesListViewer() {
                             {list.agentId.name}
                           </span>
                         </div>
-                        <Badge
-                          variant='secondary'
-                          className='text-xs bg-black/40'
-                        >
+                        <Badge variant='secondary' className='text-xs '>
                           {list.clientIds?.length || 0}
                         </Badge>
                       </button>
@@ -162,15 +159,15 @@ export function SalesListViewer() {
               </div>
 
               {/* MAIN: Lista Clienți */}
-              <div className='flex-1 flex flex-col bg-zinc-950'>
+              <div className='flex-1 flex flex-col '>
                 {currentAgentData ? (
                   <>
-                    <div className='p-4 border-b border-white/10 flex items-center justify-between gap-4'>
+                    <div className='p-4 border-b  flex items-center justify-between gap-4'>
                       <div className='flex items-center gap-2'>
-                        <Users className='h-5 w-5 text-zinc-400' />
+                        <Users className='h-5 w-5 ' />
                         <h3 className='font-bold text-lg'>
                           Clienții lui:{' '}
-                          <span className='text-red-400'>
+                          <span className='text-red-500'>
                             {currentAgentData.agentName}
                           </span>
                         </h3>
@@ -180,7 +177,7 @@ export function SalesListViewer() {
                         <Search className='absolute left-2 top-2.5 h-4 w-4 text-muted-foreground' />
                         <Input
                           placeholder='Caută în listă...'
-                          className='pl-8 bg-zinc-900 border-white/10 h-9'
+                          className='pl-8   h-9'
                           value={clientSearch}
                           onChange={(e) => setClientSearch(e.target.value)}
                         />
@@ -193,7 +190,7 @@ export function SalesListViewer() {
                           {currentAgentData.clients.map((client: any) => (
                             <div
                               key={client.id}
-                              className='p-2 px-3 rounded-md border border-white/5 bg-white/5 text-sm flex items-center gap-2 hover:bg-white/10 transition-colors'
+                              className='p-2 px-3 rounded-md border text-sm flex items-center gap-2 transition-colors'
                             >
                               <div className='h-1.5 w-1.5 rounded-full bg-red-500' />
                               <span className='truncate' title={client.name}>
@@ -209,7 +206,7 @@ export function SalesListViewer() {
                       )}
                     </ScrollArea>
 
-                    <div className='p-2 border-t border-white/10 text-xs text-right text-muted-foreground bg-zinc-900/30'>
+                    <div className='p-2 border-t  text-xs text-right text-muted-foreground '>
                       Total: {currentAgentData.clients.length} clienți afișați
                     </div>
                   </>
@@ -223,7 +220,7 @@ export function SalesListViewer() {
           )}
         </div>
 
-        <DialogFooter className='p-4 border-t border-white/10 bg-zinc-900'>
+        <DialogFooter className='p-4 border-t  '>
           <Button variant='outline' onClick={() => setIsOpen(false)}>
             Închide
           </Button>

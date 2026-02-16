@@ -15,7 +15,7 @@ export function SalesListSelector({
   onToggle,
 }: SalesListSelectorProps) {
   return (
-    <div className='flex items-center gap-4 bg-muted/30 p-1.5 rounded-md border border-border/50'>
+    <div className='flex items-center gap-4 p-1.5 rounded-md border border-border/50'>
       <SalesListManager />
       <SalesListViewer />
       <div className='flex items-center gap-2 pr-2'>
