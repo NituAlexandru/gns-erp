@@ -34,6 +34,7 @@ import {
 import NirModel from '../financial/nir/nir.model'
 import { PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import { fromZonedTime } from 'date-fns-tz'
+import { processReceptionForPriceHistory } from '../price-history/price-history.actions'
 
 export type ActionResultWithData<T> =
   | { success: true; data: T; message?: string }
@@ -635,7 +636,9 @@ export async function confirmReception({
 
       await reception.save({ session })
 
-      // --- COD NOU PENTRU ACTUALIZARE COMANDĂ ---
+      await processReceptionForPriceHistory(reception)
+
+      // --- COD PENTRU ACTUALIZARE COMANDĂ ---
       if (reception.orderRef) {
         // 1. Calculăm valoarea totală din FACTURI (Preferabil)
         const invoiceTotalWithVat = (reception.invoices || []).reduce(

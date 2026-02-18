@@ -415,7 +415,7 @@ export function OrderItemsManager({
                       onSelect={() => handleSelectItem(item)}
                       className='p-2'
                     >
-                      <SearchResultItem item={item} />
+                      <SearchResultItem item={item} isAdmin={isAdmin} />
                     </CommandItem>
                   ))}
                 </CommandGroup>

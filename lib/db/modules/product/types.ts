@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { ProductInputSchema, ProductUpdateSchema } from './validator'
 import { IERPProductDoc } from './product.model'
+import { InventoryLocation } from '../inventory/types'
 
 export interface PopulatedProductSupplier {
   supplier: {
@@ -103,4 +104,41 @@ export type DefaultMarkups = {
 }
 export type ItemWithMarkups = {
   defaultMarkups?: DefaultMarkups
+}
+
+export interface IProductDefaultMarkups {
+  markupDirectDeliveryPrice: number
+  markupFullTruckPrice: number
+  markupSmallDeliveryBusinessPrice: number
+  markupRetailPrice: number
+}
+
+// Structura pentru prețurile calculate (păstrăm legătura de nume cu markup-ul)
+export interface CalculatedPrices {
+  priceDirectDelivery: number // Preț vânzare Directă
+  priceFullTruck: number // Preț vânzare TIR
+  priceSmallDeliveryBusiness: number // Preț vânzare Auto Mic
+  priceRetail: number // Preț vânzare Retail
+}
+
+export interface EnrichedStockLocation {
+  location: InventoryLocation | string
+  locationName: string
+  totalStock: number
+  reserved: number
+  available: number
+}
+export interface AvailableUnit {
+  name: string
+  type: 'BASE' | 'PACKAGING' | 'PALLET'
+  factor: number // Cât înseamnă în unitatea de bază (ex: 1, 25, 1000)
+  displayDetails?: string // Ex: "40 saci"
+}
+
+export interface EnrichedProductData {
+  baseCost: number // maxPurchasePrice din Inventory (Costul de bază)
+  calculatedPrices: CalculatedPrices
+  stockByLocation: EnrichedStockLocation[]
+  totalAvailableStock: number
+  availableUnits: AvailableUnit[]
 }

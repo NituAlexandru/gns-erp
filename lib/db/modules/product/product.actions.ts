@@ -11,6 +11,9 @@ import { ClientSession, FilterQuery, Types } from 'mongoose'
 import { PRODUCT_PAGE_SIZE } from './constants'
 import { getGlobalHighestCostInStock } from '../inventory/pricing'
 import {
+  AvailableUnit,
+  EnrichedProductData,
+  IProductDefaultMarkups,
   IProductDoc,
   IProductInput,
   IProductUpdate,
@@ -22,6 +25,12 @@ import {
 import InventoryItemModel from '../inventory/inventory.model'
 import PackagingModel from '../packaging-products/packaging.model'
 import ERPProductModel from './product.model'
+import { LOCATION_NAMES_MAP } from '../inventory/constants'
+import { InventoryLocation } from '../inventory/types'
+import { getPriceHistory } from '../price-history/price-history.actions'
+import { getPackagingById } from '../packaging-products/packaging.actions'
+import PriceHistoryModel from '../price-history/price-history.model'
+import { IPriceHistoryEntry } from '../price-history/price-history.types'
 
 // O funcție helper pentru a verifica duplicatele
 async function checkForDuplicateCodes(payload: {
@@ -652,5 +661,249 @@ export async function getProductForOrderLine(
       error,
     )
     throw new Error('Nu s-au putut prelua datele produsului.')
+  }
+}
+
+export async function getEnrichedProductData(
+  itemId: string,
+  markups: IProductDefaultMarkups,
+): Promise<EnrichedProductData> {
+  await connectToDatabase()
+
+  // 1. Interogăm Inventarul
+  const inventoryItems = await InventoryItemModel.find({
+    stockableItem: itemId,
+  }).lean()
+
+  // 2. Obținem detaliile despre structura produsului (Unități, Paletizare)
+  // Trebuie să știm dacă e Produs sau Ambalaj pentru a lua datele corecte
+  let productStruct = await ERPProductModel.findById(itemId)
+    .select('unit packagingUnit packagingQuantity itemsPerPallet')
+    .lean()
+
+  if (!productStruct) {
+    // Dacă nu e produs, poate e ambalaj
+    const packStruct = await PackagingModel.findById(itemId)
+      .select('packagingUnit packagingQuantity')
+      .lean()
+    if (packStruct) {
+      // Normalizăm structura pentru ambalaj
+      productStruct = {
+        unit: packStruct.packagingUnit || 'buc',
+        packagingUnit: null,
+        packagingQuantity: 1,
+        itemsPerPallet: 0,
+      } as any
+    }
+  }
+
+  // --- LOGICA NOUĂ DE CONVERSIE ---
+  const availableUnits: AvailableUnit[] = []
+
+  if (productStruct) {
+    // A. Unitatea de Bază (întotdeauna există)
+    availableUnits.push({
+      name: productStruct.unit,
+      type: 'BASE',
+      factor: 1,
+    })
+
+    // B. Unitatea de Ambalare (Ex: Sac)
+    // Există doar dacă avem packagingUnit definit și packagingQuantity > 1
+    if (
+      productStruct.packagingUnit &&
+      productStruct.packagingQuantity &&
+      productStruct.packagingQuantity > 1
+    ) {
+      availableUnits.push({
+        name: productStruct.packagingUnit,
+        type: 'PACKAGING',
+        factor: productStruct.packagingQuantity,
+        displayDetails: `1 ${productStruct.packagingUnit} = ${productStruct.packagingQuantity} ${productStruct.unit}`,
+      })
+    }
+
+    // C. Unitatea Logistică (Palet)
+    // Există dacă avem itemsPerPallet > 0
+    if (productStruct.itemsPerPallet && productStruct.itemsPerPallet > 0) {
+      let palletFactor = 0
+      let details = ''
+
+      // Scenariul 1: Produs -> Ambalaj -> Palet (Ciment)
+      if (
+        productStruct.packagingUnit &&
+        productStruct.packagingQuantity &&
+        productStruct.packagingQuantity > 1
+      ) {
+        palletFactor =
+          productStruct.itemsPerPallet * productStruct.packagingQuantity
+        details = `${productStruct.itemsPerPallet} ${productStruct.packagingUnit} / palet`
+      }
+      // Scenariul 2: Produs -> Palet (Cărămidă)
+      else {
+        palletFactor = productStruct.itemsPerPallet
+        details = `${productStruct.itemsPerPallet} ${productStruct.unit} / palet`
+      }
+
+      availableUnits.push({
+        name: 'palet',
+        type: 'PALLET',
+        factor: palletFactor,
+        displayDetails: details,
+      })
+    }
+  }
+  // --------------------------------
+
+  // Calcul Cost de Bază (neschimbat)
+  const maxPurchasePrice = inventoryItems.reduce(
+    (max, item) => Math.max(max, item.maxPurchasePrice || 0),
+    0,
+  )
+
+  const calculate = (cost: number, markup: number | undefined) => {
+    if (cost <= 0) return 0
+    const safeMarkup = markup || 0
+    return cost * (1 + safeMarkup / 100)
+  }
+
+  const calculatedPrices = {
+    priceDirectDelivery: calculate(
+      maxPurchasePrice,
+      markups.markupDirectDeliveryPrice,
+    ),
+    priceFullTruck: calculate(maxPurchasePrice, markups.markupFullTruckPrice),
+    priceSmallDeliveryBusiness: calculate(
+      maxPurchasePrice,
+      markups.markupSmallDeliveryBusinessPrice,
+    ),
+    priceRetail: calculate(maxPurchasePrice, markups.markupRetailPrice),
+  }
+
+  // Agregare Stoc (neschimbat)
+  let totalAvailableStock = 0
+  const stockByLocation = inventoryItems
+    .map((item) => {
+      const total = item.totalStock || 0
+      const reserved = item.quantityReserved || 0
+      const available = total - reserved
+      totalAvailableStock += available
+      const locKey = item.location as InventoryLocation
+      const locName = LOCATION_NAMES_MAP[locKey] || item.location
+
+      return {
+        location: item.location,
+        locationName: locName,
+        totalStock: total,
+        reserved: reserved,
+        available: available,
+      }
+    })
+    .filter((s) => s.totalStock > 0)
+
+  return {
+    baseCost: maxPurchasePrice,
+    calculatedPrices,
+    stockByLocation,
+    totalAvailableStock,
+    availableUnits, // Returnăm lista
+  }
+}
+
+// face conversia pentru produse!!
+export async function calculateBaseUnitPrice(
+  product: {
+    unit: string
+    packagingUnit?: string | null
+    packagingQuantity?: number
+    itemsPerPallet?: number
+  },
+  unitOfMeasure: string,
+  unitPrice: number,
+): Promise<number> {
+  // <--- Aici trebuie să fie Promise<number>
+  if (!product || unitPrice <= 0) return 0
+
+  if (unitOfMeasure === product.unit) {
+    return unitPrice
+  }
+
+  if (
+    unitOfMeasure === product.packagingUnit &&
+    (product.packagingQuantity || 0) > 0
+  ) {
+    return unitPrice / (product.packagingQuantity || 1)
+  }
+
+  if (unitOfMeasure === 'palet' && (product.itemsPerPallet || 0) > 0) {
+    if (product.packagingUnit && (product.packagingQuantity || 0) > 0) {
+      return (
+        unitPrice /
+        ((product.itemsPerPallet || 1) * (product.packagingQuantity || 1))
+      )
+    } else {
+      return unitPrice / (product.itemsPerPallet || 1)
+    }
+  }
+
+  return 0
+}
+
+export async function getCombinedPreviewData(id: string, slug: string) {
+  await connectToDatabase()
+
+  // 1. Încercăm să luăm produsul sau ambalajul folosind funcțiile tale
+  let item: any = null
+  let isProduct = true
+
+  try {
+    item = await getProductBySlug(slug, { includeUnpublished: true })
+  } catch {
+    item = await getPackagingById(id)
+    isProduct = false
+  }
+
+  if (!item) return null
+
+  // 2. Apelăm celelalte două funcții existente
+  const markups = item.defaultMarkups || {}
+  const [extraData, priceHistory] = await Promise.all([
+    getEnrichedProductData(item._id.toString(), markups as any),
+    getPriceHistory({ stockableItem: item._id.toString() }),
+  ])
+
+  return {
+    [isProduct ? 'product' : 'packaging']: item,
+    extraData,
+    priceHistory,
+  }
+}
+
+export async function getClientPriceHistory(
+  productId: string,
+  clientId: string,
+): Promise<IPriceHistoryEntry[]> {
+  await connectToDatabase()
+
+  if (!productId || !clientId) return []
+
+  try {
+    // Căutăm în istoric unde produsul corespunde ȘI partenerul este clientul selectat
+    const history = await PriceHistoryModel.find({
+      product: productId,
+      partner: clientId, // Filtrăm strict după client
+      type: 'SALE', // Doar vânzări (opțional, dacă vrei și oferte scoate asta)
+    })
+      .sort({ date: -1 }) // Cele mai recente primele
+      .limit(10) // Limităm la ultimele 10 tranzacții
+      .populate('partner', 'name')
+      .populate('createdBy', 'name')
+      .lean()
+
+    // Serializăm datele pentru client
+    return JSON.parse(JSON.stringify(history))
+  } catch (error) {
+    console.error('Error fetching client history:', error)
+    return []
   }
 }

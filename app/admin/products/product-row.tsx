@@ -29,6 +29,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { MoreHorizontal, Save } from 'lucide-react'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
+import { Badge } from '@/components/ui/badge'
+import ProductPreviewContent from '@/app/(root)/catalog-produse/details/product-preview-content'
 
 type RowState = {
   direct: number
@@ -99,25 +106,59 @@ export function ProductRow({
 
   return (
     <TableRow className='hover:bg-muted/50 border-b'>
-       <TableCell className='text-[10px] p-0 py-0.5 lg:py-1.5 2xl:py-1 h-auto lg:text-xs xl:text-sm font-mono'>
+      <TableCell className='text-[10px] p-0 py-0.5 lg:py-1.5 2xl:py-1 h-auto lg:text-xs xl:text-sm font-mono'>
         {item.productCode}
       </TableCell>
 
       <TableCell className='p-0 py-0.5 lg:py-1.5 2xl:py-1 w-8 h-8 xl:w-16 xl:h-12'>
-        {item.image ? (
-          <div className='relative w-[30px] h-[30px] ml-1 lg:w-[45px] lg:h-[45px] lg:ml-3'>
-            <Image
-              src={item.image}
-              alt={item.name}
-              fill
-              className='object-contain'
-            />
-          </div>
-        ) : (
-          <span className='text-[10px] ml-1 lg:ml-3 lg:text-xs xl:text-sm'>
-            -
-          </span>
-        )}
+        <HoverCard openDelay={200}>
+          <HoverCardTrigger asChild>
+            <div className='relative w-[30px] h-[30px] ml-1 lg:w-[45px] lg:h-[45px] lg:ml-3 cursor-pointer hover:opacity-80 transition-opacity'>
+              {item.image ? (
+                <Image
+                  src={item.image}
+                  alt={item.name}
+                  fill
+                  className='object-contain'
+                />
+              ) : (
+                <div className='w-full h-full flex items-center justify-center bg-muted/20 text-muted-foreground text-[10px] rounded'>
+                  -
+                </div>
+              )}
+            </div>
+          </HoverCardTrigger>
+
+          <HoverCardContent
+            side='right'
+            align='start'
+            sideOffset={100}
+            collisionPadding={50}
+            className='z-[100] w-[calc(100vw-2rem)] max-w-[1100px] p-0 border-2 border-border shadow-2xl bg-background overflow-hidden text-left'
+          >
+            {/* Header Card */}
+            <div className='bg-muted/50 p-4 border-b flex justify-between items-center'>
+              <span className='font-bold text-xs lg:text-sm uppercase truncate mr-4'>
+                {item.name}
+              </span>
+              <Badge
+                variant='outline'
+                className='hidden sm:block font-mono text-[10px]'
+              >
+                {item.productCode}
+              </Badge>
+            </div>
+
+            {/* Content Card */}
+            <div className='p-4 lg:p-6 max-h-[85vh] overflow-y-auto bg-background'>
+              <ProductPreviewContent
+                id={item._id}
+                slug={toSlug(item.name)}
+                isAdmin={true}
+              />
+            </div>
+          </HoverCardContent>
+        </HoverCard>
       </TableCell>
 
       <TableCell className='p-0 py-0.5 lg:py-1.5 2xl:py-1 max-w-[100px] lg:max-w-[150px] xl:max-w-[200px] 2xl:max-w-[220px] 3xl:max-w-[350px]'>

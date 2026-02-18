@@ -15,10 +15,19 @@ import {
 import { LockKeyhole, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUnitConversion } from '@/hooks/use-unit-conversion'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, toSlug } from '@/lib/utils'
 import { OrderLineItemRowProps } from './OrderLineItemRow'
 import { OrderLineItemInput } from '@/lib/db/modules/order/types'
 import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
+import { AvailableUnit } from '@/lib/db/modules/product/types'
+import ProductConversionInfo from '@/app/(root)/catalog-produse/details/product-conversion-info'
+import { ClientHistoryButton } from './ClientHistoryButton'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
+import ProductPreviewContent from '@/app/(root)/catalog-produse/details/product-preview-content'
 
 type UnitOption = {
   unitName: string
@@ -136,7 +145,7 @@ export function ProductLineItemRow({
     const path = `lineItems.${index}.priceAtTimeOfOrder` as const
     const currentPrice = Number(getValues(path) ?? 0)
     const formattedMinPrice = Number(convertedPrice.toFixed(2))
-    
+
     if (!isAdmin && currentPrice < formattedMinPrice - 0.01) {
       setValue(path, formattedMinPrice, { shouldDirty: true })
 
@@ -178,6 +187,43 @@ export function ProductLineItemRow({
     setValue,
   ])
 
+  const displayUnits: AvailableUnit[] = useMemo(() => {
+    if (!baseUnit) return []
+
+    // 1. Căutăm dacă există un ambalaj intermediar (ex: Sac, Cutie) pentru a face raportarea
+    const intermediatePack = packagingOptions?.find(
+      (opt: any) =>
+        !opt.unitName.toLowerCase().includes('palet') &&
+        opt.baseUnitEquivalent > 1,
+    )
+
+    // 2. Începem cu unitatea de bază
+    const units: AvailableUnit[] = [{ name: baseUnit, type: 'BASE', factor: 1 }]
+
+    // 3. Adăugăm restul opțiunilor și calculăm textul (displayDetails)
+    packagingOptions?.forEach((opt: any) => {
+      const isPallet = opt.unitName.toLowerCase().includes('palet')
+      let details = opt.displayDetails
+
+      // LOGICA DE CALCUL: Dacă e Palet și avem Sac, calculăm câți saci sunt
+      if (isPallet && !details && intermediatePack) {
+        const count =
+          opt.baseUnitEquivalent / intermediatePack.baseUnitEquivalent
+        // Ex: 1600 / 40 = 40. Rezultat: "40 sac / palet"
+        details = `${Number(count.toFixed(2))} ${intermediatePack.unitName} / palet`
+      }
+
+      units.push({
+        name: opt.unitName,
+        type: isPallet ? 'PALLET' : 'PACKAGING',
+        factor: opt.baseUnitEquivalent,
+        displayDetails: details, // Trimitem textul calculat către componenta ta
+      })
+    })
+
+    return units
+  }, [baseUnit, packagingOptions])
+
   if (!productId || !baseUnit) {
     return null
   }
@@ -188,7 +234,45 @@ export function ProductLineItemRow({
 
   return (
     <TableRow>
-      <TableCell className='font-medium w-full '>{productName}</TableCell>
+      <TableCell className='font-medium w-full py-0'>
+        <div className='flex flex-col gap-1'>
+          <div className='flex items-center justify-between gap-2'>
+            <HoverCard openDelay={500}>
+              <HoverCardTrigger asChild>
+                <span className='cursor-pointer hover:underline decoration-dotted underline-offset-4'>
+                  {productName}
+                </span>
+              </HoverCardTrigger>
+
+              <HoverCardContent
+                side='top'
+                align='start'
+                sideOffset={8}
+                alignOffset={-5}
+                className='z-[10] w-[700px] lg:w-[1000px] xl:w-[1200px] 2xl:w-[1400px] p-0 pb-10 shadow-2xl border-2 bg-background overflow-hidden'
+              >
+                <div className='p-4 h-[75vh]  bg-background'>
+                  <ProductPreviewContent
+                    id={productId}
+                    slug={toSlug(productName)}
+                    isAdmin={isAdmin}
+                  />
+                </div>
+              </HoverCardContent>
+            </HoverCard>
+
+            <ClientHistoryButton
+              productId={productId}
+              productName={productName}
+              availableUnits={displayUnits}
+            />
+          </div>
+
+          <div className='origin-top-left scale-80 w-[125%]'>
+            <ProductConversionInfo units={displayUnits} />
+          </div>
+        </div>
+      </TableCell>
 
       <TableCell>
         <div className='relative w-full'>

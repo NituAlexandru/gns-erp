@@ -16,12 +16,15 @@ import {
 } from '@/components/ui/select'
 import { SearchedProduct } from '@/lib/db/modules/product/types'
 import { useUnitConversion } from '@/hooks/use-unit-conversion'
+import ProductPreviewContent from '@/app/(root)/catalog-produse/details/product-preview-content'
+import { toSlug } from '@/lib/utils'
 
 type SearchResultItemProps = {
   item: SearchedProduct
+  isAdmin: boolean
 }
 
-export function SearchResultItem({ item }: SearchResultItemProps) {
+export function SearchResultItem({ item, isAdmin }: SearchResultItemProps) {
   const {
     selectedUnit,
     handleUnitChange,
@@ -39,7 +42,7 @@ export function SearchResultItem({ item }: SearchResultItemProps) {
 
   return (
     <div className='flex items-center gap-4 w-full'>
-      <HoverCard>
+      <HoverCard openDelay={200}>
         <HoverCardTrigger asChild>
           <div className='cursor-pointer'>
             {item.image ? (
@@ -48,27 +51,46 @@ export function SearchResultItem({ item }: SearchResultItemProps) {
                 alt={item.name}
                 width={80}
                 height={80}
-                className='rounded-md object-cover '
+                className='rounded-md object-cover hover:opacity-80 transition-opacity'
               />
             ) : (
-              <div className='h-20 w-20 rounded-md bg-secondary flex items-center justify-center text-muted-foreground'>
-                ?
+              <div className='h-20 w-20 rounded-md bg-secondary flex items-center justify-center text-muted-foreground text-xs'>
+                Fără poză
               </div>
             )}
           </div>
         </HoverCardTrigger>
-        <HoverCardContent className='w-80'>
-          {item.image ? (
-            <Image
-              src={item.image}
-              alt={item.name}
-              width={320}
-              height={320}
-              className='rounded-lg object-cover'
+
+        <HoverCardContent
+          side='right'
+          align='start'
+          sideOffset={10}
+          collisionPadding={16}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          className='z-[100] w-[calc(100vw-2rem)] max-w-[1100px] p-0 border-2 border-border shadow-2xl bg-background overflow-hidden text-left'
+        >
+          {/* Header Card */}
+          <div className='bg-muted/50 p-4 border-b flex justify-between items-center'>
+            <span className='font-bold text-xs lg:text-sm uppercase truncate mr-4'>
+              {item.name}
+            </span>
+            <Badge
+              variant='outline'
+              className='hidden sm:block font-mono text-[10px]'
+            >
+              {item.productCode}
+            </Badge>
+          </div>
+
+          {/* Body Card (Scrollabil) */}
+          <div className='p-4 lg:p-6 max-h-[85vh] overflow-y-auto bg-background'>
+            <ProductPreviewContent
+              id={item._id}
+              slug={toSlug(item.name)}
+              isAdmin={isAdmin}
             />
-          ) : (
-            <p>Imagine indisponibilă</p>
-          )}
+          </div>
         </HoverCardContent>
       </HoverCard>
 

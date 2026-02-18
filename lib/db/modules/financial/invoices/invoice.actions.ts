@@ -59,6 +59,7 @@ import {
 import PackagingModel from '../../packaging-products/packaging.model'
 import DeliveryModel from '../../deliveries/delivery.model'
 import { fromZonedTime } from 'date-fns-tz'
+import { processInvoiceForPriceHistory } from '../../price-history/price-history.actions'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -1561,6 +1562,8 @@ export async function approveInvoice(
     invoice.approvedByName = session.user.name || 'Admin'
 
     await invoice.save()
+
+    await processInvoiceForPriceHistory(invoice)
 
     try {
       await recalculateClientSummary(

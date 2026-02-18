@@ -1,152 +1,158 @@
-import React from 'react'
-import ProductPrice from '@/components/shared/product/product-price'
 import ProductGallery from '@/components/shared/product/product-gallery'
 import { Separator } from '@/components/ui/separator'
-import { formatCurrency } from '@/lib/utils'
 import type { IPackagingDoc } from '@/lib/db/modules/packaging-products/types'
 import { Barcode, BarcodeType } from '@/components/barcode/barcode-image'
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
-import { computeSalePrices } from '@/lib/db/modules/product/utils' // ← import helper
+import { EnrichedProductData } from '@/lib/db/modules/product/types'
+import ProductFinancials from '../../details/product-financials'
+import ProductStockStatus from '../../details/product-stock-status'
+import ProductConversionInfo from '../../details/product-conversion-info'
+import { Badge } from '@/components/ui/badge'
+import BackButton from '@/components/shared/back-button'
+import PriceHistoryList from '../../details/price-history-list'
+import { IProductPriceHistory } from '@/lib/db/modules/price-history/price-history.types'
+import TechnicalSpecsDropdown from '../../details/technical-specs-dropdown'
 
 // eslint-disable-next-line
 function detectBarcodeType(_code: string): BarcodeType {
-  // if (/^\d{13}$/.test(code)) return 'ean13'
-  // if (/^\d{12}$/.test(code)) return 'upca'
-  // if (/^\d{14}$/.test(code)) return 'itf14'
-  // if (/^\(\d+\)/.test(code)) return 'gs1128'
   return 'code128'
 }
 
 export default function PackagingView({
   packaging,
+  extraData,
+  priceHistory,
+  isAdmin,
 }: {
   packaging: IPackagingDoc
+  extraData: EnrichedProductData
+  priceHistory: IProductPriceHistory
+  isAdmin: boolean
 }) {
   const rawCode = packaging.productCode || packaging._id
   const type = detectBarcodeType(rawCode)
 
-  // Compute sale prices from averagePurchasePrice + defaultMarkups
-  const sale = computeSalePrices(
-    packaging.averagePurchasePrice,
-    packaging.defaultMarkups
-  )
-
   return (
     <>
-      <div className='flex items-center justify-between gap-4 px-6 mb-4'>
+      <div className='flex items-center justify-between gap-4 p-0 mb-0'>
         <div className='flex items-center gap-4'>
-          <Button asChild variant='outline'>
-            <Link href='/catalog-produse'>
-              <ChevronLeft /> Înapoi
-            </Link>
-          </Button>
+          <BackButton />
           <h1 className='text-2xl font-bold'>Detalii {packaging.name}</h1>
         </div>
-        <div>
-          <Barcode text={rawCode} type={type} width={300} height={100} />
-        </div>
       </div>
+
       <section>
-        <div className='grid grid-cols-1 md:grid-cols-5'>
-          {/* gallery */}
-          <div className='col-span-2'>
+        <div className='grid grid-cols-1 lg:grid-cols-6 gap-8'>
+          {/* Coloana Stânga - Imagini */}
+          <div className='lg:col-span-2'>
             <ProductGallery images={packaging.images ?? []} />
+            <Barcode text={rawCode} type={type} width={250} height={60} />
           </div>
 
-          {/* details */}
-          <div className='flex w-full flex-col gap-2 md:p-5 col-span-3'>
-            {/* Header */}
-            <div className='flex flex-col gap-3'>
-              <div className='flex justify-between items-center'>
-                <p className='p-medium-16 text-gray-500'>{packaging.slug}</p>
-                <p className='text-sm text-gray-500'>
+          {/* Coloana Dreapta - Informații */}
+          <div className='flex w-full flex-col gap-5 lg:col-span-4'>
+            {/* 1. Header Info */}
+            <div>
+              <div className='flex justify-between items-start'>
+                <p className='text-sm font-medium text-muted-foreground uppercase tracking-wide'>
+                  Ambalaj
+                </p>
+                <p className='text-sm text-gray-500 font-mono mt-1'>
                   Cod produs: {packaging.productCode}
                 </p>
+                <Badge
+                  variant={packaging.isPublished ? 'secondary' : 'outline'}
+                >
+                  {packaging.isPublished ? 'Publicat' : 'Ciornă'}
+                </Badge>
               </div>
-              <h1 className='font-bold text-lg lg:text-xl'>{packaging.name}</h1>
-              <Separator />
-              <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
-                <ProductPrice price={sale.retailPrice} forListing={false} />
-              </div>
-              {packaging.packagingQuantity! > 1 && (
-                <div className='flex items-center gap-3'>
-                  <p className='text-lg'>
-                    {formatCurrency(
-                      sale.retailPrice / packaging.packagingQuantity!
-                    )}{' '}
-                    / {packaging.packagingUnit}
-                  </p>
-                  <span className='text-lg text-muted-foreground'>
-                    TVA inclus
-                  </span>
-                </div>
-              )}
             </div>
 
-            <Separator className='my-2' />
-            {/* Descriere */}
-            {packaging.description && (
+            <Separator />
+
+            {/* 2. SPECIFICAȚII TEHNICE (Stil tabelar identic cu Produsele) */}
+
+            <div>
+              <TechnicalSpecsDropdown title='Specificații tehnice'>
+                <table className='w-full table-fixed text-xs text-gray-700 dark:text-gray-300'>
+                  <tbody>
+                    {/* Dimensiuni */}
+                    <tr className='bg-gray-50 dark:bg-gray-800'>
+                      <td className='px-4 py-2 font-semibold w-1/2'>
+                        Dimensiuni (L x l x h)
+                      </td>
+                      <td className='px-4 py-2'>
+                        {packaging.length} x {packaging.width} x{' '}
+                        {packaging.height} cm
+                      </td>
+                    </tr>
+                    {/* Greutate */}
+                    <tr className='bg-white dark:bg-gray-900'>
+                      <td className='px-4 py-2 font-semibold w-1/2'>
+                        Greutate
+                      </td>
+                      <td className='px-4 py-2'>{packaging.weight} kg</td>
+                    </tr>
+                    {/* Volum */}
+                    <tr className='bg-gray-50 dark:bg-gray-800'>
+                      <td className='px-4 py-2 font-semibold w-1/2'>Volum</td>
+                      <td className='px-4 py-2'>{packaging.volume} m³</td>
+                    </tr>
+                    {/* Unitate Ambalare */}
+                    <tr className='bg-white dark:bg-gray-900'>
+                      <td className='px-4 py-2 font-semibold w-1/2'>
+                        Tip Unitate
+                      </td>
+                      <td className='px-4 py-2'>
+                        {packaging.packagingUnit || '-'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </TechnicalSpecsDropdown>
               <div className='flex flex-col gap-2'>
-                <h4 className='font-bold text-gray-500'>Descriere:</h4>
-                <p className='text-base'>{packaging.description}</p>
+                {/* Istoric Vânzări - Văzut de toți */}
+                <PriceHistoryList
+                  title='Istoric Prețuri Vânzare'
+                  data={priceHistory.sales}
+                />
+
+                {/* Istoric Intrări - Doar pentru Admini */}
+                {isAdmin && (
+                  <PriceHistoryList
+                    title='Istoric Prețuri Achiziție (Admin)'
+                    data={priceHistory.purchases}
+                  />
+                )}
+              </div>
+            </div>
+            {/* 3. INFO CONVERSIE */}
+            <ProductConversionInfo units={extraData.availableUnits} />
+
+            {/* 4. PREȚURI (Matricea) */}
+            <ProductFinancials
+              prices={extraData.calculatedPrices}
+              baseCost={extraData.baseCost}
+              units={extraData.availableUnits}
+            />
+
+            {/* 5. STOCURI */}
+            <ProductStockStatus
+              stockData={extraData.stockByLocation}
+              unit={packaging.packagingUnit}
+              units={extraData.availableUnits}
+            />
+
+            <Separator />
+
+            {/* 6. DESCRIERE */}
+            {packaging.description && (
+              <div>
+                <h4 className='font-bold text-lg mb-2'>Descriere</h4>
+                <p className='text-muted-foreground leading-relaxed whitespace-pre-wrap'>
+                  {packaging.description}
+                </p>
               </div>
             )}
-
-            <Separator className='my-4' />
-
-            {/* Detalii brute */}
-            <div>
-              <h4 className='font-bold text-lg text-gray-700'>
-                Date brute ambalaj
-              </h4>
-              <div className='text-xs mt-2 space-y-1 font-mono'>
-                <p>_id: {packaging._id}</p>
-                <p>slug: {packaging.slug}</p>
-                <p>name: {packaging.name}</p>
-                <p>supplier: {String(packaging.suppliers)}</p>
-                <p>mainCategory: {String(packaging.mainCategory)}</p>
-                <p>countInStock: {packaging.countInStock}</p>
-                <p>
-                  images:
-                  {(packaging.images ?? []).map((img, i) => (
-                    <span key={i} className='block ml-4'>
-                      {img}
-                    </span>
-                  ))}
-                </p>
-
-                <p>entryPrice: {(packaging.entryPrice ?? 0).toFixed(2)}</p>
-                <p>listPrice: {(packaging.listPrice ?? 0).toFixed(2)}</p>
-                <p>directDeliveryPrice: {sale.directPrice.toFixed(2)}</p>
-                <p>fullTruckPrice: {sale.fullTruckPrice.toFixed(2)}</p>
-                <p>
-                  smallDeliveryBusinessPrice: {sale.smallBizPrice.toFixed(2)}
-                </p>
-                <p>retailPrice: {sale.retailPrice.toFixed(2)}</p>
-                <p>
-                  averagePurchasePrice:{' '}
-                  {(packaging.averagePurchasePrice ?? 0).toFixed(2)}
-                </p>
-
-                <p>packagingQuantity: {packaging.packagingQuantity}</p>
-                <p>packagingUnit: {packaging.packagingUnit}</p>
-                <p>productCode: {packaging.productCode}</p>
-                <p>isPublished: {packaging.isPublished ? 'Da' : 'Nu'}</p>
-                <p>length: {packaging.length}</p>
-                <p>width: {packaging.width}</p>
-                <p>height: {packaging.height}</p>
-                <p>volume: {packaging.volume}</p>
-                <p>weight: {packaging.weight}</p>
-                <p>
-                  createdAt: {new Date(packaging.createdAt).toLocaleString()}
-                </p>
-                <p>
-                  updatedAt: {new Date(packaging.updatedAt).toLocaleString()}
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </section>

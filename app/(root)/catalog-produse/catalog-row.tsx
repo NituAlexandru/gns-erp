@@ -28,6 +28,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { MoreHorizontal } from 'lucide-react'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
+import { Separator } from '@/components/ui/separator'
+import ProductPreviewContent from './details/product-preview-content'
+import { Badge } from '@/components/ui/badge'
 
 interface CatalogRowProps {
   item: ICatalogItem
@@ -72,38 +80,70 @@ export function CatalogRow({
         {item.productCode || '-'}
       </TableCell>
 
-      {/* IMAGINE */}
-      <TableCell className='p-0  xl:py-1 w-8 h-8 xl:w-16 xl:h-12'>
-        {item.image ? (
-          <div className='relative w-[30px] h-[30px] ml-1 lg:w-[45px] lg:h-[45px] lg:ml-3'>
-            <Image
-              src={item.image}
-              alt={item.name}
-              fill
-              className='object-contain'
-            />
-          </div>
-        ) : (
-          <span className='text-[10px] ml-1 lg:ml-3 xl:text-sm 2xl:text-xs  '>
-            -
-          </span>
-        )}
+      {/* IMAGINE - PREVIEW-UL */}
+      <TableCell className='p-0 xl:py-1 w-8 h-8 xl:w-16 xl:h-12'>
+        <HoverCard openDelay={100}>
+          <HoverCardTrigger asChild>
+            <div className='relative w-[30px] h-[30px] ml-1 lg:w-[45px] lg:h-[45px] lg:ml-3 cursor-pointer hover:opacity-80 transition-opacity'>
+              {item.image ? (
+                <Image
+                  src={item.image}
+                  alt={item.name}
+                  fill
+                  className='object-contain'
+                />
+              ) : (
+                <div className='w-full h-full flex items-center justify-center bg-muted/20 text-muted-foreground text-[10px] rounded'>
+                  -
+                </div>
+              )}
+            </div>
+          </HoverCardTrigger>
+
+          <HoverCardContent
+            side='right'
+            align='start'
+            sideOffset={100}
+            collisionPadding={40}
+            className='z-[100] w-[calc(100vw-2rem)] max-w-[1100px] p-0 border-2 border-border shadow-2xl bg-background overflow-hidden'
+          >
+            <div className='bg-muted/50 p-4 border-b flex justify-between items-center'>
+              <span className='font-bold text-xs lg:text-sm uppercase truncate mr-4'>
+                {item.name}
+              </span>
+              <Badge
+                variant='outline'
+                className='hidden sm:block font-mono text-[10px]'
+              >
+                {item.productCode}
+              </Badge>
+            </div>
+
+            <div className='p-4 lg:p-6 max-h-[85vh] overflow-y-auto bg-background'>
+              <ProductPreviewContent
+                id={item._id}
+                slug={toSlug(item.name)}
+                isAdmin={isAdmin}
+              />
+            </div>
+          </HoverCardContent>
+        </HoverCard>
       </TableCell>
 
       {/* NUME PRODUS */}
       <TableCell className='p-0 xl:py-1 max-w-[100px] lg:max-w-[180px] xl:max-w-[200px] 2xl:max-w-[250px] 3xl:max-w-[350px]'>
         <TooltipProvider>
-          <Tooltip>
+          <Tooltip delayDuration={300}>
             <TooltipTrigger asChild>
               <Link
                 href={`/catalog-produse/${item._id}/${toSlug(item.name)}`}
-                className='block truncate text-[10px] xl:text-sm 2xl:text-xshover:underline font-medium mr-3'
+                className='block truncate text-[10px] xl:text-sm 2xl:text-xs font-medium hover:underline mr-3'
               >
                 {item.name}
               </Link>
             </TooltipTrigger>
             <TooltipContent>
-              <p>{item.name}</p>
+              <p className='text-xs font-medium'>{item.name}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
