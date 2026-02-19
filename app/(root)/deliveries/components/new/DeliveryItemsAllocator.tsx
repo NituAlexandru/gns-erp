@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PlannerItem } from '@/lib/db/modules/deliveries/types'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency3 } from '@/lib/utils'
 
 interface DeliveryItemsAllocatorProps {
   itemsToAllocate: PlannerItem[]
@@ -31,10 +31,10 @@ export function DeliveryItemsAllocator({
         ...(item.packagingOptions || []),
       ]
       const allUnits = Array.from(
-        new Map(allUnitsRaw.map((u) => [u.unitName, u])).values()
+        new Map(allUnitsRaw.map((u) => [u.unitName, u])).values(),
       )
       const selectedUnitInfo = allUnits.find(
-        (u) => u.unitName === item.unitOfMeasure
+        (u) => u.unitName === item.unitOfMeasure,
       ) || { baseUnitEquivalent: 1 }
       const currentConversionFactor = selectedUnitInfo.baseUnitEquivalent
 
@@ -74,7 +74,7 @@ export function DeliveryItemsAllocator({
 
     const remainingRoundedForCheck = Math.max(
       0,
-      parseFloat(remaining.toFixed(2))
+      parseFloat(remaining.toFixed(2)),
     )
 
     if (val > remainingRoundedForCheck) {
@@ -94,12 +94,12 @@ export function DeliveryItemsAllocator({
     () =>
       itemsWithUnits.filter((item) => {
         const remainingForFilter = parseFloat(
-          item.remainingInSelectedUnit.toFixed(5)
+          item.remainingInSelectedUnit.toFixed(5),
         )
 
         return remainingForFilter !== 0 || item.quantityToAllocate > 0
       }),
-    [itemsWithUnits]
+    [itemsWithUnits],
   )
 
   return (
@@ -115,6 +115,7 @@ export function DeliveryItemsAllocator({
               <TableHead className='w-[150px] text-right'>
                 Rămas (Comandă)
               </TableHead>
+              <TableHead className='w-[120px] text-right'>Preț</TableHead>
               <TableHead className='w-[130px]'>Selectează UM</TableHead>
               <TableHead className='w-[150px] text-right'>
                 Cantitate de Alocat Acum
@@ -134,7 +135,7 @@ export function DeliveryItemsAllocator({
             ) : (
               itemsToDisplay.map((item) => {
                 const remainingRounded = parseFloat(
-                  item.remainingInSelectedUnit.toFixed(2)
+                  item.remainingInSelectedUnit.toFixed(2),
                 )
                 const isOverPlanned = remainingRounded < 0
 
@@ -147,7 +148,7 @@ export function DeliveryItemsAllocator({
                     <TableCell
                       className={cn(
                         'text-right font-medium',
-                        isOverPlanned && 'text-destructive font-bold'
+                        isOverPlanned && 'text-destructive font-bold',
                       )}
                     >
                       {remainingRounded.toFixed(2)}
@@ -159,6 +160,9 @@ export function DeliveryItemsAllocator({
                           ⚠️
                         </span>
                       )}
+                    </TableCell>
+                    <TableCell className='text-right font-bold  whitespace-nowrap'>
+                      {formatCurrency3(item.priceAtTimeOfOrder)}
                     </TableCell>
                     <TableCell className='text-center font-medium'>
                       {item.unitOfMeasure}
@@ -172,13 +176,13 @@ export function DeliveryItemsAllocator({
                         onChange={(e) =>
                           handleQuantityChange(
                             itemsToAllocate.find((i) => i.id === item.id)!,
-                            e.target.value
+                            e.target.value,
                           )
                         }
                         onBlur={() =>
                           handleQuantityBlur(
                             itemsToAllocate.find((i) => i.id === item.id)!,
-                            item.remainingInSelectedUnit
+                            item.remainingInSelectedUnit,
                           )
                         }
                       />
@@ -190,7 +194,7 @@ export function DeliveryItemsAllocator({
           </TableBody>
         </Table>
         {itemsToDisplay.some(
-          (item) => parseFloat(item.remainingInSelectedUnit.toFixed(2)) < 0
+          (item) => parseFloat(item.remainingInSelectedUnit.toFixed(2)) < 0,
         ) && (
           <p className='mt-4 text-sm text-destructive font-semibold text-center'>
             ⚠️ Există articole supra-planificate (Rămas negativ). Ajustează

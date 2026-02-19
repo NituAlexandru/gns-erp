@@ -8,6 +8,7 @@ import { ro } from 'date-fns/locale'
 import { PlannedDelivery } from '@/lib/db/modules/deliveries/types'
 import { DELIVERY_STATUS_MAP } from '@/lib/db/modules/deliveries/constants'
 import { Badge } from '@/components/ui/badge'
+import { formatCurrency3 } from '@/lib/utils'
 
 interface PlannedDeliveriesListProps {
   plannedDeliveries: PlannedDelivery[]
@@ -115,8 +116,10 @@ export function PlannedDeliveriesList({
                 {/* Cod UIT */}
                 {delivery.uitCode && (
                   <div className='text-xs'>
-                    <strong>Cod UIT:</strong>
-                    <span className='font-mono'>{delivery.uitCode}</span>
+                    <strong>Cod UIT:</strong> {''}
+                    <span className='font-mono font-bold text-primary'>
+                      {delivery.uitCode}
+                    </span>
                   </div>
                 )}
                 {/* Note Livrare  */}
@@ -126,12 +129,26 @@ export function PlannedDeliveriesList({
                   </div>
                 )}
                 {/* Lista Articole*/}
-                <ol className='list-disc pl-5 text-muted-foreground'>
-                  {' '}
+                <ol className='list-decimal pl-5 space-y-0 text-xs marker:font-medium marker:text-foreground/70'>
                   {delivery.items.map((item) => (
-                    <li key={item.id}>
-                      {item.quantityToAllocate} {item.unitOfMeasure} {'-'}
-                      {item.productName}
+                    <li key={item.id} className='pl-0'>
+                      <div className='flex flex-col gap-0'>
+                        <span className='font-semibold text-foreground leading-tight'>
+                          {item.productName}
+                        </span>
+                        <div className='flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                          <span className='bg-muted/60 border border-muted-foreground/20 px-1.5 py-0 rounded font-medium text-foreground'>
+                            {item.quantityToAllocate} {item.unitOfMeasure}
+                          </span>
+                          <span className='opacity-50'>•</span>
+                          <span>
+                            <span className='font-bold text-primary'>
+                              Preț: {formatCurrency3(item.priceAtTimeOfOrder)} /{' '}
+                              {item.unitOfMeasure}
+                            </span>{' '}
+                          </span>
+                        </div>
+                      </div>
                     </li>
                   ))}
                 </ol>

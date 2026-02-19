@@ -120,6 +120,7 @@ export function OrderForm({
               }) as OrderLineItemInput,
           ),
           deliveryType: initialOrderData.deliveryType,
+          isThirdPartyHauler: initialOrderData.isThirdPartyHauler || false,
           estimatedVehicleType: initialOrderData.estimatedVehicleType,
           estimatedTransportCount: initialOrderData.estimatedTransportCount,
           distanceInKm: initialOrderData.distanceInKm,

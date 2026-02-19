@@ -36,7 +36,7 @@ import {
 import { updateSingleDelivery } from '@/lib/db/modules/deliveries/delivery.actions'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency3 } from '@/lib/utils'
 import { format } from 'date-fns'
 import {
   Table,
@@ -150,7 +150,7 @@ export function EditDeliveryModal({
     return currentPlannerItems.filter((plannerItem) => {
       // Ascundem articolul dacă este deja în lista de sus
       const isAlreadyInDelivery = fields.some(
-        (field) => field.id === plannerItem.id
+        (field) => field.id === plannerItem.id,
       )
       if (isAlreadyInDelivery) return false
 
@@ -164,8 +164,6 @@ export function EditDeliveryModal({
     })
   }, [currentPlannerItems, fields])
 
-  // --- Mapare Cantități Originale (Snapshot) ---
-  // Avem nevoie de asta pentru a ști cât "eliberăm" în pool când edităm o cantitate
   const originalQuantitiesMap = useMemo(() => {
     const map = new Map<string, number>()
     if (deliveryToEdit?.items) {
@@ -214,7 +212,7 @@ export function EditDeliveryModal({
       try {
         const result = await updateSingleDelivery(
           deliveryToEdit.id,
-          updatedPlannedDelivery
+          updatedPlannedDelivery,
         )
         if (result.success) {
           toast.success(result.message)
@@ -237,7 +235,7 @@ export function EditDeliveryModal({
     }
 
     const originalPlannerItem = currentPlannerItems.find(
-      (p) => p.id === item.id
+      (p) => p.id === item.id,
     )
     if (!originalPlannerItem) return
 
@@ -284,13 +282,13 @@ export function EditDeliveryModal({
 
     const itemInForm = fields[index]
     const originalPlannerItem = currentPlannerItems.find(
-      (p) => p.id === itemInForm.id
+      (p) => p.id === itemInForm.id,
     )
     if (!originalPlannerItem) return
 
     const factor =
       itemInForm.packagingOptions?.find(
-        (opt) => opt.unitName === itemInForm.unitOfMeasure
+        (opt) => opt.unitName === itemInForm.unitOfMeasure,
       )?.baseUnitEquivalent || 1
 
     // 1. Cât era planificat în ACEASTĂ livrare înainte de editare? (din DB snapshot)
@@ -318,7 +316,7 @@ export function EditDeliveryModal({
       toast.warning(
         `Maxim disponibil: ${maxAllowedRounded.toFixed(2)} ${
           itemInForm.unitOfMeasure
-        }.`
+        }.`,
       )
       newQty = maxAllowedRounded
     }
@@ -331,7 +329,7 @@ export function EditDeliveryModal({
   // Funcție helper pentru afișarea limitei în tabel
   const getMaxAvailable = (item: PlannerItem) => {
     const originalPlannerItem = currentPlannerItems.find(
-      (p) => p.id === item.id
+      (p) => p.id === item.id,
     )
     if (!originalPlannerItem) return 0
 
@@ -386,7 +384,7 @@ export function EditDeliveryModal({
                             variant={'outline'}
                             className={cn(
                               'pl-3 text-left font-normal w-full',
-                              !field.value && 'text-muted-foreground'
+                              !field.value && 'text-muted-foreground',
                             )}
                           >
                             {field.value ? (
@@ -442,7 +440,7 @@ export function EditDeliveryModal({
                                   newValue = [...currentValue, slot]
                                 } else {
                                   newValue = currentValue.filter(
-                                    (value: string) => value !== slot
+                                    (value: string) => value !== slot,
                                   )
                                 }
                                 field.onChange(newValue)
@@ -501,8 +499,13 @@ export function EditDeliveryModal({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Produs</TableHead>
-                      <TableHead className='w-[150px]'>Cantitate</TableHead>
-                      <TableHead className='w-[130px]'>UM</TableHead>
+                      <TableHead className='w-[100px] text-right'>
+                        Preț
+                      </TableHead>
+                      <TableHead className='w-[150px] text-right'>
+                        Cantitate
+                      </TableHead>
+                      <TableHead className='w-[80px]'>UM</TableHead>
                       <TableHead className='w-[50px]'>Șterge</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -523,11 +526,29 @@ export function EditDeliveryModal({
                           <TableCell>
                             <div className='flex flex-col'>
                               <span>{item.productName}</span>
-                              <span className='text-xs text-muted-foreground'>
-                                Max disponibil: {maxAvailable}{' '}
-                                {item.unitOfMeasure}
-                              </span>
+                              <div className='text-xs text-muted-foreground flex items-center gap-2'>
+                                <span>Max disponibil:</span>
+                                <Button
+                                  type='button'
+                                  variant='default'
+                                  size='sm'
+                                  className='h-4 px-3 py-0 text-xs font-bold'
+                                  onClick={() =>
+                                    handleItemQtyChange(
+                                      index,
+                                      maxAvailable.toString(),
+                                    )
+                                  }
+                                  title='Click pentru a prelua cantitatea maximă'
+                                >
+                                  {maxAvailable} {item.unitOfMeasure}
+                                </Button>
+                              </div>
                             </div>
+                          </TableCell>
+
+                          <TableCell className='text-right font-medium text-muted-foreground whitespace-nowrap'>
+                            {formatCurrency3(item.priceAtTimeOfOrder)}
                           </TableCell>
                           <TableCell>
                             <FormField
@@ -549,7 +570,7 @@ export function EditDeliveryModal({
                                     'text-right',
                                     // Highlight vizual dacă depășim (deși e blocat logic)
                                     qtyField.value > maxAvailable &&
-                                      'border-destructive text-destructive'
+                                      'border-destructive text-destructive',
                                   )}
                                 />
                               )}
@@ -585,6 +606,9 @@ export function EditDeliveryModal({
                     <TableRow>
                       <TableHead>Produs</TableHead>
                       <TableHead className='w-[100px] text-right'>
+                        Preț
+                      </TableHead>
+                      <TableHead className='w-[100px] text-right'>
                         Rămas
                       </TableHead>
                       <TableHead className='w-[120px]'>
@@ -609,14 +633,14 @@ export function EditDeliveryModal({
                         item.quantityAlreadyPlanned
                       const factor =
                         item.packagingOptions?.find(
-                          (opt) => opt.unitName === item.unitOfMeasure
+                          (opt) => opt.unitName === item.unitOfMeasure,
                         )?.baseUnitEquivalent || 1
                       const remainingSelected = remainingBase / factor
                       const remainingRounded = parseFloat(
-                        remainingSelected.toFixed(2)
+                        remainingSelected.toFixed(2),
                       )
                       const handleQtyToAddChange = (
-                        e: React.ChangeEvent<HTMLInputElement>
+                        e: React.ChangeEvent<HTMLInputElement>,
                       ) => {
                         const value = parseFloat(e.target.value) || 0
                         if (value < 0) {
@@ -630,7 +654,7 @@ export function EditDeliveryModal({
                             [item.id]: remainingRounded,
                           }))
                           toast.warning(
-                            'Nu poți adăuga mai mult decât cantitatea rămasă.'
+                            'Nu poți adăuga mai mult decât cantitatea rămasă.',
                           )
                         } else {
                           setQuantitiesToAdd((prev) => ({
@@ -644,9 +668,33 @@ export function EditDeliveryModal({
 
                       return (
                         <TableRow key={item.id}>
-                          <TableCell>{item.productName}</TableCell>
+                          <TableCell>
+                            <div className='flex flex-col'>
+                              <span>{item.productName}</span>
+                              <span className='text-xs text-muted-foreground'>
+                                Click pe cantitatea rămasă pentru a o prelua.
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className='text-right font-medium text-muted-foreground whitespace-nowrap'>
+                            {formatCurrency3(item.priceAtTimeOfOrder)}
+                          </TableCell>
                           <TableCell className='text-right'>
-                            {remainingRounded.toFixed(2)} {item.unitOfMeasure}
+                            <Button
+                              type='button'
+                              variant='default'
+                              size='sm'
+                              className='h-5 px-2 py-0 text-xs font-bold'
+                              onClick={() => {
+                                setQuantitiesToAdd((prev) => ({
+                                  ...prev,
+                                  [item.id]: remainingRounded,
+                                }))
+                              }}
+                              title='Click pentru a prelua toată cantitatea'
+                            >
+                              {remainingRounded.toFixed(2)} {item.unitOfMeasure}
+                            </Button>
                           </TableCell>
                           <TableCell>
                             <Input

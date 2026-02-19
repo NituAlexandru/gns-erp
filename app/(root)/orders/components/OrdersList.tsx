@@ -165,11 +165,13 @@ export function OrdersList({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align='end'>
                           <DropdownMenuItem
+                            className='cursor-pointer'
                             onSelect={() => router.push(`/orders/${order._id}`)}
                           >
                             Vizualizează
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            className='cursor-pointer'
                             onSelect={() =>
                               router.push(`/orders/${order._id}/edit`)
                             }
@@ -178,6 +180,7 @@ export function OrdersList({
                             Modifică Comanda
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            className='cursor-pointer'
                             onSelect={() =>
                               router.push(
                                 `/deliveries/new?orderId=${order._id}`,
@@ -191,7 +194,7 @@ export function OrdersList({
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
-                            className='text-red-500'
+                            className='text-red-500 cursor-pointer'
                             onSelect={() => {
                               startTransition(async () => {
                                 const check =
