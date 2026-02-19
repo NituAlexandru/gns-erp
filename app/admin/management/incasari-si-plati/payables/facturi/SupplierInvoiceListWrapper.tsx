@@ -18,6 +18,7 @@ import { CreateSupplierInvoiceForm } from '../components/CreateSupplierInvoiceFo
 import {
   deleteSupplierInvoice,
   getSupplierInvoiceById,
+  updateSupplierInvoiceNotes,
 } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { AlertDialog } from '@radix-ui/react-alert-dialog'
@@ -30,6 +31,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
 
 interface WrapperProps {
   initialData: any
@@ -66,6 +76,37 @@ export function SupplierInvoiceListWrapper({
     null,
   )
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isNotesModalOpen, setIsNotesModalOpen] = useState(false)
+  const [notesInvoiceId, setNotesInvoiceId] = useState<string | null>(null)
+  const [notesText, setNotesText] = useState('')
+  const [isSavingNotes, setIsSavingNotes] = useState(false)
+
+  const handleOpenEditNotes = (invoiceId: string, currentNotes: string) => {
+    setNotesInvoiceId(invoiceId)
+    setNotesText(currentNotes || '')
+    setIsNotesModalOpen(true)
+  }
+
+  const handleSaveNotes = async () => {
+    if (!notesInvoiceId) return
+    setIsSavingNotes(true)
+    try {
+      const result = await updateSupplierInvoiceNotes(notesInvoiceId, notesText)
+      if (result.success) {
+        toast.success(result.message)
+        setIsNotesModalOpen(false)
+        router.refresh()
+      } else {
+        toast.error('Eroare la actualizarea mențiunilor:', {
+          description: result.message,
+        })
+      }
+    } catch (error) {
+      toast.error('A apărut o eroare neașteptată.')
+    } finally {
+      setIsSavingNotes(false)
+    }
+  }
 
   const checkStatusGuard = (invoiceId: string, action: 'edit' | 'delete') => {
     const invoice = initialData.data.find((inv: any) => inv._id === invoiceId)
@@ -162,6 +203,7 @@ export function SupplierInvoiceListWrapper({
         currentUser={currentUser}
         onEdit={handleEdit}
         onDelete={handleDeleteClick}
+        onEditNotes={handleOpenEditNotes}
       />
 
       {/* Modal Detalii Factură */}
@@ -219,7 +261,7 @@ export function SupplierInvoiceListWrapper({
                 vatRates={vatRates}
                 defaultVatRate={defaultVatRate}
                 onFormSubmit={handleEditSuccess}
-                initialData={editingInvoiceData} 
+                initialData={editingInvoiceData}
               />
             ) : (
               <p className='text-center text-muted-foreground'>
@@ -256,6 +298,37 @@ export function SupplierInvoiceListWrapper({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isNotesModalOpen} onOpenChange={setIsNotesModalOpen}>
+        <DialogContent className='sm:max-w-[425px]'>
+          <DialogHeader>
+            <DialogTitle>Modificare Mențiuni Factură</DialogTitle>
+          </DialogHeader>
+          <div className='grid gap-4 py-4'>
+            <Textarea
+              placeholder="Adaugă mențiuni interne pentru această factură (ex: 'De verificat', 'Aferent contract X')..."
+              value={notesText}
+              onChange={(e) => setNotesText(e.target.value)}
+              className='min-h-[150px]'
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant='outline'
+              onClick={() => setIsNotesModalOpen(false)}
+              disabled={isSavingNotes}
+            >
+              Renunță
+            </Button>
+            <Button onClick={handleSaveNotes} disabled={isSavingNotes}>
+              {isSavingNotes && (
+                <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              )}
+              Salvează Mențiuni
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

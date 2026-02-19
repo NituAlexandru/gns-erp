@@ -36,6 +36,7 @@ interface SupplierInvoicesTableProps {
   currentUser?: { id: string; name?: string | null }
   onEdit: (invoiceId: string) => void
   onDelete: (invoiceId: string) => void
+  onEditNotes: (invoiceId: string, currentNotes: string) => void
 }
 
 export function SupplierInvoicesTable({
@@ -45,6 +46,7 @@ export function SupplierInvoicesTable({
   currentUser,
   onEdit,
   onDelete,
+  onEditNotes,
 }: SupplierInvoicesTableProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -261,6 +263,16 @@ export function SupplierInvoicesTable({
                               className='text-red-600 focus:text-red-600 cursor-pointer'
                             >
                               Șterge Factura
+                            </DropdownMenuItem>
+                          )}
+                          {inv.eFacturaXMLId && (
+                            <DropdownMenuItem
+                              onClick={() =>
+                                onEditNotes(inv._id, inv.notes || '')
+                              }
+                              className='cursor-pointer'
+                            >
+                              Modifică Mențiuni
                             </DropdownMenuItem>
                           )}
                           {/* LOGICA NOUĂ AICI */}

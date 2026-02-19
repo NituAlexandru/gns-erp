@@ -57,6 +57,7 @@ export interface SupplierInvoiceListItem {
     name: string
   } | null
   eFacturaXMLId?: string
+  notes?: string
 }
 
 export type SupplierInvoicesPage = {
@@ -907,5 +908,34 @@ export async function getSupplierBalances(
   } catch (error) {
     console.error('Eroare getSupplierBalances:', error)
     return []
+  }
+}
+
+export async function updateSupplierInvoiceNotes(
+  invoiceId: string,
+  notes: string,
+): Promise<{ success: boolean; message: string }> {
+  await connectToDatabase()
+  try {
+    const authSession = await auth()
+    if (!authSession?.user?.id) throw new Error('Utilizator neautentificat.')
+
+    const invoice = await SupplierInvoiceModel.findById(invoiceId)
+    if (!invoice) throw new Error('Factura nu a fost găsită.')
+
+    // Actualizăm exclusiv câmpul de notițe
+    invoice.notes = notes
+    await invoice.save()
+
+    revalidatePath('/admin/management/incasari-si-plati/payables/facturi')
+    revalidatePath(`/financial/invoices/${invoiceId}`)
+
+    return {
+      success: true,
+      message: 'Mențiunile au fost actualizate cu succes.',
+    }
+  } catch (error) {
+    console.error('❌ Eroare updateSupplierInvoiceNotes:', error)
+    return { success: false, message: (error as Error).message }
   }
 }
