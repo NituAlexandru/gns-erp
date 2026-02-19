@@ -141,7 +141,7 @@ export function OrderItemsManager({
           return calculateMinimumPrice(item.productId, deliveryMethod).then(
             (newMinPrice) => ({
               index,
-              newMinPrice: Number(newMinPrice.toFixed(2)),
+              newMinPrice: Number(newMinPrice.toFixed(3)),
             }),
           )
         }
@@ -210,7 +210,7 @@ export function OrderItemsManager({
         item._id,
         deliveryMethod,
       )
-      const minPrice = Number(unformattedMinPrice.toFixed(2))
+      const minPrice = Number(unformattedMinPrice.toFixed(3))
 
       const defaultVat = vatRates.find((v) => v.isDefault) || vatRates[0]
       if (!defaultVat) {

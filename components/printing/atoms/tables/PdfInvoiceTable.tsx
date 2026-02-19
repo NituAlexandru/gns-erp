@@ -141,11 +141,11 @@ interface Props {
 
 export const PdfInvoiceTable: React.FC<Props> = ({ items, totals }) => {
   // Formatare numere (stil RO)
-  const fmt = (n?: number) => {
+  const fmt = (n?: number, decimals: number = 2) => {
     if (n === undefined || n === null) return '0.00'
     return n.toLocaleString('ro-RO', {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      maximumFractionDigits: decimals,
     })
   }
 
@@ -378,7 +378,7 @@ export const PdfInvoiceTable: React.FC<Props> = ({ items, totals }) => {
                 { width: COL_WIDTHS.price },
               ]}
             >
-              {fmt(item.price)}
+              {fmt(item.price, 3)}
             </Text>
 
             {/* 5. Valoare (Net) */}

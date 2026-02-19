@@ -48,6 +48,16 @@ export function formatCurrency(amount: number) {
   return CURRENCY_FORMATTER.format(amount)
 }
 
+const CURRENCY_FORMATTER_3_DECIMALS = new Intl.NumberFormat('ro-RO', {
+  currency: 'RON',
+  style: 'currency',
+  maximumFractionDigits: 3,
+})
+
+export function formatCurrency3(amount: number) {
+  return CURRENCY_FORMATTER_3_DECIMALS.format(amount)
+}
+
 export function formatDecimal(value: number, decimals: number = 2): string {
   if (typeof value !== 'number') {
     return ''

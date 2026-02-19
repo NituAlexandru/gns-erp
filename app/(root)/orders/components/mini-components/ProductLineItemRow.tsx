@@ -15,7 +15,7 @@ import {
 import { LockKeyhole, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUnitConversion } from '@/hooks/use-unit-conversion'
-import { formatCurrency, toSlug } from '@/lib/utils'
+import { formatCurrency, formatCurrency3, toSlug } from '@/lib/utils'
 import { OrderLineItemRowProps } from './OrderLineItemRow'
 import { OrderLineItemInput } from '@/lib/db/modules/order/types'
 import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
@@ -126,7 +126,7 @@ export function ProductLineItemRow({
       const nextFactor = conversionFactor || 1
 
       const newConvertedPrice = priceInBaseUnit * nextFactor
-      const finalPrice = Number(newConvertedPrice.toFixed(2))
+      const finalPrice = Number(newConvertedPrice.toFixed(3))
 
       // Aplicăm noul preț
       setValue(path, finalPrice, { shouldDirty: true })
@@ -144,7 +144,7 @@ export function ProductLineItemRow({
     if (!convertedPrice || convertedPrice <= 0) return
     const path = `lineItems.${index}.priceAtTimeOfOrder` as const
     const currentPrice = Number(getValues(path) ?? 0)
-    const formattedMinPrice = Number(convertedPrice.toFixed(2))
+    const formattedMinPrice = Number(convertedPrice.toFixed(3))
 
     if (!isAdmin && currentPrice < formattedMinPrice - 0.01) {
       setValue(path, formattedMinPrice, { shouldDirty: true })
@@ -367,20 +367,20 @@ export function ProductLineItemRow({
                 <p className='absolute bottom-8 left-0 right-0 mb-1 text-center text-xs text-muted-foreground'>
                   Pret Minim:{' '}
                   <span className='font-bold text-primary'>
-                    {formatCurrency(convertedPrice)}
+                    {formatCurrency3(convertedPrice)}
                   </span>
                 </p>
               )}
               <Input
                 {...field}
                 type='number'
-                step='0.01'
+                step='0.001'
                 onChange={(e) =>
                   field.onChange(parseFloat(e.target.value) || 0)
                 }
                 onBlur={(e) => {
                   let numValue = parseFloat(e.target.value)
-                  const formattedMinPrice = Number(convertedPrice.toFixed(2))
+                  const formattedMinPrice = Number(convertedPrice.toFixed(3))
 
                   if (!isNaN(numValue)) {
                     if (numValue < formattedMinPrice) {
@@ -395,7 +395,7 @@ export function ProductLineItemRow({
                         )
                       }
                     }
-                    field.onChange(numValue.toFixed(2))
+                    field.onChange(numValue.toFixed(3))
                   } else {
                     field.onChange(formattedMinPrice)
                   }

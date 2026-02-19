@@ -9,7 +9,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Hash, ShoppingCart } from 'lucide-react'
-import { formatCurrency, cn } from '@/lib/utils'
+import { formatCurrency, cn, formatCurrency3 } from '@/lib/utils'
 import { getSmartDescription } from './InvoiceDetails.helpers'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 import {
@@ -26,7 +26,7 @@ import {
 interface InvoiceItemsTableProps {
   items: PopulatedInvoice['items']
   currentUserRole: string
-  isPreview?: boolean // <--- PROP NOU
+  isPreview?: boolean
 }
 
 export function InvoiceItemsTable({
@@ -183,7 +183,7 @@ export function InvoiceItemsTable({
                     {item.unitOfMeasure}
                   </TableCell>
                   <TableCell className={cn('text-right', textSizeClass)}>
-                    {formatCurrency(item.unitPrice)}
+                    {formatCurrency3(item.unitPrice)}
                   </TableCell>
                   <TableCell
                     className={cn('text-right font-medium', textSizeClass)}

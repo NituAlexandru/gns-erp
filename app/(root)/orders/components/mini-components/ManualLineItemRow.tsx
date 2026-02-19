@@ -28,8 +28,8 @@ export function ManualLineItemRow({
   remove,
   itemData,
 }: ManualLineItemRowProps) {
-  const { control, setValue } = useFormContext() 
-  
+  const { control, setValue } = useFormContext()
+
   const {
     priceAtTimeOfOrder = 0,
     quantity = 0,
@@ -40,7 +40,7 @@ export function ManualLineItemRow({
     const vatRate = vatRateDetails?.rate || 0
     const lineSubtotal = priceAtTimeOfOrder * quantity
     const calculatedVatValue = Number(
-      ((vatRate / 100) * lineSubtotal).toFixed(2)
+      ((vatRate / 100) * lineSubtotal).toFixed(2),
     )
 
     if (vatRateDetails?.value !== calculatedVatValue) {
@@ -127,12 +127,12 @@ export function ManualLineItemRow({
             <Input
               {...field}
               type='number'
-              step='0.01'
+              step='0.001'
               onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
               onBlur={(e) => {
                 const numValue = parseFloat(e.target.value)
                 if (!isNaN(numValue)) {
-                  field.onChange(numValue.toFixed(2))
+                  field.onChange(numValue.toFixed(3))
                 }
               }}
               className='w-full min-w-[100px]'
