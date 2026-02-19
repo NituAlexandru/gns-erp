@@ -2,41 +2,43 @@ import { PopulatedInvoice } from '@/lib/db/modules/financial/invoices/invoice.ty
 import { cn } from '@/lib/utils'
 import { LucideIcon } from 'lucide-react'
 
-// --- TYPE DEFINITIONS ---
 export type InvoiceItem = PopulatedInvoice['items'][number]
 
-// --- LOGIC: Smart Description ---
-export function getSmartDescription(item: InvoiceItem): string | null {
+export function getSmartDescription(
+  item: InvoiceItem,
+): { val: number; unit: string }[] | null {
   if (!item.packagingOptions || item.packagingOptions.length === 0) return null
 
   const currentUom = item.unitOfMeasure.toLowerCase()
-  const currentOption = item.packagingOptions.find(
-    (opt) => opt.unitName.toLowerCase() === currentUom
+  const selectedOption = item.packagingOptions.find(
+    (opt) => opt.unitName.toLowerCase() === currentUom,
   )
+  const currentFactor = selectedOption ? selectedOption.baseUnitEquivalent : 1
 
-  if (!currentOption) return null
+  const baseQty = item.quantity * currentFactor
+  const baseUnit = (item.baseUnit || 'bucata').toLowerCase()
+  const equivalents: { val: number; unit: string }[] = []
 
-  const candidates = item.packagingOptions
-    .filter((opt) => opt.baseUnitEquivalent < currentOption.baseUnitEquivalent)
-    .sort((a, b) => b.baseUnitEquivalent - a.baseUnitEquivalent)
-
-  if (candidates.length === 0 && currentOption.baseUnitEquivalent <= 1)
-    return null
-
-  let targetUnitName = item.baseUnit
-  let ratio = currentOption.baseUnitEquivalent
-
-  if (candidates.length > 0) {
-    const bestSubUnit = candidates[0]
-    targetUnitName = bestSubUnit.unitName
-    ratio = currentOption.baseUnitEquivalent / bestSubUnit.baseUnitEquivalent
+  if (baseUnit !== currentUom) {
+    equivalents.push({ val: Number(baseQty.toFixed(3)), unit: baseUnit })
   }
 
-  if (ratio > 1) {
-    const formattedRatio = Number(ratio.toFixed(2))
-    return `Produs vândut la ${currentOption.unitName} (1 ${currentOption.unitName} = ${formattedRatio} ${targetUnitName})`
-  }
-  return null
+  item.packagingOptions.forEach((opt) => {
+    const optUnit = opt.unitName.toLowerCase()
+
+    if (
+      optUnit !== currentUom &&
+      optUnit !== baseUnit &&
+      opt.baseUnitEquivalent > 0
+    ) {
+      const qtyInThisOpt = baseQty / opt.baseUnitEquivalent
+      equivalents.push({ val: Number(qtyInThisOpt.toFixed(3)), unit: optUnit })
+    }
+  })
+
+  if (equivalents.length === 0) return null
+
+  return equivalents
 }
 
 // --- LOGIC: Tax Breakdown ---

@@ -195,7 +195,7 @@ const DeliveryNoteFooter = ({ data }: { data: PdfDocumentData }) => {
 
 export const DeliveryNoteTemplate: React.FC<Props> = ({ data }) => {
   // 1. Verificăm dacă sunt mai mult de 6 produse
-  const isLargeList = data.items.length > 6
+  const isLargeList = data.items.length > 5
 
   // Funcția de randare a conținutului
   const renderExemplar = (useFullPage: boolean, isLastInPage: boolean) => (

@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Hash, ShoppingCart } from 'lucide-react'
+import { Hash, Package, ShoppingCart } from 'lucide-react'
 import { formatCurrency, cn, formatCurrency3 } from '@/lib/utils'
 import { getSmartDescription } from './InvoiceDetails.helpers'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
@@ -149,8 +149,7 @@ export function InvoiceItemsTable({
                       </Tooltip>
                     </TooltipProvider>
 
-                    {/* Restul conținutului (Cod, SmartDesc) rămâne neschimbat */}
-                    <div className='flex gap-2 items-center'>
+                    <div className='flex flex-row gap-5 mt-0'>
                       {item.productCode && item.productCode !== 'N/A' && (
                         <div
                           className={cn(
@@ -158,20 +157,50 @@ export function InvoiceItemsTable({
                             textSizeClass,
                           )}
                         >
-                          <Hash className={cn(iconSize)} /> {item.productCode}
+                          <Hash
+                            className={cn(
+                              isPreview ? 'h-2.5 w-2.5' : 'h-3 w-3',
+                            )}
+                          />{' '}
+                          {item.productCode}
                         </div>
                       )}
-                      {smartDesc && (
-                        <span className='text-muted-foreground'>-</span>
-                      )}
-                      {smartDesc && (
-                        <div
-                          className={cn(
-                            'text-muted-foreground font-medium',
-                            isPreview ? 'text-xs' : 'text-[11px]',
-                          )}
-                        >
-                          {smartDesc}
+
+                      {/* --- ZONA NOUĂ: Design Badge-uri --- */}
+                      {smartDesc && smartDesc.length > 0 && (
+                        <div className='flex flex-wrap items-center gap-2 m-0'>
+                          <Package
+                            className={cn(
+                              'text-primary',
+                              isPreview ? 'h-4 w-4' : 'h-4 w-4',
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              'text-muted-foreground/80 font-semibold tracking-wide',
+                              isPreview ? 'text-xs' : 'text-xs',
+                            )}
+                          >
+                            Mod ambalare:
+                          </span>
+                          {smartDesc.map((eq, idx) => (
+                            <div
+                              key={idx}
+                              className={cn(
+                                'flex items-center gap-0 rounded border border-muted-foreground/20 bg-muted/20 text-muted-foreground whitespace-nowrap',
+                                isPreview
+                                  ? 'px-1 py-0 text-xs'
+                                  : 'px-2 py-0.5 text-xs',
+                              )}
+                            >
+                              <span>
+                                <strong className='text-foreground/90 font-bold'>
+                                  {eq.val}
+                                </strong>{' '}
+                                {eq.unit}
+                              </span>
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>

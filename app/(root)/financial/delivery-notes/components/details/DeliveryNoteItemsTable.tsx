@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Box, Hash } from 'lucide-react'
+import { Box, Hash, Package } from 'lucide-react'
 import { getSmartDescription } from './DeliveryNoteDetails.helpers'
 import { Barcode } from '@/components/barcode/barcode-image'
 import { cn, formatCurrency } from '@/lib/utils'
@@ -192,14 +192,42 @@ export function DeliveryNoteItemsTable({
                     <div className={cn('font-medium', textSizeClass)}>
                       {item.productName}
                     </div>
-                    {smartDesc && (
-                      <div
-                        className={cn(
-                          'text-muted-foreground font-medium',
-                          isPreview ? 'text-[10px]' : 'text-[11px]',
-                        )}
-                      >
-                        {smartDesc}
+
+                    {/* Afisare Badge-uri cu date deja structurate din getSmartDescription */}
+                    {smartDesc && smartDesc.length > 0 && (
+                      <div className='flex flex-wrap items-center gap-1 m-0'>
+                        <Package
+                          className={cn(
+                            'text-primary',
+                            isPreview ? 'h-4 w-4' : 'h-4 w-4',
+                          )}
+                        />{' '}
+                        <span
+                          className={cn(
+                            'text-muted-foreground/80 font-semibold tracking-wide',
+                            isPreview ? 'text-xs' : 'text-xs',
+                          )}
+                        >
+                          Mod ambalare:
+                        </span>
+                        {smartDesc.map((eq, idx) => (
+                          <div
+                            key={idx}
+                            className={cn(
+                              'flex items-center gap-0 rounded border border-muted-foreground/20 bg-muted/20 text-muted-foreground whitespace-nowrap',
+                              isPreview
+                                ? 'px-1 py-0 text-xs'
+                                : 'px-2 py-0.5 text-xs',
+                            )}
+                          >
+                            <span>
+                              <strong className='text-foreground/90 font-bold'>
+                                {eq.val}
+                              </strong>{' '}
+                              {eq.unit}
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </TableCell>

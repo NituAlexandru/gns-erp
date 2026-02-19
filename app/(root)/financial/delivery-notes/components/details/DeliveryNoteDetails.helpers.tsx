@@ -3,38 +3,41 @@ import { cn } from '@/lib/utils'
 import { LucideIcon } from 'lucide-react'
 import React from 'react'
 
-// --- LOGIC: Smart Description (Refolosită) ---
-export function getSmartDescription(item: DeliveryNoteLineDTO): string | null {
-  if (!item.packagingOptions || item.packagingOptions.length === 0) return null
+export function getSmartDescription(
+  item: DeliveryNoteLineDTO,
+): { val: number; unit: string }[] | null {
+  const baseQty =
+    item.quantityInBaseUnit ?? item.quantity * (item.conversionFactor || 1)
+  const baseUnit = (item.baseUnit || 'bucata').toLowerCase()
+  const selectedUnit = item.unitOfMeasure.toLowerCase()
 
-  const currentUom = item.unitOfMeasure.toLowerCase()
-  const currentOption = item.packagingOptions.find(
-    (opt) => opt.unitName.toLowerCase() === currentUom
-  )
+  const equivalents: { val: number; unit: string }[] = []
 
-  if (!currentOption) return null
-
-  const candidates = item.packagingOptions
-    .filter((opt) => opt.baseUnitEquivalent < currentOption.baseUnitEquivalent)
-    .sort((a, b) => b.baseUnitEquivalent - a.baseUnitEquivalent)
-
-  if (candidates.length === 0 && currentOption.baseUnitEquivalent <= 1)
-    return null
-
-  let targetUnitName = item.baseUnit
-  let ratio = currentOption.baseUnitEquivalent
-
-  if (candidates.length > 0) {
-    const bestSubUnit = candidates[0]
-    targetUnitName = bestSubUnit.unitName
-    ratio = currentOption.baseUnitEquivalent / bestSubUnit.baseUnitEquivalent
+  if (baseUnit !== selectedUnit) {
+    equivalents.push({ val: Number(baseQty.toFixed(3)), unit: baseUnit })
   }
 
-  if (ratio > 1) {
-    const formattedRatio = Number(ratio.toFixed(2))
-    return `Produs livrat la ${currentOption.unitName} (1 ${currentOption.unitName} = ${formattedRatio} ${targetUnitName})`
+  if (item.packagingOptions && item.packagingOptions.length > 0) {
+    item.packagingOptions.forEach((opt) => {
+      const optUnit = opt.unitName.toLowerCase()
+
+      if (
+        optUnit !== selectedUnit &&
+        optUnit !== baseUnit &&
+        opt.baseUnitEquivalent > 0
+      ) {
+        const qtyInThisOpt = baseQty / opt.baseUnitEquivalent
+        equivalents.push({
+          val: Number(qtyInThisOpt.toFixed(3)),
+          unit: optUnit,
+        })
+      }
+    })
   }
-  return null
+
+  if (equivalents.length === 0) return null
+
+  return equivalents
 }
 
 // --- UI COMPONENTS ---

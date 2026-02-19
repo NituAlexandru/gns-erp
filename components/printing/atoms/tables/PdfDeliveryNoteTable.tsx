@@ -52,7 +52,12 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     marginTop: 0,
   },
-  codeText: { fontSize: 6, color: '#64748b', marginTop: 1 },
+  productNameText: {
+    fontSize: 10,
+    color: PDF_COLORS.text,
+    fontWeight: 'bold',
+  },
+  codeText: { fontSize: 7.5, color: '#64748b', marginTop: 1 },
   smartDescText: {
     fontSize: 6,
     color: '#0369a1',
@@ -133,10 +138,7 @@ export const PdfDeliveryNoteTable: React.FC<Props> = ({ items }) => {
           </View>
 
           <View style={styles.colName}>
-            {/* Denumire Produs */}
-            <Text style={[styles.cellText, { fontWeight: 'bold' }]}>
-              {item.name}
-            </Text>
+            <Text style={styles.productNameText}>{item.name}</Text>
 
             {/* Linie Metadate: Cod + Descriere Smart */}
             <View style={styles.metaRow}>
