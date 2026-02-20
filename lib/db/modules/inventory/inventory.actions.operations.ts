@@ -20,6 +20,7 @@ import { auth } from '@/auth'
 import PackagingModel from '../packaging-products/packaging.model'
 import ERPProductModel from '../product/product.model'
 import SupplierModel from '../suppliers/supplier.model'
+import ReceptionModel from '../reception/reception.model'
 /**
  * Transferă o cantitate dintr-un lot specific dintr-o locație în alta.
  * Operațiunea este atomică (folosește tranzacție).
@@ -42,7 +43,7 @@ export async function transferStock(input: TransferStockInput) {
 
     // 1. Găsim documentul sursă (InventoryItem)
     const sourceItem = await InventoryItemModel.findById(
-      payload.sourceInventoryItemId
+      payload.sourceInventoryItemId,
     )
       .populate('stockableItem')
       .session(session)
@@ -59,7 +60,7 @@ export async function transferStock(input: TransferStockInput) {
       '-'
     // 2. Găsim lotul specific în array-ul sursă
     const batchIndex = sourceItem.batches.findIndex(
-      (b: any) => b._id.toString() === payload.batchId
+      (b: any) => b._id.toString() === payload.batchId,
     )
 
     if (batchIndex === -1) {
@@ -71,9 +72,76 @@ export async function transferStock(input: TransferStockInput) {
     // 3. Verificăm disponibilitatea
     if (targetBatch.quantity < payload.quantity) {
       throw new Error(
-        `Cantitate insuficientă în lot. Disponibil: ${targetBatch.quantity}, Solicitat: ${payload.quantity}`
+        `Cantitate insuficientă în lot. Disponibil: ${targetBatch.quantity}, Solicitat: ${payload.quantity}`,
       )
     }
+
+    // =========================================================================
+    // 🟢 START LOGICĂ NOUĂ: GESTIONAREA AVIZELOR MULTIPLE PENTRU RECEPȚIA ORIGINALĂ
+    // =========================================================================
+    if (
+      payload.deliveries &&
+      payload.deliveries.length > 0 &&
+      targetBatch.receptionRef
+    ) {
+      const reception = await ReceptionModel.findById(
+        targetBatch.receptionRef,
+      ).session(session)
+
+      if (reception) {
+        // 1. Extragem numerele de aviz deja existente în recepție
+        const existingDispatchNumbers = reception.deliveries.map(
+          (d) => d.dispatchNoteNumber,
+        )
+
+        // 2. Găsim care din avizele trimise acum sunt duplicate
+        const duplicateDeliveries = payload.deliveries.filter((d) =>
+          existingDispatchNumbers.includes(d.dispatchNoteNumber),
+        )
+
+        // 3. Dacă avem MĂCAR UN duplicat și user-ul nu a forțat salvarea -> Trimitem Alerta
+        if (
+          duplicateDeliveries.length > 0 &&
+          !payload.forceBypassDuplicateAviz
+        ) {
+          await session.abortTransaction()
+          session.endSession()
+
+          const dupNumbers = duplicateDeliveries
+            .map((d) => d.dispatchNoteNumber)
+            .join(', ')
+          return {
+            success: false,
+            requireConfirmation: true,
+            message: `Avizele următoare sunt deja adăugate la recepția inițială: ${dupNumbers}. Ești sigur că dorești să transferi stocul fără a le duplica?`,
+          }
+        }
+
+        // 4. Filtrăm doar avizele NOI (care NU sunt duplicate) pentru a le adăuga efectiv
+        const newDeliveriesToAdd = payload.deliveries.filter(
+          (d) => !existingDispatchNumbers.includes(d.dispatchNoteNumber),
+        )
+
+        // 5. Adăugăm în recepție TOATE avizele noi
+        if (newDeliveriesToAdd.length > 0) {
+          for (const delivery of newDeliveriesToAdd) {
+            reception.deliveries.push({
+              ...delivery,
+              tertiaryTransporterDetails: delivery.tertiaryTransporterDetails
+                ? {
+                    ...delivery.tertiaryTransporterDetails,
+                    name: delivery.tertiaryTransporterDetails.name || '',
+                  }
+                : undefined,
+            } as any)
+          }
+          await reception.save({ session })
+        }
+      }
+    }
+    // =========================================================================
+    // 🔴 FINAL LOGICĂ NOUĂ
+    // =========================================================================
 
     // --- OPERAȚIUNEA DE IEȘIRE (SURSA) ---
 
@@ -110,7 +178,7 @@ export async function transferStock(input: TransferStockInput) {
             notes: `Transferat integral către ${payload.targetLocation}`,
           },
         ],
-        { session }
+        { session },
       )
       // Ștergem din array
       sourceItem.batches.splice(batchIndex, 1)
@@ -148,7 +216,7 @@ export async function transferStock(input: TransferStockInput) {
           timestamp: new Date(),
         },
       ],
-      { session }
+      { session },
     )
 
     // --- OPERAȚIUNEA DE INTRARE (DESTINAȚIA) ---
@@ -221,7 +289,7 @@ export async function transferStock(input: TransferStockInput) {
           timestamp: new Date(),
         },
       ],
-      { session }
+      { session },
     )
 
     await session.commitTransaction()
@@ -261,7 +329,7 @@ export async function adjustStock(input: AdjustStockInput) {
 
     // 1. Găsim InventoryItem
     const inventoryItem = await InventoryItemModel.findById(
-      payload.inventoryItemId
+      payload.inventoryItemId,
     )
       .populate('stockableItem')
       .session(session)
@@ -310,12 +378,12 @@ export async function adjustStock(input: AdjustStockInput) {
     if (isOut) {
       if (!payload.batchId) {
         throw new Error(
-          'Pentru scădere stoc, selectarea lotului este obligatorie.'
+          'Pentru scădere stoc, selectarea lotului este obligatorie.',
         )
       }
 
       const batchIndex = inventoryItem.batches.findIndex(
-        (b: any) => b._id.toString() === payload.batchId
+        (b: any) => b._id.toString() === payload.batchId,
       )
 
       if (batchIndex === -1)
@@ -325,7 +393,7 @@ export async function adjustStock(input: AdjustStockInput) {
 
       if (targetBatch.quantity < payload.quantity) {
         throw new Error(
-          `Stoc insuficient pe lotul selectat (Disponibil: ${targetBatch.quantity}).`
+          `Stoc insuficient pe lotul selectat (Disponibil: ${targetBatch.quantity}).`,
         )
       }
 
@@ -359,7 +427,7 @@ export async function adjustStock(input: AdjustStockInput) {
               notes: `Ajustare stoc: ${payload.adjustmentType} - ${payload.reason}`,
             },
           ],
-          { session }
+          { session },
         )
         inventoryItem.batches.splice(batchIndex, 1)
       } else {
@@ -379,7 +447,7 @@ export async function adjustStock(input: AdjustStockInput) {
       // Încercăm să găsim un lot compatibil pentru MERGE
       if (payload.batchId) {
         const batchIndex = inventoryItem.batches.findIndex(
-          (b: any) => b._id.toString() === payload.batchId
+          (b: any) => b._id.toString() === payload.batchId,
         )
 
         if (batchIndex !== -1) {
@@ -497,7 +565,7 @@ export async function addInitialStock(input: AddInitialStockInput) {
 
     if (payload.stockableItemType === 'ERPProduct') {
       productDoc = await ERPProductModel.findById(
-        payload.stockableItemId
+        payload.stockableItemId,
       ).session(session)
       if (productDoc) {
         itemName = productDoc.name
@@ -505,7 +573,7 @@ export async function addInitialStock(input: AddInitialStockInput) {
       }
     } else {
       productDoc = await PackagingModel.findById(
-        payload.stockableItemId
+        payload.stockableItemId,
       ).session(session)
       if (productDoc) {
         itemName = productDoc.name
@@ -525,7 +593,7 @@ export async function addInitialStock(input: AddInitialStockInput) {
     let supplierNameSnapshot = undefined
     if (payload.supplierId) {
       const supplier = await SupplierModel.findById(payload.supplierId).session(
-        session
+        session,
       )
       if (supplier) {
         supplierNameSnapshot = supplier.name

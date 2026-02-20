@@ -9,6 +9,7 @@ import {
 import { UnitDisplay } from '@/components/inventory/unit-display'
 import { BatchListTable } from '@/components/inventory/batch-list-table'
 import { BackButton } from './back-button'
+import { getVatRates } from '@/lib/db/modules/setting/vat-rate/vatRate.actions'
 
 export default async function ProductStockDetailsPage({
   params,
@@ -16,7 +17,10 @@ export default async function ProductStockDetailsPage({
   params: Promise<{ productId: string }>
 }) {
   const { productId } = await params
-  const productDetails = await getProductStockDetails(productId)
+  const [productDetails, vatRates] = await Promise.all([
+    getProductStockDetails(productId),
+    getVatRates(),
+  ])
 
   if (!productDetails) {
     return (
@@ -36,7 +40,7 @@ export default async function ProductStockDetailsPage({
   const totalStockAcrossLocations = productDetails.locations.reduce(
     (acc, loc) =>
       acc + loc.batches.reduce((sum, batch) => sum + batch.quantity, 0),
-    0
+    0,
   )
 
   const baseUnit = productDetails.unit || productDetails.packagingUnit || 'buc'
@@ -65,6 +69,7 @@ export default async function ProductStockDetailsPage({
         locations={productDetails.locations}
         packagingOptions={productDetails.packagingOptions}
         stockableItemName={productDetails.name}
+        vatRates={vatRates.data || []}
       />
     </div>
   )

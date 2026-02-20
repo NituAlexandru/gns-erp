@@ -12,6 +12,7 @@ import {
   Info,
 } from 'lucide-react'
 import type { PopulatedReception } from '@/lib/db/modules/reception/types'
+import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
 
 // --- HELPER FORMAT MONETAR ---
 const formatMoney = (amount: number | undefined | null, currency = 'RON') => {
@@ -105,11 +106,14 @@ export function ReceptionPreviewCard({
             <span className='flex items-center gap-1'>
               <Building className='h-3 w-3' /> CUI: {supplierCui}
             </span>
-            <span className='flex items-center gap-1'>
+            <span className='flex items-center gap-1 text-primary font-bold'>
               <MapPin className='h-3 w-3' />
               {reception.destinationType === 'PROIECT'
                 ? 'Proiect'
-                : 'Depozit'}: {reception.destinationLocation}
+                : 'Locatie'}:{' '}
+              {LOCATION_NAMES_MAP[
+                reception.destinationLocation as keyof typeof LOCATION_NAMES_MAP
+              ] || reception.destinationLocation}
             </span>
           </div>
         </div>

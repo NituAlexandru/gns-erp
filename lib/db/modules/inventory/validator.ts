@@ -75,6 +75,33 @@ export const adjustStockSchema = z.object({
   reason: z.string().min(3, 'Motivul/Nota este obligatorie pentru ajustări'),
 })
 
+export const TertiaryTransporterSchema = z.object({
+  name: z.string().optional(),
+  cui: z.string().optional(),
+  regCom: z.string().optional(),
+  address: z.string().optional(),
+})
+export const DeliverySchema = z.object({
+  dispatchNoteSeries: z.string().optional(),
+  dispatchNoteNumber: z.string().min(1, 'Numărul avizului este obligatoriu.'),
+  dispatchNoteDate: z.coerce.date({
+    required_error: 'Data avizului este obligatorie.',
+  }),
+  driverName: z.string().optional(),
+  carNumber: z.string().optional(),
+  notes: z.string().optional(),
+  transportType: z.enum(['INTERN', 'EXTERN_FURNIZOR', 'TERT'], {
+    required_error: 'Tipul transportului este obligatoriu.',
+  }),
+  transportCost: z
+    .number()
+    .nonnegative('Costul trebuie să fie un număr pozitiv.'),
+  transportVatRate: z.coerce.number().nonnegative().default(0),
+  transportVatValue: z.number().optional(),
+  tertiaryTransporterDetails: TertiaryTransporterSchema.optional(),
+  isInternal: z.boolean().default(false).optional(),
+})
+
 // Folosită când gestionarul apasă "Transferă" pe un lot
 export const transferStockSchema = z.object({
   sourceInventoryItemId: z.string().min(1, 'Sursa este necesară'),
@@ -83,6 +110,9 @@ export const transferStockSchema = z.object({
     errorMap: () => ({ message: 'Locația de destinație este invalidă' }),
   }),
   quantity: z.coerce.number().positive('Cantitatea trebuie să fie pozitivă'),
+  deliveries: z.array(DeliverySchema).optional(),
+  deliveryDetails: DeliverySchema.optional(),
+  forceBypassDuplicateAviz: z.boolean().optional(),
 })
 
 export const addInitialStockSchema = z.object({

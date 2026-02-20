@@ -1,12 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  MoreHorizontal,
-  Pencil,
-  ArrowRightLeft,
-  Scale,
-} from 'lucide-react'
+import { MoreHorizontal, Pencil, ArrowRightLeft, Scale } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,6 +14,8 @@ import { PopulatedBatch } from '@/lib/db/modules/inventory/types'
 import { AdjustStockDialog } from './adjust-stock-dialog'
 import { TransferStockDialog } from './transfer-stock-dialog'
 import { BatchEditDialog } from '@/components/inventory/batch-edit-dialog'
+import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
+import { IInvoice } from '@/lib/db/modules/reception/reception.model'
 
 interface BatchActionsMenuProps {
   inventoryItemId: string
@@ -26,6 +23,8 @@ interface BatchActionsMenuProps {
   stockableItemName: string
   unit: string
   locationName: string
+  vatRates: VatRateDTO[]
+  invoices?: IInvoice[]
 }
 
 export function BatchActionsMenu({
@@ -34,6 +33,8 @@ export function BatchActionsMenu({
   stockableItemName,
   unit,
   locationName,
+  vatRates,
+  invoices,
 }: BatchActionsMenuProps) {
   const [showAdjustDialog, setShowAdjustDialog] = useState(false)
   const [showTransferDialog, setShowTransferDialog] = useState(false)
@@ -105,12 +106,14 @@ export function BatchActionsMenu({
           currentQuantity={batch.quantity}
           stockableItemName={stockableItemName}
           unit={unit}
+          vatRates={vatRates}
+          invoices={invoices}
         />
       )}
 
       {showEditDialog && (
         <BatchEditDialog
-          batch={batch} 
+          batch={batch}
           inventoryItemId={inventoryItemId}
           open={showEditDialog}
           onOpenChange={setShowEditDialog}

@@ -150,6 +150,7 @@ export interface PopulatedBatch
     _id: string
     name: string
   } | null
+  invoices?: IInvoice[]
 }
 
 export interface StockLocationEntry {

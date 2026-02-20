@@ -27,6 +27,7 @@ import { BatchEditDialog } from './batch-edit-dialog'
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '../ui/hover-card'
 import { BatchActionsMenu } from '@/app/admin/management/inventory/stock/batch-actions-menu'
 import Link from 'next/link'
+import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 
 type Locations = ProductStockDetails['locations']
 type PackagingOptions = ProductStockDetails['packagingOptions']
@@ -36,6 +37,7 @@ interface BatchListTableProps {
   locations: Locations
   packagingOptions: PackagingOptions
   stockableItemName: string
+  vatRates: VatRateDTO[]
 }
 
 export function BatchListTable({
@@ -43,6 +45,7 @@ export function BatchListTable({
   locations,
   packagingOptions,
   stockableItemName,
+  vatRates,
 }: BatchListTableProps) {
   const allUnits = [
     { unitName: baseUnit, baseUnitEquivalent: 1 },
@@ -90,6 +93,7 @@ export function BatchListTable({
                 <TableHead>Ref. Intrare</TableHead>
                 <TableHead>Locație</TableHead>
                 <TableHead>Furnizor</TableHead>
+                <TableHead>Facturi</TableHead>
                 <TableHead className='text-right'>Cantitate</TableHead>
                 <TableHead className='text-right'>{`Cost Unitar (pe ${selectedUnit})`}</TableHead>
                 <TableHead>Data Intrării</TableHead>
@@ -118,14 +122,16 @@ export function BatchListTable({
                         (q.testReports && q.testReports.length > 0) ||
                         (q.additionalNotes &&
                           q.additionalNotes.trim().length > 0))
+                    const invoices = batch.invoices || []
                     return (
                       <TableRow
+                        className='py-0'
                         key={
                           batch._id?.toString() ||
                           `${location.location}-${batch.movementId}`
                         }
                       >
-                        <TableCell>
+                        <TableCell className='py-0'>
                           <Link
                             href={`/admin/management/inventory/movements/${batch.movementId}`}
                             className='flex items-center gap-1.5 text-red-600 hover:text-primary/80 hover:underline group transition-colors'
@@ -138,30 +144,52 @@ export function BatchListTable({
                             <ExternalLink className='h-4 w-4 ' />
                           </Link>
                         </TableCell>
-                        <TableCell className='font-medium'>
+                        <TableCell className='font-medium py-0'>
                           {LOCATION_NAMES_MAP[location.location] ||
                             location.location}
                         </TableCell>
 
-                        <TableCell>{batch.supplierId?.name || '-'}</TableCell>
-                        <TableCell className='text-right font-bold'>
+                        <TableCell className='py-0'>
+                          {batch.supplierId?.name || '-'}
+                        </TableCell>
+                        <TableCell className='py-0'>
+                          {invoices.length > 0 ? (
+                            <div className='flex flex-col gap-0'>
+                              {invoices.map((inv, idx) => (
+                                <span
+                                  key={idx}
+                                  className='bg-muted px-1.5 py-0 rounded text-foreground font-medium text-[11px] border shadow-sm w-fit'
+                                >
+                                  {inv.series} {inv.number}
+                                  {inv.date &&
+                                    ` / ${new Date(inv.date).toLocaleDateString('ro-RO')}`}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className='text-muted-foreground opacity-50 text-sm'>
+                              -
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className='text-right font-bold py-0'>
                           {`${convertedQuantity.toFixed(2)} ${selectedUnit}`}
                         </TableCell>
 
-                        <TableCell className='text-right'>
+                        <TableCell className='text-right py-0'>
                           {formatCurrency(convertedUnitCost)}
                         </TableCell>
 
-                        <TableCell>
+                        <TableCell className='py-0'>
                           {format(
                             new Date(batch.entryDate),
                             'dd/MM/yyyy HH:mm',
                             {
                               locale: ro,
-                            }
+                            },
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className='py-0'>
                           <div className='flex items-center gap-1'>
                             {hasNotes ? (
                               <HoverCard>
@@ -200,7 +228,7 @@ export function BatchListTable({
                                                 >
                                                   {num}
                                                 </span>
-                                              )
+                                              ),
                                             )}
                                           </div>
                                         ) : (
@@ -225,7 +253,7 @@ export function BatchListTable({
                                                 >
                                                   {num}
                                                 </span>
-                                              )
+                                              ),
                                             )}
                                           </div>
                                         ) : (
@@ -250,7 +278,7 @@ export function BatchListTable({
                                                 >
                                                   {rep}
                                                 </span>
-                                              )
+                                              ),
                                             )}
                                           </div>
                                         ) : (
@@ -299,18 +327,20 @@ export function BatchListTable({
                             </Button>
                           </div>
                         </TableCell>
-                        <TableCell className='text-center'>
+                        <TableCell className='text-center py-0'>
                           <BatchActionsMenu
                             inventoryItemId={location._id}
                             batch={batch}
                             stockableItemName={stockableItemName}
                             unit={baseUnit}
                             locationName={location.location}
+                            vatRates={vatRates}
+                            invoices={batch.invoices || []}
                           />
                         </TableCell>
                       </TableRow>
                     )
-                  })
+                  }),
                 )
               )}
             </TableBody>

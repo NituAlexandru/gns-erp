@@ -1227,22 +1227,65 @@ export async function getProductStockDetails(
       {
         $match: { _id: new mongoose.Types.ObjectId(productId) },
       },
-
       ...getPackagingOptionsPipeline(),
     ]
 
     const results = await ERPProductModel.aggregate(aggregationPipeline)
 
+    // 1. Aducem itemii de inventar O SINGURĂ DATĂ pentru ambele cazuri
+    const inventoryEntries = await InventoryItemModel.find({
+      stockableItem: productId,
+    })
+      .populate('batches.supplierId', 'name')
+      .lean()
+
+    // 2. Extragem toate ID-urile unice de recepții din toate loturile
+    const receptionIds = new Set<string>()
+    for (const entry of inventoryEntries) {
+      for (const batch of entry.batches) {
+        if (batch.receptionRef) {
+          receptionIds.add(batch.receptionRef.toString())
+        }
+      }
+    }
+
+    // 3. Aducem din baza de date doar recepțiile găsite (extrăgând strict facturile)
+    const receptionInvoicesMap = new Map<string, any>()
+    if (receptionIds.size > 0) {
+      const receptions = await ReceptionModel.find({
+        _id: { $in: Array.from(receptionIds) },
+      })
+        .select('invoices')
+        .lean()
+
+      receptions.forEach((rec) => {
+        receptionInvoicesMap.set(rec._id.toString(), rec.invoices || [])
+      })
+    }
+
+    // 4. Sortăm loturile și "lipim" manual facturile pe fiecare lot
+    for (const entry of inventoryEntries) {
+      entry.batches.sort(
+        (a, b) =>
+          new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime(),
+      )
+
+      for (const batch of entry.batches) {
+        if (batch.receptionRef) {
+          const invs = receptionInvoicesMap.get(batch.receptionRef.toString())
+          if (invs) {
+            ;(batch as any).invoices = invs
+          }
+        }
+      }
+    }
+
+    // 5. Finalizăm returnul (Ambalaj sau Produs)
     if (results.length === 0) {
       const packagingDetails = await PackagingModel.findById(productId).lean()
       if (!packagingDetails) {
         throw new Error(`Articolul cu ID-ul ${productId} nu a fost găsit.`)
       }
-      const inventoryEntries = await InventoryItemModel.find({
-        stockableItem: productId,
-      })
-        .populate('batches.supplierId', 'name')
-        .lean()
       return JSON.parse(
         JSON.stringify({
           ...packagingDetails,
@@ -1253,19 +1296,6 @@ export async function getProductStockDetails(
     }
 
     const itemDetails = results[0]
-    const inventoryEntries = await InventoryItemModel.find({
-      stockableItem: productId,
-    })
-      .populate('batches.supplierId', 'name')
-      .lean()
-
-    for (const entry of inventoryEntries) {
-      entry.batches.sort(
-        (a, b) =>
-          new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime(),
-      )
-    }
-
     const result = { ...itemDetails, locations: inventoryEntries }
 
     result.packagingOptions = result.packagingOptions.filter(
