@@ -19,10 +19,8 @@ export const ReturnNoteLineSchema = z.object({
     .number()
     .positive('Cantitatea în unități de bază trebuie să fie pozitivă.'),
 
-  // Costul la care a IEȘIT marfa. E obligatoriu.
-  costBreakdown: z
-    .array(CostBreakdownBatchSchema)
-    .min(1, 'Detalierea costului este obligatorie.'),
+  // Costul la care a IEȘIT marfa.
+  costBreakdown: z.array(CostBreakdownBatchSchema).optional().default([]),
   unitCost: z.number().nonnegative('Costul unitar nu poate fi negativ.'),
 
   // Legătura cu documentul original

@@ -27,7 +27,7 @@ export const INVOICE_STATUS_MAP: Record<
 
 // --- Statusurile e-Factura ---
 export const EFACTURA_STATUSES = [
-  'NOT_REQUIRED', // Pt. clienți non-RO / persoane fizice
+  'NOT_REQUIRED', // Pt. clienți non-RO // facturile anulate
   'PENDING', // Aprobată, așteaptă trimiterea
   'SENT', // Trimisă la ANAF, așteaptă răspuns
   'ACCEPTED', // Confirmată de ANAF (cu ID de descărcare)

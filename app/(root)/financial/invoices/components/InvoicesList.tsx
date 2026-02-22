@@ -489,6 +489,18 @@ export function InvoicesList({
 
                   {/* COLOANA 2: ACȚIUNI */}
                   <TableCell className='py-1'>
+                    {invoice.clientSnapshot?.address?.tara &&
+                      invoice.clientSnapshot.address.tara.toUpperCase() !==
+                        'RO' && (
+                        <span
+                          className='text-xs font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border'
+                          title='Client Extern'
+                        >
+                          Tara:{' '}
+                          {invoice.clientSnapshot.address.tara.toUpperCase()}
+                        </span>
+                      )}
+
                     {isAdmin ? (
                       <div className='flex gap-1 items-start '>
                         {/* A. Buton UPLOAD (Doar acțiunea de trimitere) */}

@@ -2,8 +2,7 @@
 
 Custodie la furnizor
 
-- sa se poata inregistra fara aviz
-
+- Nota de transfer intre gestiuni
 - Nota de Retur (de la facturile storno create de GNS)
 - Nota de Retur (o redenumesc - pentru produsele stornate la furnizori)
 

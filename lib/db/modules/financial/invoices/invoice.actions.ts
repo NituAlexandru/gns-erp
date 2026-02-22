@@ -959,7 +959,12 @@ export async function createStornoInvoice(
         if (item.productId && item.stockableItemType) {
           const itemQty = Math.abs(item.quantity)
           const itemCost = Math.abs(item.lineCostFIFO || 0)
-          const unitCost = itemQty > 0 ? round2(itemCost / itemQty) : 0
+          let unitCost = itemQty > 0 ? round2(itemCost / itemQty) : 0
+
+          if (unitCost === 0 && itemQty > 0) {
+            const itemLineValue = Math.abs(item.lineValue || 0)
+            unitCost = round2(itemLineValue / itemQty)
+          }
 
           returnNoteItems.push({
             productId: item.productId,
@@ -1075,7 +1080,6 @@ export async function createStornoInvoice(
     return { success: false, message: (error as Error).message }
   }
 }
-
 export async function getStornableProductsList(
   clientId: string,
   deliveryAddressId: string,
@@ -1557,7 +1561,9 @@ export async function approveInvoice(
     }
 
     invoice.status = 'APPROVED'
-    invoice.eFacturaStatus = 'PENDING'
+    const isRomania =
+      invoice.clientSnapshot?.address?.tara?.toUpperCase() === 'RO'
+    invoice.eFacturaStatus = isRomania ? 'PENDING' : 'NOT_REQUIRED'
     invoice.approvedBy = new Types.ObjectId(session.user.id)
     invoice.approvedByName = session.user.name || 'Admin'
 
