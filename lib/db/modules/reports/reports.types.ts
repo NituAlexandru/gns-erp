@@ -49,6 +49,15 @@ export const AVAILABLE_REPORTS: ReportDefinition[] = [
     filters: ['location', 'itemType', 'includeZeroStock'],
   },
   {
+    id: 'inventory-history',
+    title: 'Istoric & Sumar Operațiuni',
+    description:
+      'Stocul calculat până la o dată anume sau însumarea unor anumite tipuri de mișcări (ex: doar Recepții).',
+    category: 'inventory',
+    icon: 'BarChart3',
+    filters: ['dateRange', 'location', 'itemType'], // Am folosit filtrele ca referință vizuală
+  },
+  {
     id: 'sales-period',
     title: 'Vânzări pe Perioadă',
     description: 'Sumar al încasărilor și facturilor emise.',

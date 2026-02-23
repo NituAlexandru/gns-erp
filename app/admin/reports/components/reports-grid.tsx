@@ -5,13 +5,14 @@ import { ReportDefinition } from '@/lib/db/modules/reports/reports.types'
 import { ReportCard } from './report-card'
 import { InventoryReportDialog } from './inventory-report-dialog'
 import { AgentSalesReportDialog } from './agent-sales-report-dialog'
+import { InventoryHistoryDialog } from './inventory-history-dialog'
 
 export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(
     null,
   )
-
   const [isInventoryOpen, setIsInventoryOpen] = useState(false)
+  const [isInventoryHistoryOpen, setIsInventoryHistoryOpen] = useState(false)
   const [isAgentSalesOpen, setIsAgentSalesOpen] = useState(false)
 
   const handleSelectReport = (report: ReportDefinition) => {
@@ -20,6 +21,8 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
     // 3. LOGICA DE DESCHIDERE A MODALULUI CORECT
     if (report.id === 'inventory-valuation') {
       setIsInventoryOpen(true)
+    } else if (report.id === 'inventory-history') {
+      setIsInventoryHistoryOpen(true)
     } else if (report.id === 'agent-sales-performance') {
       setIsAgentSalesOpen(true)
     } else {
@@ -56,7 +59,16 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
         />
       )}
 
-      {/* 4. MODAL VÂNZĂRI AGENTI */}
+      {/* Modal Istoric Inventar */}
+      {selectedReport && selectedReport.id === 'inventory-history' && (
+        <InventoryHistoryDialog
+          open={isInventoryHistoryOpen}
+          onOpenChange={setIsInventoryHistoryOpen}
+          report={selectedReport}
+        />
+      )}
+
+      {/* MODAL VÂNZĂRI AGENTI */}
       {selectedReport && selectedReport.id === 'agent-sales-performance' && (
         <AgentSalesReportDialog
           open={isAgentSalesOpen}

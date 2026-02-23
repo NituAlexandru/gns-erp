@@ -13,15 +13,15 @@ export const metadata: Metadata = {
 
 export default function ReportsPage() {
   return (
-    <div className='flex-1 space-y-4 p-8 pt-6'>
-      <div className='flex items-center justify-between space-y-2'>
+    <div className='flex-1 space-y-2'>
+      <div className='flex items-center justify-between space-y-1'>
         <h2 className='text-3xl font-bold tracking-tight'>
           Rapoarte & Analize
         </h2>
       </div>
       <Separator />
 
-      <Tabs defaultValue='all' className='space-y-4'>
+      <Tabs defaultValue='all' className='space-y-2'>
         <TabsList className='gap-1'>
           <TabsTrigger value='all'>Toate</TabsTrigger>
           {REPORT_CATEGORIES.map((cat) => (

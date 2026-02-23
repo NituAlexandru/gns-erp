@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs'
 import { connectToDatabase } from '@/lib/db'
 import { generateInventoryValuation } from './inventory/inventory.actions'
 import { generateAgentSalesReport } from './sales/agent-sales.report.action'
+import { generateInventoryHistory } from './inventory/inventory-history.actions'
 
 // Definim tipul de răspuns standard
 type GenerateReportResult = {
@@ -34,6 +35,12 @@ export async function generateReportAction(
         // Nume sugestiv: Valoare_Stoc_DEPOZIT_2024...
         const locLabel = filters.location === 'ALL' ? 'Total' : filters.location
         filename = `Valoare_Stoc_${locLabel}_${new Date().toISOString().split('T')[0]}.xlsx`
+        break
+
+      case 'inventory-history':
+        await generateInventoryHistory(workbook, filters)
+        const dateStr = new Date(filters.targetDate).toISOString().split('T')[0]
+        filename = `Istoric_Stoc_${dateStr}.xlsx`
         break
 
       case 'agent-sales-performance':
