@@ -63,30 +63,45 @@ function distributeLineItem(
   }))
 
   // ALGORITM: "Greedy Gap Filling"
-  for (let i = 0; i < totalQty; i++) {
-    const winner = distribution.reduce((prev, curr) => {
-      const prevTracker = trackers.get(prev.clientId)!
-      const currTracker = trackers.get(curr.clientId)!
+  // ALGORITM DE DISTRIBUȚIE (Hibrid: Întregi vs Zecimale)
+  const isIntegerQty = Number.isInteger(totalQty)
 
-      // Ținta totală (RON) pe care trebuie să o atingă fiecare
-      const prevTarget = getTargetTotal(grandTotal, prev.percentage)
-      const currTarget = getTargetTotal(grandTotal, curr.percentage)
+  if (!isIntegerQty) {
+    // A. Dacă avem zecimale (m3, kg, etc.) tăiem direct din cantitate, nu numărăm
+    let remainingQty = totalQty
 
-      // Câți bani au acumulat până acum + valoarea noii bucăți potențiale
-      const prevCurrentVal =
-        prevTracker.accumulatedValue + prev.qty * unitValueEstimator
-      const currCurrentVal =
-        currTracker.accumulatedValue + curr.qty * unitValueEstimator
-
-      // "Gap" = Câți bani mai au de primit până la țintă
-      const prevGap = prevTarget - prevCurrentVal
-      const currGap = currTarget - currCurrentVal
-
-      // Câștigă cel care are "Gap-ul" cel mai mare (e cel mai departe de țintă)
-      return prevGap > currGap ? prev : curr
+    distribution.forEach((dist, index) => {
+      if (index === distribution.length - 1) {
+        dist.qty = round2(remainingQty)
+      } else {
+        const calculatedQty = round2(totalQty * (dist.percentage / 100))
+        dist.qty = calculatedQty
+        remainingQty -= calculatedQty
+      }
     })
+  } else {
+    // B. Dacă avem numere întregi (paleți, bucăți) folosim distribuția bucată cu bucată
+    for (let i = 0; i < totalQty; i++) {
+      const winner = distribution.reduce((prev, curr) => {
+        const prevTracker = trackers.get(prev.clientId)!
+        const currTracker = trackers.get(curr.clientId)!
 
-    winner.qty += 1
+        const prevTarget = getTargetTotal(grandTotal, prev.percentage)
+        const currTarget = getTargetTotal(grandTotal, curr.percentage)
+
+        const prevCurrentVal =
+          prevTracker.accumulatedValue + prev.qty * unitValueEstimator
+        const currCurrentVal =
+          currTracker.accumulatedValue + curr.qty * unitValueEstimator
+
+        const prevGap = prevTarget - prevCurrentVal
+        const currGap = currTarget - currCurrentVal
+
+        return prevGap > currGap ? prev : curr
+      })
+
+      winner.qty += 1
+    }
   }
 
   // D. Construim liniile finale și actualizăm Trackerele Globale
@@ -115,6 +130,32 @@ function distributeLineItem(
     )
     results[dist.originalIndex] = newLine
   })
+
+  const sumNet = round2(results.reduce((acc, l) => acc + l.lineValue, 0))
+  const diffNet = round2(originalItem.lineValue - sumNet)
+
+  if (diffNet !== 0) {
+    // Punem diferența pe bucata cu cantitatea cea mai mare (impact minim la prețul unitar)
+    const targetLine = results.reduce((prev, current) =>
+      prev.quantity > current.quantity ? prev : current,
+    ) // 1. Ajustăm DOAR suma Netă (adunăm/scădem banul pierdut)
+
+    targetLine.lineValue = round2(targetLine.lineValue + diffNet) // 2. Recalculăm TVA-ul normal din noul Net
+
+    const vatRate = targetLine.vatRateDetails.rate || 0
+    targetLine.vatRateDetails.value = round2(
+      (targetLine.lineValue * vatRate) / 100,
+    ) // 3. Recalculăm Totalul liniei
+
+    targetLine.lineTotal = round2(
+      targetLine.lineValue + targetLine.vatRateDetails.value,
+    ) // 4. Ajustăm prețul unitar cu 4 zecimale, ca să valideze perfect e-Factura
+
+    if (targetLine.quantity > 0) {
+      targetLine.unitPrice =
+        Math.round((targetLine.lineValue / targetLine.quantity) * 10000) / 10000
+    }
+  }
 
   return results
 }
@@ -311,36 +352,45 @@ export function generateSplitInvoiceInputs(
   })
 
   // 6. Global Fail-Safe (Corecția fină de 0.01 RON)
-  const generatedGrandTotal = invoices.reduce(
-    (acc, inv) => acc + inv.totals.grandTotal,
-    0,
-  )
-  const globalDiff = round2(generatedGrandTotal - grandTotalOriginal)
+  // const generatedGrandTotal = invoices.reduce(
+  //   (acc, inv) => acc + inv.totals.grandTotal,
+  //   0,
+  // )
+  // const globalDiff = round2(generatedGrandTotal - grandTotalOriginal)
 
-  if (globalDiff !== 0 && invoices.length > 0) {
-    // Corectăm factura cu valoarea cea mai mare
-    const targetInvoice = invoices.reduce((prev, current) =>
-      prev.totals.grandTotal > current.totals.grandTotal ? prev : current,
-    )
+  // if (globalDiff !== 0 && Math.abs(globalDiff) <= 2 && invoices.length > 0) {
+  //   // Corectăm factura cu valoarea cea mai mare
+  //   const targetInvoice = invoices.reduce((prev, current) =>
+  //     prev.totals.grandTotal > current.totals.grandTotal ? prev : current,
+  //   ) // Găsim o linie eligibilă
 
-    // Găsim o linie eligibilă
-    const lineIdx = targetInvoice.items.findIndex(
-      (i: InvoiceLineInput) => i.lineTotal > Math.abs(globalDiff),
-    )
+  //   const lineIdx = targetInvoice.items.findIndex(
+  //     (i: InvoiceLineInput) => i.lineTotal > Math.abs(globalDiff),
+  //   )
 
-    if (lineIdx !== -1) {
-      const line = targetInvoice.items[lineIdx]
-      const newLineTotal = round2(line.lineTotal - globalDiff)
-      const newVat = round2(line.vatRateDetails.value - globalDiff)
+  //   if (lineIdx !== -1) {
+  //     const line = targetInvoice.items[lineIdx] // 1. Scădem/Adunăm banul DOAR pe suma Netă
+  //     const newLineValue = round2(line.lineValue - globalDiff) // 2. Lăsăm TVA-ul să se calculeze NORMAL din noua sumă Netă
+  //     const vatRate = line.vatRateDetails.rate || 0
+  //     const newVat = round2((newLineValue * vatRate) / 100) // 3. Calculăm noul total al liniei (Net + TVA)
+  //     const newLineTotal = round2(newLineValue + newVat) // 4. Recalculăm prețul unitar (4 zecimale) ca să treacă de validarea ANAF e-Factura
 
-      targetInvoice.items[lineIdx] = {
-        ...line,
-        lineTotal: newLineTotal,
-        vatRateDetails: { ...line.vatRateDetails, value: newVat },
-      }
-      targetInvoice.totals = calculateInvoiceTotals(targetInvoice.items)
-    }
-  }
+  //     let newUnitPrice = line.unitPrice
+  //     if (line.quantity > 0) {
+  //       newUnitPrice =
+  //         Math.round((newLineValue / line.quantity) * 10000) / 10000
+  //     }
+
+  //     targetInvoice.items[lineIdx] = {
+  //       ...line,
+  //       unitPrice: newUnitPrice,
+  //       lineValue: newLineValue,
+  //       lineTotal: newLineTotal,
+  //       vatRateDetails: { ...line.vatRateDetails, value: newVat },
+  //     } // Recalculăm totalurile facturii după modificare
+  //     targetInvoice.totals = calculateInvoiceTotals(targetInvoice.items)
+  //   }
+  // }
 
   return invoices as InvoiceInput[]
 }

@@ -270,7 +270,7 @@ export async function generateInventoryHistory(
   totalRow.getCell('totalValue').fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFFFE0B2' }, // Portocaliu deschis
+    fgColor: { argb: 'FFFFE0B2' }, 
   }
 
   sheet.addRow({})

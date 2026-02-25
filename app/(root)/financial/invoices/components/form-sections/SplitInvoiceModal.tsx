@@ -23,7 +23,12 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IClientDoc } from '@/lib/db/modules/client/types'
-import { formatCurrency, round2 } from '@/lib/utils'
+import {
+  formatCurrency,
+  formatCurrency3,
+  formatCurrency4,
+  round2,
+} from '@/lib/utils'
 import { ClientWithSummary } from '@/lib/db/modules/client/summary/client-summary.model'
 import {
   InvoiceLineInput,
@@ -493,7 +498,16 @@ export function SplitInvoiceModal({
                                     {item.unitOfMeasure}
                                   </TableCell>
                                   <TableCell className='px-4 py-3 text-right font-mono text-muted-foreground'>
-                                    {formatCurrency(item.unitPrice)}
+                                    {(() => {
+                                      const decimalCount =
+                                        String(item.unitPrice).split('.')[1]
+                                          ?.length || 0
+                                      if (decimalCount === 3)
+                                        return formatCurrency3(item.unitPrice)
+                                      if (decimalCount >= 4)
+                                        return formatCurrency4(item.unitPrice)
+                                      return formatCurrency(item.unitPrice)
+                                    })()}
                                   </TableCell>
                                   <TableCell className='px-4 py-3 text-right font-mono'>
                                     {formatCurrency(item.lineValue)}

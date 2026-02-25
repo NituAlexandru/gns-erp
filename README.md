@@ -14,10 +14,7 @@ Custodie la furnizor
 # Foarte important
 
 - la receptie - confirmare form, nu mai tine minte unde erai inainte, se reseteaza cautarile
-- de finalizat stocul saptamana asta, pentru a inchide anul 2025 (stocul initial)
 - comanda, la creare si la modificare, se converteste doar pretul, nu si cantitatea
-- de adaugat posibilitatea adaugarii mentiunilor pe facturile descarcate din SPV
-- transfer stoc, de mutat btn si in receptii + de adaugat aviz pe transfer + de creat document intern transfer gestiune
 - de scos compensarile din lista plati, de scos platile anulate din totalul calculat, de adaugat posibilitatea de a sterge o plata anulata
 - fisa client - LM FINANCIAL CONTA SERVICES S.R.L. bug sume 0
 - solduri
@@ -25,8 +22,6 @@ Custodie la furnizor
 - de adaugat posibilitatea scoaterii unui produs / a modifica o factura confirmata, evident trebuie sa se poata scoate si din aviz / livrare / comanda
 - paletii storno
 - Printare multiplă facturi iesire
-- NU MA LASA SA ADAUG LINIE CU MINUS, SI AM FACTURI CU DISCOUNT
-- La facturile introduse manual in plăti furnizori ma obliga sa bag serie
 
 # IMPORTANT
 
