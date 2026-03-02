@@ -933,21 +933,7 @@ export async function getAllReceptions({
     }
   }
 
-  if (from) {
-    const startDate = fromZonedTime(`${from} 00:00:00`, TIMEZONE)
-    filter.receptionDate = filter.receptionDate || {}
-    filter.receptionDate.$gte = startDate
-  }
-
-  if (to) {
-    // 2. Calculăm sfârșitul zilei în fusul orar specificat (23:59:59.999)
-    const endDate = fromZonedTime(`${to} 23:59:59.999`, TIMEZONE)
-
-    filter.receptionDate = filter.receptionDate || {}
-    filter.receptionDate.$lte = endDate
-  }
-
-  // Logica de căutare (copiată din route.ts)
+  // Logica de căutare
   if (q) {
     const regex = new RegExp(q, 'i')
     const matchingSuppliers = await Supplier.find({ name: regex }).select('_id')
