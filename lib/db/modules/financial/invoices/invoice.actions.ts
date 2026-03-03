@@ -1733,6 +1733,10 @@ export async function updateInvoice(
       // 4. Recalculează totalurile
       const newTotals = calculateInvoiceTotals(validatedData.items)
 
+      const newRemainingAmount = round2(
+        newTotals.grandTotal - originalInvoice.paidAmount,
+      )
+
       // 5. Actualizează factura
       originalInvoice.set({
         invoiceDate: validatedData.invoiceDate,
@@ -1743,6 +1747,7 @@ export async function updateInvoice(
         deliveryAddress: validatedData.deliveryAddress,
         items: validatedData.items,
         totals: newTotals,
+        remainingAmount: newRemainingAmount,
         notes: validatedData.notes,
         status: 'CREATED',
         rejectionReason: undefined,

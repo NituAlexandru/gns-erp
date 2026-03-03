@@ -1,7 +1,6 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-// Ajustează calea către modelul Invoice conform proiectului tău
 import InvoiceModel from '@/lib/db/modules/financial/invoices/invoice.model'
 
 export async function getOverdueInvoicesCount(): Promise<number> {
