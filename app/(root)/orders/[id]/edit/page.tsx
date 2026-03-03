@@ -38,6 +38,7 @@ export default async function EditOrderPage({
     'CONFIRMED',
     'SCHEDULED',
     'PARTIALLY_DELIVERED',
+    'PARTIALLY_INVOICED',
   ].includes(orderData.status)
 
   if (!canEdit) {

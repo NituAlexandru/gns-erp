@@ -415,6 +415,22 @@ export async function confirmDeliveryNote({
       )
       if (!delivery) throw new Error('Livrarea asociată nu a fost găsită.')
 
+      for (const noteItem of note.items) {
+        if (!noteItem.orderLineItemId) continue // Trecem peste dacă e o linie adăugată ulterior, deși nu ar trebui
+
+        // Găsim linia corespondentă din comanda originală
+        const targetOrderLine = order.lineItems.find(
+          (ol: any) =>
+            ol._id.toString() === noteItem.orderLineItemId!.toString(),
+        )
+
+        if (targetOrderLine) {
+          // Adăugăm cantitatea din aviz la cea deja livrată pe comandă
+          targetOrderLine.quantityShipped =
+            (targetOrderLine.quantityShipped || 0) + noteItem.quantity
+        }
+      }
+
       // C. Status Comandă (Logica complexă)
       const otherDeliveries = await DeliveryModel.find({
         orderId: order._id,
@@ -595,6 +611,24 @@ export async function revokeDeliveryNoteConfirmation({
           itemsToReserve as any, // Cast necesar pentru că e un obiect parțial construit
           session,
         )
+      }
+
+      // 3.B. Scade quantityShipped din Comandă (Anulează efectul confirmării)
+      for (const noteItem of note.items) {
+        if (!noteItem.orderLineItemId) continue
+
+        const targetOrderLine = order.lineItems.find(
+          (ol: any) =>
+            ol._id.toString() === noteItem.orderLineItemId!.toString(),
+        )
+
+        if (targetOrderLine) {
+          // Scădem cantitatea de pe aviz din totalul livrat al comenzii
+          targetOrderLine.quantityShipped = Math.max(
+            0,
+            (targetOrderLine.quantityShipped || 0) - noteItem.quantity,
+          )
+        }
       }
 
       // 4. Resetează Avizul la IN_TRANSIT și Șterge Costurile Vechi

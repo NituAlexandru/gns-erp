@@ -337,6 +337,7 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
       'SCHEDULED',
       'PARTIALLY_DELIVERED',
       'DELIVERED',
+      'PARTIALLY_INVOICED',
     ]
     if (!allowedStatuses.includes(oldOrder.status)) {
       throw new Error(
@@ -347,7 +348,8 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
     const wasConfirmed =
       oldOrder.status === 'CONFIRMED' ||
       oldOrder.status === 'PARTIALLY_DELIVERED' ||
-      oldOrder.status === 'SCHEDULED'
+      oldOrder.status === 'SCHEDULED' ||
+      oldOrder.status === 'PARTIALLY_INVOICED'
 
     const newStatus = oldOrder.status === 'DRAFT' ? 'DRAFT' : 'CONFIRMED'
 
@@ -430,7 +432,12 @@ export async function updateOrder(orderId: string, newData: CreateOrderInput) {
       0,
     )
 
-    if (totalShipped > 0 && oldOrder.status !== 'DELIVERED') {
+    if (
+      totalShipped > 0 &&
+      !['DELIVERED', 'PARTIALLY_INVOICED', 'INVOICED', 'COMPLETED'].includes(
+        oldOrder.status,
+      )
+    ) {
       oldOrder.status = 'PARTIALLY_DELIVERED'
     }
 
