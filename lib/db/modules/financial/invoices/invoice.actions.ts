@@ -1690,7 +1690,7 @@ export async function updateInvoice(
 
     // Stocăm ID-urile vechi înainte de tranzacție (sau în interior)
     const originalInvoiceForCheck = await InvoiceModel.findById(invoiceId)
-      .select('sourceDeliveryNotes status')
+      .select('sourceDeliveryNotes status paidAmount')
       .lean()
 
     if (!originalInvoiceForCheck) {
@@ -1719,6 +1719,12 @@ export async function updateInvoice(
       ) {
         throw new Error(
           `Factura cu statusul ${originalInvoice.status} nu mai poate fi modificată.`,
+        )
+      }
+
+      if (originalInvoiceForCheck.paidAmount !== 0) {
+        throw new Error(
+          'Această factură are deja sume încasate sau compensate. Trebuie să dezalocați sumele înainte de a o edita.',
         )
       }
 
