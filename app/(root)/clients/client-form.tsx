@@ -888,7 +888,18 @@ export default function ClientForm() {
                     className='flex text-sm justify-between items-center p-2 bg-secondary rounded-md'
                   >
                     <div>
-                      <p className='font-medium'>{`Str. ${addr.strada}, Nr. ${addr.numar}, ${addr.alteDetalii}, ${addr.localitate}, ${addr.judet}, ${addr.tara}`}</p>
+                      <p className='font-medium'>
+                        {[
+                          `Str. ${addr.strada}`,
+                          `Nr. ${addr.numar}`,
+                          addr.alteDetalii,
+                          addr.localitate,
+                          addr.judet,
+                          addr.tara,
+                        ]
+                          .filter(Boolean)
+                          .join(', ')}
+                      </p>{' '}
                       <p className='text-sm text-muted-foreground'>
                         {`Persoana Contact: ${addr.persoanaContact} - ${addr.telefonContact}`}
                       </p>
