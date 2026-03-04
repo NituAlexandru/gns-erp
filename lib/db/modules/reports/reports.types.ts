@@ -74,4 +74,13 @@ export const AVAILABLE_REPORTS: ReportDefinition[] = [
     icon: 'Users',
     filters: [],
   },
+  {
+    id: 'product-margins',
+    title: 'Marje Profit Produse',
+    description:
+      'Analiză detaliată a profitului și a marjei pentru fiecare produs facturat.',
+    category: 'sales',
+    icon: 'BarChart3',
+    filters: ['dateRange', 'itemType'],
+  },
 ]

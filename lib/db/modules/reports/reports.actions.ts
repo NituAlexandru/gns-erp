@@ -5,6 +5,7 @@ import { connectToDatabase } from '@/lib/db'
 import { generateInventoryValuation } from './inventory/inventory.actions'
 import { generateAgentSalesReport } from './sales/agent-sales.report.action'
 import { generateInventoryHistory } from './inventory/inventory-history.actions'
+import { generateProductMarginReport } from './sales/product-margin.report.action'
 
 // Definim tipul de răspuns standard
 type GenerateReportResult = {
@@ -32,7 +33,6 @@ export async function generateReportAction(
     switch (reportId) {
       case 'inventory-valuation':
         await generateInventoryValuation(workbook, filters)
-        // Nume sugestiv: Valoare_Stoc_DEPOZIT_2024...
         const locLabel = filters.location === 'ALL' ? 'Total' : filters.location
         filename = `Valoare_Stoc_${locLabel}_${new Date().toISOString().split('T')[0]}.xlsx`
         break
@@ -46,6 +46,11 @@ export async function generateReportAction(
       case 'agent-sales-performance':
         await generateAgentSalesReport(workbook, filters)
         filename = `Vanzari_Agenti_${filters.startDate}_${filters.endDate}.xlsx`
+        break
+
+      case 'product-margins':
+        await generateProductMarginReport(workbook, filters)
+        filename = `Marje_Produse_${filters.startDate}_${filters.endDate}.xlsx`
         break
 
       default:

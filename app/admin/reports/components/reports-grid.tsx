@@ -6,6 +6,7 @@ import { ReportCard } from './report-card'
 import { InventoryReportDialog } from './inventory-report-dialog'
 import { AgentSalesReportDialog } from './agent-sales-report-dialog'
 import { InventoryHistoryDialog } from './inventory-history-dialog'
+import { ProductMarginReportDialog } from './product-margin-report-dialog'
 
 export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(
@@ -14,6 +15,7 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false)
   const [isInventoryHistoryOpen, setIsInventoryHistoryOpen] = useState(false)
   const [isAgentSalesOpen, setIsAgentSalesOpen] = useState(false)
+  const [isProductMarginOpen, setIsProductMarginOpen] = useState(false)
 
   const handleSelectReport = (report: ReportDefinition) => {
     setSelectedReport(report)
@@ -25,6 +27,8 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
       setIsInventoryHistoryOpen(true)
     } else if (report.id === 'agent-sales-performance') {
       setIsAgentSalesOpen(true)
+    } else if (report.id === 'product-margins') {
+      setIsProductMarginOpen(true)
     } else {
       console.log('Acest raport încă nu are modal implementat.')
     }
@@ -73,6 +77,14 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
         <AgentSalesReportDialog
           open={isAgentSalesOpen}
           onOpenChange={setIsAgentSalesOpen}
+          report={selectedReport}
+        />
+      )}
+      {/* MODAL MARJE PRODUSE */}
+      {selectedReport && selectedReport.id === 'product-margins' && (
+        <ProductMarginReportDialog
+          open={isProductMarginOpen}
+          onOpenChange={setIsProductMarginOpen}
           report={selectedReport}
         />
       )}
