@@ -1,8 +1,29 @@
 import { NextResponse } from 'next/server'
 
+function getNextWorkingDayPeakTime(): string {
+  const date = new Date()
+
+  // Trecem la ziua următoare
+  date.setDate(date.getDate() + 1)
+
+  // Verificăm dacă e weekend (0 = Duminică, 6 = Sâmbătă)
+  const day = date.getDay()
+  if (day === 6) {
+    date.setDate(date.getDate() + 2) // Sărim la Luni
+  } else if (day === 0) {
+    date.setDate(date.getDate() + 1) // Sărim la Luni
+  }
+
+  // Setăm ora 09:00:00 (ora locală)
+  date.setHours(9, 0, 0, 0)
+
+  // Returnăm timestamp-ul Unix în secunde, ca string
+  return Math.floor(date.getTime() / 1000).toString()
+}
+
 const ORIGIN_ADDRESS = 'Strada Industriilor 191, Chiajna, Romania'
 
-const PEAK_TIME_TIMESTAMP = '1772550000'
+const PEAK_TIME_TIMESTAMP = getNextWorkingDayPeakTime()
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +33,7 @@ export async function POST(request: Request) {
     if (!judet || !localitate || !strada || !numar) {
       return NextResponse.json(
         { message: 'Adresa incompletă.' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
@@ -23,9 +44,9 @@ export async function POST(request: Request) {
     }
 
     const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${encodeURIComponent(
-      ORIGIN_ADDRESS
+      ORIGIN_ADDRESS,
     )}&destinations=${encodeURIComponent(
-      destinationAddress
+      destinationAddress,
     )}&key=${apiKey}&units=metric&traffic_model=pessimistic&departure_time=${PEAK_TIME_TIMESTAMP}`
 
     const res = await fetch(url)
@@ -35,7 +56,7 @@ export async function POST(request: Request) {
       console.error('Google Maps API Error:', data.error_message || data.status)
       return NextResponse.json(
         { message: 'Nu s-a putut calcula distanța. Verificați adresa.' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
