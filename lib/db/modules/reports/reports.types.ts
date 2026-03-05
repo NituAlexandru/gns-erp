@@ -83,4 +83,13 @@ export const AVAILABLE_REPORTS: ReportDefinition[] = [
     icon: 'BarChart3',
     filters: ['dateRange', 'itemType'],
   },
+  {
+    id: 'product-history',
+    title: 'Fișă Istoric Produs',
+    description:
+      'Vezi toate intrările și ieșirile unui produs, cu conversie automată pe unitatea de măsură de bază.',
+    category: 'inventory',
+    icon: 'FileText',
+    filters: ['dateRange', 'itemType'],
+  },
 ]

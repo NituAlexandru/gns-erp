@@ -6,6 +6,7 @@ import { generateInventoryValuation } from './inventory/inventory.actions'
 import { generateAgentSalesReport } from './sales/agent-sales.report.action'
 import { generateInventoryHistory } from './inventory/inventory-history.actions'
 import { generateProductMarginReport } from './sales/product-margin.report.action'
+import { generateProductHistoryReport } from './inventory/product-history.report.action'
 
 // Definim tipul de răspuns standard
 type GenerateReportResult = {
@@ -51,6 +52,11 @@ export async function generateReportAction(
       case 'product-margins':
         await generateProductMarginReport(workbook, filters)
         filename = `Marje_Produse_${filters.startDate}_${filters.endDate}.xlsx`
+        break
+
+      case 'product-history':
+        await generateProductHistoryReport(workbook, filters)
+        filename = `Fisa_Produs_${filters.startDate}_${filters.endDate}.xlsx`
         break
 
       default:
