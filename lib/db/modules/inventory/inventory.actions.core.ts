@@ -255,14 +255,50 @@ export async function recordStockMovement(
       }
       inventoryItem.batches = newBatches
 
+      // Dacă a mai rămas cantitate nesatisfăcută din loturi (adică intrăm pe stoc negativ / vindem în gol)
       if (quantityToDecrease > 0) {
-        const negativeStockCost = quantityToDecrease * fallbackCost
+        // 1. Încercăm fallback-ul local (lastPurchasePrice)
+        let currentFallbackCost = inventoryItem.lastPurchasePrice || 0
+
+        // 2. Dacă e 0 (nu a avut recepții pe această locație), căutăm SURSA DE ADEVĂR GLOBALĂ
+        if (currentFallbackCost === 0) {
+          const oneYearAgo = new Date()
+          oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+
+          // Căutăm cel mai mare preț de intrare din ultimul an, pe TOATE gestiunile, pentru acest produs
+          const globalMaxResult = await StockMovementModel.aggregate([
+            {
+              $match: {
+                stockableItem: new Types.ObjectId(payload.stockableItem),
+                movementType: { $in: Array.from(IN_TYPES) }, // Doar intrări
+                status: 'ACTIVE',
+                unitCost: { $gt: 0 },
+                timestamp: { $gte: oneYearAgo },
+              },
+            },
+            {
+              $group: {
+                _id: null,
+                maxCost: { $max: '$unitCost' },
+              },
+            },
+          ]).session(session)
+
+          // Dacă găsim un preț istoric global, îl folosim
+          if (globalMaxResult && globalMaxResult.length > 0) {
+            currentFallbackCost = globalMaxResult[0].maxCost
+          }
+        }
+
+        // 3. Calculăm costul liniei cu prețul găsit (care acum este foarte sigur că nu e 0)
+        const negativeStockCost = quantityToDecrease * currentFallbackCost
         lineCostFIFO += negativeStockCost
 
+        // 4. Îl salvăm ca PROVISIONAL pentru transparență
         costBreakdown.push({
           entryDate: new Date(),
           quantity: quantityToDecrease,
-          unitCost: fallbackCost,
+          unitCost: currentFallbackCost,
           type: 'PROVISIONAL',
         })
       }

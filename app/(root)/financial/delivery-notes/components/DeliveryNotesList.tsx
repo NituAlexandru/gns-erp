@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
-import { MoreHorizontal, Loader2 } from 'lucide-react'
+import { MoreHorizontal, Loader2, AlertTriangle } from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { DeliveryNoteDTO } from '@/lib/db/modules/financial/delivery-notes/delivery-note.types'
 import {
@@ -307,6 +307,12 @@ export function DeliveryNotesList({
                   note.status,
                 )
 
+                const hasProvisionalCost = note.items?.some((item: any) =>
+                  item.costBreakdown?.some(
+                    (cb: any) => cb.type === 'PROVISIONAL',
+                  ),
+                )
+
                 let noteProfit = 0
                 let noteProductRevenue = 0
 
@@ -386,13 +392,36 @@ export function DeliveryNotesList({
                         >
                           {hasCostData ? formatCurrency(noteProfit) : '-'}
                         </TableCell>
-                        <TableCell
-                          className={cn(
-                            'text-right text-[10px] xl:text-xs 2xl:text-sm py-1',
-                            getMarginColorClass(noteMargin),
-                          )}
-                        >
-                          {hasCostData ? `${noteMargin}%` : '-'}
+                        <TableCell className='text-right py-1'>
+                          <div className='flex flex-col items-end justify-center gap-0.5'>
+                            {hasCostData ? (
+                              <>
+                                <div className='flex gap-1 items-center'>
+                                  {hasProvisionalCost && (
+                                    <div
+                                      className='flex items-center justify-center gap-1 text-[10px] text-primary px-1.5 py-0.5 pb-0 rounded border border-primary mb-0.5 cursor-help'
+                                      title='Cost estimat: stoc insuficient la momentul facturării.'
+                                    >
+                                      <AlertTriangle className='h-3 w-3 pb-0.5' />
+                                      Est.
+                                    </div>
+                                  )}
+                                  <span
+                                    className={cn(
+                                      'text-[10px] xl:text-xs 2xl:text-sm font-medium',
+                                      getMarginColorClass(noteMargin),
+                                    )}
+                                  >
+                                    {noteMargin}%
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <span className='text-[10px] xl:text-xs 2xl:text-sm text-muted-foreground'>
+                                -
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                       </>
                     )}

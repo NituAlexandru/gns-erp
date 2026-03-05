@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
+  AlertTriangle,
   Download,
   Info,
   Loader2,
@@ -418,321 +419,380 @@ export function InvoicesList({
                 </TableCell>
               </TableRow>
             ) : invoices.length > 0 ? (
-              invoices.map((invoice) => (
-                <TableRow
-                  key={invoice._id.toString()}
-                  className='hover:bg-muted/50'
-                >
-                  <TableCell className='font-medium py-1 text-[10px] lg:text-xs xl:text-sm'>
-                    <div className='flex flex-col'>
-                      <Link
-                        href={`/financial/invoices/${invoice._id}`}
-                        className=' hover:underline hover:text-red-600 transition-colors'
-                      >
-                        {invoice.seriesName}-{invoice.invoiceNumber}
-                      </Link>
+              invoices.map((invoice) => {
+                const hasProvisionalCost = invoice.items?.some((item: any) =>
+                  item.costBreakdown?.some(
+                    (cb: any) => cb.type === 'PROVISIONAL',
+                  ),
+                )
 
-                      <span className='text-[8px] lg:text-[10px] text-yellow-600 font-bold uppercase tracking-wider'>
-                        {invoice.invoiceType}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
-                    {new Date(invoice.invoiceDate).toLocaleDateString('ro-RO')}
-                  </TableCell>
-                  <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
-                    {new Date(invoice.dueDate).toLocaleDateString('ro-RO')}
-                  </TableCell>
-                  <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm truncate max-w-[150px] lg:max-w-[200px] xl:max-w-[250px]'>
-                    {invoice.clientId ? (
-                      <Link
-                        href={`/clients/${invoice.clientId._id}/${toSlug(invoice.clientId.name)}?tab=payments`}
-                        className='hover:underline hover:text-red-600 font-medium transition-colors'
-                      >
-                        {invoice.clientId.name}
-                      </Link>
-                    ) : (
-                      'N/A'
-                    )}
-                  </TableCell>
-                  <TableCell className='text-[10px] lg:text-xs xl:text-sm max-w-[150px]'>
-                    {invoice.createdByName || 'N/A'}
-                  </TableCell>
-                  <TableCell className='py-1 max-w-[75px] lg:max-w-[125px]'>
-                    <InvoiceStatusBadge status={invoice.status} />
-                  </TableCell>
-                  {/* COLOANA 1: STATUS EFACTURA */}
-                  <TableCell className='py-1'>
-                    <div
-                      className={cn(
-                        'inline-block',
-                        // Adăugăm cursor special doar dacă e respinsă, ca să știe că poate da click/hover
-                        invoice.eFacturaStatus === 'REJECTED_ANAF' &&
-                          'cursor-help',
-                      )}
-                      // 1. TOOLTIP PE BADGE
-                      title={
-                        invoice.eFacturaStatus === 'REJECTED_ANAF'
-                          ? invoice.eFacturaError
-                          : undefined
-                      }
-                      // 2. CLICK PE BADGE (Deschide Modalul)
-                      onClick={() => {
-                        if (invoice.eFacturaStatus === 'REJECTED_ANAF') {
-                          handleShowError(invoice.eFacturaError)
-                        }
-                      }}
-                    >
-                      <EFacturaStatusBadge status={invoice.eFacturaStatus} />
-                    </div>
-                  </TableCell>
-
-                  {/* COLOANA 2: ACȚIUNI */}
-                  <TableCell className='py-1'>
-                    {invoice.clientSnapshot?.address?.tara &&
-                      invoice.clientSnapshot.address.tara.toUpperCase() !==
-                        'RO' && (
-                        <span
-                          className='text-xs font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border'
-                          title='Client Extern'
+                return (
+                  <TableRow
+                    key={invoice._id.toString()}
+                    className='hover:bg-muted/50'
+                  >
+                    <TableCell className='font-medium py-1 text-[10px] lg:text-xs xl:text-sm'>
+                      {' '}
+                      <div className='flex flex-col'>
+                        <Link
+                          href={`/financial/invoices/${invoice._id}`}
+                          className=' hover:underline hover:text-red-600 transition-colors'
                         >
-                          Tara:{' '}
-                          {invoice.clientSnapshot.address.tara.toUpperCase()}
+                          {invoice.seriesName}-{invoice.invoiceNumber}
+                        </Link>
+
+                        <span className='text-[8px] lg:text-[10px] text-yellow-600 font-bold uppercase tracking-wider'>
+                          {invoice.invoiceType}
                         </span>
-                      )}
-
-                    {isAdmin ? (
-                      <div className='flex gap-1 items-start '>
-                        {/* A. Buton UPLOAD (Doar acțiunea de trimitere) */}
-                        {(invoice.eFacturaStatus === 'PENDING' ||
-                          invoice.eFacturaStatus === 'REJECTED_ANAF') && (
-                          <Button
-                            variant='outline'
-                            size='icon'
-                            className='h-7 w-7'
-                            // MODIFICAT: Tooltip simplu de acțiune, FĂRĂ EROARE
-                            title='Trimite factura în SPV'
-                            disabled={
-                              actionLoadingId === invoice._id.toString() ||
-                              !(
-                                invoice.status === 'APPROVED' ||
-                                invoice.status === 'PAID' ||
-                                invoice.status === 'PARTIAL_PAID'
-                              )
-                            }
-                            onClick={() => handleUploadToAnaf(invoice)}
-                          >
-                            {actionLoadingId === invoice._id.toString() ? (
-                              <Loader2 className='h-3 w-3 animate-spin' />
-                            ) : (
-                              <Upload className='h-4 w-4' />
-                            )}
-                          </Button>
-                        )}
-
-                        {/* B. Zona ID + DOWNLOAD + REFRESH (Dedesubt) */}
-                        {(invoice.eFacturaStatus === 'SENT' ||
-                          invoice.eFacturaStatus === 'ACCEPTED' ||
-                          (invoice.eFacturaStatus === 'REJECTED_ANAF' &&
-                            invoice.eFacturaUploadId)) &&
-                          invoice.eFacturaUploadId && (
-                            <div className='flex items-center gap-1'>
-                              {/* Buton Download ZIP / ID */}
-                              <div
-                                className={cn(
-                                  'text-[10px] font-mono border px-2 py-1 rounded flex items-center gap-1 transition-colors h-7',
-                                  'hover:bg-primary/10 hover:text-primary cursor-pointer',
-                                  'bg-muted text-muted-foreground',
-                                )}
-                                onClick={() => handleDownloadZip(invoice)}
-                                title='Descarcă XML / ZIP'
-                              >
-                                {actionLoadingId === invoice._id.toString() ? (
-                                  <Loader2 className='h-3 w-3 animate-spin' />
-                                ) : (
-                                  <Download className='h-3 w-3' />
-                                )}
-                                <span>{invoice.eFacturaUploadId}</span>
-                              </div>
-
-                              {/* Buton Refresh (Doar dacă e SENT) */}
-                              {invoice.eFacturaStatus === 'SENT' && (
-                                <Button
-                                  variant='ghost'
-                                  size='icon'
-                                  className='h-7 w-7 hover:bg-muted'
-                                  title='Verifică status ANAF'
-                                  disabled={
-                                    actionLoadingId ===
-                                      invoice._id.toString() || isBulkRefreshing
-                                  }
-                                  onClick={() => handleCheckStatus(invoice)}
-                                >
-                                  <RefreshCw
-                                    className={cn(
-                                      'h-3 w-3',
-                                      (actionLoadingId ===
-                                        invoice._id.toString() ||
-                                        isBulkRefreshing) &&
-                                        'animate-spin',
-                                    )}
-                                  />
-                                </Button>
-                              )}
-                            </div>
-                          )}
                       </div>
-                    ) : (
-                      <span className='text-muted-foreground text-xs'>-</span>
-                    )}
-                  </TableCell>
-                  <TableCell className='text-right text-[10px] lg:text-xs py-1'>
-                    {formatCurrency(invoice.totals.grandTotal)}
-                  </TableCell>
-                  {isAdmin && (
-                    <>
-                      <TableCell
-                        className={cn(
-                          'text-right text-[10px] lg:text-xs py-1',
-                          getProfitColorClass(invoice.totals.productsProfit),
-                        )}
-                      >
-                        {invoice.invoiceType !== 'STORNO'
-                          ? formatCurrency(invoice.totals.productsProfit)
-                          : '-'}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          'text-right text-[10px] lg:text-xs py-1',
-                          getMarginColorClass(invoice.totals.productsMargin),
-                        )}
-                      >
-                        {invoice.invoiceType !== 'STORNO'
-                          ? `${invoice.totals.productsMargin}%`
-                          : '-'}
-                      </TableCell>
-                    </>
-                  )}
-                  <TableCell className='text-right py-1 '>
-                    <div className='flex items-center justify-end gap-1'></div>
-                    <InvoicePreview
-                      invoice={invoice}
-                      isAdmin={isAdmin}
-                      currentUserRole={isAdmin ? 'admin' : 'user'}
-                    />
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant='ghost' size='icon'>
-                          <MoreHorizontal className='h-4 w-4' />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align='end'>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            router.push(`/financial/invoices/${invoice._id}`)
-                          }
+                    </TableCell>
+                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
+                      {new Date(invoice.invoiceDate).toLocaleDateString(
+                        'ro-RO',
+                      )}
+                    </TableCell>
+                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
+                      {new Date(invoice.dueDate).toLocaleDateString('ro-RO')}
+                    </TableCell>
+                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm truncate max-w-[150px] lg:max-w-[200px] xl:max-w-[250px]'>
+                      {invoice.clientId ? (
+                        <Link
+                          href={`/clients/${invoice.clientId._id}/${toSlug(invoice.clientId.name)}?tab=payments`}
+                          className='hover:underline hover:text-red-600 font-medium transition-colors'
                         >
-                          Vizualizează
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            handlePrintPreview(invoice._id.toString())
+                          {invoice.clientId.name}
+                        </Link>
+                      ) : (
+                        'N/A'
+                      )}
+                    </TableCell>
+                    <TableCell className='text-[10px] lg:text-xs xl:text-sm max-w-[150px]'>
+                      {invoice.createdByName || 'N/A'}
+                    </TableCell>
+                    <TableCell className='py-1 max-w-[75px] lg:max-w-[125px]'>
+                      <InvoiceStatusBadge status={invoice.status} />
+                    </TableCell>
+                    {/* COLOANA 1: STATUS EFACTURA */}
+                    <TableCell className='py-1'>
+                      <div
+                        className={cn(
+                          'inline-block',
+                          // Adăugăm cursor special doar dacă e respinsă, ca să știe că poate da click/hover
+                          invoice.eFacturaStatus === 'REJECTED_ANAF' &&
+                            'cursor-help',
+                        )}
+                        // 1. TOOLTIP PE BADGE
+                        title={
+                          invoice.eFacturaStatus === 'REJECTED_ANAF'
+                            ? invoice.eFacturaError
+                            : undefined
+                        }
+                        // 2. CLICK PE BADGE (Deschide Modalul)
+                        onClick={() => {
+                          if (invoice.eFacturaStatus === 'REJECTED_ANAF') {
+                            handleShowError(invoice.eFacturaError)
                           }
-                          disabled={!!isGeneratingPdf}
+                        }}
+                      >
+                        <EFacturaStatusBadge status={invoice.eFacturaStatus} />
+                      </div>
+                    </TableCell>
+
+                    {/* COLOANA 2: ACȚIUNI */}
+                    <TableCell className='py-1'>
+                      {invoice.clientSnapshot?.address?.tara &&
+                        invoice.clientSnapshot.address.tara.toUpperCase() !==
+                          'RO' && (
+                          <span
+                            className='text-xs font-bold bg-muted text-muted-foreground px-1.5 py-0.5 rounded border'
+                            title='Client Extern'
+                          >
+                            Tara:{' '}
+                            {invoice.clientSnapshot.address.tara.toUpperCase()}
+                          </span>
+                        )}
+
+                      {isAdmin ? (
+                        <div className='flex gap-1 items-start '>
+                          {/* A. Buton UPLOAD (Doar acțiunea de trimitere) */}
+                          {(invoice.eFacturaStatus === 'PENDING' ||
+                            invoice.eFacturaStatus === 'REJECTED_ANAF') && (
+                            <Button
+                              variant='outline'
+                              size='icon'
+                              className='h-7 w-7'
+                              // MODIFICAT: Tooltip simplu de acțiune, FĂRĂ EROARE
+                              title='Trimite factura în SPV'
+                              disabled={
+                                actionLoadingId === invoice._id.toString() ||
+                                !(
+                                  invoice.status === 'APPROVED' ||
+                                  invoice.status === 'PAID' ||
+                                  invoice.status === 'PARTIAL_PAID'
+                                )
+                              }
+                              onClick={() => handleUploadToAnaf(invoice)}
+                            >
+                              {actionLoadingId === invoice._id.toString() ? (
+                                <Loader2 className='h-3 w-3 animate-spin' />
+                              ) : (
+                                <Upload className='h-4 w-4' />
+                              )}
+                            </Button>
+                          )}
+
+                          {/* B. Zona ID + DOWNLOAD + REFRESH (Dedesubt) */}
+                          {(invoice.eFacturaStatus === 'SENT' ||
+                            invoice.eFacturaStatus === 'ACCEPTED' ||
+                            (invoice.eFacturaStatus === 'REJECTED_ANAF' &&
+                              invoice.eFacturaUploadId)) &&
+                            invoice.eFacturaUploadId && (
+                              <div className='flex items-center gap-1'>
+                                {/* Buton Download ZIP / ID */}
+                                <div
+                                  className={cn(
+                                    'text-[10px] font-mono border px-2 py-1 rounded flex items-center gap-1 transition-colors h-7',
+                                    'hover:bg-primary/10 hover:text-primary cursor-pointer',
+                                    'bg-muted text-muted-foreground',
+                                  )}
+                                  onClick={() => handleDownloadZip(invoice)}
+                                  title='Descarcă XML / ZIP'
+                                >
+                                  {actionLoadingId ===
+                                  invoice._id.toString() ? (
+                                    <Loader2 className='h-3 w-3 animate-spin' />
+                                  ) : (
+                                    <Download className='h-3 w-3' />
+                                  )}
+                                  <span>{invoice.eFacturaUploadId}</span>
+                                </div>
+
+                                {/* Buton Refresh (Doar dacă e SENT) */}
+                                {invoice.eFacturaStatus === 'SENT' && (
+                                  <Button
+                                    variant='ghost'
+                                    size='icon'
+                                    className='h-7 w-7 hover:bg-muted'
+                                    title='Verifică status ANAF'
+                                    disabled={
+                                      actionLoadingId ===
+                                        invoice._id.toString() ||
+                                      isBulkRefreshing
+                                    }
+                                    onClick={() => handleCheckStatus(invoice)}
+                                  >
+                                    <RefreshCw
+                                      className={cn(
+                                        'h-3 w-3',
+                                        (actionLoadingId ===
+                                          invoice._id.toString() ||
+                                          isBulkRefreshing) &&
+                                          'animate-spin',
+                                      )}
+                                    />
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                        </div>
+                      ) : (
+                        <span className='text-muted-foreground text-xs'>-</span>
+                      )}
+                    </TableCell>
+                    <TableCell className='text-right text-[10px] lg:text-xs py-1'>
+                      {formatCurrency(invoice.totals.grandTotal)}
+                    </TableCell>
+                    {isAdmin && (
+                      <>
+                        <TableCell
+                          className={cn(
+                            'text-right text-[10px] lg:text-xs py-1',
+                            getProfitColorClass(invoice.totals.productsProfit),
+                          )}
                         >
-                          <div className='flex items-center justify-between w-full'>
-                            <span>Printează PDF</span>
-                            {isGeneratingPdf === invoice._id.toString() && (
-                              <Loader2 className='h-3 w-3 animate-spin ml-2' />
+                          {invoice.invoiceType !== 'STORNO'
+                            ? formatCurrency(invoice.totals.productsProfit)
+                            : '-'}
+                        </TableCell>
+                        <TableCell className='text-right py-1'>
+                          <div className='flex flex-col items-end justify-center gap-0.5'>
+                            {invoice.invoiceType !== 'STORNO' ? (
+                              <>
+                                <div className='flex gap-1 items-center'>
+                                  {hasProvisionalCost && (
+                                    <div
+                                      className='flex items-center justify-center gap-1 text-[10px] text-primary px-1.5 py-0.5 pb-0 rounded border border-primary mb-0.5 cursor-help'
+                                      title='Cost estimat: stoc insuficient la momentul facturării.'
+                                    >
+                                      <AlertTriangle className='h-3 w-3 pb-0.5' />
+                                      Est.
+                                    </div>
+                                  )}
+                                  <span
+                                    className={cn(
+                                      'text-[10px] lg:text-xs font-medium',
+                                      getMarginColorClass(
+                                        invoice.totals.productsMargin,
+                                      ),
+                                    )}
+                                  >
+                                    {invoice.totals.productsMargin}%
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <span className='text-[10px] lg:text-xs text-muted-foreground'>
+                                -
+                              </span>
                             )}
                           </div>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            handlePreviewXml(invoice._id.toString())
-                          }
-                          disabled={!invoice.eFacturaUploadId} // Activ doar dacă s-a încercat trimiterea
-                        >
-                          Vezi XML e-Factura
-                        </DropdownMenuItem>
-                        {invoice.eFacturaStatus === 'REJECTED_ANAF' && (
+                        </TableCell>
+                      </>
+                    )}
+                    <TableCell className='text-right py-1 '>
+                      <div className='flex items-center justify-end gap-1'></div>
+                      <InvoicePreview
+                        invoice={invoice}
+                        isAdmin={isAdmin}
+                        currentUserRole={isAdmin ? 'admin' : 'user'}
+                      />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant='ghost' size='icon'>
+                            <MoreHorizontal className='h-4 w-4' />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align='end'>
                           <DropdownMenuItem
-                            className='text-red-600 focus:text-red-700'
                             onSelect={() =>
-                              handleShowError(invoice.eFacturaError)
+                              router.push(`/financial/invoices/${invoice._id}`)
                             }
                           >
-                            Vezi Erori ANAF
+                            Vizualizează
                           </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem
-                          onSelect={() =>
-                            router.push(
-                              `/financial/invoices/${invoice._id.toString()}/edit`,
-                            )
-                          }
-                          disabled={
-                            invoice.status !== 'CREATED' &&
-                            invoice.status !== 'REJECTED'
-                          }
-                        >
-                          Modifică
-                        </DropdownMenuItem>
-
-                        {/* --- ÎNCEPUT BLOC ACȚIUNI ADMIN --- */}
-
-                        {isAdmin && (
-                          <>
-                            <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              handlePrintPreview(invoice._id.toString())
+                            }
+                            disabled={!!isGeneratingPdf}
+                          >
+                            <div className='flex items-center justify-between w-full'>
+                              <span>Printează PDF</span>
+                              {isGeneratingPdf === invoice._id.toString() && (
+                                <Loader2 className='h-3 w-3 animate-spin ml-2' />
+                              )}
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              handlePreviewXml(invoice._id.toString())
+                            }
+                            disabled={!invoice.eFacturaUploadId} // Activ doar dacă s-a încercat trimiterea
+                          >
+                            Vezi XML e-Factura
+                          </DropdownMenuItem>
+                          {invoice.eFacturaStatus === 'REJECTED_ANAF' && (
                             <DropdownMenuItem
-                              className='text-green-600 focus:text-green-700'
-                              onSelect={() => handleApprove(invoice)}
-                              disabled={
-                                invoice.status !== 'CREATED' &&
-                                invoice.status !== 'REJECTED'
+                              className='text-red-600 focus:text-red-700'
+                              onSelect={() =>
+                                handleShowError(invoice.eFacturaError)
                               }
                             >
-                              Aprobă Factura
+                              Vezi Erori ANAF
                             </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              router.push(
+                                `/financial/invoices/${invoice._id.toString()}/edit`,
+                              )
+                            }
+                            disabled={
+                              invoice.status !== 'CREATED' &&
+                              invoice.status !== 'REJECTED'
+                            }
+                          >
+                            Modifică
+                          </DropdownMenuItem>
 
-                            <DropdownMenuItem
-                              className='text-destructive focus:text-destructive'
-                              onSelect={() => {
-                                setInvoiceToActOn(invoice)
-                                setIsRejectModalOpen(true)
-                              }}
-                              disabled={invoice.status !== 'CREATED'}
-                            >
-                              Respinge Factura
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                        {/* --- SFÂRȘIT BLOC ACȚIUNI ADMIN --- */}
+                          {/* --- ÎNCEPUT BLOC ACȚIUNI ADMIN --- */}
 
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className='text-red-600 focus:text-red-700 focus:bg-red-50'
-                          onSelect={() => handlePrepareCancel(invoice)}
-                          disabled={
-                            invoice.status === 'CANCELLED' ||
-                            invoice.status === 'PAID' ||
-                            invoice.status === 'PARTIAL_PAID' ||
-                            invoice.status === 'APPROVED' ||
-                            ['SENT', 'ACCEPTED'].includes(
-                              invoice.eFacturaStatus,
-                            )
-                          }
-                        >
-                          {/* Putem schimba textul dinamic dacă vrei */}
-                          {invoice.splitGroupId
-                            ? 'Anulează Grup Split'
-                            : 'Anulează Factura'}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
+                          {isAdmin && (
+                            <>
+                              <TableCell
+                                className={cn(
+                                  'text-right text-[10px] lg:text-xs py-1',
+                                  getProfitColorClass(
+                                    invoice.totals.productsProfit,
+                                  ),
+                                )}
+                              >
+                                {invoice.invoiceType !== 'STORNO'
+                                  ? formatCurrency(
+                                      invoice.totals.productsProfit,
+                                    )
+                                  : '-'}
+                              </TableCell>
+                              <TableCell className='text-right py-1'>
+                                <div className='flex flex-col items-end justify-center gap-0.5'>
+                                  {invoice.invoiceType !== 'STORNO' ? (
+                                    <>
+                                      {hasProvisionalCost && (
+                                        <div
+                                          className='flex items-center gap-1 text-[9px] text-amber-600 bg-amber-100/50 px-1 py-[1px] rounded border border-amber-200 cursor-help leading-none'
+                                          title='Această factură conține produse cu cost estimat (lipsă stoc la momentul avizării).'
+                                        >
+                                          <AlertTriangle className='h-2.5 w-2.5' />
+                                          Estimat
+                                        </div>
+                                      )}
+                                      <span
+                                        className={cn(
+                                          'text-[10px] lg:text-xs font-medium',
+                                          getMarginColorClass(
+                                            invoice.totals.productsMargin,
+                                          ),
+                                        )}
+                                      >
+                                        {invoice.totals.productsMargin}%
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className='text-[10px] lg:text-xs text-muted-foreground'>
+                                      -
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </>
+                          )}
+                          {/* --- SFÂRȘIT BLOC ACȚIUNI ADMIN --- */}
+
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className='text-red-600 focus:text-red-700 focus:bg-red-50'
+                            onSelect={() => handlePrepareCancel(invoice)}
+                            disabled={
+                              invoice.status === 'CANCELLED' ||
+                              invoice.status === 'PAID' ||
+                              invoice.status === 'PARTIAL_PAID' ||
+                              invoice.status === 'APPROVED' ||
+                              ['SENT', 'ACCEPTED'].includes(
+                                invoice.eFacturaStatus,
+                              )
+                            }
+                          >
+                            {/* Putem schimba textul dinamic dacă vrei */}
+                            {invoice.splitGroupId
+                              ? 'Anulează Grup Split'
+                              : 'Anulează Factura'}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
             ) : (
               <TableRow>
                 <TableCell colSpan={9} className='text-center h-24'>

@@ -3,7 +3,7 @@
 import { useState, useTransition, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
-import { formatCurrency } from '@/lib/utils'
+import { cn, formatCurrency } from '@/lib/utils'
 import {
   Table,
   TableHeader,
@@ -42,7 +42,7 @@ import {
   generateNirForReceptionAction,
   syncNirFromReceptionAction,
 } from '@/lib/db/modules/financial/nir/nir.actions'
-import { Eye, Loader2, Printer } from 'lucide-react'
+import { Eye, Loader2, Printer, Truck } from 'lucide-react'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
@@ -457,6 +457,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                 const deliveries = rec.deliveries ?? []
                 const invoices = rec.invoices ?? []
                 const totals = computeReceptionTotals(rec)
+                const isInTransit = rec.destinationLocation === 'IN_TRANZIT'
 
                 return (
                   <TableRow
@@ -530,7 +531,13 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                     <TableCell className='py-1.5 text-xs 2xl:text-sm'>
                       {deliveries.length > 0
                         ? deliveries.map((d, i) => (
-                            <div key={i} className='leading-tight'>
+                            <div
+                              key={i}
+                              className={cn(
+                                'leading-tight',
+                                isInTransit && 'text-red-600 font-semibold',
+                              )}
+                            >
                               {[
                                 d.dispatchNoteSeries?.toUpperCase(),
                                 d.dispatchNoteNumber,
@@ -564,7 +571,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                     <TableCell className='py-1.5 text-xs 2xl:text-sm'>
                       {formatCurrency(totals.generalRON)}
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                    <TableCell className='py-1.5 text-xs 2xl:text-sm flex'>
                       <Badge
                         variant={
                           rec.status === 'DRAFT' ? 'secondary' : 'default'
@@ -572,6 +579,14 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                       >
                         {rec.status}
                       </Badge>
+                      {isInTransit && (
+                        <div
+                          className='flex items-center justify-center text-primary h-7 w-7 cursor-help'
+                          title='Marfa este În Tranzit'
+                        >
+                          <Truck className='h-5 w-5' />
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className='py-1.5 text-xs 2xl:text-sm'>
                       {rec.createdByName || rec.createdBy?.name || '–'}

@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Hash, Package, ShoppingCart } from 'lucide-react'
+import { AlertTriangle, Hash, Package, ShoppingCart } from 'lucide-react'
 import { formatCurrency, cn, formatCurrency3 } from '@/lib/utils'
 import { getSmartDescription } from './InvoiceDetails.helpers'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
@@ -115,6 +115,9 @@ export function InvoiceItemsTable({
           <TableBody>
             {items.map((item, index) => {
               const smartDesc = getSmartDescription(item)
+              const isProvisional = item.costBreakdown?.some(
+                (cb: any) => cb.type === 'PROVISIONAL',
+              )
 
               return (
                 <TableRow
@@ -242,14 +245,25 @@ export function InvoiceItemsTable({
                         >
                           {formatCurrency(item.lineProfit || 0)}
                         </span>
-                        <span
-                          className={cn(
-                            getMarginColorClass(item.lineMargin || 0),
-                            isPreview ? 'text-xs' : 'text-xs',
-                          )}
-                        >
-                          {item.lineMargin || 0}%
-                        </span>
+                        <div className='flex gap-1 items-center'>
+                          {isProvisional && (
+                            <div
+                              className='flex items-center justify-center gap-1 text-[10px] text-primary px-1.5 py-0.5 pb-0 rounded border border-primary mb-0.5 cursor-help'
+                              title='Cost estimat: stoc insuficient la momentul facturării.'
+                            >
+                              <AlertTriangle className='h-4 w-4 pb-0.5' />
+                              Estimat
+                            </div>
+                          )}{' '}
+                          <span
+                            className={cn(
+                              getMarginColorClass(item.lineMargin || 0),
+                              isPreview ? 'text-xs' : 'text-xs',
+                            )}
+                          >
+                            {item.lineMargin || 0}%
+                          </span>
+                        </div>
                       </div>
                     </TableCell>
                   )}

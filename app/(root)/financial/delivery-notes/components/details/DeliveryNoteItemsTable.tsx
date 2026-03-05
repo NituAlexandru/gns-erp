@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Box, Hash, Package } from 'lucide-react'
+import { AlertTriangle, Box, Hash, Package } from 'lucide-react'
 import { getSmartDescription } from './DeliveryNoteDetails.helpers'
 import { Barcode } from '@/components/barcode/barcode-image'
 import { cn, formatCurrency } from '@/lib/utils'
@@ -71,6 +71,9 @@ export function DeliveryNoteItemsTable({
   const headerIndices = isAdmin
     ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     : [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+  const hasAnyProvisionalCost = items.some((item) =>
+    item.costBreakdown?.some((cb) => cb.type === 'PROVISIONAL'),
+  )
 
   return (
     <Card className='py-2 gap-0'>
@@ -139,6 +142,9 @@ export function DeliveryNoteItemsTable({
             {items.map((item, index) => {
               const smartDesc = getSmartDescription(item)
               const profit = (item.lineValue || 0) - (item.lineCostFIFO || 0)
+              const isProvisional = item.costBreakdown?.some(
+                (cb: any) => cb.type === 'PROVISIONAL',
+              )
               const margin = item.lineValue
                 ? (profit / item.lineValue) * 100
                 : 0
@@ -280,14 +286,25 @@ export function DeliveryNoteItemsTable({
                           >
                             {formatCurrency(formattedProfit)}
                           </span>
-                          <span
-                            className={cn(
-                              getMarginColorClass(formattedMargin),
-                              isPreview ? 'text-[9px]' : 'text-[10px]',
+                          <div className='flex gap-1 items-center'>
+                            {isProvisional && (
+                              <div
+                                className='flex items-center justify-center gap-1 text-[10px] text-primary px-1.5 py-0.5 pb-0 rounded border border-primary mb-0.5 cursor-help'
+                                title='Cost estimat: stoc insuficient la momentul facturării.'
+                              >
+                                <AlertTriangle className='h-3 w-3 pb-0.5' />
+                                Est.
+                              </div>
                             )}
-                          >
-                            {formattedMargin}%
-                          </span>
+                            <span
+                              className={cn(
+                                getMarginColorClass(formattedMargin),
+                                isPreview ? 'text-[9px]' : 'text-[10px]',
+                              )}
+                            >
+                              {formattedMargin}%
+                            </span>
+                          </div>
                         </div>
                       ) : (
                         <span className='text-muted-foreground'>-</span>

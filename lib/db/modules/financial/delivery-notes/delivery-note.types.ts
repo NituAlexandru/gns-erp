@@ -15,6 +15,7 @@ export interface CostBreakdownDTO {
   entryDate: string
   quantity: number
   unitCost: number
+  type?: 'REAL' | 'PROVISIONAL'
   qualityDetails?: QualityDetailsDTO
 }
 
