@@ -11,7 +11,7 @@ import { Info } from 'lucide-react'
 interface InvoiceSummaryProps {
   invoice: PopulatedInvoice
   isAdmin: boolean
-  isPreview?: boolean // <--- PROP NOU
+  isPreview?: boolean 
 }
 
 // Helper specific păstrat

@@ -5,7 +5,6 @@ import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 import { InvoiceFilters } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { getSeries } from '@/lib/db/modules/numbering/series.actions'
 
-// Definim tipul pentru searchParams in Next.js 15/16 (e Promise)
 export default async function InvoicesPage(props: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
