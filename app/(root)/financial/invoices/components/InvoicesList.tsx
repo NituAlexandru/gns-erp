@@ -719,51 +719,28 @@ export function InvoicesList({
 
                           {isAdmin && (
                             <>
-                              <TableCell
-                                className={cn(
-                                  'text-right text-[10px] lg:text-xs py-1',
-                                  getProfitColorClass(
-                                    invoice.totals.productsProfit,
-                                  ),
-                                )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className='text-green-600 focus:text-green-700 cursor-pointer'
+                                onSelect={() => handleApprove(invoice)}
+                                disabled={
+                                  invoice.status !== 'CREATED' &&
+                                  invoice.status !== 'REJECTED'
+                                }
                               >
-                                {invoice.invoiceType !== 'STORNO'
-                                  ? formatCurrency(
-                                      invoice.totals.productsProfit,
-                                    )
-                                  : '-'}
-                              </TableCell>
-                              <TableCell className='text-right py-1'>
-                                <div className='flex flex-col items-end justify-center gap-0.5'>
-                                  {invoice.invoiceType !== 'STORNO' ? (
-                                    <>
-                                      {hasProvisionalCost && (
-                                        <div
-                                          className='flex items-center gap-1 text-[9px] text-amber-600 bg-amber-100/50 px-1 py-[1px] rounded border border-amber-200 cursor-help leading-none'
-                                          title='Această factură conține produse cu cost estimat (lipsă stoc la momentul avizării).'
-                                        >
-                                          <AlertTriangle className='h-2.5 w-2.5' />
-                                          Estimat
-                                        </div>
-                                      )}
-                                      <span
-                                        className={cn(
-                                          'text-[10px] lg:text-xs font-medium',
-                                          getMarginColorClass(
-                                            invoice.totals.productsMargin,
-                                          ),
-                                        )}
-                                      >
-                                        {invoice.totals.productsMargin}%
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <span className='text-[10px] lg:text-xs text-muted-foreground'>
-                                      -
-                                    </span>
-                                  )}
-                                </div>
-                              </TableCell>
+                                Aprobă Factura
+                              </DropdownMenuItem>
+
+                              <DropdownMenuItem
+                                className='text-destructive focus:text-destructive cursor-pointer'
+                                onSelect={() => {
+                                  setInvoiceToActOn(invoice)
+                                  setIsRejectModalOpen(true)
+                                }}
+                                disabled={invoice.status !== 'CREATED'}
+                              >
+                                Respinge Factura
+                              </DropdownMenuItem>
                             </>
                           )}
                           {/* --- SFÂRȘIT BLOC ACȚIUNI ADMIN --- */}
