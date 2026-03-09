@@ -128,54 +128,54 @@ export function consolidateInvoiceFromNotes(notes: IDeliveryNoteDoc[]): {
     invoiceTotals.productsSubtotal +
       invoiceTotals.servicesSubtotal +
       invoiceTotals.manualSubtotal +
-      invoiceTotals.packagingSubtotal
+      invoiceTotals.packagingSubtotal,
   )
   invoiceTotals.vatTotal = round2(
     invoiceTotals.productsVat +
       invoiceTotals.servicesVat +
       invoiceTotals.manualVat +
-      invoiceTotals.packagingVat
+      invoiceTotals.packagingVat,
   )
   invoiceTotals.grandTotal = round2(
-    invoiceTotals.subtotal + invoiceTotals.vatTotal
+    invoiceTotals.subtotal + invoiceTotals.vatTotal,
   )
   invoiceTotals.totalCost = round2(
     invoiceTotals.productsCost +
       invoiceTotals.servicesCost +
       invoiceTotals.manualCost +
-      invoiceTotals.packagingCost
+      invoiceTotals.packagingCost,
   )
   invoiceTotals.totalProfit = round2(
     invoiceTotals.productsProfit +
       invoiceTotals.servicesProfit +
       invoiceTotals.manualProfit +
-      invoiceTotals.packagingProfit
+      invoiceTotals.packagingProfit,
   )
 
   // Marjele %
   invoiceTotals.productsMargin =
     invoiceTotals.productsSubtotal > 0
       ? round2(
-          (invoiceTotals.productsProfit / invoiceTotals.productsSubtotal) * 100
+          (invoiceTotals.productsProfit / invoiceTotals.productsSubtotal) * 100,
         )
       : 0
   invoiceTotals.packagingMargin =
     invoiceTotals.packagingSubtotal > 0
       ? round2(
           (invoiceTotals.packagingProfit / invoiceTotals.packagingSubtotal) *
-            100
+            100,
         )
       : 0
   invoiceTotals.servicesMargin =
     invoiceTotals.servicesSubtotal > 0
       ? round2(
-          (invoiceTotals.servicesProfit / invoiceTotals.servicesSubtotal) * 100
+          (invoiceTotals.servicesProfit / invoiceTotals.servicesSubtotal) * 100,
         )
       : 0
   invoiceTotals.manualMargin =
     invoiceTotals.manualSubtotal > 0
       ? round2(
-          (invoiceTotals.manualProfit / invoiceTotals.manualSubtotal) * 100
+          (invoiceTotals.manualProfit / invoiceTotals.manualSubtotal) * 100,
         )
       : 0
   invoiceTotals.profitMargin =
@@ -186,7 +186,7 @@ export function consolidateInvoiceFromNotes(notes: IDeliveryNoteDoc[]): {
   // Rotunjim totul la final
   Object.keys(invoiceTotals).forEach((key) => {
     invoiceTotals[key as keyof InvoiceTotals] = round2(
-      invoiceTotals[key as keyof InvoiceTotals]
+      invoiceTotals[key as keyof InvoiceTotals],
     )
   })
 
@@ -197,7 +197,7 @@ export function consolidateInvoiceFromNotes(notes: IDeliveryNoteDoc[]): {
  * Sursa Adevărului este 'items' (datele din formular).
  */
 export function calculateInvoiceTotals(
-  items: InvoiceLineInput[]
+  items: InvoiceLineInput[],
 ): InvoiceTotals {
   const invoiceTotals = items.reduce((acc, item) => {
     const lineValue = item?.lineValue || 0
@@ -239,54 +239,54 @@ export function calculateInvoiceTotals(
     invoiceTotals.productsSubtotal +
       invoiceTotals.servicesSubtotal +
       invoiceTotals.manualSubtotal +
-      invoiceTotals.packagingSubtotal
+      invoiceTotals.packagingSubtotal,
   )
   invoiceTotals.vatTotal = round2(
     invoiceTotals.productsVat +
       invoiceTotals.servicesVat +
       invoiceTotals.manualVat +
-      invoiceTotals.packagingVat
+      invoiceTotals.packagingVat,
   )
   invoiceTotals.grandTotal = round2(
-    invoiceTotals.subtotal + invoiceTotals.vatTotal
+    invoiceTotals.subtotal + invoiceTotals.vatTotal,
   )
   invoiceTotals.totalCost = round2(
     invoiceTotals.productsCost +
       invoiceTotals.servicesCost +
       invoiceTotals.manualCost +
-      invoiceTotals.packagingCost
+      invoiceTotals.packagingCost,
   )
   invoiceTotals.totalProfit = round2(
     invoiceTotals.productsProfit +
       invoiceTotals.servicesProfit +
       invoiceTotals.manualProfit +
-      invoiceTotals.packagingProfit
+      invoiceTotals.packagingProfit,
   )
 
   // Marjele %
   invoiceTotals.productsMargin =
     invoiceTotals.productsSubtotal > 0
       ? round2(
-          (invoiceTotals.productsProfit / invoiceTotals.productsSubtotal) * 100
+          (invoiceTotals.productsProfit / invoiceTotals.productsSubtotal) * 100,
         )
       : 0
   invoiceTotals.packagingMargin =
     invoiceTotals.packagingSubtotal > 0
       ? round2(
           (invoiceTotals.packagingProfit / invoiceTotals.packagingSubtotal) *
-            100
+            100,
         )
       : 0
   invoiceTotals.servicesMargin =
     invoiceTotals.servicesSubtotal > 0
       ? round2(
-          (invoiceTotals.servicesProfit / invoiceTotals.servicesSubtotal) * 100
+          (invoiceTotals.servicesProfit / invoiceTotals.servicesSubtotal) * 100,
         )
       : 0
   invoiceTotals.manualMargin =
     invoiceTotals.manualSubtotal > 0
       ? round2(
-          (invoiceTotals.manualProfit / invoiceTotals.manualSubtotal) * 100
+          (invoiceTotals.manualProfit / invoiceTotals.manualSubtotal) * 100,
         )
       : 0
   invoiceTotals.profitMargin =
@@ -297,7 +297,7 @@ export function calculateInvoiceTotals(
   // Rotunjim totul
   Object.keys(invoiceTotals).forEach((key) => {
     invoiceTotals[key as keyof InvoiceTotals] = round2(
-      invoiceTotals[key as keyof InvoiceTotals]
+      invoiceTotals[key as keyof InvoiceTotals],
     )
   })
 
@@ -313,26 +313,26 @@ export async function updateRelatedDocuments(
     // ID-urile de avize de pe factură ÎNAINTE de salvare
     originalSourceNoteIds?: Types.ObjectId[]
   },
-  { session }: { session: ClientSession }
+  { session }: { session: ClientSession },
 ) {
   const invoiceRef = `${invoice.seriesName}-${invoice.invoiceNumber}`
 
   // 1. Calculăm diferențele (Diff)
   const newNoteIds = new Set(
-    invoice.sourceDeliveryNotes.map((id) => id.toString())
+    invoice.sourceDeliveryNotes.map((id) => id.toString()),
   )
   const oldNoteIds = new Set(
-    (options.originalSourceNoteIds || []).map((id) => id.toString())
+    (options.originalSourceNoteIds || []).map((id) => id.toString()),
   )
 
   // A. Găsește avizele care TOCMAI AU FOST ADĂUGATE la factură
   const notesToMarkAsInvoiced = invoice.sourceDeliveryNotes.filter(
-    (id) => !oldNoteIds.has(id.toString())
+    (id) => !oldNoteIds.has(id.toString()),
   )
 
   // B. Găsește avizele care TOCMAI AU FOST ȘTERSE de pe factură
   const notesToRelease = (options.originalSourceNoteIds || []).filter(
-    (id) => !newNoteIds.has(id.toString())
+    (id) => !newNoteIds.has(id.toString()),
   )
 
   // 2. Actualizăm Avizele (DeliveryNote)
@@ -348,7 +348,7 @@ export async function updateRelatedDocuments(
           },
         },
       },
-      { session }
+      { session },
     )
   }
   // B. Găsește avizele care TOCMAI AU FOST ȘTERSE de pe factură (Release)
@@ -367,7 +367,7 @@ export async function updateRelatedDocuments(
           relatedInvoices: { invoiceId: invoice._id },
         },
       },
-      { session }
+      { session },
     )
 
     // 👇 2. Resetăm și Livrările asociate acestor avize (să nu rămână blocate pe INVOICED)
@@ -390,7 +390,7 @@ export async function updateRelatedDocuments(
             relatedInvoices: { invoiceId: invoice._id },
           },
         },
-        { session }
+        { session },
       )
     }
   }
@@ -416,12 +416,16 @@ export async function updateRelatedDocuments(
           },
         },
       },
-      { session }
+      { session },
     )
   }
 
   // 5. Actualizăm Comenzile (Order)
   for (const orderId of orderIds) {
+    // 1. Aducem documentul comenzii pentru a avea acces la .lineItems
+    const order = await Order.findById(orderId).session(session)
+    if (!order) continue
+
     const allDeliveriesForOrder = await DeliveryModel.find({
       orderId: orderId,
       status: { $ne: 'CANCELLED' },
@@ -434,32 +438,40 @@ export async function updateRelatedDocuments(
       continue
     }
 
-    const allInvoiced = allDeliveriesForOrder.every(
-      (d) => d.status === 'INVOICED'
+    const allDeliveriesInvoiced = allDeliveriesForOrder.every(
+      (d) => d.status === 'INVOICED',
     )
     const partiallyInvoiced = allDeliveriesForOrder.some(
-      (d) => d.status === 'INVOICED'
+      (d) => d.status === 'INVOICED',
+    )
+
+    // 2. APLICĂM LOGICA PE CANTITĂȚI FIZICE
+    const isFullyDelivered = order.lineItems.every(
+      (item: any) => (item.quantityShipped || 0) >= item.quantity,
     )
 
     let newStatus: IOrder['status']
 
-    if (allInvoiced) {
+    if (isFullyDelivered && allDeliveriesInvoiced) {
+      // S-a livrat absolut tot ȘI s-a facturat absolut tot
       newStatus = 'INVOICED'
     } else if (partiallyInvoiced) {
+      // Există cel puțin o factură, DAR fie nu s-a livrat tot, fie nu s-a facturat tot ce s-a livrat
       newStatus = 'PARTIALLY_INVOICED'
     } else {
-      // Dacă niciuna nu e facturată (ex: am șters singurul aviz)
-      // Ar trebui să ne întoarcem la 'DELIVERED' sau 'PARTIALLY_DELIVERED'
+      // Caz de fallback (ex: s-a anulat factura și trebuie să dăm rollback la statusul comenzii)
       const allDelivered = allDeliveriesForOrder.every(
-        (d) => d.status === 'DELIVERED'
+        (d) => d.status === 'DELIVERED',
       )
-      newStatus = allDelivered ? 'DELIVERED' : 'PARTIALLY_DELIVERED'
+      if (isFullyDelivered && allDelivered) {
+        newStatus = 'DELIVERED'
+      } else {
+        newStatus = 'PARTIALLY_DELIVERED'
+      }
     }
 
-    await Order.findByIdAndUpdate(
-      orderId,
-      { $set: { status: newStatus } },
-      { session }
-    )
+    // Salvăm noul status
+    order.status = newStatus
+    await order.save({ session })
   }
 }

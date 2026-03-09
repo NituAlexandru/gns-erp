@@ -247,14 +247,16 @@ export async function createDeliveryNote({
         },
         { session },
       )
-      await Order.findByIdAndUpdate(
-        delivery.orderId,
-        // TODO: Aici poți adăuga logică mai complexă
-        // (ex: 'PARTIALLY_IN_TRANSIT' dacă e prima livrare)
-        // Deocamdată, 'IN_TRANSIT' este corect.
-        { status: 'PARTIALLY_DELIVERED' },
-        { session },
-      )
+      const orderToUpdate = await Order.findById(delivery.orderId)
+        .select('status')
+        .session(session)
+      if (
+        orderToUpdate &&
+        !['PARTIALLY_INVOICED', 'INVOICED'].includes(orderToUpdate.status)
+      ) {
+        orderToUpdate.status = 'PARTIALLY_DELIVERED'
+        await orderToUpdate.save({ session })
+      }
       // 🔽 MODIFICARE: Returnăm nota din tranzacție 🔽
       return JSON.parse(JSON.stringify(newNote)) as DeliveryNoteDTO
     }) // <--- Aici se termină tranzacția
@@ -431,21 +433,27 @@ export async function confirmDeliveryNote({
         }
       }
 
-      // C. Status Comandă (Logica complexă)
-      const otherDeliveries = await DeliveryModel.find({
-        orderId: order._id,
-        _id: { $ne: delivery._id },
-      }).session(session)
-
-      const allDeliveriesDone = otherDeliveries.every(
-        (d) => d.status === 'DELIVERED',
+      // C. Status Comandă (Logica bazată pe cantități + Protecție facturi)
+      const isFullyDelivered = order.lineItems.every(
+        (item: any) => (item.quantityShipped || 0) >= item.quantity,
       )
 
-      if (allDeliveriesDone) {
+      const allDeliveries = await DeliveryModel.find({
+        orderId: order._id,
+        status: { $ne: 'CANCELLED' },
+      }).session(session)
+      const hasInvoicedDeliveries = allDeliveries.some(
+        (d) => d.status === 'INVOICED',
+      )
+
+      if (hasInvoicedDeliveries) {
+        order.status = 'PARTIALLY_INVOICED'
+      } else if (isFullyDelivered) {
         order.status = 'DELIVERED'
       } else {
         order.status = 'PARTIALLY_DELIVERED'
       }
+
       await order.save({ session })
 
       return {
@@ -806,15 +814,19 @@ export async function cancelDeliveryNote({
           _id: { $ne: delivery._id },
         }).session(session)
 
-        const isAnyOtherDeliveryActive = otherDeliveries.some(
+        const hasInvoiced = otherDeliveries.some((d) => d.status === 'INVOICED')
+        const hasDeliveredOrTransit = otherDeliveries.some(
           (d) => d.status === 'IN_TRANSIT' || d.status === 'DELIVERED',
         )
 
-        if (isAnyOtherDeliveryActive) {
+        if (hasInvoiced) {
+          order.status = 'PARTIALLY_INVOICED'
+        } else if (hasDeliveredOrTransit) {
           order.status = 'PARTIALLY_DELIVERED'
         } else {
-          order.status = 'CONFIRMED'
+          order.status = 'SCHEDULED' // Livrarea curentă s-a întors la SCHEDULED, deci comanda e SCHEDULED
         }
+
         await order.save({ session })
 
         return {

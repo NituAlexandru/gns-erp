@@ -298,11 +298,15 @@ export async function createSingleDelivery(
       { session: mongoSession },
     )
 
-    // 4. Actualizăm statusul comenzii la 'SCHEDULED' (dacă nu e deja)
-    if (
-      originalOrder.status !== 'SCHEDULED' &&
-      originalOrder.status !== 'PARTIALLY_DELIVERED'
-    ) {
+    // 4. Actualizăm statusul comenzii la 'SCHEDULED' (protejând statusurile superioare)
+    const nonDowngradableStatuses = [
+      'SCHEDULED',
+      'PARTIALLY_DELIVERED',
+      'PARTIALLY_INVOICED',
+      'INVOICED',
+      'COMPLETED',
+    ]
+    if (!nonDowngradableStatuses.includes(originalOrder.status)) {
       await OrderModel.findByIdAndUpdate(
         orderId,
         { $set: { status: 'SCHEDULED' } },
