@@ -91,6 +91,7 @@ export function OrdersList({
     'CONFIRMED',
     'PARTIALLY_DELIVERED',
     'SCHEDULED',
+    'PARTIALLY_INVOICED',
   ]
   // Definim statusurile permise pentru modificare/anulare
   const editableStatuses: PopulatedOrder['status'][] = [
@@ -98,6 +99,7 @@ export function OrdersList({
     'CONFIRMED',
     'SCHEDULED',
     'PARTIALLY_DELIVERED',
+    'PARTIALLY_INVOICED',
   ]
   return (
     <div>
