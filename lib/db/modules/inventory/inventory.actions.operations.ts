@@ -246,20 +246,36 @@ export async function transferStock(input: TransferStockInput) {
       destItem.unitMeasure = sourceItem.unitMeasure
     }
 
-    // Adăugăm lotul în destinație (copie identică a datelor, doar cantitatea e cea transferată)
-    destItem.batches.push({
-      _id: new Types.ObjectId(),
-      quantity: payload.quantity,
-      unitCost: batchSnapshot.unitCost,
-      entryDate: batchSnapshot.entryDate, // Păstrăm vechimea lotului!
-      movementId: batchSnapshot.movementId, // Păstrăm legătura cu intrarea originală
-      supplierId: batchSnapshot.supplierId,
-      supplierName: batchSnapshot.supplierName,
-      qualityDetails: batchSnapshot.qualityDetails,
-      receptionRef: batchSnapshot.receptionRef,
-      orderRef: batchSnapshot.orderRef,
-      supplierOrderNumber: batchSnapshot.supplierOrderNumber,
-    })
+    // --- NOU: LOGICA DE ACOPERIRE A STOCULUI NEGATIV LA DESTINAȚIE ---
+    let incomingQuantity = payload.quantity
+
+    if (destItem.totalStock < 0) {
+      const deficit = Math.abs(destItem.totalStock)
+      if (incomingQuantity >= deficit) {
+        incomingQuantity -= deficit
+        destItem.totalStock = 0 // Resetăm pentru a lăsa recalcularea să preia corect
+      } else {
+        destItem.totalStock += incomingQuantity
+        incomingQuantity = 0
+      }
+    }
+
+    // Adăugăm lotul în destinație DOAR dacă a mai rămas cantitate după acoperirea datoriei
+    if (incomingQuantity > 0) {
+      destItem.batches.push({
+        _id: new Types.ObjectId(),
+        quantity: incomingQuantity, // Aici punem cantitatea ajustată!
+        unitCost: batchSnapshot.unitCost,
+        entryDate: batchSnapshot.entryDate,
+        movementId: batchSnapshot.movementId,
+        supplierId: batchSnapshot.supplierId,
+        supplierName: batchSnapshot.supplierName,
+        qualityDetails: batchSnapshot.qualityDetails,
+        receptionRef: batchSnapshot.receptionRef,
+        orderRef: batchSnapshot.orderRef,
+        supplierOrderNumber: batchSnapshot.supplierOrderNumber,
+      })
+    }
 
     // Recalculăm totalurile pe destinație
     await recalculateInventorySummary(destItem)
@@ -443,54 +459,63 @@ export async function adjustStock(input: AdjustStockInput) {
     // =========================================================
     else if (isIn) {
       let targetBatch = null
+      let incomingQuantity = payload.quantity
 
-      // Încercăm să găsim un lot compatibil pentru MERGE
-      if (payload.batchId) {
-        const batchIndex = inventoryItem.batches.findIndex(
-          (b: any) => b._id.toString() === payload.batchId,
-        )
-
-        if (batchIndex !== -1) {
-          const candidateBatch = inventoryItem.batches[batchIndex]
-
-          // --- LOGICA CRITICĂ DE MERGE ---
-          // Unim cu lotul existent DOAR DACĂ:
-          // 1. Nu s-a specificat un cost manual (folosim automat costul lotului)
-          // 2. SAU Costul manual este IDENTIC cu costul lotului.
-          if (
-            payload.unitCost === undefined ||
-            payload.unitCost === candidateBatch.unitCost
-          ) {
-            targetBatch = candidateBatch
-          }
-          // Dacă userul a pus preț diferit, 'targetBatch' rămâne null => se va crea lot nou mai jos.
+      // --- LOGICA DE ACOPERIRE A STOCULUI NEGATIV LA AJUSTARE PLUS ---
+      if (inventoryItem.totalStock < 0) {
+        const deficit = Math.abs(inventoryItem.totalStock)
+        if (incomingQuantity >= deficit) {
+          incomingQuantity -= deficit
+          inventoryItem.totalStock = 0
+        } else {
+          inventoryItem.totalStock += incomingQuantity
+          incomingQuantity = 0
         }
       }
 
-      // CAZUL A: Merge (Preț identic)
-      if (targetBatch) {
-        targetBatch.quantity += payload.quantity
+      // Procesăm loturile doar dacă a mai rămas marfă fizică de pus pe raft
+      if (incomingQuantity > 0) {
+        // Încercăm să găsim un lot compatibil pentru MERGE
+        if (payload.batchId) {
+          const batchIndex = inventoryItem.batches.findIndex(
+            (b: any) => b._id.toString() === payload.batchId,
+          )
 
-        // Dacă facem merge, costul mișcării este costul lotului existent
-        movementUnitCost = targetBatch.unitCost
+          if (batchIndex !== -1) {
+            const candidateBatch = inventoryItem.batches[batchIndex]
 
-        supplierId = targetBatch.supplierId
-        supplierName = targetBatch.supplierName
-        qualityDetails = targetBatch.qualityDetails
-      }
-      // CAZUL B: Lot Nou (Preț diferit sau lot neselectat)
-      else {
-        // Aici movementUnitCost este exact ce a introdus userul (sau lastPrice)
-        inventoryItem.batches.push({
-          _id: new Types.ObjectId(),
-          quantity: payload.quantity,
-          unitCost: movementUnitCost,
-          entryDate: new Date(),
-          movementId: movementId,
-          supplierId: undefined,
-          supplierName: undefined,
-          qualityDetails: { additionalNotes: payload.reason },
-        })
+            // Unim cu lotul existent DOAR DACĂ prețurile coincid
+            if (
+              payload.unitCost === undefined ||
+              payload.unitCost === candidateBatch.unitCost
+            ) {
+              targetBatch = candidateBatch
+            }
+          }
+        }
+
+        // CAZUL A: Merge (Preț identic)
+        if (targetBatch) {
+          targetBatch.quantity += incomingQuantity
+
+          movementUnitCost = targetBatch.unitCost
+          supplierId = targetBatch.supplierId
+          supplierName = targetBatch.supplierName
+          qualityDetails = targetBatch.qualityDetails
+        }
+        // CAZUL B: Lot Nou (Preț diferit sau lot neselectat)
+        else {
+          inventoryItem.batches.push({
+            _id: new Types.ObjectId(),
+            quantity: incomingQuantity,
+            unitCost: movementUnitCost,
+            entryDate: new Date(),
+            movementId: movementId,
+            supplierId: undefined,
+            supplierName: undefined,
+            qualityDetails: { additionalNotes: payload.reason },
+          })
+        }
       }
 
       await recalculateInventorySummary(inventoryItem)

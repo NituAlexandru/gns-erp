@@ -91,7 +91,6 @@ export async function generateProductHistoryReport(
     'RETUR_FURNIZOR',
     'PIERDERE',
     'DETERIORARE',
-    'ANULARE_RECEPTIE',
     'MINUS_INVENTAR',
     'CORECTIE_OPERARE',
   ]

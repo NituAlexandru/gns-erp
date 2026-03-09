@@ -164,23 +164,41 @@ export async function recordStockMovement(
         ? new Types.ObjectId(payload.supplierId)
         : undefined
 
-      inventoryItem.batches.push({
-        _id: new Types.ObjectId(),
-        quantity: payload.quantity,
-        unitCost: payload.unitCost,
-        entryDate: payload.timestamp ?? new Date(),
-        movementId: movement._id as Types.ObjectId,
-        supplierId: supplierIdObj,
-        supplierName: payload.supplierName,
-        qualityDetails: payload.qualityDetails,
-        receptionRef: payload.receptionRef
-          ? new Types.ObjectId(payload.receptionRef)
-          : undefined,
-        orderRef: payload.orderRef
-          ? new Types.ObjectId(payload.orderRef)
-          : undefined,
-        supplierOrderNumber: payload.supplierOrderNumber,
-      })
+      // --- NOU: LOGICA DE ACOPERIRE A STOCULUI NEGATIV ---
+      let batchQuantity = payload.quantity
+
+      if (balanceBefore < 0) {
+        const deficit = Math.abs(balanceBefore)
+        if (batchQuantity >= deficit) {
+          // Marfa acoperă toată datoria și mai și rămâne pentru un lot nou
+          batchQuantity -= deficit
+        } else {
+          // Marfa doar diminuează datoria, nu rămâne nimic de pus fizic pe raft
+          batchQuantity = 0
+        }
+      }
+
+      // Adăugăm lot fizic în sistem DOAR dacă a mai rămas cantitate după acoperirea datoriei
+      if (batchQuantity > 0) {
+        inventoryItem.batches.push({
+          _id: new Types.ObjectId(),
+          quantity: batchQuantity, // Aici punem cantitatea ajustată
+          unitCost: payload.unitCost,
+          entryDate: payload.timestamp ?? new Date(),
+          movementId: movement._id as Types.ObjectId,
+          supplierId: supplierIdObj,
+          supplierName: payload.supplierName,
+          qualityDetails: payload.qualityDetails,
+          receptionRef: payload.receptionRef
+            ? new Types.ObjectId(payload.receptionRef)
+            : undefined,
+          orderRef: payload.orderRef
+            ? new Types.ObjectId(payload.orderRef)
+            : undefined,
+          supplierOrderNumber: payload.supplierOrderNumber,
+        })
+      }
+      // ----------------------------------------------------
 
       movement.supplierId = supplierIdObj
       movement.qualityDetails = payload.qualityDetails
@@ -429,9 +447,16 @@ export async function reverseStockMovementsByReference(
       // Ștergem lotul (doar pentru recepții)
       inventoryItem.batches.splice(batchIndex, 1)
     } else {
-      // CAZ NOU: ANULARE LIVRARE (REINTRODUCERE ÎN LOTURI)
+      //  ANULARE LIVRARE (REINTRODUCERE ÎN LOTURI)
       if (movement.costBreakdown && movement.costBreakdown.length > 0) {
         for (const breakdown of movement.costBreakdown) {
+          // Ignorăm costurile PROVIZORII (vânzările în gol) ---
+          // Nu reintroducem fizic pe raft marfă care nu a existat niciodată.
+          if (breakdown.type === 'PROVISIONAL') {
+            continue
+          }
+          // -----------------------------------------------------------------------
+
           const existingBatch = inventoryItem.batches.find(
             (b) => String(b.movementId) === String(breakdown.movementId),
           )

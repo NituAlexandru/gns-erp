@@ -50,6 +50,7 @@ export async function generateInventoryHistory(
   const matchStage: any = {
     timestamp: { $lte: targetDate },
     status: { $ne: 'CANCELLED' }, // Ignorăm mișcările anulate
+    movementType: { $nin: ['ANULARE_RECEPTIE', 'ANULARE_AVIZ'] }, //Evităm scăderea dublă
   }
 
   if (filters.itemType && filters.itemType !== 'ALL') {
@@ -270,7 +271,7 @@ export async function generateInventoryHistory(
   totalRow.getCell('totalValue').fill = {
     type: 'pattern',
     pattern: 'solid',
-    fgColor: { argb: 'FFFFE0B2' }, 
+    fgColor: { argb: 'FFFFE0B2' },
   }
 
   sheet.addRow({})
