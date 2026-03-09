@@ -5,7 +5,6 @@ import { useState, useEffect, useRef } from 'react'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import { CalendarClock, Calendar as CalendarIcon, X } from 'lucide-react'
-
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,14 +31,13 @@ export function PayablesFilterBar() {
   const isInbox = pathname.includes('/mesaje-spv')
   const isLogs = pathname.includes('/logs')
   const isBalances = pathname.includes('/solduri')
-
   const [text, setText] = useState(searchParams.get('q') || '')
   const [status, setStatus] = useState(searchParams.get('status') || 'ALL')
   const [dateType, setDateType] = useState(
     searchParams.get('dateType') || 'due',
   )
   const isMounted = useRef(false)
-
+  const isTyping = useRef(false)
   const [fromDate, setFromDate] = useState<Date | undefined>(
     searchParams.get('from') ? new Date(searchParams.get('from')!) : undefined,
   )
@@ -49,7 +47,9 @@ export function PayablesFilterBar() {
 
   // Sincronizare cu URL la Back/Forward
   useEffect(() => {
-    setText(searchParams.get('q') || '')
+    if (!isTyping.current) {
+      setText(searchParams.get('q') || '')
+    }
     setStatus(searchParams.get('status') || 'ALL')
     setDateType(searchParams.get('dateType') || 'due')
     setFromDate(
@@ -101,9 +101,12 @@ export function PayablesFilterBar() {
       isMounted.current = true
       return
     }
+    isTyping.current = true
+
     const timer = setTimeout(() => {
+      isTyping.current = false
       updateUrl(text, status, dateType, fromDate, toDate)
-    }, 500)
+    }, 1000)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text])
