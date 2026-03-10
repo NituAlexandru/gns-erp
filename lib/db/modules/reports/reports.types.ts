@@ -55,7 +55,7 @@ export const AVAILABLE_REPORTS: ReportDefinition[] = [
       'Stocul calculat până la o dată anume sau însumarea unor anumite tipuri de mișcări (ex: doar Recepții).',
     category: 'inventory',
     icon: 'BarChart3',
-    filters: ['dateRange', 'location', 'itemType'], // Am folosit filtrele ca referință vizuală
+    filters: ['dateRange', 'location', 'itemType'],
   },
   {
     id: 'sales-period',

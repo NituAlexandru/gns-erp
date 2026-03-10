@@ -11,6 +11,7 @@ import PackagingModel from '../../packaging-products/packaging.model'
 import { IN_TYPES, MOVEMENT_TYPE_DETAILS_MAP } from '../../inventory/constants'
 import { formatCurrency3 } from '@/lib/utils'
 import ReceptionModel from '../../reception/reception.model'
+import DeliveryNoteModel from '../../financial/delivery-notes/delivery-note.model'
 
 export async function generateProductHistoryReport(
   workbook: ExcelJS.Workbook,
@@ -82,28 +83,21 @@ export async function generateProductHistoryReport(
     return { baseQty, basePrice }
   }
 
+  // ---------------------
   // 2. Extragem mișcările de stoc manuale (Fără TRANSFER_IN și Fără vânzări din facturi)
-  const validInTypes = Array.from(IN_TYPES).filter(
-    (t: string) => t !== 'TRANSFER_IN',
-  )
-  const validOutTypes = [
-    'BON_DE_CONSUM',
-    'RETUR_FURNIZOR',
-    'PIERDERE',
-    'DETERIORARE',
-    'MINUS_INVENTAR',
-    'CORECTIE_OPERARE',
-  ]
+  // 2. Extragem TOATE mișcările din StockMovementModel (Intrări și Ieșiri)
+  const inTypesArray = Array.from(IN_TYPES) as string[]
 
   await ReceptionModel.init()
 
   const movements = await StockMovementModel.find({
     stockableItem: productId,
-    movementType: { $in: [...validInTypes, ...validOutTypes] },
     timestamp: { $gte: startDate, $lte: endDate },
-    status: 'ACTIVE',
+    status: { $ne: 'CANCELLED' },
+    movementType: { $nin: ['ANULARE_RECEPTIE', 'ANULARE_AVIZ'] },
   })
     .populate('supplierId', 'name')
+    .populate('clientId', 'name')
     .populate('receptionRef', 'nirNumber')
     .lean()
 
@@ -111,21 +105,23 @@ export async function generateProductHistoryReport(
 
   for (const mov of movements) {
     const docUnit = mov.unitMeasure || baseUnit
-    const vals = calculateRowValues(
-      mov.quantity,
-      docUnit,
-      mov.unitCost || 0,
-      [],
-    )
 
-    const isOut = validOutTypes.includes(mov.movementType)
+    const isIn = inTypesArray.includes(mov.movementType)
+    const isOut = !isIn
     const sign = isOut ? -1 : 1
+
+    // Luăm prețul de vânzare dacă există (ieșiri), altfel prețul de cost
+    const docPrice = isOut
+      ? mov.salePrice || mov.unitCost || 0
+      : mov.unitCost || 0
+
+    const vals = calculateRowValues(mov.quantity, docUnit, docPrice, [])
 
     const friendlyName =
       (MOVEMENT_TYPE_DETAILS_MAP as any)[mov.movementType]?.name ||
       mov.movementType
 
-    let docName = 'Nu are NIR'
+    let docName = 'Nu are NIR/Aviz'
     const isMongoId = (val: any) => /^[a-f\d]{24}$/i.test(String(val))
 
     const formatNir = (rawNir: string) => {
@@ -142,8 +138,12 @@ export async function generateProductHistoryReport(
       docName = formatNir(mov.documentNumber)
     } else if (mov.supplierOrderNumber && !isMongoId(mov.supplierOrderNumber)) {
       docName = String(mov.supplierOrderNumber)
-    } else if (mov.referenceId && !isMongoId(mov.referenceId)) {
-      docName = String(mov.referenceId)
+    } else if (isMongoId(mov.referenceId) && !isIn && mov.note) {
+      // Extragem "G26-0001" din textul "Livrare conf. Aviz Seria G26 nr. 0001"
+      const match = mov.note.match(/Aviz Seria (.*?) nr\. (.*)/i)
+      if (match) {
+        docName = `${match[1]}-${match[2]}`
+      }
     }
 
     historyLines.push({
@@ -152,74 +152,20 @@ export async function generateProductHistoryReport(
       documentType: friendlyName,
       documentNumber: docName,
       partner:
-        (mov.supplierId as any)?.name || mov.supplierName || 'Ajustare Internă',
-
+        (mov.supplierId as any)?.name ||
+        (mov.clientId as any)?.name ||
+        mov.supplierName ||
+        'Ajustare Internă',
       docQty: mov.quantity * sign,
       docUm: docUnit,
-      docPrice: mov.unitCost || 0,
-
-      baseQty: vals.baseQty * sign,
-      basePrice: vals.basePrice,
-      totalValue: mov.quantity * (mov.unitCost || 0) * sign,
-    })
-  }
-
-  // 3. Extragem IEȘIRILE (Vânzările) din Facturi
-  const invoices = await InvoiceModel.aggregate([
-    {
-      $match: {
-        invoiceDate: { $gte: startDate, $lte: endDate },
-        status: { $in: ['APPROVED', 'PAID', 'PARTIAL_PAID'] },
-        invoiceType: { $ne: 'PROFORMA' },
-      },
-    },
-    { $unwind: '$items' },
-    { $match: { 'items.productId': productId } },
-    {
-      $project: {
-        invoiceDate: 1,
-        seriesName: 1,
-        invoiceNumber: 1,
-        invoiceType: 1,
-        clientName: '$clientSnapshot.name',
-        item: '$items',
-      },
-    },
-  ])
-
-  for (const inv of invoices) {
-    const isStorno = inv.invoiceType === 'STORNO'
-    const sign = isStorno ? 1 : -1 // Storno readuce în stoc (+), Factura vinde (-)
-    const opType = isStorno ? 'INTRARE (Storno)' : 'IEȘIRE'
-
-    const docQty = inv.item.quantity
-    const docUm = inv.item.unitOfMeasure
-    const docPrice = inv.item.unitPrice
-
-    const vals = calculateRowValues(
-      docQty,
-      docUm,
-      docPrice,
-      inv.item.packagingOptions || [],
-    )
-
-    historyLines.push({
-      date: inv.invoiceDate,
-      operationType: opType,
-      documentType: isStorno ? 'Factură Storno' : 'Factură Vânzare',
-      documentNumber: `${inv.seriesName}-${inv.invoiceNumber}`,
-      partner: inv.clientName,
-
-      docQty: docQty * sign,
-      docUm: docUm,
       docPrice: docPrice,
-
       baseQty: vals.baseQty * sign,
       basePrice: vals.basePrice,
-      totalValue: (inv.item.lineValue || docQty * docPrice) * sign,
+      totalValue: mov.quantity * docPrice * sign,
     })
   }
 
+  //
   // 4. Sortare Cronologică
   historyLines.sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),

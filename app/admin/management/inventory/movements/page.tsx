@@ -32,6 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { fromZonedTime } from 'date-fns-tz'
+import { TIMEZONE } from '@/lib/constants'
 
 // Tip pentru UI
 type ExtendedStockMovement = PopulatedStockMovement & {
@@ -89,10 +91,10 @@ export default function StockMovementsPage() {
         type: searchParams.get('type') || 'ALL',
         dateRange: {
           from: searchParams.get('from')
-            ? parseISO(searchParams.get('from')!)
+            ? fromZonedTime(`${searchParams.get('from')} 00:00:00`, TIMEZONE)
             : subDays(new Date(), 30),
           to: searchParams.get('to')
-            ? parseISO(searchParams.get('to')!)
+            ? fromZonedTime(`${searchParams.get('to')} 23:59:59.999`, TIMEZONE)
             : new Date(),
         },
       }
@@ -130,6 +132,11 @@ export default function StockMovementsPage() {
   const headerFactor = activeHeaderOption
     ? activeHeaderOption.baseUnitEquivalent
     : 1
+
+  const totalQtyDiff =
+    totals && totals.totalQtyIn !== null && totals.totalQtyOut !== null
+      ? totals.totalQtyIn - totals.totalQtyOut
+      : null
 
   return (
     <div className='h-[calc(100vh-6rem)] flex flex-col border-1 p-4 rounded-2xl'>
@@ -238,6 +245,7 @@ export default function StockMovementsPage() {
                   </div>
                 )}
               </div>
+              {/* --- TOTAL VÂNZĂRI --- */}
               <div className='flex flex-col items-center ml-4 gap-0 text-red-600'>
                 <span className='text-xs font-semibold uppercase'>
                   Total Vânzări (Est.)
@@ -245,7 +253,28 @@ export default function StockMovementsPage() {
                 <span className='font-bold'>
                   {formatCurrency(totals.totalSalesOut)}
                 </span>
-                {/* Nu afișăm cantitate aici, e redundantă (e aceeași ca la Ieșiri) */}
+
+                {/* ---> ADAUGĂ ACEST BLOC NOU AICI <--- */}
+                {totalQtyDiff !== null && (
+                  <div className='flex items-center gap-1 font-bold'>
+                    <span
+                      className={cn(
+                        totalQtyDiff < 0 ? 'text-red-500' : 'text-green-600',
+                      )}
+                    >
+                      ({(totalQtyDiff / headerFactor).toFixed(2)}
+                    </span>
+                    <span
+                      className={cn(
+                        'text-xs',
+                        totalQtyDiff < 0 ? 'text-red-500' : 'text-green-600',
+                      )}
+                    >
+                      {activeHeaderUnit})
+                    </span>
+                  </div>
+                )}
+                {/* ------------------------------------- */}
               </div>
             </div>
           )}
