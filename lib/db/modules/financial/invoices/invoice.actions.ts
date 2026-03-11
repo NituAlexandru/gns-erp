@@ -1466,20 +1466,36 @@ export async function getAllInvoices(
           {
             $group: {
               _id: null,
-              count: { $sum: 1 },
-              totalFilteredSum: { $sum: '$totals.grandTotal' },
+              count: { $sum: 1 }, 
+              totalFilteredSum: {
+                $sum: {
+                  $cond: [
+                    { $ne: ['$status', 'CANCELLED'] }, 
+                    '$totals.grandTotal', 
+                    0, // Altfel adună 0
+                  ],
+                },
+              },
             },
           },
         ],
         seriesStats: [
           {
             $group: {
-              _id: '$seriesName', // Grupăm după nume serie
-              total: { $sum: '$totals.grandTotal' }, // Suma
-              count: { $sum: 1 }, // Câte facturi sunt
+              _id: '$seriesName',
+              total: {
+                $sum: {
+                  $cond: [
+                    { $ne: ['$status', 'CANCELLED'] }, 
+                    '$totals.grandTotal',
+                    0,
+                  ],
+                },
+              },
+              count: { $sum: 1 },
             },
           },
-          { $sort: { _id: 1 } }, // Le ordonăm alfabetic
+          { $sort: { _id: 1 } },
         ],
         data: [
           { $sort: { invoiceDate: -1, invoiceNumber: -1, _id: -1 } },

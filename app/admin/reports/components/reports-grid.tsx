@@ -8,6 +8,7 @@ import { AgentSalesReportDialog } from './agent-sales-report-dialog'
 import { InventoryHistoryDialog } from './inventory-history-dialog'
 import { ProductMarginReportDialog } from './product-margin-report-dialog'
 import { ProductHistoryReportDialog } from './product-history-report-dialog'
+import { SalesPeriodReportDialog } from './sales-period-report-dialog'
 
 export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(
@@ -18,6 +19,7 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [isAgentSalesOpen, setIsAgentSalesOpen] = useState(false)
   const [isProductMarginOpen, setIsProductMarginOpen] = useState(false)
   const [isProductHistoryOpen, setIsProductHistoryOpen] = useState(false)
+  const [isSalesPeriodOpen, setIsSalesPeriodOpen] = useState(false)
 
   const handleSelectReport = (report: ReportDefinition) => {
     setSelectedReport(report)
@@ -33,6 +35,8 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
       setIsProductMarginOpen(true)
     } else if (report.id === 'product-history') {
       setIsProductHistoryOpen(true)
+    } else if (report.id === 'sales-period') {
+      setIsSalesPeriodOpen(true)
     } else {
       console.log('Acest raport încă nu are modal implementat.')
     }
@@ -96,6 +100,13 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
         <ProductHistoryReportDialog
           open={isProductHistoryOpen}
           onOpenChange={setIsProductHistoryOpen}
+          report={selectedReport}
+        />
+      )}
+      {selectedReport && selectedReport.id === 'sales-period' && (
+        <SalesPeriodReportDialog
+          open={isSalesPeriodOpen}
+          onOpenChange={setIsSalesPeriodOpen}
           report={selectedReport}
         />
       )}
