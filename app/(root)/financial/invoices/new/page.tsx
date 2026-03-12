@@ -22,7 +22,7 @@ export default async function NewInvoicePage() {
     userRole.toLowerCase(),
   )
   const canOverridePrice =
-    isAdmin || (userId ? SUPER_ADMIN_ROLES.includes(userId) : false)
+    isAdmin || (userId ? SPECIAL_USER_ID.includes(userId) : false)
 
   const companySettings = await getSetting()
 
