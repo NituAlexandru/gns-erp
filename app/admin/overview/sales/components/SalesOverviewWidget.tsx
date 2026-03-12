@@ -94,7 +94,7 @@ export function SalesOverviewWidget() {
         <div className='flex flex-col items-start justify-between'>
           <div>
             <CardTitle className='text-lg font-bold'>
-              Evoluție Vânzări Serii
+              Evoluție Vânzări
             </CardTitle>
             <CardDescription>
               Grafic interactiv cu posibilitate de filtrare pe serii
@@ -119,7 +119,6 @@ export function SalesOverviewWidget() {
         </div>
 
         <div className='flex flex-col xl:flex-row xl:items-center gap-4 bg-muted/40 p-2 rounded-lg border border-border/50 overflow-x-auto'>
-          {/* TABS PENTRU TIPUL DE GRUPARE */}
           <Tabs
             value={groupBy}
             onValueChange={(val: any) => setGroupBy(val)}

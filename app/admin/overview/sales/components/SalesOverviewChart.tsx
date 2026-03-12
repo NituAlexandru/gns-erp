@@ -16,13 +16,13 @@ import { formatCurrency } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 
 const SERIES_COLORS: Record<string, string> = {
-  G26: '#3b82f6',
-  PAL: '#10b981',
-  STORNO: '#f59e0b',
-  TRANS: '#8b5cf6',
-  DIS: '#ec4899',
-  SCHE: '#14b8a6',
-  AVA: '#f43f5e',
+  G26: '#0fd41f',
+  PAL: '#05730c',
+  STORNO: '#e02209',
+  TRANS: '#2870bd',
+  DIS: '#d65409',
+  SCHE: '#08bfd4',
+  AVA: '#d9e80c',
 }
 const FALLBACK_COLORS = ['#64748b', '#a1a1aa', '#78716c', '#94a3b8']
 

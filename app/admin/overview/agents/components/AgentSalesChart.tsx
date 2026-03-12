@@ -57,12 +57,12 @@ export function AgentSalesChart({ data, isLoading }: AgentSalesChartProps) {
   }
 
   return (
-    <ResponsiveContainer width='100%' height={250}>
+    <ResponsiveContainer width='100%' height={300}>
       <BarChart
         data={data}
         layout='vertical'
         margin={{ top: 0, right: 20, left: -35, bottom: 0 }}
-        barSize={24}
+        barSize={30}
         barCategoryGap={0}
       >
         <CartesianGrid strokeDasharray='3 3' horizontal={false} stroke='#333' />
@@ -97,14 +97,14 @@ export function AgentSalesChart({ data, isLoading }: AgentSalesChartProps) {
           dataKey='totalProfit'
           name='Profit'
           stackId='a'
-          fill='#16a34a'
+          fill='#0fd41f'
           radius={[0, 0, 0, 0]}
         />
         <Bar
           dataKey='totalCost'
           name='Cost Marfă'
           stackId='a'
-          fill='#dc2626'
+          fill='#e02209'
           radius={[0, 4, 4, 0]}
         />
       </BarChart>
