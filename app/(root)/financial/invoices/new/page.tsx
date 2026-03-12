@@ -14,12 +14,15 @@ export default async function NewInvoicePage() {
 
   const userRole = session?.user?.role || 'user'
   const userId = session?.user?.id
-  // ID-ul Monicăi (Udateanu Ionela Monica)
-  const SPECIAL_USER_ID = '695f50ad9dfaf202582254ee'
+  const SPECIAL_USER_ID = [
+    '695f50ad9dfaf202582254ee',
+    '691c34775473aee60c4815ed',
+  ]
   const isAdmin = SUPER_ADMIN_ROLES.map((r) => r.toLowerCase()).includes(
     userRole.toLowerCase(),
   )
-  const canOverridePrice = isAdmin || userId === SPECIAL_USER_ID
+  const canOverridePrice =
+    isAdmin || (userId ? SUPER_ADMIN_ROLES.includes(userId) : false)
 
   const companySettings = await getSetting()
 
