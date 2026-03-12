@@ -563,9 +563,6 @@ export async function recalculateInventorySummary(
   } else if (item.totalStock <= 0) {
     // Stocul e 0 sau negativ. Resetăm DOAR costurile de medie.
     item.averageCost = 0
-    item.maxPurchasePrice = 0
-    item.minPurchasePrice = 0
-    // NU ATINGEM item.lastPurchasePrice. Acesta trebuie să persiste.
   }
   // =====================================================================
   // 🟢 Actualizare Preț Maxim în Produsul Părinte (Global)
