@@ -955,16 +955,89 @@ export async function createStornoInvoice(
       // 5. PREGĂTIREA DATELOR PENTRU NOTA DE RETUR
       const returnNoteItems: CreateReturnNoteInput['items'] = []
 
+      // Extragem facturile originale o singură dată din DB pentru eficiență maximă
+      const sourceLineIds = validatedData.items
+        .map((i) => i.sourceInvoiceLineId)
+        .filter(Boolean)
+
+      const originalInvoices = await InvoiceModel.find({
+        'items._id': { $in: sourceLineIds },
+      }).session(session)
+
       for (const item of validatedData.items) {
         if (item.productId && item.stockableItemType) {
-          const itemQty = Math.abs(item.quantity)
-          const itemCost = Math.abs(item.lineCostFIFO || 0)
-          let unitCost = itemQty > 0 ? round2(itemCost / itemQty) : 0
+          const stornoQtyBuc = Math.abs(item.quantity) // Cantitatea stornată acum (pe factură)
 
-          if (unitCost === 0 && itemQty > 0) {
-            const itemLineValue = Math.abs(item.lineValue || 0)
-            unitCost = round2(itemLineValue / itemQty)
+          // 5.1 Găsim linia originală extrasă
+          let originalLine
+          for (const inv of originalInvoices) {
+            const found = inv.items.find(
+              (i) => i._id.toString() === item.sourceInvoiceLineId?.toString(),
+            )
+            if (found) {
+              originalLine = found
+              break
+            }
           }
+
+          if (!originalLine) {
+            throw new Error(
+              `Nu s-a găsit linia originală pentru produsul: ${item.productName}`,
+            )
+          }
+
+          // 5.2 Colectăm datele brute din istoric
+          const originalQtyBuc = originalLine.quantity // ex: 15 buc
+
+          // SURSA 1: costBreakdown (Cel mai sigur, reflectă stocul real la ieșire)
+          let originalBaseQty =
+            originalLine.costBreakdown?.reduce(
+              (sum: number, cb: any) => sum + cb.quantity,
+              0,
+            ) || 0
+
+          // SURSA 2: quantityInBaseUnit (Dacă a fost salvat pe factură)
+          if (!originalBaseQty && originalLine.quantityInBaseUnit) {
+            originalBaseQty = originalLine.quantityInBaseUnit
+          }
+
+          // SURSA 3: Calcul din packagingOptions (căutăm echivalentul unității folosite)
+          if (!originalBaseQty && originalLine.packagingOptions?.length > 0) {
+            const pkgOpt = originalLine.packagingOptions.find(
+              (p: any) => p.unitName === originalLine.unitOfMeasure,
+            )
+            if (pkgOpt && pkgOpt.baseUnitEquivalent) {
+              originalBaseQty = originalQtyBuc * pkgOpt.baseUnitEquivalent
+            }
+          }
+
+          // SURSA 4: Câmpul conversionFactor (alt colac de salvare din structura ta)
+          if (!originalBaseQty && originalLine.conversionFactor) {
+            originalBaseQty = originalQtyBuc * originalLine.conversionFactor
+          }
+
+          // SURSA 5: Fallback absolut (Dacă e aceeași unitate sau nu mai avem de ce să ne legăm)
+          if (!originalBaseQty) {
+            originalBaseQty = originalQtyBuc
+          }
+
+          const originalCostFIFO = originalLine.lineCostFIFO || 0 // ex: 1554.60 RON
+          // 5.3 APLICĂM REGULA DE TREI SIMPLĂ
+          let returnBaseQty = stornoQtyBuc
+          let returnTotalCost = Math.abs(item.lineCostFIFO || 0)
+
+          if (originalQtyBuc > 0) {
+            // (Cant. Stornată * Baza Originală) / Cant. Originală
+            returnBaseQty = (stornoQtyBuc * originalBaseQty) / originalQtyBuc
+            // (Cant. Stornată * Cost Original) / Cant. Originală
+            returnTotalCost = (stornoQtyBuc * originalCostFIFO) / originalQtyBuc
+          }
+
+          // Prețul unitar pe unitatea de bază (kg), limitat la 6 zecimale pt precizie ERP
+          const returnUnitCost =
+            returnBaseQty > 0
+              ? Number((returnTotalCost / returnBaseQty).toFixed(6))
+              : 0
 
           returnNoteItems.push({
             productId: item.productId,
@@ -973,16 +1046,22 @@ export async function createStornoInvoice(
               | 'Packaging',
             productName: item.productName,
             productCode: item.productCode || 'N/A',
-            quantity: itemQty,
+            quantity: stornoQtyBuc,
             unitOfMeasure: item.unitOfMeasure,
             baseUnit: item.baseUnit || item.unitOfMeasure,
-            quantityInBaseUnit: Math.abs(item.quantityInBaseUnit || itemQty),
+
+            // Aici trimitem KILOGRAMELE corecte calculate!
+            quantityInBaseUnit: returnBaseQty,
+
             costBreakdown: item.costBreakdown.map((cb) => ({
               ...cb,
               entryDate: new Date(cb.entryDate),
               movementId: cb.movementId,
             })),
-            unitCost: unitCost,
+
+            // Aici trimitem COSTUL PE KILOGRAM!
+            unitCost: returnUnitCost,
+
             sourceInvoiceLineId: item.sourceInvoiceLineId,
             sourceDeliveryNoteLineId: item.sourceDeliveryNoteLineId,
           })
@@ -1466,12 +1545,12 @@ export async function getAllInvoices(
           {
             $group: {
               _id: null,
-              count: { $sum: 1 }, 
+              count: { $sum: 1 },
               totalFilteredSum: {
                 $sum: {
                   $cond: [
-                    { $ne: ['$status', 'CANCELLED'] }, 
-                    '$totals.grandTotal', 
+                    { $ne: ['$status', 'CANCELLED'] },
+                    '$totals.grandTotal',
                     0, // Altfel adună 0
                   ],
                 },
@@ -1486,7 +1565,7 @@ export async function getAllInvoices(
               total: {
                 $sum: {
                   $cond: [
-                    { $ne: ['$status', 'CANCELLED'] }, 
+                    { $ne: ['$status', 'CANCELLED'] },
                     '$totals.grandTotal',
                     0,
                   ],
