@@ -275,30 +275,19 @@ export async function getSupplierLedger(supplierId: string): Promise<{
           debit: { $literal: 0 },
           credit: {
             $cond: {
-              // 1. Păstrăm logica existentă: AVANSUL E 0
-              if: { $eq: ['$invoiceType', 'AVANS'] },
-              then: 0,
-              else: {
+              // Dacă e STORNO, gestionăm semnul corect
+              if: { $eq: ['$invoiceType', 'STORNO'] },
+              then: {
                 $cond: {
-                  // 2. Dacă e STORNO
-                  if: { $eq: ['$invoiceType', 'STORNO'] },
-                  then: {
-                    // AICI E MODIFICAREA: Verificăm semnul sumei
-                    $cond: {
-                      // Dacă e pozitivă (Manual), o înmulțim cu -1 ca să scadă
-                      if: { $gt: ['$totals.grandTotal', 0] },
-                      then: { $multiply: ['$totals.grandTotal', -1] },
-                      // Dacă e deja negativă (SPV), o lăsăm așa
-                      else: '$totals.grandTotal',
-                    },
-                  },
-                  // 3. Dacă e STANDARD (sau orice altceva)
-                  // Luăm suma exact cum e.
-                  // Dacă SPV trimite -100 (discount), se va scădea.
-                  // Dacă SPV trimite 1000 (marfă), se va aduna.
+                  // Dacă e introdusă cu plus, o facem negativă
+                  if: { $gt: ['$totals.grandTotal', 0] },
+                  then: { $multiply: ['$totals.grandTotal', -1] },
+                  // Dacă vine deja negativă din SPV, o lăsăm așa
                   else: '$totals.grandTotal',
                 },
               },
+              // Pentru STANDARD și AVANS luăm valoarea brută
+              else: '$totals.grandTotal',
             },
           },
         },

@@ -242,14 +242,7 @@ export async function getClientLedger(
               default: 'Emitere Factură',
             },
           },
-          // Logica: Facturile de AVANS au Debit 0 (nu cresc datoria operațională)
-          debit: {
-            $cond: {
-              if: { $eq: ['$invoiceType', 'AVANS'] },
-              then: 0,
-              else: { $ifNull: ['$totals.grandTotal', 0] },
-            },
-          },
+          debit: { $ifNull: ['$totals.grandTotal', 0] },
           credit: { $literal: 0 },
         },
       },

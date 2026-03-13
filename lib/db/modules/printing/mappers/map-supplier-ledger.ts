@@ -8,10 +8,7 @@ export const mapSupplierLedgerToPdfData = (
 ): PdfDocumentData => {
   // 1. CALCUL TOTALURI
   const totalDebit = entries.reduce((acc, curr) => acc + (curr.debit || 0), 0)
-  const totalCredit = entries.reduce(
-    (acc, curr) => acc + (Math.abs(curr.credit) || 0),
-    0,
-  )
+  const totalCredit = entries.reduce((acc, curr) => acc + (curr.credit || 0), 0)
   // Luăm ultimul runningBalance
   const finalBalance =
     entries.length > 0 ? entries[entries.length - 1].runningBalance : 0
