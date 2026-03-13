@@ -48,11 +48,15 @@ import {
 // --- Funcții Helper  ---
 function mapOrderItemsToPlannerItems(
   orderItems: PopulatedOrder['lineItems'],
-  existingDeliveries: IDelivery[]
+  existingDeliveries: IDelivery[],
 ): PlannerItem[] {
   const plannedQuantitiesMap = new Map<string, number>()
   existingDeliveries.forEach((delivery) => {
-    if (delivery.status === 'CANCELLED') {
+    if (
+      delivery.status === 'CANCELLED' ||
+      delivery.status === 'INVOICED' ||
+      delivery.status === 'DELIVERED'
+    ) {
       return
     }
 
@@ -105,7 +109,7 @@ function mapOrderItemsToPlannerItems(
 }
 
 function mapDbDeliveriesToPlannedDeliveries(
-  dbDeliveries: IDelivery[]
+  dbDeliveries: IDelivery[],
 ): PlannedDelivery[] {
   return dbDeliveries.map((dbDelivery) => ({
     id: dbDelivery._id.toString(),
@@ -159,10 +163,10 @@ export function DeliveryPlannerClient({
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [deliveryToEdit, setDeliveryToEdit] = useState<PlannedDelivery | null>(
-    null
+    null,
   )
   const [deliveryToDeleteId, setDeliveryToDeleteId] = useState<string | null>(
-    null
+    null,
   )
   const handleEditDelivery = (delivery: PlannedDelivery) => {
     setDeliveryToEdit(delivery)
@@ -172,22 +176,22 @@ export function DeliveryPlannerClient({
   const [plannerItems, setPlannerItems] = useState<PlannerItem[]>(() =>
     mapOrderItemsToPlannerItems(
       order.lineItems,
-      existingDeliveries as IDelivery[]
-    )
+      existingDeliveries as IDelivery[],
+    ),
   )
   const [plannedDeliveries, setPlannedDeliveries] = useState<PlannedDelivery[]>(
-    () => mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[])
+    () => mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[]),
   )
 
   useEffect(() => {
     setPlannerItems(
       mapOrderItemsToPlannerItems(
         order.lineItems,
-        existingDeliveries as IDelivery[]
-      )
+        existingDeliveries as IDelivery[],
+      ),
     )
     setPlannedDeliveries(
-      mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[])
+      mapDbDeliveriesToPlannedDeliveries(existingDeliveries as IDelivery[]),
     )
   }, [order.lineItems, existingDeliveries])
 
@@ -203,8 +207,8 @@ export function DeliveryPlannerClient({
   const handleItemChange = (itemId: string, updates: Partial<PlannerItem>) => {
     setPlannerItems((currentItems) =>
       currentItems.map((item) =>
-        item.id === itemId ? { ...item, ...updates } : item
-      )
+        item.id === itemId ? { ...item, ...updates } : item,
+      ),
     )
   }
 
@@ -230,7 +234,7 @@ export function DeliveryPlannerClient({
     // ☝️
 
     const itemsToPlan = plannerItems.filter(
-      (item) => item.quantityToAllocate > 0
+      (item) => item.quantityToAllocate > 0,
     )
     if (itemsToPlan.length === 0) {
       toast.error('Introdu o cantitate (> 0) pentru cel puțin un articol.')
@@ -253,7 +257,7 @@ export function DeliveryPlannerClient({
       try {
         const result = await createSingleDelivery(
           order._id.toString(),
-          newPlannedDelivery
+          newPlannedDelivery,
         )
         if (result.success) {
           toast.success(result.message)
@@ -278,7 +282,7 @@ export function DeliveryPlannerClient({
                     message: `Livrare nouă creată pentru comanda ${order.orderNumber}.`, // Poți trimite și result.data (noua livrare) dacă e nevoie
                   },
                 }),
-              }
+              },
             )
           } catch (ablyError) {
             console.error('Ably fetch trigger error (create):', ablyError)
@@ -327,7 +331,7 @@ export function DeliveryPlannerClient({
           ...item.packagingOptions,
         ]
         const unitInfo = allUnits.find(
-          (u) => u.unitName === item.unitOfMeasure
+          (u) => u.unitName === item.unitOfMeasure,
         ) || { baseUnitEquivalent: 1 }
         const factor = unitInfo.baseUnitEquivalent || 1
         const remainingInSelectedUnit = remainingInBaseUnit / factor
@@ -360,7 +364,7 @@ export function DeliveryPlannerClient({
       try {
         const result = await createSingleDelivery(
           order._id.toString(),
-          newPlannedDelivery
+          newPlannedDelivery,
         )
         if (result.success) {
           toast.success(result.message)
@@ -385,7 +389,7 @@ export function DeliveryPlannerClient({
                     message: `Livrare "Livrează Tot" creată pentru ${order.orderNumber}.`,
                   },
                 }),
-              }
+              },
             )
           } catch (ablyError) {
             console.error('Ably fetch trigger error (deliverAll):', ablyError)
@@ -438,7 +442,7 @@ export function DeliveryPlannerClient({
                     newStatus: 'CANCELLED',
                   },
                 }),
-              }
+              },
             )
           } catch (ablyError) {
             console.error('Ably fetch trigger error (delete):', ablyError)
