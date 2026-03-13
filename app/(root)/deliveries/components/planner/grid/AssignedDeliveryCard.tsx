@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import {
+  AlertTriangle,
   Box,
   CheckCircle2,
   DollarSign,
@@ -89,7 +90,7 @@ export function AssignedDeliveryCard({
 
   async function handleGenerateDeliveryNote(
     seriesName?: string,
-    manualNumber?: string
+    manualNumber?: string,
   ) {
     setIsGenerating(true)
     const toastId = `generate-${delivery._id}`
@@ -121,7 +122,7 @@ export function AssignedDeliveryCard({
                   newStatus: result.data.status, // IN_TRANSIT
                 },
               }),
-            }
+            },
           )
         } catch (ablyError) {
           console.error('Ably fetch trigger error (createNote):', ablyError)
@@ -177,7 +178,7 @@ export function AssignedDeliveryCard({
                   // 'router.refresh()' va prinde oricum schimbarea
                 },
               }),
-            }
+            },
           )
         } catch (ablyError) {
           console.error('Ably fetch trigger error (confirm):', ablyError)
@@ -216,11 +217,15 @@ export function AssignedDeliveryCard({
   const isLoading = isGenerating || isConfirming || isCancelling
   const canCancelNote = delivery.isNoticed && delivery.status === 'IN_TRANSIT'
   const canEditDelivery = ['CREATED', 'SCHEDULED', 'IN_TRANSIT'].includes(
-    delivery.status
+    delivery.status,
   )
   const canGenerateInvoice =
     delivery.status === 'DELIVERED' && !delivery.isInvoiced
 
+  const hasManualItems = delivery.items.some(
+    (item: IDeliveryLineItem) =>
+      item.isManualEntry || item.productCode === 'N/A' || !item.productCode,
+  )
   async function handleGenerateInvoice(seriesName?: string) {
     setIsGeneratingInvoice(true)
     const toastId = `generate-invoice-${delivery._id}`
@@ -230,7 +235,7 @@ export function AssignedDeliveryCard({
       // 🔽 APELEAZĂ ACȚIUNEA DE SERVER (pe care am reparat-o) 🔽
       const result: InvoiceActionResult = await createInvoiceFromSingleNote(
         delivery._id.toString(), // Trimitem ID-ul Livrării
-        seriesName
+        seriesName,
       )
 
       if (result.success) {
@@ -255,7 +260,7 @@ export function AssignedDeliveryCard({
 
   const handlePrintPreview = async (
     documentId: string,
-    type: 'INVOICE' | 'DELIVERY_NOTE'
+    type: 'INVOICE' | 'DELIVERY_NOTE',
   ) => {
     setIsGeneratingPdf(true)
     try {
@@ -292,7 +297,7 @@ export function AssignedDeliveryCard({
               'border-blue-400': delivery.status === 'INVOICED',
               'border-white opacity-60': delivery.status === 'CANCELLED',
               'border-border': delivery.status === 'CREATED',
-            }
+            },
           )}
           onClick={() => onSchedule(delivery)}
         >
@@ -349,7 +354,13 @@ export function AssignedDeliveryCard({
               <User className='h-4 w-4 flex-shrink-0' />
               <div className='font-medium text-foreground flex gap-20'>
                 <span> {delivery.clientSnapshot.name} </span>
-                <span>CUI: {delivery.clientSnapshot.cui}</span>
+                <span>
+                  {delivery.clientSnapshot.cui
+                    ? `CUI: ${delivery.clientSnapshot.cui}`
+                    : delivery.clientSnapshot.cnp
+                      ? `CNP: ${delivery.clientSnapshot.cnp}`
+                      : 'CUI/CNP Indisponibil'}
+                </span>
               </div>
             </div>
             <div className='flex items-start gap-2'>
@@ -380,13 +391,47 @@ export function AssignedDeliveryCard({
                 <strong>Note Logistică:</strong> {delivery.deliveryNotes}
               </p>
             )}
+            {hasManualItems && (
+              <div className='bg-red-50 text-red-600 font-bold p-2 rounded-md border border-red-200 text-xs flex items-start gap-2 shadow-sm'>
+                <AlertTriangle className='h-4 w-4 flex-shrink-0' />
+                <p>NU FACTURA! PRODUSE ADĂUGATE MANUAL! TE ROG SĂ CORECTEZI!</p>
+              </div>
+            )}
             <p className='font-semibold pt-1'>Articole în livrare:</p>
-            <ul className='list-disc list-inside '>
-              {delivery.items.map((item: IDeliveryLineItem) => (
-                <li key={item._id.toString()}>
-                  {item.quantity} {item.unitOfMeasure} - {item.productName}
-                </li>
-              ))}
+            <ul className='list-disc list-inside space-y-1.5'>
+              {delivery.items.map((item: IDeliveryLineItem) => {
+                const isManual =
+                  item.isManualEntry ||
+                  !item.productCode ||
+                  item.productCode === 'N/A'
+
+                return (
+                  <li
+                    key={item._id.toString()}
+                    className={isManual ? 'text-red-500 font-medium' : ''}
+                  >
+                    <span className='align-middle'>
+                      {item.quantity} {item.unitOfMeasure} - {item.productName}
+                    </span>
+
+                    {isManual ? (
+                      <Badge
+                        variant='destructive'
+                        className='ml-2 h-4 px-1.5 text-[9px] uppercase align-middle leading-none'
+                      >
+                        Rând manual
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant='secondary'
+                        className='ml-2 h-4 px-1.5 text-[10px] font-mono align-middle leading-none'
+                      >
+                        Cod: {item.productCode}
+                      </Badge>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
             <div className='border-t pt-2 mt-2 space-y-1 text-muted-foreground'>
               <p>
@@ -520,7 +565,7 @@ export function AssignedDeliveryCard({
                       if (delivery.deliveryNoteId) {
                         handlePrintPreview(
                           delivery.deliveryNoteId.toString(),
-                          'DELIVERY_NOTE'
+                          'DELIVERY_NOTE',
                         )
                       }
                     }}
@@ -603,7 +648,7 @@ export function AssignedDeliveryCard({
                       e.stopPropagation()
                       handlePrintPreview(
                         delivery.relatedInvoices[0].invoiceId.toString(),
-                        'INVOICE'
+                        'INVOICE',
                       )
                     }}
                   >
@@ -662,12 +707,12 @@ export function AssignedDeliveryCard({
                           orderId: delivery.orderId.toString(),
                         },
                       }),
-                    }
+                    },
                   )
                 } catch (ablyError) {
                   console.error(
                     'Ably fetch trigger error (cancelNote):',
-                    ablyError
+                    ablyError,
                   )
                 }
               } else {
