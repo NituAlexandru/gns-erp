@@ -44,7 +44,7 @@ export function LogisticsPlannerClient({
   const router = useRouter()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedDelivery, setSelectedDelivery] = useState<IDelivery | null>(
-    null
+    null,
   )
 
   useEffect(() => {

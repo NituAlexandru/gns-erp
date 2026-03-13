@@ -325,7 +325,7 @@ export function AssignedDeliveryCard({
         </button>
       </TooltipTrigger>
 
-      <TooltipContent className='max-w-xl p-4' side='right'>
+      <TooltipContent className='max-w-3xl p-4' side='right'>
         <div className='space-y-4 text-base'>
           <div className='flex justify-between items-center gap-2'>
             <div className='space-y-1'>
@@ -410,25 +410,25 @@ export function AssignedDeliveryCard({
                     key={item._id.toString()}
                     className={isManual ? 'text-red-500 font-medium' : ''}
                   >
-                    <span className='align-middle'>
-                      {item.quantity} {item.unitOfMeasure} - {item.productName}
-                    </span>
-
                     {isManual ? (
                       <Badge
                         variant='destructive'
-                        className='ml-2 h-4 px-1.5 text-[9px] uppercase align-middle leading-none'
+                        className=' h-4 px-1.5 text-[9px] uppercase align-middle leading-none'
                       >
                         Rând manual
                       </Badge>
                     ) : (
                       <Badge
                         variant='secondary'
-                        className='ml-2 h-4 px-1.5 text-[10px] font-mono align-middle leading-none'
+                        className=' h-4 px-1.5 text-[10px] font-mono align-middle leading-none'
                       >
                         Cod: {item.productCode}
                       </Badge>
                     )}
+                    -{' '}
+                    <span className='align-middle'>
+                      {item.quantity} {item.unitOfMeasure} - {item.productName}
+                    </span>
                   </li>
                 )
               })}
