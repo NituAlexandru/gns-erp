@@ -985,14 +985,11 @@ export async function syncDeliveryNoteWithDelivery(
   user: { id: string; name: string },
 ) {
   const existingNote = await DeliveryNoteModel.findOne({
-    deliveryId: delivery._id,
+    deliveryId: delivery._id || delivery.id,
+    status: 'IN_TRANSIT',
   }).session(session)
 
   if (!existingNote) return
-
-  if (existingNote.status !== 'IN_TRANSIT') {
-    return
-  }
 
   // 1. Mapăm itemele noi. TS va deduce tipul corect.
   const updatedNoteItems = delivery.items.map((dItem) => ({
@@ -1025,10 +1022,8 @@ export async function syncDeliveryNoteWithDelivery(
   }))
 
   // 2. Atribuire Type-Safe pentru Mongoose Array
-  existingNote.items =
-    updatedNoteItems as unknown as Types.DocumentArray<IDeliveryNoteLine>
-
-  existingNote.totals = delivery.totals
+  existingNote.set('items', updatedNoteItems)
+  existingNote.set('totals', delivery.totals)
 
   // Date Logistice
   existingNote.driverId = delivery.driverId
@@ -1046,6 +1041,9 @@ export async function syncDeliveryNoteWithDelivery(
   existingNote.uitCode = delivery.uitCode
   existingNote.lastUpdatedBy = new Types.ObjectId(user.id)
   existingNote.lastUpdatedByName = user.name
+
+  existingNote.markModified('items')
+  existingNote.markModified('totals')
 
   await existingNote.save({ session })
 }
