@@ -2,14 +2,9 @@ import { ReceiptDTO } from '../../financial/receipts/receipt.types'
 import { PdfDocumentData } from '../printing.types'
 
 export const mapReceiptToPdfData = (receipt: ReceiptDTO): PdfDocumentData => {
-  // Pregătim lista de facturi pentru a fi afișată
-  const invoicesList =
-    receipt.invoices && receipt.invoices.length > 0
-      ? `(Facturi: ${receipt.invoices.map((id: any) => id.$oid || id).join(', ')})`
-      : ''
-
-  // Construim explicația completă: Explicație originală + Facturi
-  const fullExplanation = `${receipt.explanation} ${invoicesList}`.trim()
+  const fullExplanation = receipt.explanation
+    ? receipt.explanation.trim()
+    : 'Contravaloare facturi'
 
   return {
     type: 'RECEIPT',
