@@ -2426,7 +2426,14 @@ export async function cancelInvoice(
       if (!invoice) throw new Error('Factura nu a fost găsită.')
 
       // 1. Validări
-      if (['APPROVED', 'PAID', 'PARTIAL_PAID'].includes(invoice.status)) {
+      // EXCEPȚIE: Permitem anularea dacă este o factură PROFORMA cu statusul APPROVED
+      const isApprovedProforma =
+        invoice.invoiceType === 'PROFORMA' && invoice.status === 'APPROVED'
+
+      if (
+        ['APPROVED', 'PAID', 'PARTIAL_PAID'].includes(invoice.status) &&
+        !isApprovedProforma
+      ) {
         throw new Error(
           `Nu puteți anula o factură cu statusul ${invoice.status}.`,
         )

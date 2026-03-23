@@ -10,6 +10,8 @@ import '@/lib/db/modules/product/product.model'
 import '@/lib/db/modules/packaging-products/packaging.model'
 import '@/lib/db/modules/category/category.model'
 
+// http://localhost:3000/api/dev/export-stoc-initial
+
 export async function GET() {
   try {
     await connectToDatabase()
@@ -21,22 +23,22 @@ export async function GET() {
 
     // 1. Configurare Coloane
     sheet.columns = [
-      { header: 'Cod', key: 'code', width: 15 },
+      { header: 'Cod', key: 'code', width: 10 },
       { header: 'Nume Produs / Ambalaj', key: 'name', width: 60 },
-      { header: 'Tip', key: 'type', width: 12 },
-      { header: 'Locație', key: 'location', width: 20 },
+      { header: 'Tip', key: 'type', width: 10 },
+      { header: 'Locație', key: 'location', width: 18 },
 
-      { header: 'UM Bază', key: 'unit', width: 12 },
+      { header: 'UM Bază', key: 'unit', width: 9 },
       { header: 'Cantitate Bază', key: 'qty', width: 18 },
-      { header: 'Preț Bază', key: 'unitPrice', width: 15 },
+      { header: 'Preț Bază', key: 'unitPrice', width: 14 },
 
-      { header: 'UM 2 (Ambalaj)', key: 'um2', width: 18 },
+      { header: 'UM 2 (Ambalaj)', key: 'um2', width: 17 },
       { header: 'Cantitate UM 2', key: 'qty2', width: 15 },
-      { header: 'Preț UM 2', key: 'price2', width: 15 },
+      { header: 'Preț UM 2', key: 'price2', width: 14 },
 
-      { header: 'UM 3 (Palet)', key: 'um3', width: 18 },
+      { header: 'UM 3 (Palet)', key: 'um3', width: 17 },
       { header: 'Cantitate UM 3', key: 'qty3', width: 15 },
-      { header: 'Preț UM 3', key: 'price3', width: 15 },
+      { header: 'Preț UM 3', key: 'price3', width: 14 },
 
       { header: 'Valoare Totală', key: 'totalValue', width: 20 },
     ]
