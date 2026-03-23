@@ -702,7 +702,15 @@ export async function addInitialStock(input: AddInitialStockInput) {
 
     // Actualizăm ultimul preț de achiziție
     inventoryItem.lastPurchasePrice = payload.unitCost
-
+    if (payload.unitCost > (inventoryItem.maxPurchasePrice || 0)) {
+      inventoryItem.maxPurchasePrice = payload.unitCost
+    }
+    if (
+      !inventoryItem.minPurchasePrice ||
+      payload.unitCost < inventoryItem.minPurchasePrice
+    ) {
+      inventoryItem.minPurchasePrice = payload.unitCost
+    }
     // Recalculăm totalurile
     await recalculateInventorySummary(inventoryItem)
     await inventoryItem.save({ session })

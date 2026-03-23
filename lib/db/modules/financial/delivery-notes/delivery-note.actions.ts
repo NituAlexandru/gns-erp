@@ -358,15 +358,14 @@ export async function confirmDeliveryNote({
             {
               stockableItem: item.productId.toString(),
               stockableItemType: item.stockableItemType,
-
               // Folosim valorile calculate dinamic
               movementType: movementType,
               locationFrom: locationFrom,
-
               quantity: item.quantityInBaseUnit,
               unitMeasure: item.baseUnit || item.unitOfMeasure,
               salePrice: item.priceInBaseUnit,
               referenceId: note._id.toString(),
+              documentNumber: `${note.seriesName}-${note.noteNumber}`,
               responsibleUser: userId,
               clientId: note.clientId.toString(),
               note: `Livrare (${friendlyDeliveryName}) conf. Aviz Seria ${note.seriesName} nr. ${note.noteNumber}`,

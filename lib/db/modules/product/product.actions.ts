@@ -167,6 +167,7 @@ export async function deleteProduct(id: string) {
     await connectToDatabase()
     const res = await ERPProductModel.findByIdAndDelete(id)
     if (!res) throw new Error('Product not found')
+    await InventoryItemModel.deleteMany({ stockableItem: id })
     revalidatePath('/admin/products')
     return { success: true, message: 'Produs sters cu succes!' }
   } catch (error) {

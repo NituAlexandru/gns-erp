@@ -13,13 +13,14 @@ import {
 import { packagingUpdateZod, packagingZod } from './validator'
 import { getGlobalHighestCostInStock } from '../inventory/pricing'
 import { ClientSession, Types } from 'mongoose'
+import InventoryItemModel from '../inventory/inventory.model'
 
 export async function addOrUpdateSupplierForPackaging(
   packagingId: string,
   supplierId: string,
   price: number,
   supplierProductCode: string | undefined,
-  session: ClientSession
+  session: ClientSession,
 ) {
   if (!packagingId || !supplierId) return
 
@@ -28,7 +29,7 @@ export async function addOrUpdateSupplierForPackaging(
 
   if (!packaging) {
     throw new Error(
-      `Ambalajul cu ID ${packagingId} nu a fost găsit pentru actualizarea furnizorului.`
+      `Ambalajul cu ID ${packagingId} nu a fost găsit pentru actualizarea furnizorului.`,
     )
   }
 
@@ -36,7 +37,7 @@ export async function addOrUpdateSupplierForPackaging(
 
   // Căutăm dacă furnizorul există deja
   const existingSupplierIndex = packaging.suppliers.findIndex(
-    (s) => s.supplier.toString() === supplierId
+    (s) => s.supplier.toString() === supplierId,
   )
 
   if (existingSupplierIndex > -1) {
@@ -133,6 +134,7 @@ export async function deletePackaging(id: string) {
     await connectToDatabase()
     const res = await PackagingModel.findByIdAndDelete(id)
     if (!res) throw new Error('Packaging not found')
+    await InventoryItemModel.deleteMany({ stockableItem: id })
     revalidatePath('/admin/packagings')
     return { success: true, message: 'Packaging deleted successfully' }
   } catch (error) {
@@ -150,19 +152,19 @@ export async function updatePackagingAveragePurchasePrice(packagingId: string) {
   })
 
   console.log(
-    `Updated averagePurchasePrice for packaging ${packagingId} to HIGHEST cost: ${highestCost}`
+    `Updated averagePurchasePrice for packaging ${packagingId} to HIGHEST cost: ${highestCost}`,
   )
 }
 
 export async function getPackagingForOrderLine(
-  packagingId: string
+  packagingId: string,
 ): Promise<PackagingForOrderLine | null> {
   try {
     await connectToDatabase()
 
     const packaging = await PackagingModel.findById(packagingId)
       .select(
-        'name productCode packagingUnit weight volume length width height packagingQuantity'
+        'name productCode packagingUnit weight volume length width height packagingQuantity',
       )
       .lean()
 
@@ -189,7 +191,7 @@ export async function getPackagingForOrderLine(
   } catch (error) {
     console.error(
       'Eroare la preluarea datelor de ambalaj pentru comandă:',
-      error
+      error,
     )
     throw new Error('Nu s-au putut prelua datele ambalajului.')
   }

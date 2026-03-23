@@ -614,6 +614,7 @@ export async function confirmReception({
             quantity: item.quantity,
             locationTo: targetLocation,
             referenceId: reception._id.toString(),
+            documentNumber: `${reception._id.toString().substring(0, 6).toUpperCase()}`,
             note: `Recepție ${details.name} de la furnizor ${supplierName}`,
             unitCost: item.landedCostPerUnit,
             responsibleUser: userId,

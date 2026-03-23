@@ -933,6 +933,22 @@ export async function getStockMovements(
           { $skip: skip },
           { $limit: MOVEMENTS_PAGE_SIZE },
           {
+            $lookup: {
+              from: 'receptions',
+              localField: 'referenceId',
+              foreignField: '_id',
+              as: 'receptionRefData',
+            },
+          },
+          {
+            $lookup: {
+              from: 'deliverynotes',
+              localField: 'referenceId',
+              foreignField: '_id',
+              as: 'deliveryRefData',
+            },
+          },
+          {
             $project: {
               _id: 1,
               movementType: 1,
@@ -946,6 +962,8 @@ export async function getStockMovements(
               balanceAfter: 1,
               documentNumber: 1,
               qualityDetails: 1,
+              receptionData: { $arrayElemAt: ['$receptionRefData', 0] },
+              deliveryData: { $arrayElemAt: ['$deliveryRefData', 0] },
               lineCost: { $ifNull: ['$lineCost', 0] },
               unitCost: 1,
               salePrice: { $ifNull: ['$salePrice', null] },

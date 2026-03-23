@@ -208,6 +208,15 @@ export async function recordStockMovement(
       balanceAfter = balanceBefore + payload.quantity
       inventoryItem.totalStock = balanceAfter
       inventoryItem.lastPurchasePrice = payload.unitCost
+      if (payload.unitCost > (inventoryItem.maxPurchasePrice || 0)) {
+        inventoryItem.maxPurchasePrice = payload.unitCost
+      }
+      if (
+        !inventoryItem.minPurchasePrice ||
+        payload.unitCost < inventoryItem.minPurchasePrice
+      ) {
+        inventoryItem.minPurchasePrice = payload.unitCost
+      }
     } else {
       let quantityToDecrease = payload.quantity
       const fallbackCost = inventoryItem.lastPurchasePrice || 0

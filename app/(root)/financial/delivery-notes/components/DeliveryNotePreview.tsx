@@ -17,19 +17,29 @@ import { DeliveryNoteItemsTable } from './details/DeliveryNoteItemsTable'
 interface DeliveryNotePreviewProps {
   note: DeliveryNoteDTO
   isAdmin?: boolean
+  children?: React.ReactNode
 }
 
 export function DeliveryNotePreview({
   note,
   isAdmin = false,
+  children,
 }: DeliveryNotePreviewProps) {
   return (
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
-        <Button variant='ghost' size='icon' className='h-8 w-8 hover:bg-muted'>
-          <Eye className='h-4 w-4 text-muted-foreground hover:text-foreground transition-colors' />
-          <span className='sr-only'>Previzualizare Aviz</span>
-        </Button>
+        {children ? (
+          children
+        ) : (
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-8 w-8 hover:bg-muted'
+          >
+            <Eye className='h-4 w-4 text-muted-foreground hover:text-foreground transition-colors' />
+            <span className='sr-only'>Previzualizare Aviz</span>
+          </Button>
+        )}
       </HoverCardTrigger>
 
       <HoverCardContent

@@ -17,7 +17,7 @@ import {
   MOVEMENT_TYPE_DETAILS_MAP,
   IN_TYPES,
 } from '@/lib/db/modules/inventory/constants'
-import { cn, formatCurrency, formatId } from '@/lib/utils'
+import { cn, formatCurrency, formatId, toSlug } from '@/lib/utils'
 import { useState, useEffect, useCallback } from 'react'
 import { MovementsFilters, MovementsFiltersState } from './movements-filters'
 import Link from 'next/link'
@@ -34,6 +34,13 @@ import {
 } from '@/components/ui/select'
 import { fromZonedTime } from 'date-fns-tz'
 import { TIMEZONE } from '@/lib/constants'
+import { DeliveryNotePreview } from '@/app/(root)/financial/delivery-notes/components/DeliveryNotePreview'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
+import { ReceptionPreviewCard } from '../../reception/ReceptionPreviewCard'
 
 // Tip pentru UI
 type ExtendedStockMovement = PopulatedStockMovement & {
@@ -52,6 +59,9 @@ type ExtendedStockMovement = PopulatedStockMovement & {
     unitName: string
     baseUnitEquivalent: number
   }[]
+  referenceId?: string
+  receptionData?: any
+  deliveryData?: any
 }
 // Tip pentru Totaluri
 type MovementsTotals = {
@@ -61,6 +71,30 @@ type MovementsTotals = {
   totalQtyIn: number | null
   totalQtyOut: number | null
   commonUnit: string
+}
+
+const getDocumentNumberForTable = (movement: ExtendedStockMovement) => {
+  // 1. Din Recepție (primele 6 caractere din ID)
+  if (movement.receptionData) {
+    const refId = movement.receptionData._id || movement.referenceId
+    return refId ? `#${String(refId).substring(0, 6)}` : '-'
+  }
+
+  // 2. Din Aviz (serie-număr)
+  if (movement.deliveryData) {
+    const series = movement.deliveryData.seriesName || ''
+    const num = movement.deliveryData.noteNumber || ''
+    if (series || num) {
+      return `${series}-${num}`
+    }
+  }
+
+  // 3. Fallback generic pentru operațiuni interne (tot primele 6 caractere din referenceId)
+  if (movement.referenceId) {
+    return `#${String(movement.referenceId).substring(0, 6)}`
+  }
+
+  return '-'
 }
 
 export default function StockMovementsPage() {
@@ -299,6 +333,9 @@ export default function StockMovementsPage() {
                   <TableHead className='w-[140px] text-[10px] lg:text-xs 2xl:text-base'>
                     Dată
                   </TableHead>
+                  <TableHead className='w-[120px] text-[10px] lg:text-xs 2xl:text-base'>
+                    Doc.
+                  </TableHead>
                   <TableHead className='w-[100px] text-[10px] lg:text-xs 2xl:text-base'>
                     Tip
                   </TableHead>
@@ -378,7 +415,76 @@ export default function StockMovementsPage() {
                               )
                             : '-'}
                         </TableCell>
+                        {/* CELULA DOCUMENT (CU HOVER ȘI LINK) */}
+                        <TableCell>
+                          {(() => {
+                            const docText = getDocumentNumberForTable(movement)
+                            const textColor = isMovementIn
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                            const baseClasses = cn(
+                              'font-bold text-xs truncate max-w-[120px]',
+                              textColor,
+                            )
 
+                            // 1. Dacă este RECEPȚIE
+                            if (movement.receptionData) {
+                              return (
+                                <HoverCard openDelay={200} closeDelay={100}>
+                                  <HoverCardTrigger asChild>
+                                    <Link
+                                      href={`/admin/management/reception/${movement.receptionData._id}`}
+                                      className={cn(
+                                        baseClasses,
+                                        'hover:underline cursor-pointer inline-block',
+                                      )}
+                                      title='Deschide Recepția'
+                                    >
+                                      {docText}
+                                    </Link>
+                                  </HoverCardTrigger>
+                                  {/* Wrapper transparent pentru a nu strica design-ul tău din ReceptionPreviewCard */}
+                                  <HoverCardContent
+                                    side='right'
+                                    align='start'
+                                    className='p-0 border-0 shadow-2xl bg-transparent w-auto'
+                                  >
+                                    <ReceptionPreviewCard
+                                      reception={movement.receptionData}
+                                    />
+                                  </HoverCardContent>
+                                </HoverCard>
+                              )
+                            }
+
+                            // 2. Dacă este AVIZ / LIVRARE
+                            if (movement.deliveryData) {
+                              return (
+                                <DeliveryNotePreview
+                                  note={movement.deliveryData}
+                                >
+                                  <Link
+                                    href={`/financial/delivery-notes/${movement.deliveryData._id}`}
+                                    className={cn(
+                                      baseClasses,
+                                      'hover:underline cursor-pointer inline-block',
+                                    )}
+                                    title='Deschide Avizul'
+                                  >
+                                    {docText}
+                                  </Link>
+                                </DeliveryNotePreview>
+                              )
+                            }
+
+                            // 3. Fallback (Operațiuni interne, nu au modal/link dedicat încă)
+                            return (
+                              <span className={baseClasses} title={docText}>
+                                {docText}
+                              </span>
+                            )
+                          })()}
+                        </TableCell>
                         <TableCell>
                           <Badge
                             variant={isMovementIn ? 'outline' : 'default'}
@@ -393,18 +499,32 @@ export default function StockMovementsPage() {
                           </Badge>
                         </TableCell>
 
-                        <TableCell className='text-xs text-muted-foreground '>
+                        <TableCell
+                          className='text-xs text-muted-foreground cursor-help'
+                          title={movement.note || 'Fără notă'}
+                        >
                           {movementTypeName}
                         </TableCell>
 
                         <TableCell className='max-w-[150px] xl:max-w-[180px] 3xl:max-w-[220px] text-xs'>
                           <div className='flex items-center gap-1 group relative'>
-                            <span
-                              className='truncate font-medium block'
-                              title={movement.stockableItem?.name}
-                            >
-                              {movement.stockableItem?.name || 'N/A'}
-                            </span>
+                            {movement.stockableItem?._id &&
+                            movement.stockableItem?.name ? (
+                              <Link
+                                href={`/catalog-produse/${movement.stockableItem._id}/${toSlug(movement.stockableItem.name)}`}
+                                className='truncate font-medium block hover:underline hover:text-primary transition-colors cursor-pointer'
+                                title={`Vezi produsul: ${movement.stockableItem.name}`}
+                              >
+                                {movement.stockableItem.name}
+                              </Link>
+                            ) : (
+                              <span
+                                className='truncate font-medium block'
+                                title={movement.stockableItem?.name || 'N/A'}
+                              >
+                                {movement.stockableItem?.name || 'N/A'}
+                              </span>
+                            )}
                           </div>
                         </TableCell>
 
@@ -555,7 +675,10 @@ export default function StockMovementsPage() {
                         <TableCell className='text-xs'>
                           {locationName}
                         </TableCell>
-                        <TableCell className='text-xs'>
+                        <TableCell
+                          className='text-xs max-w-[80px] truncate cursor-help'
+                          title={movement.responsibleUser?.name || 'N/A'}
+                        >
                           {movement.responsibleUser?.name || '-'}
                         </TableCell>
                       </TableRow>
