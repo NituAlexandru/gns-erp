@@ -31,7 +31,7 @@ export async function generateProductHistoryReport(
   let packagingUnit = ''
   let packagingQuantity = 1
   let itemsPerPallet = 0
-
+  //
   if (filters.itemType === 'ERPProduct') {
     const product = await ERPProductModel.findById(productId).lean()
     if (product) {
@@ -165,7 +165,43 @@ export async function generateProductHistoryReport(
     })
   }
 
-  //
+  const inTransitNotes = await DeliveryNoteModel.find({
+    status: 'IN_TRANSIT',
+    'items.productId': productId,
+  }).lean()
+
+  for (const note of inTransitNotes) {
+    const matchingItems = (note.items || []).filter(
+      (i: any) => String(i.productId) === String(productId),
+    )
+
+    for (const item of matchingItems) {
+      const docUnit = item.unitOfMeasure || baseUnit
+      const docPrice =
+        item.priceAtTimeOfOrder || item.lineValue / item.quantity || 0
+      const vals = calculateRowValues(
+        item.quantity,
+        docUnit,
+        docPrice,
+        item.packagingOptions || [],
+      )
+
+      historyLines.push({
+        date: note.deliveryDate || note.createdAt,
+        operationType: 'ÎN TRANZIT',
+        documentType: 'Aviz (Nelivrat)',
+        documentNumber: `${note.seriesName || ''}-${note.noteNumber || ''}`,
+        partner: note.clientSnapshot?.name || 'Client',
+        docQty: item.quantity * -1, // Scade din stoc
+        docUm: docUnit,
+        docPrice: docPrice,
+        baseQty: vals.baseQty * -1,
+        basePrice: vals.basePrice,
+        totalValue: vals.baseQty * vals.basePrice * -1,
+        isInTransit: true, // Adăugăm acest flag special
+      })
+    }
+  }
   // 4. Sortare Cronologică
   historyLines.sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
@@ -352,14 +388,21 @@ export async function generateProductHistoryReport(
   // Variabile pentru TOTAL STOC
   let sumBaseQty = 0
   let sumTotalValue = 0
+  let sumTransitQty = 0
+  let sumTransitValue = 0
 
   let rowIndex = 2
   for (const line of historyLines) {
     rowIndex++
 
-    // Adunăm la balanța finală de stoc (Intrările sunt deja +, Ieșirile -)
-    sumBaseQty += line.baseQty
-    sumTotalValue += line.totalValue
+    // Separăm calculul pentru tranzit vs calculat
+    if (line.isInTransit) {
+      sumTransitQty += line.baseQty // Deja negativ
+      sumTransitValue += line.totalValue
+    } else {
+      sumBaseQty += line.baseQty
+      sumTotalValue += line.totalValue
+    }
 
     const packQty = hasPack ? line.baseQty / packagingQuantity : 0
     const packPrice = hasPack ? line.basePrice * packagingQuantity : 0
@@ -402,8 +445,9 @@ export async function generateProductHistoryReport(
       }
     }
 
-    const isOut = line.operationType === 'IEȘIRE'
-    const color = isOut ? 'FFEF4444' : 'FF16A34A'
+    const isOut = line.operationType === 'IEȘIRE' || line.isInTransit
+    let color = isOut ? 'FFEF4444' : 'FF16A34A'
+    if (line.isInTransit) color = 'FF2563EB'
 
     row.getCell('operationType').font = { color: { argb: color }, bold: true }
     row.getCell('docQty').font = { color: { argb: color }, bold: true }
@@ -571,6 +615,167 @@ export async function generateProductHistoryReport(
       }
     }
   })
+
+  // --- ADAUGĂ RÂNDURILE PENTRU TRANZIT ȘI STOC FAPTIC ---
+  // 1. Rând TRANZIT
+  const transitRowData: any = {
+    partner: 'CANTITATE ÎN TRANZIT:',
+    baseQty: sumTransitQty,
+    basePrice: baseUnit,
+    totalValue: formatCurrency3(sumTransitValue),
+  }
+  if (hasPack) {
+    transitRowData.packQty = sumTransitQty / packagingQuantity
+    transitRowData.packPrice = packagingUnit
+  }
+  if (hasPallet) {
+    transitRowData.palletQty = sumTransitQty / palletBaseEquivalent
+    transitRowData.palletPrice = 'paleti'
+  }
+
+  const transitRow = sheet.addRow(transitRowData)
+  transitRow.height = 25
+  transitRow.getCell('partner').alignment = {
+    horizontal: 'right',
+    vertical: 'middle',
+  }
+  transitRow.getCell('partner').font = {
+    bold: true,
+    color: { argb: 'FF2563EB' },
+  }
+  transitRow.getCell('baseQty').font = {
+    bold: true,
+    color: { argb: 'FF2563EB' },
+  }
+  transitRow.getCell('basePrice').font = {
+    italic: true,
+    color: { argb: 'FF6B7280' },
+  }
+  if (hasPack) {
+    transitRow.getCell('packQty').font = {
+      bold: true,
+      color: { argb: 'FF2563EB' },
+    }
+    transitRow.getCell('packPrice').font = {
+      italic: true,
+      color: { argb: 'FF6B7280' },
+    }
+  }
+  if (hasPallet) {
+    transitRow.getCell('palletQty').font = {
+      bold: true,
+      color: { argb: 'FF2563EB' },
+    }
+    transitRow.getCell('palletPrice').font = {
+      italic: true,
+      color: { argb: 'FF6B7280' },
+    }
+  }
+
+  // 2. Rând STOC CURENT (Faptic)
+  const currentQty = sumBaseQty + sumTransitQty // sumTransitQty e deja cu -
+  const currentValue = sumTotalValue + sumTransitValue
+
+  const currentRowData: any = {
+    partner: 'STOC CURENT (Calculat - Tranzit):',
+    baseQty: currentQty,
+    basePrice: baseUnit,
+    totalValue: formatCurrency3(currentValue),
+  }
+  if (hasPack) {
+    currentRowData.packQty = currentQty / packagingQuantity
+    currentRowData.packPrice = packagingUnit
+  }
+  if (hasPallet) {
+    currentRowData.palletQty = currentQty / palletBaseEquivalent
+    currentRowData.palletPrice = 'paleti'
+  }
+
+  const currentRow = sheet.addRow(currentRowData)
+  currentRow.height = 30
+  currentRow.getCell('partner').alignment = {
+    horizontal: 'right',
+    vertical: 'middle',
+  }
+  currentRow.getCell('partner').font = { bold: true, size: 12 }
+
+  const currentColor = currentQty < 0 ? 'FFEF4444' : 'FF16A34A'
+  currentRow.getCell('baseQty').font = {
+    bold: true,
+    size: 12,
+    color: { argb: currentColor },
+  }
+  currentRow.getCell('baseQty').alignment = {
+    horizontal: 'right',
+    vertical: 'middle',
+  }
+  currentRow.getCell('basePrice').font = {
+    italic: true,
+    color: { argb: 'FF6B7280' },
+  }
+
+  if (hasPack) {
+    currentRow.getCell('packQty').font = {
+      bold: true,
+      size: 12,
+      color: { argb: currentColor },
+    }
+    currentRow.getCell('packPrice').font = {
+      italic: true,
+      color: { argb: 'FF6B7280' },
+    }
+  }
+  if (hasPallet) {
+    currentRow.getCell('palletQty').font = {
+      bold: true,
+      size: 12,
+      color: { argb: currentColor },
+    }
+    currentRow.getCell('palletPrice').font = {
+      italic: true,
+      color: { argb: 'FF6B7280' },
+    }
+  }
+  currentRow.getCell('totalValue').font = { bold: true, size: 12 }
+  currentRow.getCell('totalValue').alignment = {
+    horizontal: 'right',
+    vertical: 'middle',
+  }
+
+  // Aplicăm bordere identice pe noile rânduri
+  ;[transitRow, currentRow].forEach((r) => {
+    r.eachCell((cell, colNumber) => {
+      const colKey = sheet.getColumn(colNumber).key as string
+      const isRightBorder = borderCols.includes(colKey)
+      const isLeftBorder = leftBorderCols.includes(colKey)
+      const isPartner = colKey === 'partner'
+
+      if (
+        [
+          'partner',
+          'baseQty',
+          'basePrice',
+          'packQty',
+          'packPrice',
+          'palletQty',
+          'palletPrice',
+          'totalValue',
+        ].includes(colKey)
+      ) {
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF000000' } },
+          bottom: { style: 'medium', color: { argb: 'FF000000' } },
+          ...(isRightBorder || isPartner
+            ? { right: { style: 'medium', color: { argb: 'FF000000' } } }
+            : {}),
+          ...(isLeftBorder || isPartner
+            ? { left: { style: 'medium', color: { argb: 'FF000000' } } }
+            : {}),
+        }
+      }
+    })
+  })
+  // --- SFÂRȘIT ADAUGĂRI RÂNDURI NOI ---
 
   // Formatare numere DOAR pentru cantități (prețurile sunt acum text "kg", "sac" etc)
   const numCols = ['docQty', 'baseQty']

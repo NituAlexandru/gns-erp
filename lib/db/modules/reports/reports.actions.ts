@@ -57,7 +57,10 @@ export async function generateReportAction(
 
       case 'product-history':
         await generateProductHistoryReport(workbook, filters)
-        filename = `Fisa_Produs_${filters.startDate}_${filters.endDate}.xlsx`
+        const safeFileName = (filters.productName || 'Produs')
+          .replace(/[\\/?*[\] ]/g, '_')
+          .substring(0, 30)
+        filename = `Fisa_Produs_${safeFileName}_${filters.startDate}_${filters.endDate}.xlsx`
         break
 
       case 'sales-period':
