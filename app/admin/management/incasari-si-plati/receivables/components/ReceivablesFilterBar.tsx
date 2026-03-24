@@ -21,6 +21,8 @@ import {
 } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 
 export function ReceivablesFilterBar() {
   const router = useRouter()
@@ -28,7 +30,7 @@ export function ReceivablesFilterBar() {
   const searchParams = useSearchParams()
 
   const isInvoices = pathname.includes('/facturi')
-  const isReceipts = pathname.includes('/incasari')
+  const isReceipts = pathname.includes('/receivables/incasari')
   const isInbox = pathname.includes('/mesaje-spv')
   const isLogs = pathname.includes('/logs')
   const isBalances = pathname.includes('/solduri')
@@ -43,6 +45,12 @@ export function ReceivablesFilterBar() {
   )
   const [toDate, setToDate] = useState<Date | undefined>(
     searchParams.get('to') ? new Date(searchParams.get('to')!) : undefined,
+  )
+  const [hideCompensations, setHideCompensations] = useState(
+    searchParams.get('hideCompensations') === 'true',
+  )
+  const [onlyNegative, setOnlyNegative] = useState(
+    searchParams.get('onlyNegative') === 'true',
   )
 
   const isMounted = useRef(false)
@@ -60,6 +68,8 @@ export function ReceivablesFilterBar() {
     setToDate(
       searchParams.get('to') ? new Date(searchParams.get('to')!) : undefined,
     )
+    setHideCompensations(searchParams.get('hideCompensations') === 'true')
+    setOnlyNegative(searchParams.get('onlyNegative') === 'true')
   }, [pathname, searchParams])
 
   // --- LOGICĂ ACTUALIZARE URL ---
@@ -69,6 +79,8 @@ export function ReceivablesFilterBar() {
     cDateType: string,
     cFrom?: Date,
     cTo?: Date,
+    cHideComp?: boolean,
+    cOnlyNegative?: boolean,
   ) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', '1')
@@ -92,6 +104,12 @@ export function ReceivablesFilterBar() {
     if (cTo) params.set('to', format(cTo, 'yyyy-MM-dd'))
     else params.delete('to')
 
+    if (cHideComp) params.set('hideCompensations', 'true')
+    else params.delete('hideCompensations')
+
+    if (cOnlyNegative) params.set('onlyNegative', 'true')
+    else params.delete('onlyNegative')
+
     router.push(`${pathname}?${params.toString()}`)
   }
 
@@ -101,18 +119,37 @@ export function ReceivablesFilterBar() {
       return
     }
     const timer = setTimeout(() => {
-      updateUrl(text, status, dateType, fromDate, toDate)
+      updateUrl(
+        text,
+        status,
+        dateType,
+        fromDate,
+        toDate,
+        hideCompensations,
+        onlyNegative,
+      )
     }, 500)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text])
 
+  const fromTime = fromDate?.getTime()
+  const toTime = toDate?.getTime()
+
   useEffect(() => {
     if (isMounted.current) {
-      updateUrl(text, status, dateType, fromDate, toDate)
+      updateUrl(
+        text,
+        status,
+        dateType,
+        fromDate,
+        toDate,
+        hideCompensations,
+        onlyNegative,
+      )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, dateType, fromDate?.getTime(), toDate?.getTime()])
+  }, [status, dateType, fromTime, toTime, hideCompensations, onlyNegative])
 
   const clearFilters = () => {
     setText('')
@@ -120,6 +157,7 @@ export function ReceivablesFilterBar() {
     setDateType('due')
     setFromDate(undefined)
     setToDate(undefined)
+    setHideCompensations(false)
     router.push(pathname)
   }
 
@@ -249,9 +287,43 @@ export function ReceivablesFilterBar() {
           </Popover>
         </div>
       )}
+      {isReceipts && (
+        <div className='flex items-center space-x-2 border px-3 py-4 rounded-md h-8.5 text-xs'>
+          <Checkbox
+            id='hide-comp'
+            checked={hideCompensations}
+            onCheckedChange={(checked) =>
+              setHideCompensations(checked === true)
+            }
+            className='w-4 h-4'
+          />
+          <Label htmlFor='hide-comp' className='text-xs cursor-pointer'>
+            Ascunde Compensările
+          </Label>
+        </div>
+      )}
+
+      {isInvoices && (
+        <div className='flex items-center space-x-2 border px-3 py-1.5 rounded-md h-8 text-xs bg-background'>
+          <Checkbox
+            id='only-negative'
+            checked={onlyNegative}
+            onCheckedChange={(checked) => setOnlyNegative(checked === true)}
+            className='w-3.5 h-3.5'
+          />
+          <Label htmlFor='only-negative' className='text-xs cursor-pointer'>
+            Doar Storno (Negative)
+          </Label>
+        </div>
+      )}
 
       {/* Buton Reset - Doar dacă sunt filtre */}
-      {(text || status !== 'ALL' || fromDate || toDate) && (
+      {(text ||
+        status !== 'ALL' ||
+        fromDate ||
+        toDate ||
+        hideCompensations ||
+        onlyNegative) && (
         <Button
           variant='ghost'
           size='sm'

@@ -14,6 +14,7 @@ export default async function InvoicesTab({
     from?: string
     to?: string
     dateType?: string
+    onlyNegative?: string
   }>
 }) {
   const params = await searchParams
@@ -29,6 +30,7 @@ export default async function InvoicesTab({
     from: params.from,
     to: params.to,
     dateType: params.dateType,
+    onlyNegative: params.onlyNegative,
   })
 
   return (

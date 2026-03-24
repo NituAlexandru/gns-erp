@@ -14,6 +14,7 @@ export default async function ReceiptsTab({
     status?: string
     from?: string
     to?: string
+    hideCompensations?: string
   }>
 }) {
   const params = await searchParams
@@ -28,6 +29,7 @@ export default async function ReceiptsTab({
     status: (await searchParams).status,
     from: (await searchParams).from,
     to: (await searchParams).to,
+    hideCompensations: params.hideCompensations,
   })
 
   const safeData = result.success

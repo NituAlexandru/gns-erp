@@ -237,6 +237,7 @@ export async function getClientPayments(
     status?: string // 'ALL', 'NEALOCATA', 'ALOCAT_COMPLET', etc.
     from?: string
     to?: string
+    hideCompensations?: string
   },
 ) {
   try {
@@ -248,6 +249,11 @@ export async function getClientPayments(
     // 1. CONSTRUIRE FILTRE DE BAZĂ ($match)
     // Începem cu un match gol și adăugăm condiții
     const matchStage: any = {}
+
+    // --- FILTRU ASCUNDE COMPENSĂRI ---
+    if (filters?.hideCompensations === 'true') {
+      matchStage.paymentMethod = { $ne: 'COMPENSARE' }
+    }
 
     // --- FILTRU STATUS ---
     if (filters?.status && filters.status !== 'ALL') {
@@ -313,7 +319,20 @@ export async function getClientPayments(
           {
             $group: {
               _id: null,
-              totalCollected: { $sum: '$totalAmount' },
+              totalCollected: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $ne: ['$status', 'ANULATA'] },
+                        { $ne: ['$paymentMethod', 'COMPENSARE'] },
+                      ],
+                    },
+                    '$totalAmount',
+                    0, // Dacă e ANULATA sau COMPENSARE, adună 0
+                  ],
+                },
+              },
             },
           },
         ],

@@ -463,6 +463,7 @@ export async function getAllUnpaidInvoices(
     from?: string // 'YYYY-MM-DD'
     to?: string // 'YYYY-MM-DD'
     dateType?: string
+    onlyNegative?: string
   },
 ) {
   try {
@@ -477,7 +478,15 @@ export async function getAllUnpaidInvoices(
       invoiceType: { $ne: 'PROFORMA' },
       seriesName: { $ne: 'INIT-AMB' },
       // Important: Trebuie să mai aibă rest de plată (altfel nu apare în lista de încasări)
-      remainingAmount: { $ne: 0 },
+      // remainingAmount: { $ne: 0 },
+    }
+
+    // --- FILTRU FACTURI NEGATIVE ---
+    if (filters?.onlyNegative === 'true') {
+      matchStage.remainingAmount = { $lt: 0 } // Aducem doar facturile cu rest negativ (sub 0)
+    } else {
+      matchStage.remainingAmount = { $gt: 0 } // Default: arătăm facturile normale de încasat (peste 0)
+      // *Notă: Am schimbat din $ne: 0 în $gt: 0 ca să excludem din start facturile negative când bifa nu este pusă. Dacă vrei să le vezi mereu laolaltă când bifa e oprită, pune la loc { $ne: 0 }
     }
 
     // --- FILTRU STATUS ---
