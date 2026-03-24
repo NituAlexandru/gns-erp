@@ -177,7 +177,7 @@ export default function StockMovementsPage() {
       <div className='flex flex-col justify-between items-start mb-1'>
         <div className='flex'>
           <div>
-            <h3 className='font-bold pt-1 text-sm lg:text-xs 2xl:text-base'>
+            <h3 className='font-bold pt-1 text-sm lg:text-xs 2xl:text-base mr-5'>
               Mișcări Stoc (Jurnal)
             </h3>
             {totalDocs > 0 && (
@@ -500,10 +500,18 @@ export default function StockMovementsPage() {
                         </TableCell>
 
                         <TableCell
-                          className='text-xs text-muted-foreground cursor-help'
+                          className='text-xs cursor-help'
                           title={movement.note || 'Fără notă'}
                         >
-                          {movementTypeName}
+                          {movementTypeName?.includes('Anulare Recepție') ? (
+                            <span className='text-red-500 font-bold'>
+                              {movementTypeName}
+                            </span>
+                          ) : (
+                            <span className='text-muted-foreground'>
+                              {movementTypeName}
+                            </span>
+                          )}
                         </TableCell>
 
                         <TableCell className='max-w-[150px] xl:max-w-[180px] 3xl:max-w-[220px] text-xs'>

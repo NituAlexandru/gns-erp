@@ -92,6 +92,27 @@ export function StockByLocationTable({
     setTotalPages(res.totalPages || 1)
     setTotalDocs(res.totalDocs || 0)
     setTotals(res.totals || { totalValue: 0 })
+
+    setSelectedUnits((prev) => {
+      const updatedUnits = { ...prev }
+      res.data.forEach((item: AggregatedStockItem) => {
+        let exactSacName = null
+        if (item.unit.toLowerCase() === 'sac') {
+          exactSacName = item.unit
+        } else {
+          const packSac = item.packagingOptions?.find(
+            (p) => p.unitName.toLowerCase() === 'sac',
+          )
+          if (packSac) exactSacName = packSac.unitName
+        }
+
+        if (exactSacName) {
+          updatedUnits[item._id] = exactSacName
+        }
+      })
+      return updatedUnits
+    })
+
     setLoading(false)
   }, [locationId, searchQuery, page])
 

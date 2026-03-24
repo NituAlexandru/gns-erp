@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/hover-card'
 import { Badge } from '@/components/ui/badge'
 import ProductPreviewContent from '@/app/(root)/catalog-produse/details/product-preview-content'
+import { useEffect, useRef } from 'react'
 
 type RowState = {
   direct: number
@@ -89,6 +90,26 @@ export function ProductRow({
     basePrice: item.averagePurchasePrice,
     baseStock: item.totalStock,
   })
+
+  const hasForcedSac = useRef(false)
+
+  useEffect(() => {
+    // Verificăm doar la prima încărcare a componentei
+    if (!hasForcedSac.current) {
+      // Căutăm "sac" în lista de unități disponibile pentru acest produs (curățat de spații/majuscule)
+      const sacUnit = allUnits.find(
+        (u) => u.unitName?.trim().toLowerCase() === 'sac',
+      )
+
+      // Dacă există "sac" și nu este deja selectat, îl forțăm!
+      if (sacUnit && selectedUnit !== sacUnit.unitName) {
+        handleUnitChange(sacUnit.unitName)
+      }
+
+      // Marcăm că am făcut verificarea, ca să lăsăm userul să schimbe manual după
+      hasForcedSac.current = true
+    }
+  }, [allUnits, selectedUnit, handleUnitChange])
 
   const fallback: RowState = {
     direct: item.defaultMarkups?.markupDirectDeliveryPrice ?? 0,

@@ -95,6 +95,28 @@ export function StockTable({ initialStockData }: StockTableProps) {
       setTotalPages(res.totalPages || 1)
       setTotalDocs(res.totalDocs || 0)
       setTotals(res.totals || { totalValue: 0 })
+
+      setSelectedUnits((prev) => {
+        const updatedUnits = { ...prev }
+        res.data.forEach((item: AggregatedStockItem) => {
+          // Căutăm care este numele exact (poate e "sac", "Sac" sau "SAC")
+          let exactSacName = null
+          if (item.unit.toLowerCase() === 'sac') {
+            exactSacName = item.unit
+          } else {
+            const packSac = item.packagingOptions?.find(
+              (p) => p.unitName.toLowerCase() === 'sac',
+            )
+            if (packSac) exactSacName = packSac.unitName
+          }
+
+          // Dacă am găsit sac, suprascriem preferința din localStorage
+          if (exactSacName) {
+            updatedUnits[item._id] = exactSacName
+          }
+        })
+        return updatedUnits
+      })
     } catch (error) {
       console.error('Failed to fetch stock:', error)
       setStockData([])

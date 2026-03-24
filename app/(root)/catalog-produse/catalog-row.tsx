@@ -36,6 +36,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import ProductPreviewContent from './details/product-preview-content'
 import { Badge } from '@/components/ui/badge'
+import { useEffect, useRef } from 'react'
 
 interface CatalogRowProps {
   item: ICatalogItem
@@ -66,6 +67,26 @@ export function CatalogRow({
     baseStock: item.totalStock,
     basePrice: item.directDeliveryPrice,
   })
+
+  const hasForcedSac = useRef(false)
+
+  useEffect(() => {
+    // Verificăm doar la prima încărcare a componentei
+    if (!hasForcedSac.current) {
+      // Căutăm "sac" în lista de unități disponibile
+      const sacUnit = allUnits.find(
+        (u) => u.unitName?.trim().toLowerCase() === 'sac',
+      )
+
+      // Dacă există "sac" și nu este deja selectat, forțăm selecția
+      if (sacUnit && selectedUnit !== sacUnit.unitName) {
+        handleUnitChange(sacUnit.unitName)
+      }
+
+      // Salvăm starea ca să lăsăm utilizatorul să schimbe manual dacă vrea ulterior
+      hasForcedSac.current = true
+    }
+  }, [allUnits, selectedUnit, handleUnitChange])
 
   // 2. CALCULĂM CELELALTE PREȚURI FOLOSIND FACTORUL COMUN
   // Dacă factorul e 50 (Pal), înmulțim toate prețurile de bază cu 50.
