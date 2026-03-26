@@ -38,7 +38,13 @@ import { round2 } from '@/lib/utils'
 import { IOrderLineItem } from '../../order/types'
 import { InvoiceLineInput } from './invoice.types'
 import Order, { IOrder } from '../../order/order.model'
-import { addDays, differenceInDays, format, sub } from 'date-fns'
+import {
+  addDays,
+  differenceInCalendarDays,
+  differenceInDays,
+  format,
+  sub,
+} from 'date-fns'
 import { ISeries } from '../../numbering/series.model'
 import { CreateStornoInput, CreateStornoSchema } from './storno.validator'
 import { CreateReturnNoteInput } from '../return-notes/return-note.validator'
@@ -58,7 +64,7 @@ import {
 } from '../initial-balance/initial-balance.validator'
 import PackagingModel from '../../packaging-products/packaging.model'
 import DeliveryModel from '../../deliveries/delivery.model'
-import { fromZonedTime } from 'date-fns-tz'
+import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { processInvoiceForPriceHistory } from '../../price-history/price-history.actions'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
@@ -2592,17 +2598,25 @@ export async function getClientBalances(
     pipeline.push({ $sort: { totalBalance: -1 } })
 
     const results = await InvoiceModel.aggregate(pipeline)
-    const today = new Date()
+    const now = new Date()
+    const todayZoned = toZonedTime(now, TIMEZONE)
 
     // 7. Procesare finală (Calcul Zile Depășite)
     const formattedResults: ClientBalanceSummary[] = results.map((group) => {
+      let overdueCount = 0
+
       const processedInvoices = group.invoices.map((inv: any) => {
-        const dueDate = new Date(inv.dueDate)
+        // --- NOU: Setăm și scadența în fusul orar corect ---
+        const dueDateZoned = toZonedTime(new Date(inv.dueDate), TIMEZONE)
         let daysOverdue = 0
 
-        // Calculăm zile doar pentru datorii active și scadență depășită
-        if (inv.remainingAmount > 0 && dueDate < today) {
-          daysOverdue = differenceInDays(today, dueDate)
+        // Folosim differenceInCalendarDays pentru a ignora ora
+        if (inv.remainingAmount > 0) {
+          const diff = differenceInCalendarDays(todayZoned, dueDateZoned)
+          if (diff > 0) {
+            daysOverdue = diff
+            overdueCount++
+          }
         }
 
         return {
@@ -2625,6 +2639,7 @@ export async function getClientBalances(
         clientName: group.computedName,
         totalBalance: group.totalBalance,
         invoicesCount: group.invoicesCount,
+        overdueCount: overdueCount,
         invoices: processedInvoices,
       }
     })

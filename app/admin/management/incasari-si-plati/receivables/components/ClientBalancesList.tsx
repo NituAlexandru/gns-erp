@@ -83,7 +83,15 @@ export function ClientBalancesList({ data }: ClientBalancesListProps) {
                       <span className='text-muted-foreground font-normal text-xs sm:text-sm'>
                         {client.invoicesCount}{' '}
                         {client.invoicesCount === 1 ? 'factură' : 'facturi'}{' '}
-                        restante
+                        {(client as any).overdueCount > 0 && (
+                          <span className='text-red-500/90 ml-1 font-medium'>
+                            ({(client as any).overdueCount}{' '}
+                            {(client as any).overdueCount === 1
+                              ? 'restantă'
+                              : 'restante'}
+                            )
+                          </span>
+                        )}
                       </span>
                     </div>
                   </div>
