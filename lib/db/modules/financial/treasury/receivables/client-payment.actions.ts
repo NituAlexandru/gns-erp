@@ -238,6 +238,7 @@ export async function getClientPayments(
     from?: string
     to?: string
     hideCompensations?: string
+    method?: string
   },
 ) {
   try {
@@ -259,7 +260,10 @@ export async function getClientPayments(
     if (filters?.status && filters.status !== 'ALL') {
       matchStage.status = filters.status
     }
-
+    // --- FILTRU METODĂ PLATĂ --- (NOU)
+    if (filters?.method && filters.method !== 'ALL') {
+      matchStage.paymentMethod = filters.method
+    }
     // --- FILTRU DATĂ (Payment Date) ---
     if (filters?.from || filters?.to) {
       matchStage.paymentDate = {}

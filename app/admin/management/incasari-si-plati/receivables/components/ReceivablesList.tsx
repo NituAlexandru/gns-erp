@@ -34,6 +34,10 @@ import { CLIENT_PAYMENT_STATUS_MAP } from '@/lib/db/modules/financial/treasury/r
 import { cancelClientPayment } from '@/lib/db/modules/financial/treasury/receivables/client-payment.actions'
 import { toast } from 'sonner'
 import { RECEIVABLES_PAGE_SIZE } from '@/lib/constants'
+import {
+  PAYMENT_METHOD_MAP,
+  PaymentMethodKey,
+} from '@/lib/db/modules/financial/treasury/payment.constants'
 
 // Tipul pentru datele paginate primite de la server
 interface ReceivablesListProps {
@@ -106,6 +110,7 @@ export function ReceivablesList({
               <TableHead className='w-[50px] py-1'>#</TableHead>
               <TableHead className='py-1'>Serie / Nr. Doc.</TableHead>
               <TableHead className='py-1'>Client</TableHead>
+              <TableHead className='py-1'>Tip Plată</TableHead>
               <TableHead className='py-1'>Data Plată</TableHead>
               <TableHead className='text-right py-1'>Total Încasat</TableHead>
               <TableHead className='text-right py-1'>Nealocat</TableHead>
@@ -170,6 +175,12 @@ export function ReceivablesList({
                       ) : (
                         'N/A'
                       )}
+                    </TableCell>
+
+                    <TableCell className='py-1 text-muted-foreground'>
+                      {PAYMENT_METHOD_MAP[
+                        payment.paymentMethod as PaymentMethodKey
+                      ]?.name || payment.paymentMethod}
                     </TableCell>
 
                     <TableCell className='py-1 text-muted-foreground'>

@@ -23,6 +23,10 @@ import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
+import {
+  PAYMENT_METHOD_MAP,
+  PAYMENT_METHODS,
+} from '@/lib/db/modules/financial/treasury/payment.constants'
 
 export function ReceivablesFilterBar() {
   const router = useRouter()
@@ -52,6 +56,7 @@ export function ReceivablesFilterBar() {
   const [onlyNegative, setOnlyNegative] = useState(
     searchParams.get('onlyNegative') === 'true',
   )
+  const [method, setMethod] = useState(searchParams.get('method') || 'ALL')
 
   const isMounted = useRef(false)
 
@@ -70,6 +75,7 @@ export function ReceivablesFilterBar() {
     )
     setHideCompensations(searchParams.get('hideCompensations') === 'true')
     setOnlyNegative(searchParams.get('onlyNegative') === 'true')
+    setMethod(searchParams.get('method') || 'ALL')
   }, [pathname, searchParams])
 
   // --- LOGICĂ ACTUALIZARE URL ---
@@ -81,6 +87,7 @@ export function ReceivablesFilterBar() {
     cTo?: Date,
     cHideComp?: boolean,
     cOnlyNegative?: boolean,
+    cMethod?: string,
   ) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', '1')
@@ -110,6 +117,9 @@ export function ReceivablesFilterBar() {
     if (cOnlyNegative) params.set('onlyNegative', 'true')
     else params.delete('onlyNegative')
 
+    if (cMethod && cMethod !== 'ALL') params.set('method', cMethod)
+    else params.delete('method')
+
     router.push(`${pathname}?${params.toString()}`)
   }
 
@@ -127,6 +137,7 @@ export function ReceivablesFilterBar() {
         toDate,
         hideCompensations,
         onlyNegative,
+        method,
       )
     }, 500)
     return () => clearTimeout(timer)
@@ -146,10 +157,19 @@ export function ReceivablesFilterBar() {
         toDate,
         hideCompensations,
         onlyNegative,
+        method,
       )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, dateType, fromTime, toTime, hideCompensations, onlyNegative])
+  }, [
+    status,
+    dateType,
+    fromTime,
+    toTime,
+    hideCompensations,
+    onlyNegative,
+    method,
+  ])
 
   const clearFilters = () => {
     setText('')
@@ -158,6 +178,7 @@ export function ReceivablesFilterBar() {
     setFromDate(undefined)
     setToDate(undefined)
     setHideCompensations(false)
+    setMethod('ALL')
     router.push(pathname)
   }
 
@@ -199,7 +220,7 @@ export function ReceivablesFilterBar() {
             <SelectValue placeholder='Status' />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='ALL'>Toate</SelectItem>
+            <SelectItem value='ALL'>Status Plata</SelectItem>
             {statusOptions.map((opt) => (
               <SelectItem
                 key={opt.value}
@@ -212,7 +233,21 @@ export function ReceivablesFilterBar() {
           </SelectContent>
         </Select>
       )}
-
+      {isReceipts && !isBalances && (
+        <Select value={method} onValueChange={setMethod}>
+          <SelectTrigger className='max-h-8.5 w-[140px] text-xs bg-background cursor-pointer'>
+            <SelectValue placeholder='Metodă Plată' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>Metoda Plata</SelectItem>
+            {PAYMENT_METHODS.map((m) => (
+              <SelectItem key={m} value={m} className='cursor-pointer'>
+                {PAYMENT_METHOD_MAP[m].name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
       {/* 3. TIP DATĂ - Doar pe Facturi */}
       {isInvoices && !isBalances && (
         <Select value={dateType} onValueChange={setDateType}>
@@ -323,7 +358,8 @@ export function ReceivablesFilterBar() {
         fromDate ||
         toDate ||
         hideCompensations ||
-        onlyNegative) && (
+        onlyNegative ||
+        method !== 'ALL') && (
         <Button
           variant='ghost'
           size='sm'
