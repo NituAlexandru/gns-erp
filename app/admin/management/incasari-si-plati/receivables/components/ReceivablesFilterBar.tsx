@@ -38,7 +38,6 @@ export function ReceivablesFilterBar() {
   const isInbox = pathname.includes('/mesaje-spv')
   const isLogs = pathname.includes('/logs')
   const isBalances = pathname.includes('/solduri')
-
   const [text, setText] = useState(searchParams.get('q') || '')
   const [status, setStatus] = useState(searchParams.get('status') || 'ALL')
   const [dateType, setDateType] = useState(
@@ -57,6 +56,14 @@ export function ReceivablesFilterBar() {
     searchParams.get('onlyNegative') === 'true',
   )
   const [method, setMethod] = useState(searchParams.get('method') || 'ALL')
+  const [balanceType, setBalanceType] = useState(
+    searchParams.get('balanceType') || 'ALL',
+  )
+  const [minAmt, setMinAmt] = useState(searchParams.get('minAmt') || '')
+  const [maxAmt, setMaxAmt] = useState(searchParams.get('maxAmt') || '')
+  const [overdueDays, setOverdueDays] = useState(
+    searchParams.get('overdueDays') || 'ALL',
+  )
 
   const isMounted = useRef(false)
 
@@ -76,6 +83,10 @@ export function ReceivablesFilterBar() {
     setHideCompensations(searchParams.get('hideCompensations') === 'true')
     setOnlyNegative(searchParams.get('onlyNegative') === 'true')
     setMethod(searchParams.get('method') || 'ALL')
+    setBalanceType(searchParams.get('balanceType') || 'ALL')
+    setMinAmt(searchParams.get('minAmt') || '')
+    setMaxAmt(searchParams.get('maxAmt') || '')
+    setOverdueDays(searchParams.get('overdueDays') || 'ALL')
   }, [pathname, searchParams])
 
   // --- LOGICĂ ACTUALIZARE URL ---
@@ -88,6 +99,10 @@ export function ReceivablesFilterBar() {
     cHideComp?: boolean,
     cOnlyNegative?: boolean,
     cMethod?: string,
+    cBalanceType?: string,
+    cMinAmt?: string,
+    cMaxAmt?: string,
+    cOverdueDays?: string,
   ) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', '1')
@@ -120,6 +135,20 @@ export function ReceivablesFilterBar() {
     if (cMethod && cMethod !== 'ALL') params.set('method', cMethod)
     else params.delete('method')
 
+    if (cBalanceType && cBalanceType !== 'ALL')
+      params.set('balanceType', cBalanceType)
+    else params.delete('balanceType')
+
+    if (cMinAmt) params.set('minAmt', cMinAmt)
+    else params.delete('minAmt')
+
+    if (cMaxAmt) params.set('maxAmt', cMaxAmt)
+    else params.delete('maxAmt')
+
+    if (cOverdueDays && cOverdueDays !== 'ALL')
+      params.set('overdueDays', cOverdueDays)
+    else params.delete('overdueDays')
+
     router.push(`${pathname}?${params.toString()}`)
   }
 
@@ -138,11 +167,15 @@ export function ReceivablesFilterBar() {
         hideCompensations,
         onlyNegative,
         method,
+        balanceType,
+        minAmt,
+        maxAmt,
+        overdueDays,
       )
     }, 500)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text])
+  }, [text, minAmt, maxAmt])
 
   const fromTime = fromDate?.getTime()
   const toTime = toDate?.getTime()
@@ -158,6 +191,10 @@ export function ReceivablesFilterBar() {
         hideCompensations,
         onlyNegative,
         method,
+        balanceType,
+        minAmt,
+        maxAmt,
+        overdueDays,
       )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,6 +206,8 @@ export function ReceivablesFilterBar() {
     hideCompensations,
     onlyNegative,
     method,
+    balanceType,
+    overdueDays,
   ])
 
   const clearFilters = () => {
@@ -179,6 +218,10 @@ export function ReceivablesFilterBar() {
     setToDate(undefined)
     setHideCompensations(false)
     setMethod('ALL')
+    setBalanceType('ALL')
+    setMinAmt('')
+    setMaxAmt('')
+    setOverdueDays('ALL')
     router.push(pathname)
   }
 
@@ -205,7 +248,7 @@ export function ReceivablesFilterBar() {
       {!isLogs && !isInbox && (
         <div className='relative'>
           <Input
-            placeholder='Caută...'
+            placeholder='Caută Client...'
             value={text}
             onChange={(e) => setText(e.target.value)}
             className='w-[180px] h-8 text-xs bg-background'
@@ -352,6 +395,80 @@ export function ReceivablesFilterBar() {
         </div>
       )}
 
+      {/* --- FILTRE SOLDURI (Apar doar pe pagina de solduri) --- */}
+      {isBalances && (
+        <>
+          <Select value={balanceType} onValueChange={setBalanceType}>
+            <SelectTrigger className='max-h-8.5 w-[150px] text-xs bg-background cursor-pointer'>
+              <SelectValue placeholder='Tip Sold' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='ALL' className='cursor-pointer'>
+                Toți Clienții
+              </SelectItem>
+              <SelectItem value='DEBT' className='cursor-pointer'>
+                Doar cu Datorii
+              </SelectItem>
+              <SelectItem value='ADVANCE' className='cursor-pointer'>
+                Doar cu Avans
+              </SelectItem>
+              <SelectItem value='OVERDUE' className='cursor-pointer'>
+                Facturi Restante
+              </SelectItem>
+              <SelectItem value='UNALLOCATED' className='cursor-pointer'>
+                Plăți Nealocate
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={overdueDays} onValueChange={setOverdueDays}>
+            <SelectTrigger className='max-h-8.5 w-[130px] text-xs bg-background cursor-pointer'>
+              <SelectValue placeholder='Vechime Restanțe' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem className='cursor-pointer' value='ALL'>
+                Orice vechime
+              </SelectItem>
+              <SelectItem className='cursor-pointer' value='15'>
+                &gt; 15 zile
+              </SelectItem>
+              <SelectItem className='cursor-pointer' value='30'>
+                &gt; 30 zile
+              </SelectItem>
+              <SelectItem className='cursor-pointer' value='45'>
+                &gt; 45 zile
+              </SelectItem>
+              <SelectItem className='cursor-pointer' value='60'>
+                &gt; 60 zile
+              </SelectItem>
+              <SelectItem className='cursor-pointer' value='90'>
+                &gt; 90 zile
+              </SelectItem>
+              <SelectItem className='cursor-pointer' value='90'>
+                &gt; 120 zile
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className='flex items-center gap-1'>
+            <Input
+              type='number'
+              placeholder='Sumă Min'
+              value={minAmt}
+              onChange={(e) => setMinAmt(e.target.value)}
+              className='w-[100px] h-8 text-xs bg-background'
+            />
+            <span className='text-muted-foreground text-xs'>-</span>
+            <Input
+              type='number'
+              placeholder='Sumă Max'
+              value={maxAmt}
+              onChange={(e) => setMaxAmt(e.target.value)}
+              className='w-[100px] h-8 text-xs bg-background'
+            />
+          </div>
+        </>
+      )}
+
       {/* Buton Reset - Doar dacă sunt filtre */}
       {(text ||
         status !== 'ALL' ||
@@ -359,7 +476,11 @@ export function ReceivablesFilterBar() {
         toDate ||
         hideCompensations ||
         onlyNegative ||
-        method !== 'ALL') && (
+        method !== 'ALL' ||
+        balanceType !== 'ALL' ||
+        minAmt ||
+        maxAmt ||
+        overdueDays !== 'ALL') && (
         <Button
           variant='ghost'
           size='sm'

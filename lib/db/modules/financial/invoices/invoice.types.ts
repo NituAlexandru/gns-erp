@@ -147,14 +147,19 @@ export type ClientBalanceSummary = {
   clientName: string
   totalBalance: number
   invoicesCount: number
-  invoices: {
+  paymentsCount: number
+  compensationsCount: number
+  overdueCount: number
+  items: {
     _id: string
+    type: 'INVOICE' | 'PAYMENT'
     seriesName: string
-    invoiceNumber: string
-    invoiceDate: Date
-    dueDate: Date
+    documentNumber: string
+    date: Date | string
+    dueDate: Date | string | null
     grandTotal: number
     remainingAmount: number
     daysOverdue: number
+    status: string
   }[]
 }
