@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { startTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ReceivablesList } from './ReceivablesList'
 import { AllocationModal, PopulatedClientPayment } from './AllocationModal'
@@ -32,7 +32,9 @@ export function ReceiptsListWrapper({
   const handleCloseAllocationModal = () => {
     setAllocationModalPayment(null)
     setTimeout(() => {
-      router.refresh()
+      startTransition(() => {
+        router.refresh()
+      })
     }, 300)
   }
 

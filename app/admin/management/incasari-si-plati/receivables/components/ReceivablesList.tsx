@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   TableBody,
@@ -118,7 +118,9 @@ export function ReceivablesList({
 
       if (result.success) {
         toast.success(result.message)
-        router.refresh()
+        startTransition(() => {
+          router.refresh()
+        })
       } else {
         toast.error('Eroare la anulare:', { description: result.message })
       }

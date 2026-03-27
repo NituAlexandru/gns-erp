@@ -91,7 +91,9 @@ export function ClientBalancesList({
 
       if (result.success) {
         toast.success(result.message)
-        router.refresh()
+        startTransition(() => {
+          router.refresh()
+        })
       } else {
         toast.error('Eroare:', { description: result.message })
       }
@@ -524,7 +526,11 @@ export function ClientBalancesList({
               <CreateClientPaymentForm
                 onFormSubmit={() => {
                   setPaymentModalData(null)
-                  router.refresh()
+                  setTimeout(() => {
+                    startTransition(() => {
+                      router.refresh()
+                    })
+                  }, 300)
                 }}
                 initialClientId={paymentModalData.clientId}
                 initialClientName={paymentModalData.clientName}
