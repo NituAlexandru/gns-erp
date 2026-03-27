@@ -4,28 +4,23 @@ import { ReceivablesList } from '@/app/admin/management/incasari-si-plati/receiv
 import { PopulatedClientPayment } from '@/lib/db/modules/financial/treasury/receivables/client-payment.types'
 
 interface WrapperProps {
-  payments: PopulatedClientPayment[]
+  data: {
+    data: PopulatedClientPayment[]
+    pagination: {
+      total: number
+      page: number
+      totalPages: number
+    }
+  }
   isAdmin: boolean
 }
 
-export function PublicReceivablesListWrapper({
-  payments,
-  isAdmin,
-}: WrapperProps) {
+export function PublicReceivablesListWrapper({ data, isAdmin }: WrapperProps) {
   const handleOpenModalDummy = () => {}
-
-  const formattedData = {
-    data: payments,
-    pagination: {
-      total: payments.length,
-      page: 1,
-      totalPages: 1,
-    },
-  }
 
   return (
     <ReceivablesList
-      data={formattedData}
+      data={data}
       isAdmin={isAdmin}
       onOpenAllocationModal={handleOpenModalDummy}
     />

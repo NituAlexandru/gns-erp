@@ -13,6 +13,7 @@ export const links = [
   { title: 'Livrări', href: '/deliveries' },
   { title: 'Documente', href: '/financial' },
   { title: 'Incasari', href: '/incasari' },
+  { title: 'Solduri', href: '/solduri' },
 ]
 
 export function MainNav({
@@ -33,7 +34,7 @@ export function MainNav({
             'header-button p-0',
             pathname === item.href
               ? 'font-semibold text-white'
-              : 'text-gray-400 hover:text-white'
+              : 'text-gray-400 hover:text-white',
           )}
         >
           {item.title}

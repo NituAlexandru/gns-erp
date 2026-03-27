@@ -231,9 +231,11 @@ export function ClientBalancesList({
                         <TableHead className='h-9 text-xs uppercase font-bold text-center text-muted-foreground'>
                           Status / Zile
                         </TableHead>
-                        <TableHead className='h-9 text-xs uppercase font-bold text-muted-foreground'>
-                          Acțiuni
-                        </TableHead>
+                        {isAdmin && (
+                          <TableHead className='h-9 text-xs uppercase font-bold text-muted-foreground'>
+                            Acțiuni
+                          </TableHead>
+                        )}
                         <TableHead className='h-9 text-xs uppercase font-bold text-right text-muted-foreground'>
                           Total Factură
                         </TableHead>
@@ -296,19 +298,19 @@ export function ClientBalancesList({
                                   {item.daysOverdue} zile nealocată
                                 </span>
                               </TableCell>
-
-                              <TableCell className='py-1'>
-                                <Button
-                                  variant='outline'
-                                  className='h-7 text-xs px-2 cursor-pointer'
-                                  onClick={() =>
-                                    setAllocationModalPayment(item)
-                                  }
-                                >
-                                  Alocare
-                                </Button>
-                              </TableCell>
-
+                              {isAdmin && (
+                                <TableCell className='py-1'>
+                                  <Button
+                                    variant='outline'
+                                    className='h-7 text-xs px-2 cursor-pointer'
+                                    onClick={() =>
+                                      setAllocationModalPayment(item)
+                                    }
+                                  >
+                                    Alocare
+                                  </Button>
+                                </TableCell>
+                              )}
                               <TableCell className='py-1 text-sm text-right font-mono text-green-600'>
                                 -{formatCurrency(item.grandTotal)}
                               </TableCell>
@@ -390,78 +392,81 @@ export function ClientBalancesList({
                             </TableCell>
 
                             {/* --- Butoanele directe "Detalii", "Încasare", "Compensează" sau Mesaj Aprobare --- */}
-                            <TableCell className='py-1'>
-                              <div className='flex items-center gap-2'>
-                                <Button
-                                  variant='outline'
-                                  className='h-7 text-xs px-2 cursor-pointer'
-                                  onClick={() => setSelectedInvoiceId(item._id)}
-                                >
-                                  Detalii
-                                </Button>
-
-                                {/* Verificăm dacă factura are un status finalizat care permite plăți/compensări */}
-                                {['APPROVED', 'PARTIAL_PAID'].includes(
-                                  item.status,
-                                ) ? (
-                                  <>
-                                    {item.remainingAmount > 0 && (
-                                      <Button
-                                        variant='outline'
-                                        className='h-7 text-xs px-2 cursor-pointer '
-                                        onClick={() =>
-                                          setPaymentModalData({
-                                            clientId: client.clientId,
-                                            clientName: client.clientName,
-                                            invoiceId: item._id,
-                                            amount: item.remainingAmount,
-                                            notes: `Plată factură ${item.seriesName ? item.seriesName + '-' : ''}${item.documentNumber}`,
-                                          })
-                                        }
-                                      >
-                                        Încasare
-                                      </Button>
-                                    )}
-
-                                    {item.remainingAmount < 0 && (
-                                      <Button
-                                        variant='outline'
-                                        disabled={processingId === item._id}
-                                        className='h-7 text-xs px-2 cursor-pointer text-orange-600 border-orange-200 hover:bg-orange-50 disabled:opacity-50'
-                                        onClick={() =>
-                                          handleCompensate(item._id)
-                                        }
-                                      >
-                                        {processingId === item._id ? (
-                                          <Loader2 className='h-3 w-3 mr-1 animate-spin' />
-                                        ) : null}
-                                        Compensează
-                                      </Button>
-                                    )}
-                                  </>
-                                ) : isAdmin ? (
+                            {isAdmin && (
+                              <TableCell className='py-1'>
+                                <div className='flex items-center gap-2'>
                                   <Button
-                                    variant='default'
-                                    disabled={isPending}
+                                    variant='outline'
                                     className='h-7 text-xs px-2 cursor-pointer'
-                                    onClick={() => handleApprove(item._id)}
+                                    onClick={() =>
+                                      setSelectedInvoiceId(item._id)
+                                    }
                                   >
-                                    {isPending ? (
-                                      <Loader2 className='h-3 w-3 mr-1 animate-spin' />
-                                    ) : null}
-                                    Aprobă Factura
+                                    Detalii
                                   </Button>
-                                ) : (
-                                  <span
-                                    className='text-[10px] text-muted-foreground font-medium italic'
-                                    title='Așteaptă aprobarea unui administrator'
-                                  >
-                                    În așteptare aprobare
-                                  </span>
-                                )}
-                              </div>
-                            </TableCell>
 
+                                  {/* Verificăm dacă factura are un status finalizat care permite plăți/compensări */}
+                                  {['APPROVED', 'PARTIAL_PAID'].includes(
+                                    item.status,
+                                  ) ? (
+                                    <>
+                                      {item.remainingAmount > 0 && (
+                                        <Button
+                                          variant='outline'
+                                          className='h-7 text-xs px-2 cursor-pointer '
+                                          onClick={() =>
+                                            setPaymentModalData({
+                                              clientId: client.clientId,
+                                              clientName: client.clientName,
+                                              invoiceId: item._id,
+                                              amount: item.remainingAmount,
+                                              notes: `Plată factură ${item.seriesName ? item.seriesName + '-' : ''}${item.documentNumber}`,
+                                            })
+                                          }
+                                        >
+                                          Încasare
+                                        </Button>
+                                      )}
+
+                                      {item.remainingAmount < 0 && (
+                                        <Button
+                                          variant='outline'
+                                          disabled={processingId === item._id}
+                                          className='h-7 text-xs px-2 cursor-pointer text-orange-600 border-orange-200 hover:bg-orange-50 disabled:opacity-50'
+                                          onClick={() =>
+                                            handleCompensate(item._id)
+                                          }
+                                        >
+                                          {processingId === item._id ? (
+                                            <Loader2 className='h-3 w-3 mr-1 animate-spin' />
+                                          ) : null}
+                                          Compensează
+                                        </Button>
+                                      )}
+                                    </>
+                                  ) : isAdmin ? (
+                                    <Button
+                                      variant='default'
+                                      disabled={isPending}
+                                      className='h-7 text-xs px-2 cursor-pointer'
+                                      onClick={() => handleApprove(item._id)}
+                                    >
+                                      {isPending ? (
+                                        <Loader2 className='h-3 w-3 mr-1 animate-spin' />
+                                      ) : null}
+                                      Aprobă Factura
+                                    </Button>
+                                  ) : (
+                                    <span
+                                      className='text-[10px] text-muted-foreground font-medium italic'
+                                      title='Așteaptă aprobarea unui administrator'
+                                    >
+                                      În așteptare aprobare
+                                    </span>
+                                  )}
+                                </div>
+                              </TableCell>
+                            )}
                             <TableCell className='py-1 text-sm text-right text-muted-foreground font-mono'>
                               {formatCurrency(item.grandTotal)}
                             </TableCell>
