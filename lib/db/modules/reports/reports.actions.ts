@@ -8,12 +8,13 @@ import { generateInventoryHistory } from './inventory/inventory-history.actions'
 import { generateProductMarginReport } from './sales/product-margin.report.action'
 import { generateProductHistoryReport } from './inventory/product-history.report.action'
 import { generateSalesPeriodReport } from './sales/sales-period.report.action'
+import { generateClientBalancesReport } from './clients/client-balances.report.action'
 
 // Definim tipul de răspuns standard
 type GenerateReportResult = {
   success: boolean
   message?: string
-  data?: string // Base64 string
+  data?: string
   filename?: string
 }
 
@@ -66,6 +67,11 @@ export async function generateReportAction(
       case 'sales-period':
         await generateSalesPeriodReport(workbook, filters)
         filename = `Sumar_Vanzari_${filters.startDate}_${filters.endDate}.xlsx`
+        break
+
+      case 'client-balances':
+        await generateClientBalancesReport(workbook, filters)
+        filename = `Solduri_Clienti_${new Date().toISOString().split('T')[0]}.xlsx`
         break
 
       default:

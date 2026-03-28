@@ -2532,6 +2532,7 @@ export async function getClientBalances(
     minAmt?: string
     maxAmt?: string
     overdueDays?: string
+    onlyOverdue?: boolean
   },
 ): Promise<{
   data: ClientBalanceSummary[]
@@ -2715,7 +2716,7 @@ export async function getClientBalances(
     let formattedResults: any[] = results.map((group) => {
       let overdueCount = 0
 
-      const processedItems = group.items.map((item: any) => {
+      let processedItems = group.items.map((item: any) => {
         if (item.type === 'INVOICE') {
           const dueDateZoned = toZonedTime(new Date(item.dueDate), TIMEZONE)
           let daysOverdue = 0
@@ -2767,6 +2768,31 @@ export async function getClientBalances(
           new Date(a.date).getTime() - new Date(b.date).getTime(),
       )
 
+      if (filters?.onlyOverdue) {
+        processedItems = processedItems.filter(
+          (item: any) =>
+            item.type === 'INVOICE' &&
+            item.remainingAmount > 0 &&
+            item.daysOverdue > 0,
+        )
+
+        const newTotalBalance = processedItems.reduce(
+          (acc: number, item: any) => acc + item.remainingAmount,
+          0,
+        )
+
+        return {
+          clientId: group._id.toString(),
+          clientName: group.computedName,
+          totalBalance: newTotalBalance,
+          invoicesCount: processedItems.length,
+          paymentsCount: 0,
+          compensationsCount: 0,
+          overdueCount: overdueCount,
+          items: processedItems,
+        }
+      }
+
       return {
         clientId: group._id.toString(),
         clientName: group.computedName,
@@ -2783,7 +2809,9 @@ export async function getClientBalances(
     const hasOverdueDaysFilter =
       filters?.overdueDays && filters.overdueDays !== 'ALL'
 
-    if (isOverdueType || hasOverdueDaysFilter) {
+    if (filters?.onlyOverdue) {
+      formattedResults = formattedResults.filter((c) => c.items.length > 0)
+    } else if (isOverdueType || hasOverdueDaysFilter) {
       let minDays = 0
       if (hasOverdueDaysFilter) {
         minDays = Number(filters.overdueDays)
@@ -2797,6 +2825,12 @@ export async function getClientBalances(
             item.daysOverdue > minDays,
         )
       })
+    }
+
+    if (filters?.balanceType === 'ADVANCE') {
+      formattedResults.sort((a, b) => a.totalBalance - b.totalBalance)
+    } else {
+      formattedResults.sort((a, b) => b.totalBalance - a.totalBalance)
     }
 
     let totalNetBalance = 0

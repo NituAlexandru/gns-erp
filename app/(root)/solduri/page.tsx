@@ -1,11 +1,9 @@
 import { auth } from '@/auth'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 import { getClientBalances } from '@/lib/db/modules/financial/invoices/invoice.actions'
-// Ajustează calea către componenta ta de listă
 import { ClientBalancesList } from '@/app/admin/management/incasari-si-plati/receivables/components/ClientBalancesList'
 import { ReceivablesFilterBar } from '@/app/admin/management/incasari-si-plati/receivables/components/ReceivablesFilterBar'
-// Ajustează calea către componenta ta de filtru
-// import { ReceivablesFilters } from '@/components/filtre/ReceivablesFilters'
+import { PrintBalancesButton } from '@/app/admin/reports/components/clients/PrintBalancesButton'
 
 export default async function PublicBalancesPage({
   searchParams,
@@ -16,6 +14,7 @@ export default async function PublicBalancesPage({
     minAmt?: string
     maxAmt?: string
     overdueDays?: string
+    onlyOverdue?: string
   }>
 }) {
   const session = await auth()
@@ -31,6 +30,7 @@ export default async function PublicBalancesPage({
     minAmt: params.minAmt,
     maxAmt: params.maxAmt,
     overdueDays: params.overdueDays,
+    onlyOverdue: params.onlyOverdue === 'true',
   }
 
   // Aducem doar datele, ignorăm summary-ul pentru această pagină
@@ -39,11 +39,16 @@ export default async function PublicBalancesPage({
   return (
     <div className='flex flex-col h-full space-y-1'>
       <div className='flex justify-between gap-1'>
-        <div>
-          <h1 className='text-2xl font-bold tracking-tight'>Solduri Clienți</h1>
-          <p className='text-sm text-muted-foreground'>
-            Situația financiară și istoricul facturilor.
-          </p>
+        <div className='flex items-center gap-20'>
+          <div>
+            <h1 className='text-2xl font-bold tracking-tight'>
+              Solduri Clienți
+            </h1>
+            <p className='text-sm text-muted-foreground'>
+              Situația financiară și istoricul facturilor.
+            </p>
+          </div>
+          <PrintBalancesButton />
         </div>
         <ReceivablesFilterBar />
       </div>

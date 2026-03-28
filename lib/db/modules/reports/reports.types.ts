@@ -7,6 +7,9 @@ export type ReportFilterType =
   | 'location'
   | 'itemType'
   | 'includeZeroStock'
+  | 'balanceType'
+  | 'amountRange'
+  | 'overdueDays'
 
 export type ReportCategory =
   | 'inventory'
@@ -91,5 +94,14 @@ export const AVAILABLE_REPORTS: ReportDefinition[] = [
     category: 'inventory',
     icon: 'FileText',
     filters: ['dateRange', 'itemType'],
+  },
+  {
+    id: 'client-balances',
+    title: 'Solduri Clienți',
+    description:
+      'Situația financiară a clienților, restanțe, avansuri și sume nealocate.',
+    category: 'clients',
+    icon: 'Users',
+    filters: ['balanceType', 'amountRange', 'overdueDays'],
   },
 ]

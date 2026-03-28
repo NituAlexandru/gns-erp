@@ -64,6 +64,9 @@ export function ReceivablesFilterBar() {
   const [overdueDays, setOverdueDays] = useState(
     searchParams.get('overdueDays') || 'ALL',
   )
+  const [onlyOverdue, setOnlyOverdue] = useState(
+    searchParams.get('onlyOverdue') === 'true',
+  )
 
   const isMounted = useRef(false)
 
@@ -87,6 +90,7 @@ export function ReceivablesFilterBar() {
     setMinAmt(searchParams.get('minAmt') || '')
     setMaxAmt(searchParams.get('maxAmt') || '')
     setOverdueDays(searchParams.get('overdueDays') || 'ALL')
+    setOnlyOverdue(searchParams.get('onlyOverdue') === 'true')
   }, [pathname, searchParams])
 
   // --- LOGICĂ ACTUALIZARE URL ---
@@ -103,6 +107,7 @@ export function ReceivablesFilterBar() {
     cMinAmt?: string,
     cMaxAmt?: string,
     cOverdueDays?: string,
+    cOnlyOverdue?: boolean,
   ) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', '1')
@@ -149,6 +154,9 @@ export function ReceivablesFilterBar() {
       params.set('overdueDays', cOverdueDays)
     else params.delete('overdueDays')
 
+    if (cOnlyOverdue) params.set('onlyOverdue', 'true')
+    else params.delete('onlyOverdue')
+
     router.push(`${pathname}?${params.toString()}`)
   }
 
@@ -171,6 +179,7 @@ export function ReceivablesFilterBar() {
         minAmt,
         maxAmt,
         overdueDays,
+        onlyOverdue,
       )
     }, 500)
     return () => clearTimeout(timer)
@@ -195,6 +204,7 @@ export function ReceivablesFilterBar() {
         minAmt,
         maxAmt,
         overdueDays,
+        onlyOverdue,
       )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -208,6 +218,7 @@ export function ReceivablesFilterBar() {
     method,
     balanceType,
     overdueDays,
+    onlyOverdue,
   ])
 
   const clearFilters = () => {
@@ -222,6 +233,7 @@ export function ReceivablesFilterBar() {
     setMinAmt('')
     setMaxAmt('')
     setOverdueDays('ALL')
+    setOnlyOverdue(false)
     router.push(pathname)
   }
 
@@ -443,7 +455,7 @@ export function ReceivablesFilterBar() {
               <SelectItem className='cursor-pointer' value='90'>
                 &gt; 90 zile
               </SelectItem>
-              <SelectItem className='cursor-pointer' value='90'>
+              <SelectItem className='cursor-pointer' value='120'>
                 &gt; 120 zile
               </SelectItem>
             </SelectContent>
@@ -466,6 +478,20 @@ export function ReceivablesFilterBar() {
               className='w-[100px] h-8 text-xs bg-background'
             />
           </div>
+          <div className='flex items-center space-x-2 border px-3 py-1.5 rounded-md h-8 text-xs bg-background'>
+            <Checkbox
+              id='bal-only-overdue'
+              checked={onlyOverdue}
+              onCheckedChange={(checked) => setOnlyOverdue(checked === true)}
+              className='w-3.5 h-3.5 cursor-pointer'
+            />
+            <Label
+              htmlFor='bal-only-overdue'
+              className='text-xs cursor-pointer text-red-600 font-medium'
+            >
+              Strict Restanțe
+            </Label>
+          </div>
         </>
       )}
 
@@ -480,7 +506,8 @@ export function ReceivablesFilterBar() {
         balanceType !== 'ALL' ||
         minAmt ||
         maxAmt ||
-        overdueDays !== 'ALL') && (
+        overdueDays !== 'ALL' ||
+        onlyOverdue) && (
         <Button
           variant='ghost'
           size='sm'

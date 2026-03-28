@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { PlusCircle } from 'lucide-react'
 import { ReceivablesFilterBar } from './ReceivablesFilterBar'
 import { CreateClientPaymentForm } from './CreateClientPaymentForm'
+import { PrintBalancesButton } from '@/app/admin/reports/components/clients/PrintBalancesButton'
 
 interface ReceivablesLayoutClientProps {
   children: React.ReactNode
@@ -62,7 +63,8 @@ export function ReceivablesLayoutClient({
             Urmărește facturile emise și înregistrează încasările.
           </p>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex items-center gap-3'>
+          {activeTab === 'balances' && <PrintBalancesButton />}
           <Button
             className='gap-2'
             onClick={() => {

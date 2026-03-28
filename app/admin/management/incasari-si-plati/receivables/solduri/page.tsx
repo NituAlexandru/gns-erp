@@ -13,6 +13,7 @@ export default async function ClientBalancesPage({
     minAmt?: string
     maxAmt?: string
     overdueDays?: string
+    onlyOverdue?: string
   }>
 }) {
   const session = await auth()
@@ -27,6 +28,7 @@ export default async function ClientBalancesPage({
     minAmt: params.minAmt,
     maxAmt: params.maxAmt,
     overdueDays: params.overdueDays,
+    onlyOverdue: params.onlyOverdue === 'true',
   }
 
   const { data: balances, summary } = await getClientBalances(query, filters)
