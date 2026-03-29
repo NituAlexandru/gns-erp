@@ -395,8 +395,8 @@ export function AssignedDeliveryCard({
                 <p>NU FACTURA! PRODUSE ADĂUGATE MANUAL! TE ROG SĂ CORECTEZI!</p>
               </div>
             )}
-            <p className='font-semibold pt-1'>Articole în livrare:</p>
-            <ul className='list-disc list-inside space-y-1.5'>
+            <p className='font-semibold pt-0'>Articole în livrare:</p>
+            <ul className='list-disc list-inside space-y-0'>
               {delivery.items.map((item: IDeliveryLineItem) => {
                 const isManual =
                   item.isManualEntry ||
@@ -418,7 +418,7 @@ export function AssignedDeliveryCard({
                     ) : (
                       <Badge
                         variant='secondary'
-                        className=' h-4 px-1.5 text-[10px] font-mono align-middle leading-none'
+                        className=' h-4 px-1.5 text-xs font-mono align-middle leading-none'
                       >
                         Cod: {item.productCode}
                       </Badge>

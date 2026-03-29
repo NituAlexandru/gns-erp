@@ -85,7 +85,7 @@ export function TimeBlockCard({ block }: { block: IFleetAvailabilityDoc }) {
         {/* Header: Icon + Tip */}
         <div className='flex items-center gap-1 font-bold mb-0.5'>
           <Icon className='h-3 w-3 flex-shrink-0' />
-          <span className='truncate uppercase  leading-none mt-0.5'>
+          <span className='truncate uppercase leading-none mt-0.5 max-w-[200px]'>
             {block.type}
           </span>
         </div>
@@ -95,7 +95,7 @@ export function TimeBlockCard({ block }: { block: IFleetAvailabilityDoc }) {
           <TooltipProvider>
             <Tooltip delayDuration={300}>
               <TooltipTrigger asChild>
-                <p className='truncate text-[10px] opacity-90 leading-tight cursor-help'>
+                <p className='text-xs cursor-help whitespace-normal break-words'>
                   {block.note}
                 </p>
               </TooltipTrigger>
