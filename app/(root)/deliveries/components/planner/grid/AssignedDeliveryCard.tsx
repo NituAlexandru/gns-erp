@@ -305,15 +305,13 @@ export function AssignedDeliveryCard({
             <p className='text-xs text-muted-foreground truncate flex items-center gap-1'>
               <User className='h-3 w-3 flex-shrink-0' />
               {delivery.clientSnapshot.name}
-              <p className='text-[10px] text-muted-foreground/70 ml-4'>
-                {delivery.clientSnapshot.cui}
-              </p>
             </p>
           </div>
           <div>
             <p className='font-semibold text-xs truncate flex gap-1 items-center'>
               <Box className='h-4 w-3 flex-shrink-0' />
-              Comanda nr. {delivery.deliveryNumber?.substring(0, 5)}
+              Com. {delivery.orderNumber} - Livr.{' '}
+              {delivery.deliveryNumber.substring(0, 5)}
             </p>
             {delivery.deliveryNoteNumber && (
               <p className='font-bold text-[12px] font-mono flex gap-1 items-center mt-0.5'>
