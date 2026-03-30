@@ -292,10 +292,10 @@ export function PenaltyManagementModal() {
         <div className='bg-background flex flex-col max-h-[75vh] overflow-y-auto'>
           {/* PANOU: EDITARE SETĂRI IMPLICITE */}
           {isEditingDefault && (
-            <div className='p-6 border-b bg-slate-50/50'>
+            <div className='p-6 border-b'>
               <div className='flex items-center justify-between mb-6'>
-                <h3 className='font-semibold flex items-center gap-2 text-slate-800'>
-                  <Globe className='h-4 w-4 text-slate-600' />
+                <h3 className='font-semibold flex items-center gap-2 '>
+                  <Globe className='h-4 w-4 ' />
                   Configurare Setări Implicite (Globale)
                 </h3>
                 <Button
@@ -355,7 +355,7 @@ export function PenaltyManagementModal() {
                     Anulează
                   </Button>
                   <Button
-                    className='bg-slate-800 hover:bg-slate-900 text-white min-w-[180px]'
+                    className=' min-w-[180px]'
                     onClick={handleSaveDefaultRule}
                     disabled={
                       !defaultRule.percentage ||
@@ -450,7 +450,7 @@ export function PenaltyManagementModal() {
                               încarcă...
                             </div>
                           ) : newRule.clientIds.length > 0 ? (
-                            <span className='text-foreground font-medium'>
+                            <span className=' font-medium'>
                               {newRule.clientIds.length}{' '}
                               {newRule.clientIds.length === 1
                                 ? 'client selectat'
@@ -465,15 +465,20 @@ export function PenaltyManagementModal() {
                     </PopoverTrigger>
 
                     <PopoverContent
-                      className='w-[400px] h-[400px] p-0'
+                      className='w-[400px] h-[400px] p-0 bg-background text-foreground'
                       align='start'
                     >
-                      <Command className='w-full h-full flex flex-col'>
+                      <Command className='w-full h-full flex flex-col bg-background text-foreground'>
                         <CommandInput
                           placeholder='Caută client după nume...'
                           className='border-none focus:ring-0 h-10'
                         />
-                        <CommandList className='max-h-[350px] overflow-y-auto'>
+                        <CommandList
+                          onWheel={(e) => e.stopPropagation()}
+                          onTouchMove={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          className='max-h-[350px] overflow-y-auto bg-background text-foreground'
+                        >
                           <CommandEmpty className='py-6 text-center text-sm text-muted-foreground'>
                             Niciun client găsit.
                           </CommandEmpty>
@@ -489,7 +494,7 @@ export function PenaltyManagementModal() {
                                   onSelect={() =>
                                     toggleClientSelection(client._id)
                                   }
-                                  className='cursor-pointer hover:bg-muted'
+                                  className='cursor-pointer text-foreground aria-selected:bg-muted aria-selected:text-foreground'
                                 >
                                   <div
                                     className={cn(
@@ -650,7 +655,7 @@ export function PenaltyManagementModal() {
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent
-                              className='w-96 p-4'
+                              className='w-96 p-4 bg-background text-foreground'
                               align='center'
                               side='right'
                               sideOffset={20}
