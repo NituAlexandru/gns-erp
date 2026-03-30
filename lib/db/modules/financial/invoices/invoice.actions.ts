@@ -66,6 +66,11 @@ import PackagingModel from '../../packaging-products/packaging.model'
 import DeliveryModel from '../../deliveries/delivery.model'
 import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { processInvoiceForPriceHistory } from '../../price-history/price-history.actions'
+import {
+  getPenaltyCalculationContext,
+  getPenaltyForInvoice,
+} from '../penalties/penalty.actions'
+import PenaltyRecordModel from '../penalties/penalty-record.model'
 
 function buildCompanySnapshot(settings: ISettingInput): CompanySnapshot {
   const defaultEmail = settings.emails.find((e) => e.isDefault)
@@ -2540,6 +2545,7 @@ export async function getClientBalances(
     totalNetBalance: number
     totalUnpaidInvoices: number
     totalUnallocatedAdvances: number
+    totalPenalties: number
   }
 }> {
   try {
@@ -2712,100 +2718,138 @@ export async function getClientBalances(
     const now = new Date()
     const todayZoned = toZonedTime(now, TIMEZONE)
 
+    // --- PENTRU PENALITĂȚI (INCEPUT) ---
+    const penaltyContext = await getPenaltyCalculationContext()
+    const invoiceIds = results.flatMap((g) =>
+      g.items.filter((i: any) => i.type === 'INVOICE').map((i: any) => i._id),
+    )
+    const lastRecords = await PenaltyRecordModel.find({
+      invoiceId: { $in: invoiceIds },
+    }).lean()
+    const recordMap = new Map(
+      lastRecords.map((r) => [r.invoiceId.toString(), r.periodEnd]),
+    )
+    // --- PENTRU PENALITĂȚI (SFARSIT) ---
+
     // 8. Procesare finală (Calcul Zile Depășite + Formatare ambele tipuri)
-    let formattedResults: any[] = results.map((group) => {
-      let overdueCount = 0
+    let formattedResults: any[] = await Promise.all(
+      results.map(async (group) => {
+        let overdueCount = 0
 
-      let processedItems = group.items.map((item: any) => {
-        if (item.type === 'INVOICE') {
-          const dueDateZoned = toZonedTime(new Date(item.dueDate), TIMEZONE)
-          let daysOverdue = 0
+        // 1. Așteptăm procesarea tuturor item-urilor (inclusiv calculul penalităților)
+        let processedItems = await Promise.all(
+          group.items.map(async (item: any) => {
+            if (item.type === 'INVOICE') {
+              const dueDateZoned = toZonedTime(new Date(item.dueDate), TIMEZONE)
+              let daysOverdue = 0
 
-          if (item.remainingAmount > 0) {
-            const diff = differenceInCalendarDays(todayZoned, dueDateZoned)
-            if (diff > 0) {
-              daysOverdue = diff
-              overdueCount++
+              if (item.remainingAmount > 0) {
+                const diff = differenceInCalendarDays(todayZoned, dueDateZoned)
+                if (diff > 0) {
+                  daysOverdue = diff
+                  overdueCount++
+                }
+              }
+
+              const pData = await getPenaltyForInvoice(
+                item,
+                penaltyContext,
+                recordMap.get(item._id.toString()) || null,
+                todayZoned,
+              )
+
+              return {
+                _id: item._id.toString(),
+                type: item.type,
+                seriesName: item.seriesName,
+                documentNumber: item.documentNumber,
+                date: item.date,
+                dueDate: item.dueDate,
+                grandTotal: item.grandTotal,
+                remainingAmount: item.remainingAmount,
+                daysOverdue: daysOverdue,
+                status: item.status,
+                ...pData,
+              }
+            } else {
+              // Este PLATĂ
+              const payDateZoned = toZonedTime(new Date(item.date), TIMEZONE)
+              const daysSincePayment = Math.max(
+                0,
+                differenceInCalendarDays(todayZoned, payDateZoned),
+              )
+
+              return {
+                _id: item._id.toString(),
+                type: item.type,
+                seriesName: item.seriesName,
+                documentNumber: item.documentNumber,
+                date: item.date,
+                dueDate: null,
+                grandTotal: item.grandTotal,
+                remainingAmount: item.remainingAmount,
+                daysOverdue: daysSincePayment,
+                status: item.status,
+              }
             }
-          }
-          return {
-            _id: item._id.toString(),
-            type: item.type,
-            seriesName: item.seriesName,
-            documentNumber: item.documentNumber,
-            date: item.date,
-            dueDate: item.dueDate,
-            grandTotal: item.grandTotal,
-            remainingAmount: item.remainingAmount,
-            daysOverdue: daysOverdue,
-            status: item.status,
-          }
-        } else {
-          // Este PLATĂ
-          const payDateZoned = toZonedTime(new Date(item.date), TIMEZONE)
-          const daysSincePayment = Math.max(
+          }),
+        ) // <-- Sfârșit Promise.all pentru items
+
+        // 2. Acum putem sorta array-ul procesat, fix cum aveai tu
+        processedItems.sort(
+          (a: any, b: any) =>
+            new Date(a.date).getTime() - new Date(b.date).getTime(),
+        )
+
+        // 3. Calculăm totalul penalităților pentru acest client
+        const clientTotalPenalties = processedItems.reduce(
+          (acc: number, item: any) => acc + (item.penaltyAmount || 0),
+          0,
+        )
+
+        // 4. Logica ta de filtrare și return (nemodificată)
+        if (filters?.onlyOverdue) {
+          processedItems = processedItems.filter(
+            (item: any) =>
+              item.type === 'INVOICE' &&
+              item.remainingAmount > 0 &&
+              item.daysOverdue > 0,
+          )
+
+          const newTotalBalance = processedItems.reduce(
+            (acc: number, item: any) => acc + item.remainingAmount,
             0,
-            differenceInCalendarDays(todayZoned, payDateZoned),
           )
 
           return {
-            _id: item._id.toString(),
-            type: item.type,
-            seriesName: item.seriesName,
-            documentNumber: item.documentNumber,
-            date: item.date,
-            dueDate: null,
-            grandTotal: item.grandTotal,
-            remainingAmount: item.remainingAmount,
-            daysOverdue: daysSincePayment,
-            status: item.status,
+            clientId: group._id.toString(),
+            clientName: group.computedName,
+            totalBalance: newTotalBalance,
+            totalPenalties: round2(clientTotalPenalties),
+            invoicesCount: processedItems.length,
+            paymentsCount: 0,
+            compensationsCount: 0,
+            overdueCount: overdueCount,
+            items: processedItems,
           }
         }
-      })
-
-      processedItems.sort(
-        (a: any, b: any) =>
-          new Date(a.date).getTime() - new Date(b.date).getTime(),
-      )
-
-      if (filters?.onlyOverdue) {
-        processedItems = processedItems.filter(
-          (item: any) =>
-            item.type === 'INVOICE' &&
-            item.remainingAmount > 0 &&
-            item.daysOverdue > 0,
-        )
-
-        const newTotalBalance = processedItems.reduce(
-          (acc: number, item: any) => acc + item.remainingAmount,
-          0,
-        )
 
         return {
           clientId: group._id.toString(),
           clientName: group.computedName,
-          totalBalance: newTotalBalance,
-          invoicesCount: processedItems.length,
-          paymentsCount: 0,
-          compensationsCount: 0,
+          totalBalance: group.totalBalance,
+          totalPenalties: round2(clientTotalPenalties),
+          invoicesCount: group.invoicesCount,
+          paymentsCount: group.paymentsCount,
+          compensationsCount: group.compensationsCount,
           overdueCount: overdueCount,
           items: processedItems,
         }
-      }
-
-      return {
-        clientId: group._id.toString(),
-        clientName: group.computedName,
-        totalBalance: group.totalBalance,
-        invoicesCount: group.invoicesCount,
-        paymentsCount: group.paymentsCount,
-        compensationsCount: group.compensationsCount,
-        overdueCount: overdueCount,
-        items: processedItems,
-      }
-    })
+      }),
+    ) // <-- Sfârșit Promise.all pentru group (clienți)
 
     const isOverdueType = filters?.balanceType === 'OVERDUE'
+
     const hasOverdueDaysFilter =
       filters?.overdueDays && filters.overdueDays !== 'ALL'
 
@@ -2836,9 +2880,11 @@ export async function getClientBalances(
     let totalNetBalance = 0
     let totalUnpaidInvoices = 0
     let totalUnallocatedAdvances = 0
+    let totalPenalties = 0
 
     formattedResults.forEach((client) => {
       totalNetBalance += client.totalBalance
+      totalPenalties += client.totalPenalties || 0
 
       client.items.forEach((item: any) => {
         if (item.type === 'INVOICE') {
@@ -2859,6 +2905,7 @@ export async function getClientBalances(
         totalNetBalance,
         totalUnpaidInvoices,
         totalUnallocatedAdvances,
+        totalPenalties,
       },
     }
   } catch (error) {
@@ -2869,6 +2916,7 @@ export async function getClientBalances(
         totalNetBalance: 0,
         totalUnpaidInvoices: 0,
         totalUnallocatedAdvances: 0,
+        totalPenalties: 0,
       },
     }
   }

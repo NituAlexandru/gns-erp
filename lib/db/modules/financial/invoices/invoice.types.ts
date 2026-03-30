@@ -146,6 +146,7 @@ export type ClientBalanceSummary = {
   clientId: string
   clientName: string
   totalBalance: number
+  totalPenalties: number
   invoicesCount: number
   paymentsCount: number
   compensationsCount: number
@@ -161,5 +162,8 @@ export type ClientBalanceSummary = {
     remainingAmount: number
     daysOverdue: number
     status: string
+    penaltyAmount?: number
+    appliedPercentage?: number
+    nextBillingDate?: string | null
   }[]
 }

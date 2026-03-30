@@ -17,6 +17,7 @@ import { PlusCircle } from 'lucide-react'
 import { ReceivablesFilterBar } from './ReceivablesFilterBar'
 import { CreateClientPaymentForm } from './CreateClientPaymentForm'
 import { PrintBalancesButton } from '@/app/admin/reports/components/clients/PrintBalancesButton'
+import { PenaltyManagementModal } from '../penalties/PenaltyManagementModal'
 
 interface ReceivablesLayoutClientProps {
   children: React.ReactNode
@@ -65,6 +66,7 @@ export function ReceivablesLayoutClient({
         </div>
         <div className='flex items-center gap-3'>
           {activeTab === 'balances' && <PrintBalancesButton />}
+          <PenaltyManagementModal />
           <Button
             className='gap-2'
             onClick={() => {

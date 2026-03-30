@@ -42,6 +42,8 @@ import {
   ClientPaymentStatus,
 } from '@/lib/db/modules/financial/treasury/receivables/client-payment.constants'
 import { approveInvoice } from '@/lib/db/modules/financial/invoices/invoice.actions'
+import { TIMEZONE } from '@/lib/constants'
+import { toZonedTime } from 'date-fns-tz'
 
 interface ClientBalancesListProps {
   data: ClientBalanceSummary[]
@@ -188,7 +190,7 @@ export function ClientBalancesList({
                     )}
                     {/* Contor Compensari */}
                     {client.compensationsCount > 0 && (
-                      <span className='text-orange-500/90 font-medium whitespace-nowrap ml-2'>
+                      <span className='text-red-500/90 font-medium whitespace-nowrap ml-2'>
                         ({client.compensationsCount}{' '}
                         {client.compensationsCount === 1
                           ? 'compensare disponibilă'
@@ -197,6 +199,17 @@ export function ClientBalancesList({
                       </span>
                     )}
                   </div>
+
+                  {client.totalPenalties > 0 && (
+                    <div className='flex flex-col items-end px-4 border-r border-text-muted-foreground'>
+                      <span className='text-[10px] uppercase text-muted-foreground font-bold'>
+                        Penalități Totale
+                      </span>
+                      <span className='font-mono font-bold text-red-600 text-sm'>
+                        {formatCurrency(client.totalPenalties)}
+                      </span>
+                    </div>
+                  )}
 
                   {/* 3. DREAPTA: Suma Totală */}
                   <div className='flex items-center justify-end shrink-0 w-[120px] sm:w-[150px]'>
@@ -236,6 +249,15 @@ export function ClientBalancesList({
                             Acțiuni
                           </TableHead>
                         )}
+                        <TableHead className='h-9 text-[10px] uppercase font-bold text-center text-red-600 bg-red-50/30'>
+                          % Cotă
+                        </TableHead>
+                        <TableHead className='h-9 text-[10px] uppercase font-bold text-right text-red-600 bg-red-50/30'>
+                          Penalitate
+                        </TableHead>
+                        <TableHead className='h-9 text-[10px] uppercase font-bold text-center text-red-600 bg-red-50/30'>
+                          Urm. Facturare
+                        </TableHead>
                         <TableHead className='h-9 text-xs uppercase font-bold text-right text-muted-foreground'>
                           Total Factură
                         </TableHead>
@@ -311,6 +333,9 @@ export function ClientBalancesList({
                                   </Button>
                                 </TableCell>
                               )}
+                              <TableCell className='py-1 text-center text-muted-foreground'></TableCell>
+                              <TableCell className='py-1 text-center text-muted-foreground'></TableCell>
+                              <TableCell className='py-1 text-center text-muted-foreground'></TableCell>
                               <TableCell className='py-1 text-sm text-right font-mono text-green-600'>
                                 -{formatCurrency(item.grandTotal)}
                               </TableCell>
@@ -432,7 +457,7 @@ export function ClientBalancesList({
                                         <Button
                                           variant='outline'
                                           disabled={processingId === item._id}
-                                          className='h-7 text-xs px-2 cursor-pointer text-orange-600 border-orange-200 hover:bg-orange-50 disabled:opacity-50'
+                                          className='h-7 text-xs px-2 cursor-pointer text-red-600 border-red-200 hover:bg-red-50 disabled:opacity-50'
                                           onClick={() =>
                                             handleCompensate(item._id)
                                           }
@@ -467,6 +492,47 @@ export function ClientBalancesList({
                                 </div>
                               </TableCell>
                             )}
+                            <TableCell className='py-1 text-xs text-center font-bold font-mono text-primary bg-red-50/10'>
+                              {item.type === 'INVOICE' && item.penaltyAmount > 0
+                                ? `${item.appliedPercentage}%`
+                                : ''}
+                            </TableCell>
+                            <TableCell className='py-1 text-xs text-right font-mono font-bold text-primary bg-red-50/10'>
+                              {item.type === 'INVOICE' && item.penaltyAmount > 0
+                                ? formatCurrency(item.penaltyAmount)
+                                : ''}
+                            </TableCell>
+                            <TableCell className='py-1 text-xs font-bold text-center text-primary bg-red-50/10'>
+                              {(() => {
+                                if (
+                                  !item.penaltyAmount ||
+                                  item.penaltyAmount <= 0 ||
+                                  !item.nextBillingDate
+                                )
+                                  return ''
+
+                                const nextDate = new Date(item.nextBillingDate)
+                                const now = new Date()
+
+                                if (nextDate <= now) {
+                                  const romaniaTime = toZonedTime(now, TIMEZONE)
+                                  const currentHour = romaniaTime.getHours()
+
+                                  const isPastCron = currentHour >= 18
+
+                                  return (
+                                    <span className='font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 whitespace-nowrap'>
+                                      {isPastCron
+                                        ? 'Mâine, ora 18:00'
+                                        : 'Azi, ora 18:00'}
+                                    </span>
+                                  )
+                                }
+
+                                // Dacă e în viitor, afișăm data normală
+                                return formatDate(item.nextBillingDate)
+                              })()}
+                            </TableCell>
                             <TableCell className='py-1 text-sm text-right text-muted-foreground font-mono'>
                               {formatCurrency(item.grandTotal)}
                             </TableCell>

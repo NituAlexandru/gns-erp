@@ -11,10 +11,12 @@ import {
   CLIENT_PAYMENT_STATUS_MAP,
   ClientPaymentStatus,
 } from '@/lib/db/modules/financial/treasury/receivables/client-payment.constants'
+import { toZonedTime } from 'date-fns-tz'
+import { TIMEZONE } from '@/lib/constants'
 
 // Helper pentru a formata data frumos
 const formatDate = (dateString: Date | string) => {
-  if (!dateString) return '-'
+  if (!dateString) return ''
   const d = new Date(dateString)
   return d.toLocaleDateString('ro-RO', {
     day: '2-digit',
@@ -49,6 +51,9 @@ export async function generateClientBalancesReport(
     { header: 'Nealocate / Status Zile', key: 'col4', width: 22 },
     { header: 'Compensări / Total Doc.', key: 'col5', width: 22 },
     { header: 'Sold Total / Rest Plată', key: 'col6', width: 20 },
+    { header: '% Cotă Penalități', key: 'col7', width: 18 },
+    { header: 'Suma Penalități / Penalizată', key: 'col8', width: 23 },
+    { header: 'Urm. Facturare', key: 'col9', width: 18 },
   ]
 
   // Stilizare Header Principal
@@ -86,6 +91,10 @@ export async function generateClientBalancesReport(
           ? `(${client.compensationsCount} compensăr${client.compensationsCount === 1 ? 'e' : 'i'})`
           : '',
       col6: client.totalBalance,
+      col8:
+        client.totalPenalties > 0
+          ? `${formatCurrency(client.totalPenalties)}`
+          : '',
     })
 
     mainRow.font = { bold: true, size: 11 }
@@ -121,6 +130,12 @@ export async function generateClientBalancesReport(
       color: { argb: client.totalBalance > 0 ? 'FFEF4444' : 'FF16A34A' },
     }
 
+    if (client.totalPenalties > 0) {
+      const clientPenaltyCell = mainRow.getCell('col8')
+      clientPenaltyCell.font = { bold: true, color: { argb: 'FFEF4444' } }
+      clientPenaltyCell.alignment = { horizontal: 'right' }
+    }
+
     // 2. RÂNDURILE DE DETALII (Facturi/Plăți) - Dacă e bifat checkbox-ul
     if (filters.includeDetails && client.items && client.items.length > 0) {
       // Header micuț pentru detalii
@@ -131,6 +146,9 @@ export async function generateClientBalancesReport(
         col4: 'STATUS / ZILE',
         col5: 'TOTAL FACTURĂ',
         col6: 'REST PLATĂ',
+        col7: '% COTĂ',
+        col8: 'PENALITATE',
+        col9: 'URM. FACTURARE',
       })
       detailHeaderRow.font = {
         size: 9,
@@ -146,6 +164,9 @@ export async function generateClientBalancesReport(
       )
       detailHeaderRow.getCell('col5').alignment = { horizontal: 'right' }
       detailHeaderRow.getCell('col6').alignment = { horizontal: 'right' }
+      detailHeaderRow.getCell('col7').alignment = { horizontal: 'center' }
+      detailHeaderRow.getCell('col8').alignment = { horizontal: 'right' }
+      detailHeaderRow.getCell('col9').alignment = { horizontal: 'center' }
 
       // Adăugăm fiecare document
       client.items.forEach((item: any) => {
@@ -165,9 +186,9 @@ export async function generateClientBalancesReport(
           if (mapped) statusText = mapped.name
         }
 
-        const dueDateStr = item.dueDate ? formatDate(item.dueDate) : '-'
+        const dueDateStr = item.dueDate ? formatDate(item.dueDate) : ''
 
-        let statusZile = '-'
+        let statusZile = ''
         let statusZileColor = 'FF6B7280' // Gri default
 
         // Logica de status/zile (exact ca în interfață)
@@ -183,6 +204,31 @@ export async function generateClientBalancesReport(
           statusZileColor = 'FF10B981' // Verde
         }
 
+        // --- LOGICA PENTRU URMĂTOAREA FACTURARE ---
+        let nextBillingStr = ''
+        let isNextBillingUrgent = false
+
+        if (
+          item.type === 'INVOICE' &&
+          item.penaltyAmount > 0 &&
+          item.nextBillingDate
+        ) {
+          const nextDate = new Date(item.nextBillingDate)
+          const now = new Date()
+
+          if (nextDate <= now) {
+            // Forțăm ora României
+            const romaniaTime = toZonedTime(now, TIMEZONE)
+            const currentHour = romaniaTime.getHours()
+            const isPastCron = currentHour >= 18
+
+            nextBillingStr = isPastCron ? 'Mâine, ora 18:00' : 'Azi, ora 18:00'
+            isNextBillingUrgent = true
+          } else {
+            nextBillingStr = formatDate(item.nextBillingDate)
+          }
+        }
+
         const detailRow = sheet.addRow({
           col1: `      ${docName} (${docType} din ${formatDate(item.date)})`,
           col2: statusText,
@@ -192,7 +238,16 @@ export async function generateClientBalancesReport(
           col6:
             item.type === 'INVOICE'
               ? item.remainingAmount
-              : -item.remainingAmount, // Rest plată
+              : -item.remainingAmount,
+          col7:
+            item.type === 'INVOICE' && item.penaltyAmount > 0
+              ? `${item.appliedPercentage}%`
+              : '',
+          col8:
+            item.type === 'INVOICE' && item.penaltyAmount > 0
+              ? item.penaltyAmount
+              : '',
+          col9: nextBillingStr,
         })
 
         detailRow.font = { size: 10 }
@@ -221,8 +276,25 @@ export async function generateClientBalancesReport(
         restCell.alignment = { horizontal: 'right' }
         restCell.font = {
           bold: true,
-          color: { argb: item.remainingAmount > 0 ? 'FFEF4444' : 'FF16A34A' },
+          color: {
+            argb:
+              item.type === 'INVOICE' && item.remainingAmount > 0
+                ? 'FFEF4444'
+                : 'FF16A34A',
+          },
         }
+        const penaltyCell = detailRow.getCell('col8')
+        if (item.penaltyAmount > 0) {
+          penaltyCell.numFmt = '#,##0.00'
+          penaltyCell.font = { color: { argb: 'FFEF4444' }, bold: true }
+        }
+        const nextBillingCell = detailRow.getCell('col9')
+        if (isNextBillingUrgent) {
+          nextBillingCell.font = { color: { argb: 'FFEF4444' }, bold: true }
+        }
+        penaltyCell.alignment = { horizontal: 'right' }
+        detailRow.getCell('col7').alignment = { horizontal: 'center' }
+        detailRow.getCell('col9').alignment = { horizontal: 'center' }
       })
     }
   })
@@ -245,6 +317,7 @@ export async function generateClientBalancesReport(
     row.getCell(5).alignment = { horizontal: 'right' }
     row.getCell(6).alignment = { horizontal: 'right' }
     row.getCell(6).font = { bold: true }
+    return row
   }
 
   addSummaryRow('Clienți în listă:', data.length, false)
@@ -254,4 +327,5 @@ export async function generateClientBalancesReport(
     Math.abs(summary.totalUnallocatedAdvances),
   )
   addSummaryRow('SOLD TOTAL:', Math.abs(summary.totalNetBalance))
+  addSummaryRow('Penalități Totale:', summary.totalPenalties)
 }

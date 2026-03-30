@@ -57,6 +57,11 @@ export default async function ClientBalancesPage({
           amount={summary.totalUnallocatedAdvances}
           type='receipt'
         />
+        <ReceivablesSummaryCard
+          label={`Penalități Totale ${query ? '(Filtrat)' : ''}`}
+          amount={summary.totalPenalties}
+          type='neutral'
+        />
       </div>
 
       {/* Lista */}
