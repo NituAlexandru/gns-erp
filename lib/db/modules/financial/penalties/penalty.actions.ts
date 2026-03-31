@@ -1,7 +1,7 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-import { Types } from 'mongoose'
+import { ClientSession, Types } from 'mongoose'
 import {
   addDays,
   differenceInCalendarDays,
@@ -237,6 +237,7 @@ export async function getPendingPenaltiesList(): Promise<{
           invoiceType: 'STANDARD',
           remainingAmount: { $gt: 0 },
           dueDate: { $lt: todayZoned },
+          seriesName: { $ne: 'PEN' },
         },
       },
       {
@@ -428,4 +429,31 @@ export async function getPenaltyForInvoice(
     nextBillingDate: nextBillingDate.toISOString(),
     autoBillDays,
   }
+}
+
+/**
+ * Salvează istoricul penalităților ÎN INTERIORUL unei tranzacții.
+ * Se apelează atunci când se generează cu succes factura de penalitate.
+ */
+export async function insertPenaltyRecords(
+  clientId: string,
+  penaltyInvoiceId: Types.ObjectId,
+  overdueInvoices: { invoiceId: string; penaltyAmount: number }[],
+  periodEnd: Date,
+  userId: string,
+  userName: string,
+  session: ClientSession,
+) {
+  const records = overdueInvoices.map((inv) => ({
+    invoiceId: new Types.ObjectId(inv.invoiceId),
+    clientId: new Types.ObjectId(clientId),
+    periodEnd: periodEnd,
+    amountCalculated: inv.penaltyAmount,
+    penaltyInvoiceId: penaltyInvoiceId,
+    createdBy: new Types.ObjectId(userId),
+    createdByName: userName,
+  }))
+
+  // Salvăm tot array-ul dintr-o singură lovitură (bulk insert)
+  await PenaltyRecordModel.insertMany(records, { session })
 }

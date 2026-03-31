@@ -44,6 +44,7 @@ import {
 import { approveInvoice } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { TIMEZONE } from '@/lib/constants'
 import { toZonedTime } from 'date-fns-tz'
+import { PenaltyBillingModal } from '../penalties/PenaltyBillingModal'
 
 interface ClientBalancesListProps {
   data: ClientBalanceSummary[]
@@ -73,6 +74,11 @@ export function ClientBalancesList({
   >(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [penaltyModalData, setPenaltyModalData] = useState<{
+    clientId: string
+    clientName: string
+    items: any[]
+  } | null>(null)
 
   const formatDate = (date: Date | string) =>
     formatDateTime(new Date(date)).dateOnly
@@ -201,13 +207,32 @@ export function ClientBalancesList({
                   </div>
 
                   {client.totalPenalties > 0 && (
-                    <div className='flex flex-col items-end px-4 border-r border-text-muted-foreground'>
-                      <span className='text-[10px] uppercase text-muted-foreground font-bold'>
-                        Penalități Totale
-                      </span>
-                      <span className='font-mono font-bold text-red-600 text-sm'>
-                        {formatCurrency(client.totalPenalties)}
-                      </span>
+                    <div className='flex items-center gap-3 px-4 border-r border-text-muted-foreground'>
+                      <div className='flex flex-col items-end'>
+                        <span className='text-[10px] uppercase text-muted-foreground font-bold'>
+                          Penalități Totale
+                        </span>
+                        <span className='font-mono font-bold text-red-600 text-sm'>
+                          {formatCurrency(client.totalPenalties)}
+                        </span>
+                      </div>{' '}
+                      {isAdmin && (
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          className='h-7 text-xs'
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setPenaltyModalData({
+                              clientId: client.clientId,
+                              clientName: client.clientName,
+                              items: client.items,
+                            })
+                          }}
+                        >
+                          Facturează Penalități
+                        </Button>
+                      )}
                     </div>
                   )}
 
@@ -243,6 +268,9 @@ export function ClientBalancesList({
                         </TableHead>
                         <TableHead className='h-9 text-xs uppercase font-bold text-center text-muted-foreground'>
                           Status / Zile
+                        </TableHead>
+                        <TableHead className='h-9 text-xs uppercase font-bold text-center text-muted-foreground'>
+                          Zile Pen. Facturate
                         </TableHead>
                         {isAdmin && (
                           <TableHead className='h-9 text-xs uppercase font-bold text-muted-foreground'>
@@ -320,6 +348,7 @@ export function ClientBalancesList({
                                   {item.daysOverdue} zile nealocată
                                 </span>
                               </TableCell>
+                              <TableCell className='py-1 text-center text-muted-foreground'></TableCell>
                               {isAdmin && (
                                 <TableCell className='py-1'>
                                   <Button
@@ -415,7 +444,17 @@ export function ClientBalancesList({
                                 )
                               })()}
                             </TableCell>
-
+                            <TableCell className='py-1 text-xs text-center'>
+                              {item.billedPenaltyDays > 0 ? (
+                                <span className='inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 border border-orange-200'>
+                                  {item.billedPenaltyDays} zile
+                                </span>
+                              ) : (
+                                <span className='text-muted-foreground text-[10px]'>
+                                  -
+                                </span>
+                              )}
+                            </TableCell>
                             {/* --- Butoanele directe "Detalii", "Încasare", "Compensează" sau Mesaj Aprobare --- */}
                             {isAdmin && (
                               <TableCell className='py-1'>
@@ -504,20 +543,44 @@ export function ClientBalancesList({
                             </TableCell>
                             <TableCell className='py-1 text-xs font-bold text-center text-primary bg-red-50/10'>
                               {(() => {
+                                // CAZUL 1: Este facturat la zi (Fără penalitate nouă azi, dar are zile trecute facturate)
+                                if (
+                                  item.type === 'INVOICE' &&
+                                  (!item.penaltyAmount ||
+                                    item.penaltyAmount <= 0) &&
+                                  item.daysOverdue > 0 &&
+                                  item.billedPenaltyDays > 0
+                                ) {
+                                  const formattedUpTo = item.lastBilledDate
+                                    ? formatDate(item.lastBilledDate)
+                                    : ''
+
+                                  return (
+                                    <span
+                                      className='text-xs text-green-600 font-bold whitespace-nowrap cursor-help'
+                                      title={`Penalitatile sunt Facturate până la data de ${formattedUpTo}`}
+                                    >
+                                      Facturată la zi
+                                    </span>
+                                  )
+                                }
+
+                                // CAZUL 2: Nu e nimic de afișat
                                 if (
                                   !item.penaltyAmount ||
                                   item.penaltyAmount <= 0 ||
                                   !item.nextBillingDate
-                                )
+                                ) {
                                   return ''
+                                }
 
+                                // CAZUL 3: Afișăm când urmează următoarea factură
                                 const nextDate = new Date(item.nextBillingDate)
                                 const now = new Date()
 
                                 if (nextDate <= now) {
                                   const romaniaTime = toZonedTime(now, TIMEZONE)
                                   const currentHour = romaniaTime.getHours()
-
                                   const isPastCron = currentHour >= 18
 
                                   return (
@@ -529,7 +592,6 @@ export function ClientBalancesList({
                                   )
                                 }
 
-                                // Dacă e în viitor, afișăm data normală
                                 return formatDate(item.nextBillingDate)
                               })()}
                             </TableCell>
@@ -621,6 +683,16 @@ export function ClientBalancesList({
         }}
         isAdmin={isAdmin}
       />
+      {penaltyModalData && (
+        <PenaltyBillingModal
+          isOpen={!!penaltyModalData}
+          onClose={() => setPenaltyModalData(null)}
+          clientId={penaltyModalData.clientId}
+          clientName={penaltyModalData.clientName}
+          items={penaltyModalData.items}
+          currentUser={currentUser}
+        />
+      )}
     </>
   )
 }

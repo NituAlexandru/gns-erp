@@ -243,6 +243,18 @@ export function PenaltyManagementModal() {
 
   const customRules = rules.filter((r) => !r.isDefault)
 
+  const unavailableClientIds = new Set<string>()
+  rules.forEach((rule) => {
+    if (rule._id !== editingRuleId) {
+      rule.clientIds?.forEach((id) => unavailableClientIds.add(id))
+    }
+  })
+
+  // Lista finală pe care o vom afișa în dropdown
+  const availableClients = clients.filter(
+    (c) => !unavailableClientIds.has(c._id),
+  )
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -483,7 +495,7 @@ export function PenaltyManagementModal() {
                             Niciun client găsit.
                           </CommandEmpty>
                           <CommandGroup>
-                            {clients.map((client) => {
+                            {availableClients.map((client) => {
                               const isSelected = newRule.clientIds.includes(
                                 client._id,
                               )

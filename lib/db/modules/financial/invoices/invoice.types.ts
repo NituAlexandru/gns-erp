@@ -167,3 +167,13 @@ export type ClientBalanceSummary = {
     nextBillingDate?: string | null
   }[]
 }
+
+export interface OverdueInvoiceData {
+  invoiceId: string
+  seriesName: string
+  invoiceNumber: string
+  invoiceDate: Date | string
+  penaltyAmount: number
+  percentage: number
+  billedDays: number
+}
