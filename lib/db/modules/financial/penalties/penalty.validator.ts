@@ -21,6 +21,7 @@ export type SavePenaltyRuleInput = z.infer<typeof SavePenaltyRuleSchema>
 export const SaveDefaultPenaltyRuleSchema = z.object({
   percentagePerDay: z.number().min(0),
   autoBillDays: z.number().min(1),
+  isAutoBillingEnabled: z.boolean().default(false),
 })
 
 export type SaveDefaultPenaltyRuleInput = z.infer<

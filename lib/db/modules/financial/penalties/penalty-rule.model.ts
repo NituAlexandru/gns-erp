@@ -5,6 +5,7 @@ export interface IPenaltyRule extends Document {
   percentagePerDay: number // ex: 0.01 (pentru 0.01%)
   autoBillDays: number // ex: 5 (se emite la 5 zile)
   isDefault: boolean // Marchează dacă este regula globală
+  isAutoBillingEnabled: boolean
   clientIds: mongoose.Types.ObjectId[] // Clienții asignați acestei liste
   updatedBy: mongoose.Types.ObjectId
   updatedByName: string
@@ -18,6 +19,7 @@ const PenaltyRuleSchema = new Schema<IPenaltyRule>(
     percentagePerDay: { type: Number, required: true },
     autoBillDays: { type: Number, required: true },
     isDefault: { type: Boolean, default: false },
+    isAutoBillingEnabled: { type: Boolean, default: false },
     clientIds: [
       {
         type: Schema.Types.ObjectId,

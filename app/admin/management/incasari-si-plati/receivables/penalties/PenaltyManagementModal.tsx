@@ -58,6 +58,7 @@ import {
   saveDefaultPenaltyRule,
   savePenaltyRule,
 } from '@/lib/db/modules/financial/penalties/penalty.actions'
+import { Switch } from '@/components/ui/switch'
 
 interface SimpleEntity {
   _id: string
@@ -79,6 +80,7 @@ export function PenaltyManagementModal() {
   const [defaultRule, setDefaultRule] = useState({
     percentage: '',
     autoBillDays: '',
+    isAutoBillingEnabled: false,
   })
   const [hasDefaultInDB, setHasDefaultInDB] = useState(false)
 
@@ -124,11 +126,16 @@ export function PenaltyManagementModal() {
           setDefaultRule({
             percentage: defRule.percentagePerDay.toString(),
             autoBillDays: defRule.autoBillDays.toString(),
+            isAutoBillingEnabled: defRule.isAutoBillingEnabled || false,
           })
         } else {
           // Dacă nu e în DB, starea rămâne GOLĂ
           setHasDefaultInDB(false)
-          setDefaultRule({ percentage: '', autoBillDays: '' })
+          setDefaultRule({
+            percentage: '',
+            autoBillDays: '',
+            isAutoBillingEnabled: false,
+          })
         }
       }
     } catch (error) {
@@ -213,6 +220,7 @@ export function PenaltyManagementModal() {
       const res = await saveDefaultPenaltyRule({
         percentagePerDay: Number(defaultRule.percentage),
         autoBillDays: Number(defaultRule.autoBillDays),
+        isAutoBillingEnabled: defaultRule.isAutoBillingEnabled,
       })
 
       if (res.success) {
@@ -358,7 +366,25 @@ export function PenaltyManagementModal() {
                     </p>
                   </div>
                 </div>
-
+                <div className='flex flex-row items-center justify-between rounded-lg border p-4 max-w-2xl'>
+                  <div className='space-y-0.5'>
+                    <Label className='text-base'>Facturare Automată</Label>
+                    <p className='text-sm text-primary'>
+                      Dacă este activat, sistemul va emite automat facturile de
+                      penalități în fiecare zi la ora 18:00.
+                    </p>
+                  </div>
+                  <Switch
+                    className='cursor-pointer'
+                    checked={defaultRule.isAutoBillingEnabled}
+                    onCheckedChange={(checked) =>
+                      setDefaultRule({
+                        ...defaultRule,
+                        isAutoBillingEnabled: checked,
+                      })
+                    }
+                  />
+                </div>
                 <div className='flex justify-end gap-2 pt-4 border-t border-slate-200'>
                   <Button
                     variant='outline'

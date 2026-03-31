@@ -4,6 +4,7 @@ export interface PenaltyRuleDTO {
   percentagePerDay: number
   autoBillDays: number
   isDefault: boolean
+  isAutoBillingEnabled: boolean
   clientIds: string[]
   clientCount: number // O vom calcula în acțiune pt UI
   updatedBy?: string

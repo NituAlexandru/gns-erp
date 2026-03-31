@@ -45,6 +45,8 @@ import { approveInvoice } from '@/lib/db/modules/financial/invoices/invoice.acti
 import { TIMEZONE } from '@/lib/constants'
 import { toZonedTime } from 'date-fns-tz'
 import { PenaltyBillingModal } from '../penalties/PenaltyBillingModal'
+import { getNextBusinessDay, isBusinessDay } from '@/lib/deliveryDates'
+import { addDays, startOfDay } from 'date-fns'
 
 interface ClientBalancesListProps {
   data: ClientBalanceSummary[]
@@ -221,16 +223,21 @@ export function ClientBalancesList({
                           variant='outline'
                           size='sm'
                           className='h-7 text-xs'
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setPenaltyModalData({
-                              clientId: client.clientId,
-                              clientName: client.clientName,
-                              items: client.items,
-                            })
-                          }}
+                          asChild
                         >
-                          Facturează Penalități
+                          <span
+                            onClick={(e) => {
+                              e.preventDefault() // Previne alte acțiuni default
+                              e.stopPropagation() // Oprește deschiderea acordeonului
+                              setPenaltyModalData({
+                                clientId: client.clientId,
+                                clientName: client.clientName,
+                                items: client.items,
+                              })
+                            }}
+                          >
+                            Facturează Penalități
+                          </span>
                         </Button>
                       )}
                     </div>
@@ -581,13 +588,52 @@ export function ClientBalancesList({
                                 if (nextDate <= now) {
                                   const romaniaTime = toZonedTime(now, TIMEZONE)
                                   const currentHour = romaniaTime.getHours()
-                                  const isPastCron = currentHour >= 18
+
+                                  // Verificăm dacă mai rulează AZI (trebuie să fie zi lucrătoare ȘI înainte de ora 18:00)
+                                  const runsToday =
+                                    isBusinessDay(now) && currentHour < 18
+
+                                  if (runsToday) {
+                                    return (
+                                      <span className='font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 whitespace-nowrap'>
+                                        Azi, ora 18:00
+                                      </span>
+                                    )
+                                  }
+
+                                  // Dacă nu rulează azi, calculăm următoarea zi în care va rula
+                                  const nextRunDate = getNextBusinessDay(
+                                    addDays(now, 1),
+                                  )
+                                  const tomorrow = startOfDay(addDays(now, 1))
+
+                                  // Dacă prima zi lucrătoare disponibilă pică fix mâine:
+                                  if (
+                                    startOfDay(nextRunDate).getTime() ===
+                                    tomorrow.getTime()
+                                  ) {
+                                    return (
+                                      <span className='font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 whitespace-nowrap'>
+                                        Mâine, ora 18:00
+                                      </span>
+                                    )
+                                  }
+
+                                  // Dacă pică altcândva (ex: Luni după un weekend)
+                                  const dayNames = [
+                                    'Duminică',
+                                    'Luni',
+                                    'Marți',
+                                    'Miercuri',
+                                    'Joi',
+                                    'Vineri',
+                                    'Sâmbătă',
+                                  ]
+                                  const dayName = dayNames[nextRunDate.getDay()]
 
                                   return (
                                     <span className='font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 whitespace-nowrap'>
-                                      {isPastCron
-                                        ? 'Mâine, ora 18:00'
-                                        : 'Azi, ora 18:00'}
+                                      {dayName}, ora 18:00
                                     </span>
                                   )
                                 }

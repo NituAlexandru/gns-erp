@@ -24,6 +24,7 @@ import {
   SaveDefaultPenaltyRuleInput,
 } from './penalty.validator'
 import { auth } from '@/auth'
+import { getNextBusinessDay } from '@/lib/deliveryDates'
 
 // ==========================================
 // 1. GESTIONAREA LISTELOR DE PENALIZĂRI (CRUD)
@@ -48,6 +49,7 @@ export async function getPenaltyRules(): Promise<{
       percentagePerDay: r.percentagePerDay,
       autoBillDays: r.autoBillDays,
       isDefault: r.isDefault,
+      isAutoBillingEnabled: r.isAutoBillingEnabled || false,
       clientIds: r.clientIds ? r.clientIds.map((id) => id.toString()) : [],
       clientCount: r.clientIds ? r.clientIds.length : 0,
       updatedBy: r.updatedBy?.toString(),
@@ -121,6 +123,7 @@ export async function saveDefaultPenaltyRule(
     if (existingDefault) {
       existingDefault.percentagePerDay = data.percentagePerDay
       existingDefault.autoBillDays = data.autoBillDays
+      existingDefault.isAutoBillingEnabled = data.isAutoBillingEnabled
       existingDefault.updatedBy = new Types.ObjectId(session.user.id)
       existingDefault.updatedByName = session.user.name || 'Operator'
       await existingDefault.save()
@@ -129,6 +132,7 @@ export async function saveDefaultPenaltyRule(
         name: 'Standard (Global)',
         percentagePerDay: data.percentagePerDay,
         autoBillDays: data.autoBillDays,
+        isAutoBillingEnabled: data.isAutoBillingEnabled,
         isDefault: true,
         clientIds: [],
         updatedBy: new Types.ObjectId(session.user.id),
@@ -379,6 +383,9 @@ export async function getPenaltyCalculationContext() {
   return {
     globalPercentage: defaultRule ? defaultRule.percentagePerDay : 0,
     globalAutoDays: defaultRule ? defaultRule.autoBillDays : 0,
+    isAutoBillingEnabled: defaultRule
+      ? defaultRule.isAutoBillingEnabled
+      : false,
     clientRuleMap,
     allRules,
   }
@@ -421,12 +428,19 @@ export async function getPenaltyForInvoice(
       ? round2(invoice.remainingAmount * (percentage / 100) * daysToPenalty)
       : 0
 
-  const nextBillingDate = addDays(new Date(invoice.dueDate), autoBillDays + 1)
+  // Calculăm data teoretică
+  const rawNextBillingDate = addDays(
+    new Date(invoice.dueDate),
+    autoBillDays + 1,
+  )
+
+  // O împingem pe prima zi lucrătoare
+  const nextBillingDate = getNextBusinessDay(rawNextBillingDate)
 
   return {
     penaltyAmount: Math.max(0, penaltyAmount),
     appliedPercentage: percentage,
-    nextBillingDate: nextBillingDate.toISOString(),
+    nextBillingDate: nextBillingDate.toISOString(), // Acum e mereu zi de muncă
     autoBillDays,
   }
 }
