@@ -89,6 +89,7 @@ export default function AdminProductsList({
       category?: string
       page?: number
       noMargin?: boolean
+      hasStock?: boolean
     }) => {
       const params = new URLSearchParams(searchParams.toString())
       const updateParam = (key: string, val?: string | number) => {
@@ -105,16 +106,15 @@ export default function AdminProductsList({
         if (paramsUpdate.noMargin) params.set('noMargin', 'true')
         else params.delete('noMargin')
       }
+      if (paramsUpdate.hasStock !== undefined) {
+        if (paramsUpdate.hasStock) params.set('hasStock', 'true')
+        else params.delete('hasStock')
+      }
 
       router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     },
     [searchParams, pathname, router],
   )
-  const handleNoMarginChange = (checked: boolean) => {
-    setNoMargin(checked)
-    setPage(1)
-    updateUrl({ noMargin: checked, page: 1 })
-  }
 
   const [searchResults, setSearchResults] = useState<
     IAdminCatalogItem[] | null
@@ -135,6 +135,9 @@ export default function AdminProductsList({
   const [scanning, setScanning] = useState(false)
   const [isPending, setIsPending] = useState(false)
   const [jumpInputValue, setJumpInputValue] = useState(page.toString())
+  const [hasStock, setHasStock] = useState(
+    searchParams.get('hasStock') === 'true',
+  )
   // --- STATE NOU PENTRU FILTRE ---
   const [supplierQuery, setSupplierQuery] = useState(
     searchParams.get('supplier') || '',
@@ -188,6 +191,17 @@ export default function AdminProductsList({
     } else {
       setJumpInputValue(page.toString())
     }
+  }
+
+  const handleNoMarginChange = (checked: boolean) => {
+    setNoMargin(checked)
+    setPage(1)
+    updateUrl({ noMargin: checked, page: 1 })
+  }
+  const handleHasStockChange = (checked: boolean) => {
+    setHasStock(checked)
+    setPage(1)
+    updateUrl({ hasStock: checked, page: 1 })
   }
 
   async function handleActivateConfirm() {
@@ -415,6 +429,20 @@ export default function AdminProductsList({
               className='text-sm  font-medium leading-none cursor-pointer whitespace-nowrap'
             >
               Fără marjă (0%)
+            </label>
+          </div>
+          <div className='flex items-center space-x-2 bg-background border rounded-md px-3 h-10'>
+            <Checkbox
+              id='hasStock'
+              className='cursor-pointer'
+              checked={hasStock}
+              onCheckedChange={handleHasStockChange}
+            />
+            <label
+              htmlFor='hasStock'
+              className='text-sm font-medium leading-none cursor-pointer whitespace-nowrap'
+            >
+              În stoc
             </label>
           </div>
           {/* 1. UNICUL INPUT (Caută Produs + Furnizor) */}

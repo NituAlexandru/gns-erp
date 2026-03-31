@@ -38,12 +38,14 @@ export async function getAdminCatalogPage({
   category,
   q,
   noMargin,
+  hasStock,
 }: {
   page?: number
   limit?: number
   category?: string
   q?: string
   noMargin?: boolean
+  hasStock?: boolean
 }): Promise<IAdminCatalogPage> {
   await connectToDatabase()
   const skip = (page - 1) * limit
@@ -216,6 +218,15 @@ export async function getAdminCatalogPage({
         },
       },
     },
+    ...(hasStock
+      ? [
+          {
+            $match: {
+              totalStock: { $gte: 1 },
+            },
+          },
+        ]
+      : []),
     { $sort: { name: 1 } },
     {
       $facet: {

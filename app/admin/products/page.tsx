@@ -14,11 +14,13 @@ export default async function AdminProductsPage({
     supplier?: string
     category?: string
     noMargin?: string
+    hasStock?: string
   }>
 }) {
   const params = await searchParams
   const page = Number(params.page) || 1
   const noMargin = params.noMargin === 'true'
+  const hasStock = params.hasStock === 'true'
 
   // Fetch date cu filtre
   const { data, total, totalPages, from, to } = await getAdminCatalogPage({
@@ -26,6 +28,7 @@ export default async function AdminProductsPage({
     q: params.q || '',
     category: params.category || '',
     noMargin,
+    hasStock,
   })
 
   // Fetch categorii pentru UI
