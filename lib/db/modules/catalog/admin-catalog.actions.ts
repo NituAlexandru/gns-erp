@@ -37,11 +37,13 @@ export async function getAdminCatalogPage({
   limit = ADMIN_PRODUCT_PAGE_SIZE,
   category,
   q,
+  noMargin,
 }: {
   page?: number
   limit?: number
   category?: string
   q?: string
+  noMargin?: boolean
 }): Promise<IAdminCatalogPage> {
   await connectToDatabase()
   const skip = (page - 1) * limit
@@ -60,6 +62,48 @@ export async function getAdminCatalogPage({
         )
       }
     }
+  }
+
+  const matchConditions: any = {}
+
+  if (categoryIds.length > 0) {
+    matchConditions.category = { $in: categoryIds }
+  }
+
+  const andArray: any[] = []
+
+  // Condiția 1: Căutare text
+  if (q) {
+    andArray.push({
+      $or: [
+        { name: { $regex: q, $options: 'i' } },
+        { productCode: { $regex: q, $options: 'i' } },
+        { barCode: { $regex: q, $options: 'i' } },
+        { 'resolvedSuppliers.name': { $regex: q, $options: 'i' } },
+      ],
+    })
+  }
+
+  // Condiția 2: Fără marjă (noMargin = true)
+  // Caută produse unde marja este 0, null, sau nu este setată deloc
+  if (noMargin) {
+    andArray.push({
+      $or: [
+        { 'defaultMarkups.markupDirectDeliveryPrice': { $in: [0, null] } },
+        { 'defaultMarkups.markupFullTruckPrice': { $in: [0, null] } },
+        {
+          'defaultMarkups.markupSmallDeliveryBusinessPrice': { $in: [0, null] },
+        },
+        { 'defaultMarkups.markupRetailPrice': { $in: [0, null] } },
+        { defaultMarkups: { $exists: false } },
+        { defaultMarkups: null },
+      ],
+    })
+  }
+
+  // Dacă avem cel puțin o condiție (q sau noMargin), le combinăm cu $and
+  if (andArray.length > 0) {
+    matchConditions.$and = andArray
   }
 
   const agg: PipelineStage[] = [
@@ -115,19 +159,7 @@ export async function getAdminCatalogPage({
       },
     },
     {
-      $match: {
-        ...(categoryIds.length > 0 ? { category: { $in: categoryIds } } : {}),
-        ...(q
-          ? {
-              $or: [
-                { name: { $regex: q, $options: 'i' } },
-                { productCode: { $regex: q, $options: 'i' } },
-                { barCode: { $regex: q, $options: 'i' } },
-                { 'resolvedSuppliers.name': { $regex: q, $options: 'i' } },
-              ],
-            }
-          : {}),
-      },
+      $match: matchConditions,
     },
     {
       $lookup: {

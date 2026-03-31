@@ -12,7 +12,13 @@ import {
 } from '@/components/ui/table'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from 'lucide-react'
 import { AdminProductSearchResult } from '@/lib/db/modules/product/types'
 import { updateProductMarkup } from '@/lib/db/modules/product/product.actions'
 import { toast } from 'sonner'
@@ -35,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface CategoryOption {
   _id: string
@@ -77,7 +84,12 @@ export default function AdminProductsList({
   const [items, setItems] = useState<IAdminCatalogItem[]>(products)
 
   const updateUrl = useCallback(
-    (paramsUpdate: { q?: string; category?: string; page?: number }) => {
+    (paramsUpdate: {
+      q?: string
+      category?: string
+      page?: number
+      noMargin?: boolean
+    }) => {
       const params = new URLSearchParams(searchParams.toString())
       const updateParam = (key: string, val?: string | number) => {
         if (val && val !== '') params.set(key, String(val))
@@ -89,11 +101,20 @@ export default function AdminProductsList({
         updateParam('category', paramsUpdate.category)
       if (paramsUpdate.page !== undefined)
         updateParam('page', paramsUpdate.page)
+      if (paramsUpdate.noMargin !== undefined) {
+        if (paramsUpdate.noMargin) params.set('noMargin', 'true')
+        else params.delete('noMargin')
+      }
 
       router.replace(`${pathname}?${params.toString()}`, { scroll: false })
     },
     [searchParams, pathname, router],
   )
+  const handleNoMarginChange = (checked: boolean) => {
+    setNoMargin(checked)
+    setPage(1)
+    updateUrl({ noMargin: checked, page: 1 })
+  }
 
   const [searchResults, setSearchResults] = useState<
     IAdminCatalogItem[] | null
@@ -112,11 +133,15 @@ export default function AdminProductsList({
   const [activateTarget, setActivateTarget] =
     useState<IAdminCatalogItem | null>(null)
   const [scanning, setScanning] = useState(false)
+  const [isPending, setIsPending] = useState(false)
+  const [jumpInputValue, setJumpInputValue] = useState(page.toString())
   // --- STATE NOU PENTRU FILTRE ---
   const [supplierQuery, setSupplierQuery] = useState(
     searchParams.get('supplier') || '',
   )
-
+  const [noMargin, setNoMargin] = useState(
+    searchParams.get('noMargin') === 'true',
+  )
   // Logică Categorii
   const initialCatId = searchParams.get('category') || ''
   const initialSelectedCat = allCategories.find((c) => c._id === initialCatId)
@@ -146,6 +171,24 @@ export default function AdminProductsList({
         return pId === selectedMainCat
       })
     : []
+
+  useEffect(() => {
+    setJumpInputValue(page.toString())
+  }, [page])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== page
+    ) {
+      changePage(pageNum)
+    } else {
+      setJumpInputValue(page.toString())
+    }
+  }
 
   async function handleActivateConfirm() {
     if (!activateTarget) return
@@ -256,9 +299,10 @@ export default function AdminProductsList({
   const changePage = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages) return
 
+    setIsPending(true)
     setPage(newPage)
-
     updateUrl({ page: newPage })
+    setIsPending(false)
   }
 
   const onMarkupChange = (
@@ -359,7 +403,20 @@ export default function AdminProductsList({
               ))}
             </SelectContent>
           </Select>
-
+          <div className='flex items-center space-x-2 bg-background border rounded-md px-3 h-10'>
+            <Checkbox
+              id='noMargin'
+              className='cursor-pointer'
+              checked={noMargin}
+              onCheckedChange={handleNoMarginChange}
+            />
+            <label
+              htmlFor='noMargin'
+              className='text-sm  font-medium leading-none cursor-pointer whitespace-nowrap'
+            >
+              Fără marjă (0%)
+            </label>
+          </div>
           {/* 1. UNICUL INPUT (Caută Produs + Furnizor) */}
           <Input
             value={query}
@@ -557,25 +614,77 @@ export default function AdminProductsList({
         </AlertDialog>
       )}
 
-      {/* PAGINAȚIE */}
+      {/* PAGINAȚIE (Sincronizat cu URL) */}
       {totalPagesDisplay > 1 && (
-        <div className='flex justify-center items-center gap-2 mt-4 shrink-0'>
+        <div className='flex items-center justify-center gap-2 py-3 border-t bg-background shrink-0 mt-4'>
+          {/* Buton: Prima Pagină (<<) */}
           <Button
             variant='outline'
-            onClick={() => changePage(page - 1)}
-            disabled={page <= 1}
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => changePage(1)}
+            disabled={page <= 1 || isPending}
+            title='Prima pagină'
           >
-            <ChevronLeft /> Anterior
+            <ChevronsLeft className='h-4 w-4' />
           </Button>
-          <span>
-            Pagina {page} din {totalPagesDisplay}
-          </span>
+
+          {/* Buton: Anterior (<) */}
           <Button
             variant='outline'
-            onClick={() => changePage(page + 1)}
-            disabled={page >= totalPagesDisplay}
+            size='sm'
+            className='h-8'
+            onClick={() => changePage(page - 1)}
+            disabled={page <= 1 || isPending}
           >
-            Următor <ChevronRight />
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
+            Anterior
+          </Button>
+
+          {/* Zona Centrală: Sari la Pagina */}
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPagesDisplay}</span>
+          </div>
+
+          {/* Buton: Următor (>) */}
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
+            onClick={() => changePage(page + 1)}
+            disabled={page >= totalPagesDisplay || isPending}
+          >
+            Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+
+          {/* Buton: Ultima Pagină (>>) */}
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => changePage(totalPagesDisplay)}
+            disabled={page >= totalPagesDisplay || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}
