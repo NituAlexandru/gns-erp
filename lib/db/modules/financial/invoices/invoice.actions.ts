@@ -3145,7 +3145,7 @@ export async function createPenaltyInvoiceFromOverdue(
             status: 'CREATED',
             eFacturaStatus: 'PENDING',
             salesAgentId: new Types.ObjectId(userId),
-            salesAgentSnapshot: userName,
+            salesAgentSnapshot: { name: userName },
             driverName: '',
             vehicleNumber: '',
             vehicleType: '',
