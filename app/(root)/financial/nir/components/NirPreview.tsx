@@ -40,6 +40,7 @@ import { Badge } from '@/components/ui/badge'
 import { NirDTO } from '@/lib/db/modules/financial/nir/nir.types'
 import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
 import { NIR_STATUS_MAP } from '@/lib/db/modules/financial/nir/nir.constants'
+import { ProductHoverCard } from '@/app/(root)/catalog-produse/details/product-hover-card'
 
 const formatMoney = (amount: number | undefined | null, currency = 'RON') => {
   if (amount == null) return '-'
@@ -361,12 +362,29 @@ export function NirPreview({ nir }: NirPreviewProps) {
                       </TableCell>
                       <TableCell className='py-0'>
                         <div className='flex flex-col'>
-                          <span
-                            className='font-medium truncate max-w-[250px] block cursor-pointer'
-                            title={item.productName}
-                          >
-                            {item.productName}
-                          </span>
+                          {item.productId ? (
+                            <ProductHoverCard
+                              id={item.productId.toString()}
+                              name={item.productName}
+                              productCode={item.productCode}
+                              isAdmin={false}
+                              sideOffset={10}
+                              side='top'
+                              align='start'
+                              alignOffset={50}
+                            >
+                              <span className='font-medium truncate max-w-[250px] block cursor-pointer hover:underline hover:text-primary transition-colors'>
+                                {item.productName}
+                              </span>
+                            </ProductHoverCard>
+                          ) : (
+                            <span
+                              className='font-medium truncate max-w-[250px] block'
+                              title={item.productName}
+                            >
+                              {item.productName}
+                            </span>
+                          )}
                           <div className='flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground'>
                             <span>Cod: {item.productCode}</span>
                             <span>|</span>

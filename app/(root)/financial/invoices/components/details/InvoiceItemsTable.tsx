@@ -22,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { ProductHoverCard } from '@/app/(root)/catalog-produse/details/product-hover-card'
 
 interface InvoiceItemsTableProps {
   items: PopulatedInvoice['items']
@@ -133,24 +134,38 @@ export function InvoiceItemsTable({
                     {index + 1}
                   </TableCell>
                   <TableCell className='p-1 py-0'>
-                    {/* Tooltip pentru Nume Produs */}
-                    <TooltipProvider delayDuration={300}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            className={cn(
-                              'font-medium max-w-[250px] xl:max-w-[400px] truncate cursor-help', // Am adaugat truncate si cursor
-                              textSizeClass,
-                            )}
-                          >
-                            {item.productName}
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent className=' break-words'>
-                          <p className='text-xs'>{item.productName}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                    {/* HoverCard pentru Nume Produs */}
+                    {item.productId ? (
+                      <ProductHoverCard
+                        id={item.productId.toString()}
+                        name={item.productName}
+                        productCode={item.productCode}
+                        isAdmin={isAdmin}
+                        sideOffset={1}
+                        side='top'
+                        align='center'
+                        alignOffset={350}
+                      >
+                        <div
+                          className={cn(
+                            'font-medium max-w-[250px] xl:max-w-[400px] truncate cursor-pointer hover:underline hover:text-primary transition-colors',
+                            textSizeClass,
+                          )}
+                        >
+                          {item.productName}
+                        </div>
+                      </ProductHoverCard>
+                    ) : (
+                      <div
+                        className={cn(
+                          'font-medium max-w-[250px] xl:max-w-[400px] truncate',
+                          textSizeClass,
+                        )}
+                        title={item.productName}
+                      >
+                        {item.productName}
+                      </div>
+                    )}
 
                     <div className='flex flex-row gap-5 mt-0'>
                       {item.productCode && item.productCode !== 'N/A' && (

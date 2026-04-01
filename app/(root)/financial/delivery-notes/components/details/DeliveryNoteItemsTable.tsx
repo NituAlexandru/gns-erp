@@ -16,6 +16,7 @@ import {
   getMarginColorClass,
   getProfitColorClass,
 } from '@/lib/db/modules/financial/invoices/invoice.utils'
+import { ProductHoverCard } from '@/app/(root)/catalog-produse/details/product-hover-card'
 
 interface DeliveryNoteItemsTableProps {
   items: DeliveryNoteDTO['items']
@@ -164,20 +165,75 @@ export function DeliveryNoteItemsTable({
                     {index + 1}
                   </TableCell>
                   <TableCell className='py-0'>
-                    {item.productCode && item.productCode !== 'N/A' ? (
+                    {/* HoverCard pentru Nume Produs */}
+                    {item.productId ? (
+                      <ProductHoverCard
+                        id={item.productId.toString()}
+                        name={item.productName}
+                        productCode={item.productCode}
+                        isAdmin={isAdmin}
+                        sideOffset={10}
+                        side='top'
+                        align='start'
+                        alignOffset={50} // Mutat la dreapta cu 50px, exact ca la facturi
+                      >
+                        <div
+                          className={cn(
+                            'font-medium max-w-[250px] xl:max-w-[400px] truncate cursor-pointer hover:underline hover:text-primary transition-colors',
+                            textSizeClass,
+                          )}
+                        >
+                          {item.productName}
+                        </div>
+                      </ProductHoverCard>
+                    ) : (
                       <div
                         className={cn(
-                          'text-muted-foreground flex items-center gap-1',
+                          'font-medium max-w-[250px] xl:max-w-[400px] truncate',
                           textSizeClass,
                         )}
+                        title={item.productName}
                       >
-                        <Hash
-                          className={cn(isPreview ? 'h-2.5 w-2.5' : 'h-3 w-3')}
-                        />{' '}
-                        {item.productCode}
+                        {item.productName}
                       </div>
-                    ) : (
-                      '-'
+                    )}
+
+                    {/* Afisare Badge-uri cu date deja structurate din getSmartDescription */}
+                    {smartDesc && smartDesc.length > 0 && (
+                      <div className='flex flex-wrap items-center gap-1 m-0 mt-1'>
+                        <Package
+                          className={cn(
+                            'text-primary',
+                            isPreview ? 'h-4 w-4' : 'h-4 w-4',
+                          )}
+                        />{' '}
+                        <span
+                          className={cn(
+                            'text-muted-foreground/80 font-semibold tracking-wide',
+                            isPreview ? 'text-xs' : 'text-xs',
+                          )}
+                        >
+                          Mod ambalare:
+                        </span>
+                        {smartDesc.map((eq, idx) => (
+                          <div
+                            key={idx}
+                            className={cn(
+                              'flex items-center gap-0 rounded border border-muted-foreground/20 bg-muted/20 text-muted-foreground whitespace-nowrap',
+                              isPreview
+                                ? 'px-1 py-0 text-xs'
+                                : 'px-2 py-0.5 text-xs',
+                            )}
+                          >
+                            <span>
+                              <strong className='text-foreground/90 font-bold'>
+                                {eq.val}
+                              </strong>{' '}
+                              {eq.unit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell className='py-1'>
