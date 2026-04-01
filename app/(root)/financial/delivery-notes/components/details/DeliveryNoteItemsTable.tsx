@@ -171,7 +171,6 @@ export function DeliveryNoteItemsTable({
                         id={item.productId.toString()}
                         name={item.productName}
                         productCode={item.productCode}
-                        isAdmin={isAdmin}
                         sideOffset={10}
                         side='top'
                         align='start'

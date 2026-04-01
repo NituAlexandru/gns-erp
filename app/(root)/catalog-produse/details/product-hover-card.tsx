@@ -9,30 +9,38 @@ import {
 } from '@/components/ui/hover-card'
 import ProductPreviewContent from '@/app/(root)/catalog-produse/details/product-preview-content'
 import { toSlug } from '@/lib/utils'
+import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
+import { useSession } from 'next-auth/react'
 
 interface ProductHoverCardProps {
   id: string
   name: string
   productCode?: string
-  isAdmin: boolean
   children: React.ReactNode
   sideOffset?: number
   side?: 'top' | 'right' | 'bottom' | 'left'
   align?: 'start' | 'center' | 'end'
   alignOffset?: number
+  avoidCollisions?: boolean
 }
 
 export function ProductHoverCard({
   id,
   name,
   productCode,
-  isAdmin,
   children,
   sideOffset = 10,
   side = 'right',
   align = 'start',
   alignOffset = 0,
+  avoidCollisions = true,
 }: ProductHoverCardProps) {
+  const { data: session } = useSession()
+  const userRole = session?.user?.role || 'user'
+  const isAdminUser = SUPER_ADMIN_ROLES.map((r) => r.toLowerCase()).includes(
+    userRole.toLowerCase(),
+  )
+
   return (
     <HoverCard openDelay={200}>
       <HoverCardTrigger asChild>{children}</HoverCardTrigger>
@@ -42,7 +50,7 @@ export function ProductHoverCard({
         align={align}
         sideOffset={sideOffset}
         collisionPadding={50}
-        avoidCollisions={false}
+        avoidCollisions={avoidCollisions}
         style={{ marginLeft: alignOffset ? `${alignOffset}px` : '0px' }}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
@@ -68,7 +76,7 @@ export function ProductHoverCard({
           <ProductPreviewContent
             id={id}
             slug={toSlug(name)}
-            isAdmin={isAdmin}
+            isAdmin={isAdminUser}
           />
         </div>
       </HoverCardContent>

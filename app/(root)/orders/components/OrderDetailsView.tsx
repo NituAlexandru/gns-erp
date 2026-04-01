@@ -58,6 +58,7 @@ import {
 } from '@/components/ui/select'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import { ProductHoverCard } from '../../catalog-produse/details/product-hover-card'
 
 interface OrderDetailsViewProps {
   order: PopulatedOrder
@@ -429,8 +430,37 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                 <TableBody>
                   {order.lineItems.map((item) => (
                     <TableRow key={item._id}>
-                      <TableCell className='font-medium'>
-                        {item.productName}
+                      <TableCell className='py-1 max-w-[200px]'>
+                        {item.productId ? (
+                          <ProductHoverCard
+                            id={
+                              typeof item.productId === 'string'
+                                ? item.productId
+                                : item.productId._id?.toString() || ''
+                            }
+                            name={item.productName}
+                            productCode={item.productCode}
+                            sideOffset={10}
+                            side='top'
+                            align='start'
+                            alignOffset={50}
+                            avoidCollisions={true}
+                          >
+                            <span
+                              className='font-medium truncate block cursor-pointer hover:underline hover:text-primary transition-colors'
+                              title={item.productName}
+                            >
+                              {item.productName}
+                            </span>
+                          </ProductHoverCard>
+                        ) : (
+                          <span
+                            className='font-medium truncate block'
+                            title={item.productName}
+                          >
+                            {item.productName}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className='text-right'>
                         {item.quantity.toFixed(2)}

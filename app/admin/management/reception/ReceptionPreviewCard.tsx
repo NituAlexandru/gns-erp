@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import type { PopulatedReception } from '@/lib/db/modules/reception/types'
 import { LOCATION_NAMES_MAP } from '@/lib/db/modules/inventory/constants'
+import { ProductHoverCard } from '@/app/(root)/catalog-produse/details/product-hover-card'
 
 // --- HELPER FORMAT MONETAR ---
 const formatMoney = (amount: number | undefined | null, currency = 'RON') => {
@@ -250,14 +251,41 @@ export function ReceptionPreviewCard({
                     className={`${gridClass} py-2 border-b border-muted/50 hover:bg-muted/30 transition-colors`}
                   >
                     <div className='text-muted-foreground'>{i + 1}</div>
-                    <div className='font-medium min-w-0'>
-                      <div className='truncate' title={p.productName}>
-                        {p.productName}
-                      </div>
+                    <div className='font-medium min-w-0 flex flex-col'>
+                      {/* 1. Folosim p.product în loc de p.productId */}
+                      {p.product ? (
+                        <ProductHoverCard
+                          id={
+                            typeof p.product === 'string'
+                              ? p.product
+                              : p.product._id?.toString() || ''
+                          }
+                          // 2. Adăugăm fallback pentru cazul în care productName e undefined
+                          name={p.productName || 'Produs fără denumire'}
+                          productCode={p.productCode}
+                          sideOffset={10}
+                          side='top'
+                          align='start'
+                          alignOffset={50}
+                          avoidCollisions={true}
+                        >
+                          <span
+                            className='truncate cursor-pointer hover:underline hover:text-primary transition-colors block'
+                            title={p.productName}
+                          >
+                            {p.productName || 'Produs fără denumire'}
+                          </span>
+                        </ProductHoverCard>
+                      ) : (
+                        <span className='truncate block' title={p.productName}>
+                          {p.productName || 'Produs fără denumire'}
+                        </span>
+                      )}
+
                       {p.productCode && (
-                        <div className='text-[10px] text-muted-foreground truncate'>
+                        <span className='text-[10px] text-muted-foreground truncate'>
                           Cod: {p.productCode}
-                        </div>
+                        </span>
                       )}
                     </div>
 

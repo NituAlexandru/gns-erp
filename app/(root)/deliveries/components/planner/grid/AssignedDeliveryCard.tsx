@@ -5,18 +5,12 @@ import {
   IDeliveryLineItem,
 } from '@/lib/db/modules/deliveries/delivery.model'
 import { DELIVERY_STATUS_MAP } from '@/lib/db/modules/deliveries/constants'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
-import { cn } from '@/lib/utils'
+import { cn, formatCurrency } from '@/lib/utils'
 import {
   AlertTriangle,
   Box,
   CheckCircle2,
   DollarSign,
-  Download,
   Eye,
   FilePenLine,
   FileText,
@@ -54,6 +48,12 @@ import {
   ABLY_EVENTS,
 } from '@/lib/db/modules/ably/constants'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import { ProductHoverCard } from '@/app/(root)/catalog-produse/details/product-hover-card'
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card'
 
 type DeliveryCardInfo = {
   delivery: IDelivery
@@ -283,8 +283,8 @@ export function AssignedDeliveryCard({
   }
 
   return (
-    <Tooltip delayDuration={500}>
-      <TooltipTrigger asChild>
+    <HoverCard openDelay={500} closeDelay={250}>
+      <HoverCardTrigger asChild>
         <button
           className={cn(
             'w-full h-full p-1 py-0 cursor-pointer text-left rounded-md bg-card shadow-md hover:shadow-lg transition-all',
@@ -321,9 +321,12 @@ export function AssignedDeliveryCard({
             )}
           </div>
         </button>
-      </TooltipTrigger>
+      </HoverCardTrigger>
 
-      <TooltipContent className='max-w-3xl p-4' side='right'>
+      <HoverCardContent
+        className='max-w-3xl lg:min-w-[700px] p-4 z-50 shadow-xl'
+        side='right'
+      >
         <div className='space-y-4 text-base'>
           <div className='flex justify-between items-center gap-2'>
             <div className='space-y-1'>
@@ -403,30 +406,62 @@ export function AssignedDeliveryCard({
                   !item.productCode ||
                   item.productCode === 'N/A'
 
-                return (
-                  <li
-                    key={item._id.toString()}
-                    className={isManual ? 'text-red-500 font-medium' : ''}
-                  >
+                // Construim conținutul rândului o singură dată ca să nu-l duplicăm
+                const itemContent = (
+                  <>
                     {isManual ? (
                       <Badge
                         variant='destructive'
-                        className=' h-4 px-1.5 text-[9px] uppercase align-middle leading-none'
+                        className='h-4 px-1.5 text-[9px] uppercase align-middle leading-none'
                       >
                         Rând manual
                       </Badge>
                     ) : (
                       <Badge
                         variant='secondary'
-                        className=' h-4 px-1.5 text-xs font-mono align-middle leading-none'
+                        className='h-4 px-1.5 text-xs font-mono align-middle leading-none'
                       >
                         Cod: {item.productCode}
                       </Badge>
                     )}
-                    -{' '}
+                    {' - '}
                     <span className='align-middle'>
-                      {item.quantity} {item.unitOfMeasure} - {item.productName}
+                      <span className='text-primary'>
+                        {item.quantity} {item.unitOfMeasure} -{' '}
+                        {formatCurrency(item.priceAtTimeOfOrder)} -{' '}
+                      </span>
+                      {item.productName}
                     </span>
+                  </>
+                )
+
+                return (
+                  <li
+                    key={item._id.toString()}
+                    className={isManual ? 'text-red-500 font-medium' : ''}
+                  >
+                    {item.productId && !isManual ? (
+                      <ProductHoverCard
+                        id={
+                          typeof item.productId === 'string'
+                            ? item.productId
+                            : item.productId.toString()
+                        }
+                        name={item.productName || 'Produs necunoscut'}
+                        productCode={item.productCode}
+                        sideOffset={-250}
+                        side='left'
+                        align='start'
+                        alignOffset={-100}
+                        avoidCollisions={true}
+                      >
+                        <span className='cursor-pointer hover:underline hover:text-primary transition-colors'>
+                          {itemContent}
+                        </span>
+                      </ProductHoverCard>
+                    ) : (
+                      <span>{itemContent}</span>
+                    )}
                   </li>
                 )
               })}
@@ -664,7 +699,7 @@ export function AssignedDeliveryCard({
               )}
           </div>
         </div>
-      </TooltipContent>
+      </HoverCardContent>
 
       {/* --- NOU: Legătura cu Modalul de Anulare --- */}
       {showCancelModal && (
@@ -764,6 +799,6 @@ export function AssignedDeliveryCard({
         data={printData}
         isLoading={false}
       />
-    </Tooltip>
+    </HoverCard>
   )
 }

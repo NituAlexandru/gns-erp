@@ -140,7 +140,6 @@ export function InvoiceItemsTable({
                         id={item.productId.toString()}
                         name={item.productName}
                         productCode={item.productCode}
-                        isAdmin={isAdmin}
                         sideOffset={1}
                         side='top'
                         align='center'

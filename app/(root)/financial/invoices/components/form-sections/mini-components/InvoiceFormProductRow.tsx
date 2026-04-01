@@ -119,7 +119,6 @@ export function InvoiceFormProductRow({
             id={itemData.productId.toString()}
             name={productName}
             productCode={productCode}
-            isAdmin={isAdmin}
             sideOffset={10}
             side='top'
             align='start'

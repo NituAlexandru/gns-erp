@@ -32,6 +32,7 @@ import { DELIVERY_STATUS_MAP } from '@/lib/db/modules/deliveries/constants'
 import { format } from 'date-fns'
 import { toast } from 'sonner' // Pentru erori la print
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import { ProductHoverCard } from '@/app/(root)/catalog-produse/details/product-hover-card'
 
 interface DeliveryPreviewProps {
   delivery: IDelivery
@@ -200,8 +201,37 @@ export function DeliveryPreview({ delivery }: DeliveryPreviewProps) {
                   <TableBody>
                     {delivery.items.map((item: IDeliveryLineItem) => (
                       <TableRow key={item._id.toString()} className='text-xs '>
-                        <TableCell className='py-1.5 font-medium '>
-                          {item.productName}
+                        <TableCell className='py-1 max-w-[200px]'>
+                          {item.productId ? (
+                            <ProductHoverCard
+                              id={
+                                typeof item.productId === 'string'
+                                  ? item.productId
+                                  : item.productId._id?.toString() || ''
+                              }
+                              name={item.productName}
+                              productCode={item.productCode}
+                              sideOffset={10}
+                              side='top'
+                              align='start'
+                              alignOffset={50}
+                              avoidCollisions={true}
+                            >
+                              <span
+                                className='font-medium truncate block cursor-pointer hover:underline hover:text-primary transition-colors'
+                                title={item.productName}
+                              >
+                                {item.productName}
+                              </span>
+                            </ProductHoverCard>
+                          ) : (
+                            <span
+                              className='font-medium truncate block'
+                              title={item.productName}
+                            >
+                              {item.productName}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className='py-1.5 text-right whitespace-nowrap  font-mono'>
                           {item.quantity} {item.unitOfMeasure}

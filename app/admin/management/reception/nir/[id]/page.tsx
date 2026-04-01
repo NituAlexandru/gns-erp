@@ -41,6 +41,7 @@ import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { toast } from 'sonner'
 import { NirDTO } from '@/lib/db/modules/financial/nir/nir.types'
+import { ProductHoverCard } from '@/app/(root)/catalog-produse/details/product-hover-card'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -437,7 +438,37 @@ export default function NirPage({ params }: Props) {
                   {/* Denumire + Cod + Tip */}
                   <TableCell className='py-0.5'>
                     <div className='flex flex-col'>
-                      <span className='font-medium'>{item.productName}</span>
+                      {item.productId ? (
+                        <ProductHoverCard
+                          id={
+                            typeof item.productId === 'string'
+                              ? item.productId
+                              : item.productId._id?.toString() || ''
+                          }
+                          name={item.productName}
+                          productCode={item.productCode}
+                          sideOffset={10}
+                          side='top'
+                          align='start'
+                          alignOffset={50}
+                          avoidCollisions={true} // Face flip dacă nu are loc
+                        >
+                          <span
+                            className='font-medium truncate max-w-[250px] block cursor-pointer hover:underline hover:text-primary transition-colors'
+                            title={item.productName}
+                          >
+                            {item.productName}
+                          </span>
+                        </ProductHoverCard>
+                      ) : (
+                        <span
+                          className='font-medium truncate max-w-[250px] block'
+                          title={item.productName}
+                        >
+                          {item.productName}
+                        </span>
+                      )}
+
                       <div className='flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground'>
                         <span>Cod: {item.productCode}</span>
                         <span>|</span>

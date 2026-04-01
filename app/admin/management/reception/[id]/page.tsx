@@ -79,12 +79,12 @@ export default async function ReceptionDetailPage({ params }: Props) {
   const totalProducts = products.length + packages.length
   const totalTransportCost = deliveries.reduce(
     (acc, d) => acc + (d.transportCost || 0),
-    0
+    0,
   )
   const totalTransportVat = deliveries.reduce(
     (acc, d) =>
       acc + (d.transportCost || 0) * ((d.transportVatRate || 0) / 100),
-    0
+    0,
   )
   const calculateTotals = (items: any[]) => {
     return items.reduce(
@@ -93,7 +93,7 @@ export default async function ReceptionDetailPage({ params }: Props) {
         const vat = net * ((item.vatRate || 0) / 100)
         return { net: acc.net + net, vat: acc.vat + vat }
       },
-      { net: 0, vat: 0 }
+      { net: 0, vat: 0 },
     )
   }
   const prodTotals = calculateTotals(products)
@@ -247,7 +247,7 @@ export default async function ReceptionDetailPage({ params }: Props) {
                         <span>
                           {formatMoney(
                             (del.transportCost || 0) *
-                              ((del.transportVatRate || 0) / 100)
+                              ((del.transportVatRate || 0) / 100),
                           )}
                         </span>
                       </div>
@@ -257,7 +257,7 @@ export default async function ReceptionDetailPage({ params }: Props) {
                           {formatMoney(
                             (del.transportCost || 0) +
                               (del.transportCost || 0) *
-                                ((del.transportVatRate || 0) / 100)
+                                ((del.transportVatRate || 0) / 100),
                           )}
                         </span>
                       </div>
@@ -410,14 +410,14 @@ export default async function ReceptionDetailPage({ params }: Props) {
                   </TableCell>
                   <TableCell className='text-right font-mono'>
                     {formatMoney(
-                      (p.quantity || 0) * (p.invoicePricePerUnit || 0)
+                      (p.quantity || 0) * (p.invoicePricePerUnit || 0),
                     )}
                   </TableCell>
                   <TableCell className='text-right font-mono text-muted-foreground'>
                     {formatMoney(
                       (p.quantity || 0) *
                         (p.invoicePricePerUnit || 0) *
-                        ((p.vatRate || 0) / 100)
+                        ((p.vatRate || 0) / 100),
                     )}
                   </TableCell>
                 </TableRow>
@@ -467,14 +467,14 @@ export default async function ReceptionDetailPage({ params }: Props) {
                   </TableCell>
                   <TableCell className='text-right font-mono'>
                     {formatMoney(
-                      (p.quantity || 0) * (p.invoicePricePerUnit || 0)
+                      (p.quantity || 0) * (p.invoicePricePerUnit || 0),
                     )}
                   </TableCell>
                   <TableCell className='text-right font-mono text-muted-foreground'>
                     {formatMoney(
                       (p.quantity || 0) *
                         (p.invoicePricePerUnit || 0) *
-                        ((p.vatRate || 0) / 100)
+                        ((p.vatRate || 0) / 100),
                     )}
                   </TableCell>
                 </TableRow>
