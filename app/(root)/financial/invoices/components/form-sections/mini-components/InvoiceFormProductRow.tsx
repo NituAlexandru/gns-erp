@@ -13,6 +13,7 @@ import {
 import { LineProfitDisplay } from './LineProfitDisplay'
 import { Button } from '@/components/ui/button'
 import { Trash2 } from 'lucide-react'
+import { ProductHoverCard } from '@/app/(root)/catalog-produse/details/product-hover-card'
 
 interface InvoiceFormProductRowProps {
   index: number
@@ -113,7 +114,24 @@ export function InvoiceFormProductRow({
       </TableCell>
       {/* 2. Produs (Nume) */}
       <TableCell className='font-medium w-full'>
-        <p>{productName}</p>
+        {itemData.productId ? (
+          <ProductHoverCard
+            id={itemData.productId.toString()}
+            name={productName}
+            productCode={productCode}
+            isAdmin={isAdmin}
+            sideOffset={10}
+            side='top'
+            align='start'
+            alignOffset={50}
+          >
+            <p className='cursor-pointer hover:underline hover:text-primary transition-colors'>
+              {productName}
+            </p>
+          </ProductHoverCard>
+        ) : (
+          <p>{productName}</p>
+        )}
         <p className='text-xs text-muted-foreground'>{productCode}</p>
         {!isStornoRow && (
           <LineProfitDisplay

@@ -367,11 +367,11 @@ export function NirPreview({ nir }: NirPreviewProps) {
                               id={item.productId.toString()}
                               name={item.productName}
                               productCode={item.productCode}
-                              isAdmin={false}
+                              isAdmin={false} // NIR-ul momentan nu primește isAdmin, punem false implicit
                               sideOffset={10}
                               side='top'
                               align='start'
-                              alignOffset={50}
+                              alignOffset={50} // La fel ca la celelalte
                             >
                               <span className='font-medium truncate max-w-[250px] block cursor-pointer hover:underline hover:text-primary transition-colors'>
                                 {item.productName}
