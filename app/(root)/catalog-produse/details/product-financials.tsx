@@ -31,9 +31,6 @@ export default function ProductFinancials({
         >
           {title}
         </CardTitle>
-        <p className='text-xs font-semibold text-primary'>
-          (prețurile NU conțin TVA)
-        </p>
       </CardHeader>
       <CardContent
         className={cn(
@@ -78,10 +75,13 @@ export default function ProductFinancials({
 
   return (
     <div className='space-y-1'>
-      <div className='flex items-center justify-between'>
+      <div className='flex items-center gap-3'>
         <h3 className='text-lg font-bold flex items-center gap-2'>
           Prețuri Vânzare
         </h3>
+        <p className='text-sm font-semibold text-primary'>
+          (prețurile NU conțin TVA)
+        </p>
       </div>
 
       <div
