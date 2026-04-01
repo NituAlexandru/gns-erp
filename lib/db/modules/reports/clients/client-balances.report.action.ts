@@ -13,6 +13,8 @@ import {
 } from '@/lib/db/modules/financial/treasury/receivables/client-payment.constants'
 import { toZonedTime } from 'date-fns-tz'
 import { TIMEZONE } from '@/lib/constants'
+import { getNextBusinessDay, isBusinessDay } from '@/lib/deliveryDates'
+import { addDays, startOfDay } from 'date-fns'
 
 // Helper pentru a formata data frumos
 const formatDate = (dateString: Date | string) => {
@@ -88,12 +90,14 @@ export async function generateClientBalancesReport(
           : '',
       col5:
         client.compensationsCount > 0
-          ? `(${client.compensationsCount} compensăr${client.compensationsCount === 1 ? 'e' : 'i'})`
+          ? `(${client.compensationsCount} compensar${client.compensationsCount === 1 ? 'e' : 'i'})`
           : '',
       col6: client.totalBalance,
       col8:
         client.totalPenalties > 0
-          ? `${formatCurrency(client.totalPenalties)}`
+          ? client.totalPenalties < 100
+            ? `${formatCurrency(client.totalPenalties)} (Așteaptă total min. 100,00 Lei)`
+            : `${formatCurrency(client.totalPenalties)}`
           : '',
     })
 
@@ -213,19 +217,49 @@ export async function generateClientBalancesReport(
           item.penaltyAmount > 0 &&
           item.nextBillingDate
         ) {
-          const nextDate = new Date(item.nextBillingDate)
-          const now = new Date()
-
-          if (nextDate <= now) {
-            // Forțăm ora României
-            const romaniaTime = toZonedTime(now, TIMEZONE)
-            const currentHour = romaniaTime.getHours()
-            const isPastCron = currentHour >= 18
-
-            nextBillingStr = isPastCron ? 'Mâine, ora 18:00' : 'Azi, ora 18:00'
-            isNextBillingUrgent = true
+          if (client.totalPenalties < 100) {
+            // CAZUL 1: Sub prag auto
+            nextBillingStr = 'Sub prag auto'
+            // Nu îl facem "urgent" (roșu) ca să nu panicheze utilizatorul
           } else {
-            nextBillingStr = formatDate(item.nextBillingDate)
+            // CAZUL 2: Peste prag, calculăm ziua de execuție
+            const nextDate = new Date(item.nextBillingDate)
+            const now = new Date()
+
+            if (nextDate <= now) {
+              const romaniaTime = toZonedTime(now, TIMEZONE)
+              const currentHour = romaniaTime.getHours()
+
+              const runsToday = isBusinessDay(now) && currentHour < 18
+
+              if (runsToday) {
+                nextBillingStr = 'Azi, ora 18:00'
+                isNextBillingUrgent = true
+              } else {
+                const nextRunDate = getNextBusinessDay(addDays(now, 1))
+                const tomorrow = startOfDay(addDays(now, 1))
+
+                if (startOfDay(nextRunDate).getTime() === tomorrow.getTime()) {
+                  nextBillingStr = 'Mâine, ora 18:00'
+                  isNextBillingUrgent = true
+                } else {
+                  const dayNames = [
+                    'Duminică',
+                    'Luni',
+                    'Marți',
+                    'Miercuri',
+                    'Joi',
+                    'Vineri',
+                    'Sâmbătă',
+                  ]
+                  const dayName = dayNames[nextRunDate.getDay()]
+                  nextBillingStr = `${dayName}, ora 18:00`
+                  isNextBillingUrgent = true
+                }
+              }
+            } else {
+              nextBillingStr = formatDate(item.nextBillingDate)
+            }
           }
         }
 

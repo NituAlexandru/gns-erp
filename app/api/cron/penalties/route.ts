@@ -88,6 +88,17 @@ export async function GET(request: Request) {
     let errorCount = 0
 
     for (const [clientId, invoices] of clientGroups.entries()) {
+      const totalPenaltyForClient = invoices.reduce(
+        (sum, inv) => sum + inv.penaltyAmount,
+        0,
+      )
+      if (totalPenaltyForClient < 100) {
+        console.log(
+          `[CRON] Skip client ${clientId}: Suma totală (${totalPenaltyForClient} RON) este sub pragul minim de 100 RON.`,
+        )
+        continue 
+      }
+
       try {
         const payload = invoices.map((i) => ({
           invoiceId: i.invoiceId,

@@ -189,9 +189,17 @@ export function PenaltyBillingModal({
             <span className='text-sm text-muted-foreground'>
               Total de facturat:
             </span>
-            <span className='text-xl font-bold text-red-600 font-mono'>
-              {formatCurrency(totalToBill)}
-            </span>
+            <div className='flex items-center gap-3'>
+              <span className='text-xl font-bold text-red-600 font-mono'>
+                {formatCurrency(totalToBill)}
+              </span>
+              {/* Mesaj de avertizare, dar fără să oprim utilizatorul */}
+              {totalToBill > 0 && totalToBill < 100 && (
+                <span className='text-sm font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-200'>
+                  Atenție: Suma este sub pragul de (100,00 RON)
+                </span>
+              )}
+            </div>
           </div>
           <div className='flex gap-2'>
             <Button variant='outline' onClick={onClose} disabled={isPending}>
@@ -199,6 +207,7 @@ export function PenaltyBillingModal({
             </Button>
             <Button
               onClick={handleGenerateInvoice}
+              // AM MODIFICAT AICI: Am scos < 100 și am lăsat doar <= 0
               disabled={isPending || selectedIds.size === 0 || totalToBill <= 0}
               variant='default'
             >

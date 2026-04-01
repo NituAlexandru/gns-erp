@@ -214,9 +214,19 @@ export function ClientBalancesList({
                         <span className='text-[10px] uppercase text-muted-foreground font-bold'>
                           Penalități Totale
                         </span>
-                        <span className='font-mono font-bold text-red-600 text-sm'>
-                          {formatCurrency(client.totalPenalties)}
-                        </span>
+                        <div className='flex items-center gap-2'>
+                          {client.totalPenalties < 100 && (
+                            <span
+                              className='text-xs px-1.5 py-0 rounded bg-orange-100 text-orange-700 font-bold whitespace-nowrap cursor-help'
+                              title='Facturarea automată se va declanșa doar când suma atinge minim 100,00 RON'
+                            >
+                              Așteaptă suma totala de min. 100,00 RON
+                            </span>
+                          )}
+                          <span className='font-mono font-bold text-red-600 text-sm'>
+                            {formatCurrency(client.totalPenalties)}
+                          </span>
+                        </div>
                       </div>{' '}
                       {isAdmin && (
                         <Button
@@ -579,6 +589,18 @@ export function ClientBalancesList({
                                   !item.nextBillingDate
                                 ) {
                                   return ''
+                                }
+
+                                // CAZUL 2.5: Totalul clientului e sub 100 RON (Se suspendă facturarea automată)
+                                if (client.totalPenalties < 100) {
+                                  return (
+                                    <span
+                                      className='text-[10px] text-muted-foreground italic cursor-help border-b border-dashed border-muted-foreground/50 pb-0.5'
+                                      title='Suma totală pe client este sub pragul minim pentru facturarea automata de 100 RON'
+                                    >
+                                      Total sub 100,00 RON
+                                    </span>
+                                  )
                                 }
 
                                 // CAZUL 3: Afișăm când urmează următoarea factură
