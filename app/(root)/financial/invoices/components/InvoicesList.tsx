@@ -159,25 +159,38 @@ export function InvoicesList({
   }
 
   const handleUploadToAnaf = async (invoice: PopulatedInvoice) => {
-    if (actionLoadingId) return // Previne dublu-click
-    setActionLoadingId(invoice._id.toString())
+    const invoiceId = invoice._id.toString()
+
+    // 1. Verificăm strict dacă ACEASTĂ factură e deja în procesare
+    if (actionLoadingId === invoiceId) {
+      console.warn('Upload deja inițiat pentru această factură.')
+      return
+    }
+
+    // 2. Setăm imediat starea de loading
+    setActionLoadingId(invoiceId)
 
     try {
-      const result = await uploadInvoiceToAnaf(invoice._id.toString())
+      const result = await uploadInvoiceToAnaf(invoiceId)
 
       if (result.success) {
         toast.success('Trimisă la ANAF!', { description: result.message })
-        router.refresh()
       } else {
         toast.error('Eroare ANAF', { description: result.message })
-        router.refresh()
       }
+
+      // 3. Forțăm refresh-ul UI-ului
+      startTransition(() => {
+        router.refresh()
+      })
     } catch (err) {
       toast.error('Eroare de comunicare', { description: String(err) })
     } finally {
+      // 4. Eliberăm butonul doar la final
       setActionLoadingId(null)
     }
   }
+
   // --- HANDLER 2: DOWNLOAD ZIP ---
   const handleDownloadZip = async (invoice: PopulatedInvoice) => {
     if (actionLoadingId) return
@@ -521,17 +534,21 @@ export function InvoicesList({
                               variant='outline'
                               size='icon'
                               className='h-7 w-7'
-                              // MODIFICAT: Tooltip simplu de acțiune, FĂRĂ EROARE
                               title='Trimite factura în SPV'
                               disabled={
                                 actionLoadingId === invoice._id.toString() ||
+                                isPending ||
                                 !(
                                   invoice.status === 'APPROVED' ||
                                   invoice.status === 'PAID' ||
                                   invoice.status === 'PARTIAL_PAID'
                                 )
                               }
-                              onClick={() => handleUploadToAnaf(invoice)}
+                              onClick={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                handleUploadToAnaf(invoice)
+                              }}
                             >
                               {actionLoadingId === invoice._id.toString() ? (
                                 <Loader2 className='h-3 w-3 animate-spin' />
