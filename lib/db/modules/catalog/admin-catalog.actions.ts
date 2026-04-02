@@ -227,7 +227,12 @@ export async function getAdminCatalogPage({
           },
         ]
       : []),
-    { $sort: { name: 1 } },
+    {
+      $addFields: {
+        hasStockFlag: { $cond: [{ $gt: ['$totalStock', 0] }, 1, 0] },
+      },
+    },
+    { $sort: { hasStockFlag: -1, name: 1 } },
     {
       $facet: {
         metadata: [{ $count: 'total' }],

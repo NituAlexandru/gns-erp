@@ -554,9 +554,18 @@ export async function searchStockableItems(
       ]),
     ])
 
-    const combinedResults = [...products, ...packagings].sort(
-      (a, b) => (b.totalStock || 0) - (a.totalStock || 0),
-    )
+    const combinedResults = [...products, ...packagings].sort((a, b) => {
+      // 1. Verificăm dacă produsele au stoc pozitiv
+      const aInStock = (a.totalStock || 0) > 0
+      const bInStock = (b.totalStock || 0) > 0
+
+      // 2. Punem produsele cu stoc mai sus în listă
+      if (aInStock && !bInStock) return -1
+      if (!aInStock && bInStock) return 1
+
+      // 3. Dacă ambele au stoc (sau ambele nu au), le sortăm pur alfabetic
+      return a.name.localeCompare(b.name, 'ro', { sensitivity: 'base' })
+    })
 
     return combinedResults.map((r) => ({
       ...r,

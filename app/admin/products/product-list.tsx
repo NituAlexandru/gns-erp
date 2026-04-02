@@ -378,9 +378,9 @@ export default function AdminProductsList({
   return (
     <div className='flex flex-col h-[calc(100vh-6rem)] w-full p-0'>
       {/* HEADER */}
-      <div className='grid grid-cols-1 gap-4 lg:grid-cols-5 items-center shrink-0 mb-2'>
+      <div className='grid grid-cols-1 gap-4 lg:grid-cols-6 items-center shrink-0 mb-2'>
         <h1 className='text-xs lg:text-2xl font-bold'>Marja profit</h1>
-        <div className='lg:col-span-3 flex flex-wrap items-center justify-center gap-2'>
+        <div className='lg:col-span-4 flex flex-wrap items-center justify-center gap-2'>
           {/* 2. Select Categorie */}
           <Select
             value={selectedMainCat || 'ALL'}

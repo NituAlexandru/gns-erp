@@ -45,7 +45,13 @@ export function ProductLineItemRow({
   itemData,
   isAdmin,
 }: ProductLineItemRowProps) {
-  const { control, setValue, getValues } = useFormContext()
+  const {
+    control,
+    setValue,
+    getValues,
+    formState: { errors },
+  } = useFormContext()
+  const quantityError = (errors?.lineItems as any)?.[index]?.quantity
   const [isUmConfirmed, setIsUmConfirmed] = useState(false)
 
   // 1. EXTRAGEM DATELE PRIMA DATĂ (Ca să fie disponibile pentru funcții)
@@ -287,25 +293,32 @@ export function ProductLineItemRow({
             control={control}
             defaultValue={1}
             render={({ field }) => (
-              <>
-                <Input
-                  {...field}
-                  type='number'
-                  disabled={!isUmConfirmed}
-                  onChange={(e) =>
-                    field.onChange(parseFloat(e.target.value) || 0)
-                  }
-                  onBlur={(e) => {
-                    const val = parseFloat(e.target.value)
-                    if (!isNaN(val)) field.onChange(val.toFixed(2))
-                  }}
-                  className={`min-w-[100px] ${!isUmConfirmed ? 'cursor-not-allowed bg-muted text-muted-foreground' : ''}`}
-                />
+              <div className='flex flex-col gap-1 w-full'>
+                <div className='relative w-full'>
+                  <Input
+                    {...field}
+                    type='number'
+                    disabled={!isUmConfirmed}
+                    onChange={(e) =>
+                      field.onChange(parseFloat(e.target.value) || 0)
+                    }
+                    onBlur={(e) => {
+                      const val = parseFloat(e.target.value)
+                      if (!isNaN(val)) field.onChange(val.toFixed(2))
+                    }}
+                    className={`min-w-[100px] ${!isUmConfirmed ? 'cursor-not-allowed bg-muted text-muted-foreground' : ''} ${quantityError ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+                  />
 
-                {!isUmConfirmed && (
-                  <LockKeyhole className='absolute right-2 top-2.5 h-4 w-4 text-destructive opacity-70' />
+                  {!isUmConfirmed && (
+                    <LockKeyhole className='absolute right-2 top-2.5 h-4 w-4 text-destructive opacity-70' />
+                  )}
+                </div>
+                {quantityError && (
+                  <span className='text-[10px] text-red-500 font-medium leading-tight'>
+                    {quantityError.message}
+                  </span>
                 )}
-              </>
+              </div>
             )}
           />
         </div>

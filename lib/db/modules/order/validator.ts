@@ -11,8 +11,11 @@ export const OrderLineItemInputSchema = z.object({
   productCode: z.string().optional(),
   productBarcode: z.string().optional(),
   quantity: z.coerce
-    .number({ required_error: 'Cantitatea este obligatorie.' })
-    .positive(),
+    .number({
+      required_error: 'Cantitatea este obligatorie.',
+      invalid_type_error: 'Cantitatea trebuie să fie un număr valid.',
+    })
+    .positive('Adauga cantitatea.'),
   unitOfMeasure: z
     .string({
       required_error: 'Unitatea de măsură este obligatorie.',

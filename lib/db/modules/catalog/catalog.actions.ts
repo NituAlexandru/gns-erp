@@ -260,7 +260,12 @@ export async function getCatalogPage({
         },
       },
     },
-    { $sort: { createdAt: -1 } },
+    {
+      $addFields: {
+        hasStock: { $cond: [{ $gt: ['$totalStock', 0] }, 1, 0] },
+      },
+    },
+    { $sort: { hasStock: -1, name: 1, createdAt: -1 } },
     {
       $facet: {
         metadata: [{ $count: 'total' }],

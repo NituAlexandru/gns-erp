@@ -29,7 +29,12 @@ export function ServiceLineItemRow({
   itemData,
   isAdmin,
 }: ServiceLineItemRowProps) {
-  const { control, setValue } = useFormContext()
+  const {
+    control,
+    setValue,
+    formState: { errors },
+  } = useFormContext()
+  const quantityError = (errors?.lineItems as any)?.[index]?.quantity
 
   const {
     priceAtTimeOfOrder = 0,
@@ -71,20 +76,27 @@ export function ServiceLineItemRow({
           control={control}
           defaultValue={1}
           render={({ field }) => (
-            <Input
-              {...field}
-              type='number'
-              onChange={(e) => {
-                field.onChange(parseFloat(e.target.value) || 0)
-              }}
-              onBlur={(e) => {
-                const numValue = parseFloat(e.target.value)
-                if (!isNaN(numValue)) {
-                  field.onChange(numValue.toFixed(2))
-                }
-              }}
-              className='min-w-[100px]'
-            />
+            <div className='flex flex-col gap-1'>
+              <Input
+                {...field}
+                type='number'
+                onChange={(e) => {
+                  field.onChange(parseFloat(e.target.value) || 0)
+                }}
+                onBlur={(e) => {
+                  const numValue = parseFloat(e.target.value)
+                  if (!isNaN(numValue)) {
+                    field.onChange(numValue.toFixed(2))
+                  }
+                }}
+                className={`min-w-[100px] ${quantityError ? 'border-red-500 ring-1 ring-red-500' : ''}`}
+              />
+              {quantityError && (
+                <span className='text-[10px] text-red-500 font-medium leading-tight'>
+                  {quantityError.message}
+                </span>
+              )}
+            </div>
           )}
         />
       </TableCell>

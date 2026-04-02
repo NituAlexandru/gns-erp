@@ -259,7 +259,7 @@ export function OrderItemsManager({
         isManualEntry: false,
         productName: fullData.name,
         productCode: fullData.productCode,
-        quantity: 1,
+        quantity: '' as unknown as number,
         priceAtTimeOfOrder: minPrice,
         cost: 0,
         minimumSalePrice: minPrice,
@@ -322,7 +322,7 @@ export function OrderItemsManager({
       isManualEntry: false,
       productName: service.name,
       productCode: service.code,
-      quantity: 1,
+      quantity: '' as unknown as number,
       unitOfMeasure: service.unitOfMeasure,
       unitOfMeasureCode: getEFacturaUomCode(service.unitOfMeasure),
       priceAtTimeOfOrder: service.price,
@@ -353,7 +353,7 @@ export function OrderItemsManager({
       isManualEntry: true,
       productName: '',
       productCode: '',
-      quantity: 1,
+      quantity: '' as unknown as number,
       unitOfMeasure: 'bucata',
       unitOfMeasureCode: 'H87',
       priceAtTimeOfOrder: 0,
@@ -391,14 +391,17 @@ export function OrderItemsManager({
               {isAddingItem ? 'Se adaugă...' : 'Adaugă Articol'}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className='w-[750px] p-0' align='start'>
+          <PopoverContent
+            className='w-[500px] md:w-[650px] lg:w-[800px] p-0'
+            align='start'
+          >
             <Command className='bg-white dark:bg-muted'>
               <CommandInput
                 placeholder='Caută produs...'
                 value={itemSearchTerm}
                 onValueChange={setItemSearchTerm}
               />
-              <CommandList className='max-h-[450px] overflow-y-auto'>
+              <CommandList className='max-h-[500px] overflow-y-auto'>
                 {isLoadingItems && (
                   <div className='p-2 text-sm'>Se caută...</div>
                 )}
@@ -413,7 +416,7 @@ export function OrderItemsManager({
                       key={item._id}
                       value={`${item.name} ${item.productCode}`}
                       onSelect={() => handleSelectItem(item)}
-                      className='p-2'
+                      className='p-2 cursor-pointer'
                     >
                       <SearchResultItem item={item} isAdmin={isAdmin} />
                     </CommandItem>
