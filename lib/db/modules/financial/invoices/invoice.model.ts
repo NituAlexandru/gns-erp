@@ -367,6 +367,12 @@ InvoiceSchema.index(
   { unique: true },
 )
 
+// 1. Indexul "Sniper" pentru agregarea principală (Filtrează instant facturile istorice plătite)
+InvoiceSchema.index({ remainingAmount: 1, status: 1, invoiceType: 1 })
+
+// 2. Index pentru căutările rapide pe un singur client care are restanțe
+InvoiceSchema.index({ clientId: 1, remainingAmount: 1 })
+
 const InvoiceModel: Model<IInvoiceDoc> =
   (models.Invoice as Model<IInvoiceDoc>) ||
   model<IInvoiceDoc>('Invoice', InvoiceSchema)

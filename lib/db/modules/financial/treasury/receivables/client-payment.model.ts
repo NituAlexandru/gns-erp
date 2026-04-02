@@ -91,6 +91,12 @@ ClientPaymentSchema.pre('save', function (this: IClientPaymentDoc, next) {
   next()
 })
 
+// 1. Index pentru filtrarea ultra-rapidă a plăților care mai au bani disponibili
+ClientPaymentSchema.index({ status: 1, unallocatedAmount: 1 })
+
+// 2. Index pentru căutări rapide pe un anumit client (pentru viitor)
+ClientPaymentSchema.index({ clientId: 1, unallocatedAmount: 1 })
+
 const ClientPaymentModel =
   (models.ClientPayment as Model<IClientPaymentDoc>) ||
   mongoose.model<IClientPaymentDoc>('ClientPayment', ClientPaymentSchema)
