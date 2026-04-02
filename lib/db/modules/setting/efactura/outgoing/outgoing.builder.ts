@@ -201,8 +201,16 @@ export const buildAnafXml = ({
         '@_currencyID': invoice.companySnapshot.currency,
       },
       'cac:Item': {
-        ...(finalDescription ? { 'cbc:Description': finalDescription } : {}),
-        'cbc:Name': item.productName,
+        // Dacă descrierea e goală și produsul e trunchiat, punem numele complet în Description ca să nu pierdem informația la client
+        ...(finalDescription || item.productName.length > 99
+          ? { 'cbc:Description': finalDescription || item.productName }
+          : {}),
+
+        // Trunchiem numele la 99 caractere (lăsăm 1 caracter siguranță)
+        'cbc:Name':
+          item.productName.length > 99
+            ? item.productName.substring(0, 96) + '...'
+            : item.productName,
 
         ...(item.productCode
           ? {
