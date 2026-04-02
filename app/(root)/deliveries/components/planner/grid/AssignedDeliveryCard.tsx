@@ -387,11 +387,6 @@ export function AssignedDeliveryCard({
           </div>
 
           <div className='border-t pt-3 mt-3 space-y-2 text-sm text-muted-foreground'>
-            {delivery.deliveryNotes && (
-              <p>
-                <strong>Note Logistică:</strong> {delivery.deliveryNotes}
-              </p>
-            )}
             {hasManualItems && (
               <div className='bg-red-50 text-red-600 font-bold p-2 rounded-md border border-red-200 text-xs flex items-start gap-2 shadow-sm'>
                 <AlertTriangle className='h-4 w-4 flex-shrink-0' />
@@ -476,6 +471,14 @@ export function AssignedDeliveryCard({
                 <p>
                   Programată de {delivery.lastUpdatedByName} la data de{' '}
                   {format(new Date(delivery.updatedAt), 'Pp', { locale: ro })}
+                </p>
+              )}
+              {delivery.deliveryNotes && (
+                <p>
+                  <strong className='font-bold text-primary'>
+                    Nota Logistică:
+                  </strong>
+                  {delivery.deliveryNotes}
                 </p>
               )}
             </div>
