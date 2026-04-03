@@ -184,10 +184,15 @@ export async function loadNirDataFromDeliveryNote(
 
     // 4. Construim obiectul de date
     const rawData = {
-      supplierId: invoice?.supplierId ? invoice.supplierId.toString() : '',
+      supplierId: invoice?.supplierId
+        ? invoice.supplierId.toString()
+        : note.clientId
+          ? note.clientId.toString()
+          : '',
       supplierSnapshot: {
         name: note.clientSnapshot?.name,
-        cui: note.clientSnapshot?.cui,
+        cui:
+          note.clientSnapshot?.cui || note.clientSnapshot?.cnp || 'NECUNOSCUT',
         regCom: note.clientSnapshot?.regCom,
         address: {
           judet: note.clientSnapshot?.judet || '',
