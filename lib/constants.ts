@@ -46,6 +46,7 @@ export const ADMIN_EMAIL =
   process.env.ADMIN_EMAIL || 'genesismarketingdistributie@gmail.com'
 
 export const SITE_URL = 'http://localhost:3000/'
+export const PENALTY_AMOUNT_LIMIT_FOR_CRON = 100
 
 export const FREE_SHIPPING_MIN_PRICE = Number(
   process.env.FREE_SHIPPING_MIN_PRICE || 10000,

@@ -3,6 +3,7 @@ import { ReceivablesSummaryCard } from '../components/ReceivablesSummaryCard'
 import { ClientBalancesList } from '../components/ClientBalancesList'
 import { auth } from '@/auth'
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
+import { PendingPenaltiesTodayDialog } from '../components/PendingPenaltiesTodayDialog'
 
 export default async function ClientBalancesPage({
   searchParams,
@@ -62,6 +63,9 @@ export default async function ClientBalancesPage({
           amount={summary.totalPenalties}
           type='neutral'
         />
+        <div className='flex items-center self-stretch py-1'>
+          <PendingPenaltiesTodayDialog />
+        </div>
       </div>
 
       {/* Lista */}

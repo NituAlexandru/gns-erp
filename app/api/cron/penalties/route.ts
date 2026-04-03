@@ -5,6 +5,7 @@ import {
 } from '@/lib/db/modules/financial/penalties/penalty.actions'
 import { createPenaltyInvoiceFromOverdue } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { isBusinessDay } from '@/lib/deliveryDates'
+import { PENALTY_AMOUNT_LIMIT_FOR_CRON } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,11 +93,11 @@ export async function GET(request: Request) {
         (sum, inv) => sum + inv.penaltyAmount,
         0,
       )
-      if (totalPenaltyForClient < 100) {
+      if (totalPenaltyForClient < PENALTY_AMOUNT_LIMIT_FOR_CRON) {
         console.log(
           `[CRON] Skip client ${clientId}: Suma totală (${totalPenaltyForClient} RON) este sub pragul minim de 100 RON.`,
         )
-        continue 
+        continue
       }
 
       try {

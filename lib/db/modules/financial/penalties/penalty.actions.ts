@@ -10,7 +10,7 @@ import {
   startOfDay,
 } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
-import { TIMEZONE } from '@/lib/constants'
+import { PENALTY_AMOUNT_LIMIT_FOR_CRON, TIMEZONE } from '@/lib/constants'
 import { round2 } from '@/lib/utils'
 
 import InvoiceModel from '../invoices/invoice.model'
@@ -148,7 +148,7 @@ export async function saveDefaultPenaltyRule(
 }
 
 // ==========================================
-// 2. MOTORUL MATEMATIC (THE CORE ENGINE)
+// 2. MOTORUL MATEMATIC PENTRU PENALITATI (THE CORE ENGINE)
 // ==========================================
 
 function calculateInvoicePenaltySegments(
@@ -340,7 +340,18 @@ export async function getPendingPenaltiesList(): Promise<{
         todayZoned,
       )
 
-      if (calculation.penaltyAmount > 0) {
+      // --- CALCULĂM DATA PENTRU A PUNE PIEDICĂ ---
+      const autoBillDays = specificRule
+        ? specificRule.autoBillDays
+        : defaultRule!.autoBillDays
+      const referenceDate = lastBilledDate
+        ? new Date(lastBilledDate)
+        : new Date(invoice.dueDate)
+      const rawNextBillingDate = addDays(referenceDate, autoBillDays + 1)
+      const nextBillingDate = getNextBusinessDay(rawNextBillingDate)
+      const isBillingDayReady = todayZoned >= nextBillingDate
+
+      if (calculation.penaltyAmount > 0 && isBillingDayReady) {
         results.push({
           invoiceId: invoice._id.toString(),
           clientId: clientIdStr,
@@ -428,10 +439,13 @@ export async function getPenaltyForInvoice(
       ? round2(invoice.remainingAmount * (percentage / 100) * daysToPenalty)
       : 0
 
-  // Calculăm data teoretică
+  const referenceDate = lastBilledDate
+    ? new Date(lastBilledDate)
+    : new Date(invoice.dueDate)
+
   const rawNextBillingDate = addDays(
-    new Date(invoice.dueDate),
-    autoBillDays + 1,
+    referenceDate,
+    autoBillDays + 1, // Păstrăm +1 tău pentru logică de zi plină
   )
 
   // O împingem pe prima zi lucrătoare
@@ -470,4 +484,43 @@ export async function insertPenaltyRecords(
 
   // Salvăm tot array-ul dintr-o singură lovitură (bulk insert)
   await PenaltyRecordModel.insertMany(records, { session })
+}
+
+export async function getTodayScheduledPenalties() {
+  try {
+    const pendingResult = await getPendingPenaltiesList()
+
+    if (!pendingResult.success || !pendingResult.data) {
+      return { success: false, data: [] }
+    }
+
+    const clientGroups = new Map<string, any>()
+
+    pendingResult.data.forEach((penalty) => {
+      if (penalty.penaltyAmount > 0) {
+        if (!clientGroups.has(penalty.clientId)) {
+          clientGroups.set(penalty.clientId, {
+            clientId: penalty.clientId,
+            clientName: penalty.clientName,
+            totalAmount: 0,
+            invoices: [],
+          })
+        }
+
+        const group = clientGroups.get(penalty.clientId)
+        group.totalAmount += penalty.penaltyAmount
+        group.invoices.push(penalty)
+      }
+    })
+
+    // Filtrăm doar clienții care au depășit pragul
+    const validGroups = Array.from(clientGroups.values()).filter(
+      (group) => group.totalAmount >= PENALTY_AMOUNT_LIMIT_FOR_CRON,
+    )
+
+    return { success: true, data: validGroups }
+  } catch (error) {
+    console.error('Eroare la aducerea penalităților programate:', error)
+    return { success: false, data: [] }
+  }
 }
