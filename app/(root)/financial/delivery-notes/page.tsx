@@ -1,6 +1,7 @@
 import { auth } from '@/auth'
 import { getDeliveryNotes } from '@/lib/db/modules/financial/delivery-notes/delivery-note.actions'
 import { DeliveryNotesList } from './components/DeliveryNotesList'
+import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 
 interface PageProps {
   searchParams: Promise<{
@@ -20,6 +21,11 @@ export default async function DeliveryNotesPage(props: PageProps) {
   const session = await auth()
   const userId = session?.user?.id || ''
   const userName = session?.user?.name || 'Unknown User'
+
+  const userRole = session?.user?.role || ''
+  const isSuperAdmin = SUPER_ADMIN_ROLES.some(
+    (role) => role.toLowerCase() === userRole.toLowerCase().trim(),
+  )
 
   const filters = {
     q: resolvedSearchParams.q,
@@ -45,6 +51,7 @@ export default async function DeliveryNotesPage(props: PageProps) {
         currentPage={page}
         currentUserId={userId}
         currentUserName={userName}
+        isSuperAdmin={isSuperAdmin}
       />
     </div>
   )

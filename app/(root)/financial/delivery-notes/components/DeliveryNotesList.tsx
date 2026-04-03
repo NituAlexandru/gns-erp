@@ -46,8 +46,6 @@ import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { DocumentType } from '@/lib/db/modules/numbering/documentCounter.model'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
-import { useSession } from 'next-auth/react'
-import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
 import Link from 'next/link'
 import { DeliveryNotePreview } from './DeliveryNotePreview'
 import { cn, formatCurrency } from '@/lib/utils'
@@ -62,6 +60,7 @@ interface DeliveryNotesListProps {
   currentPage: number
   currentUserId: string
   currentUserName: string
+  isSuperAdmin: boolean
 }
 
 export function DeliveryNotesList({
@@ -70,16 +69,11 @@ export function DeliveryNotesList({
   currentPage,
   currentUserId,
   currentUserName,
+  isSuperAdmin,
 }: DeliveryNotesListProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-
-  const { data: session } = useSession()
-  const userRole = session?.user?.role || ''
-  const isSuperAdmin = SUPER_ADMIN_ROLES.some(
-    (role) => role.toLowerCase() === userRole.toLowerCase().trim(),
-  )
 
   // Stări pentru tranziții și încărcare (NU pentru date)
   const [isPending, startTransition] = useTransition()
@@ -447,6 +441,7 @@ export function DeliveryNotesList({
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align='end'>
                             <DropdownMenuItem
+                              className='cursor-pointer'
                               onSelect={() =>
                                 router.push(
                                   `/financial/delivery-notes/${note._id}`,
@@ -456,6 +451,7 @@ export function DeliveryNotesList({
                               Vizualizează
                             </DropdownMenuItem>
                             <DropdownMenuItem
+                              className='cursor-pointer'
                               onSelect={() => {
                                 setPreviewNote(note)
                                 handlePrintPreview(note._id)
@@ -471,13 +467,13 @@ export function DeliveryNotesList({
                             {note.status === 'IN_TRANSIT' && (
                               <>
                                 <DropdownMenuItem
-                                  className='text-green-600'
+                                  className='text-green-600 cursor-pointer'
                                   onSelect={() => handleConfirmClick(note)}
                                 >
                                   Confirmă Livrarea
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  className='text-destructive'
+                                  className='text-destructive cursor-pointer'
                                   onSelect={() => {
                                     setNoteToCancel(note)
                                     setIsCancelModalOpen(true)
@@ -491,13 +487,14 @@ export function DeliveryNotesList({
                               !note.isInvoiced && (
                                 <>
                                   <DropdownMenuItem
+                                    className='cursor-pointer'
                                     onSelect={() => handleGenerateInvoice(note)}
                                   >
                                     Generează Factură Automată
                                   </DropdownMenuItem>
                                   {isSuperAdmin && (
                                     <DropdownMenuItem
-                                      className='text-red-500'
+                                      className='text-red-500 cursor-pointer'
                                       onSelect={() => {
                                         setNoteToRevoke(note)
                                         setIsRevokeModalOpen(true)
