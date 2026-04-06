@@ -46,7 +46,10 @@ export async function createManualAllocation(
   data?: PopulatedAllocation
   updatedPayment?: ClientPaymentDTO
 }> {
+  await connectToDatabase()
+
   const session = await startSession()
+
   let newAllocation: IPaymentAllocationDoc | null = null
   let updatedPaymentDoc: IClientPaymentDoc | null = null
 
@@ -176,6 +179,8 @@ export async function createManualAllocation(
 export async function deleteAllocation(
   allocationId: string,
 ): Promise<Omit<AllocationActionResult, 'data'>> {
+  await connectToDatabase()
+
   const session = await startSession()
 
   // Variabilă pentru recalculare
@@ -357,6 +362,8 @@ export async function createCompensationPayment(
   userId: string,
   userName: string,
 ): Promise<{ success: boolean; message: string }> {
+  await connectToDatabase()
+
   const session = await startSession()
 
   // Variabilă pentru recalculare
