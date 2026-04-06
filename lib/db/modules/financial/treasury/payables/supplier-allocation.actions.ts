@@ -28,7 +28,10 @@ export type PopulatedInvoiceAllocationHistory = Awaited<
 export async function createManualSupplierAllocation(
   data: CreateSupplierAllocationInput,
 ): Promise<AllocationActionResult> {
+  await connectToDatabase()
+
   const session = await startSession()
+
   let newAllocation: ISupplierAllocationDoc | null = null
   let supplierIdToRevalidate: string | null = null
 
@@ -160,6 +163,8 @@ export async function createManualSupplierAllocation(
 export async function deleteSupplierAllocation(
   allocationId: string,
 ): Promise<Omit<AllocationActionResult, 'data'>> {
+  await connectToDatabase()
+
   const session = await startSession()
   let supplierIdToRevalidate: string | null = null
 
@@ -384,6 +389,8 @@ export async function createSupplierCompensationPayment(
   userId: string,
   userName: string,
 ): Promise<{ success: boolean; message: string }> {
+  await connectToDatabase()
+
   const session = await startSession()
   let supplierIdToRecalc = ''
 
