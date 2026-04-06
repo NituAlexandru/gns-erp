@@ -194,8 +194,14 @@ export function PayablesLayoutClient({
               </TabsList>
             </Tabs>
           </div>
-          <PayablesFilterBar />
+          {/* Afișăm filtrul lângă taburi DOAR dacă NU suntem pe Solduri */}
+          {activeTab !== 'balances' && <PayablesFilterBar />}
         </div>
+        {activeTab === 'balances' && (
+          <div className='mt-0 w-full'>
+            <PayablesFilterBar />
+          </div>
+        )}
         {/* 3. CONȚINUTUL PAGINII SPECIFICE */}
         <div className='flex-1 overflow-hidden pt-0'>{children}</div>
       </div>

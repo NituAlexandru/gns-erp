@@ -26,6 +26,7 @@ import {
 } from '@/lib/db/modules/setting/efactura/anaf.actions'
 import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
 import { toast } from 'sonner'
+import { MANAGEMENT_ROLES } from '@/lib/db/modules/user/user-roles'
 
 // Definim tipul direct aici sau îl importăm
 interface InboxErrorItem {
@@ -43,9 +44,10 @@ interface AnafInboxTableProps {
     totalPages: number
     total: number
   }
+  userRole?: string
 }
 
-export function AnafInboxTable({ data }: AnafInboxTableProps) {
+export function AnafInboxTable({ data, userRole }: AnafInboxTableProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -188,11 +190,13 @@ export function AnafInboxTable({ data }: AnafInboxTableProps) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align='end'>
-                          <DropdownMenuItem
-                            onClick={() => handleRetry(msg._id)}
-                          >
-                            Reîncearcă Procesarea
-                          </DropdownMenuItem>
+                          {userRole && MANAGEMENT_ROLES.includes(userRole) && (
+                            <DropdownMenuItem
+                              onClick={() => handleRetry(msg._id)}
+                            >
+                              Reîncearcă Procesarea
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={() => handlePreview(msg._id)}
                           >

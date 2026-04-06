@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export function PayablesFilterBar() {
   const router = useRouter()
@@ -36,6 +37,20 @@ export function PayablesFilterBar() {
   const [dateType, setDateType] = useState(
     searchParams.get('dateType') || 'due',
   )
+  const [balanceType, setBalanceType] = useState(
+    searchParams.get('balanceType') || 'ALL',
+  )
+  const [overdueDays, setOverdueDays] = useState(
+    searchParams.get('overdueDays') || 'ALL',
+  )
+  const [minAmt, setMinAmt] = useState(searchParams.get('minAmt') || '')
+  const [maxAmt, setMaxAmt] = useState(searchParams.get('maxAmt') || '')
+  const [onlyOverdue, setOnlyOverdue] = useState(
+    searchParams.get('onlyOverdue') === 'true',
+  )
+  const [hideCompensations, setHideCompensations] = useState(
+    searchParams.get('hideCompensations') === 'true',
+  )
   const isMounted = useRef(false)
   const isTyping = useRef(false)
   const [fromDate, setFromDate] = useState<Date | undefined>(
@@ -47,11 +62,15 @@ export function PayablesFilterBar() {
 
   // Sincronizare cu URL la Back/Forward
   useEffect(() => {
-    if (!isTyping.current) {
-      setText(searchParams.get('q') || '')
-    }
+    if (!isTyping.current) setText(searchParams.get('q') || '')
     setStatus(searchParams.get('status') || 'ALL')
     setDateType(searchParams.get('dateType') || 'due')
+    setBalanceType(searchParams.get('balanceType') || 'ALL')
+    setOverdueDays(searchParams.get('overdueDays') || 'ALL')
+    setMinAmt(searchParams.get('minAmt') || '')
+    setMaxAmt(searchParams.get('maxAmt') || '')
+    setOnlyOverdue(searchParams.get('onlyOverdue') === 'true')
+    setHideCompensations(searchParams.get('hideCompensations') === 'true')
     setFromDate(
       searchParams.get('from')
         ? new Date(searchParams.get('from')!)
@@ -69,6 +88,12 @@ export function PayablesFilterBar() {
     currentDateType: string,
     currentFrom?: Date,
     currentTo?: Date,
+    currentBalanceType: string = balanceType,
+    currentOverdueDays: string = overdueDays,
+    currentMinAmt: string = minAmt,
+    currentMaxAmt: string = maxAmt,
+    currentOnlyOverdue: boolean = onlyOverdue,
+    currentHideCompensations: boolean = hideCompensations,
   ) => {
     const params = new URLSearchParams(searchParams)
     params.set('page', '1') // Resetăm pagina la 1
@@ -80,11 +105,8 @@ export function PayablesFilterBar() {
       params.set('status', currentStatus)
     else params.delete('status')
 
-    if (isInvoices) {
-      params.set('dateType', currentDateType)
-    } else {
-      params.delete('dateType')
-    }
+    if (isInvoices || isBalances) params.set('dateType', currentDateType)
+    else params.delete('dateType')
 
     if (currentFrom) params.set('from', format(currentFrom, 'yyyy-MM-dd'))
     else params.delete('from')
@@ -92,10 +114,41 @@ export function PayablesFilterBar() {
     if (currentTo) params.set('to', format(currentTo, 'yyyy-MM-dd'))
     else params.delete('to')
 
+    if (isBalances) {
+      if (currentBalanceType !== 'ALL')
+        params.set('balanceType', currentBalanceType)
+      else params.delete('balanceType')
+
+      if (currentOverdueDays !== 'ALL')
+        params.set('overdueDays', currentOverdueDays)
+      else params.delete('overdueDays')
+
+      if (currentMinAmt) params.set('minAmt', currentMinAmt)
+      else params.delete('minAmt')
+
+      if (currentMaxAmt) params.set('maxAmt', currentMaxAmt)
+      else params.delete('maxAmt')
+    }
+
+    if (isInvoices || isBalances) {
+      if (currentOnlyOverdue) params.set('onlyOverdue', 'true')
+      else params.delete('onlyOverdue')
+    }
+
+    if (isPayments) {
+      if (currentHideCompensations) params.set('hideCompensations', 'true')
+      else params.delete('hideCompensations')
+    }
+
+    if (isPayments) {
+      if (currentHideCompensations) params.set('hideCompensations', 'true')
+      else params.delete('hideCompensations')
+    }
+
     router.push(`${pathname}?${params.toString()}`)
   }
 
-  // EFECT 1: Debounce Text
+  // EFECT 1: Debounce Text & Sume
   useEffect(() => {
     if (!isMounted.current) {
       isMounted.current = true
@@ -105,11 +158,56 @@ export function PayablesFilterBar() {
 
     const timer = setTimeout(() => {
       isTyping.current = false
-      updateUrl(text, status, dateType, fromDate, toDate)
+      updateUrl(
+        text,
+        status,
+        dateType,
+        fromDate,
+        toDate,
+        balanceType,
+        overdueDays,
+        minAmt,
+        maxAmt,
+        onlyOverdue,
+        hideCompensations,
+      )
     }, 1000)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text])
+  }, [text, minAmt, maxAmt])
+
+  // Extragem valorile de timp în variabile separate pentru a rezolva eroarea ESLint
+  const fromTime = fromDate?.getTime()
+  const toTime = toDate?.getTime()
+
+  // EFECT 2: Filtrare Instantanee
+  useEffect(() => {
+    if (isMounted.current && !isTyping.current) {
+      updateUrl(
+        text,
+        status,
+        dateType,
+        fromDate,
+        toDate,
+        balanceType,
+        overdueDays,
+        minAmt,
+        maxAmt,
+        onlyOverdue,
+        hideCompensations,
+      )
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    status,
+    dateType,
+    balanceType,
+    overdueDays,
+    onlyOverdue,
+    fromTime,
+    toTime,
+    hideCompensations,
+  ])
 
   // EFECT 2: Filtrare Instantanee (cu fix pentru bucla infinită)
   useEffect(() => {
@@ -123,7 +221,13 @@ export function PayablesFilterBar() {
     setText('')
     setStatus('ALL')
     setDateType('due')
+    setBalanceType('ALL')
+    setOverdueDays('ALL')
+    setMinAmt('')
+    setMaxAmt('')
+    setOnlyOverdue(false)
     setFromDate(undefined)
+    setHideCompensations(false)
     setToDate(undefined)
     router.push(pathname)
   }
@@ -163,7 +267,7 @@ export function PayablesFilterBar() {
 
   return (
     <div className='flex flex-wrap items-center gap-2'>
-      {/* 1. SEARCH TEXT - Rămâne vizibil pe Solduri */}
+      {/* 1. SEARCH TEXT */}
       {!isLogs && !isInbox && (
         <div className='relative'>
           <Input
@@ -175,14 +279,105 @@ export function PayablesFilterBar() {
         </div>
       )}
 
-      {/* 2. STATUS SELECT - ASCUNS PE SOLDURI */}
+      {/* --- FILTRE SPECIFICE SOLDURILOR (Apar doar pe tabul de Solduri) --- */}
+      {isBalances && (
+        <>
+          <Select value={balanceType} onValueChange={setBalanceType}>
+            <SelectTrigger className='max-h-8.5 w-[140px] text-xs bg-background cursor-pointer'>
+              <SelectValue placeholder='Tip Sold' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='ALL' className='cursor-pointer'>
+                Orice Sold
+              </SelectItem>
+              <SelectItem value='DEBT' className='cursor-pointer'>
+                Doar cu Datorii
+              </SelectItem>
+              <SelectItem value='ADVANCE' className='cursor-pointer'>
+                Doar cu Avans
+              </SelectItem>
+              <SelectItem value='OVERDUE' className='cursor-pointer'>
+                Facturi Restante
+              </SelectItem>
+              <SelectItem value='UNALLOCATED' className='cursor-pointer'>
+                Plăți Nealocate
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={overdueDays} onValueChange={setOverdueDays}>
+            <SelectTrigger className='max-h-8.5 w-[130px] text-xs bg-background cursor-pointer'>
+              <SelectValue placeholder='Vechime factură' />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value='ALL' className='cursor-pointer'>
+                Orice vechime
+              </SelectItem>
+              <SelectItem value='15' className='cursor-pointer'>
+                &gt; 15 zile
+              </SelectItem>
+              <SelectItem value='30' className='cursor-pointer'>
+                &gt; 30 zile
+              </SelectItem>
+              <SelectItem value='45' className='cursor-pointer'>
+                &gt; 45 zile
+              </SelectItem>
+              <SelectItem value='60' className='cursor-pointer'>
+                &gt; 60 zile
+              </SelectItem>
+              <SelectItem value='90' className='cursor-pointer'>
+                &gt; 90 zile
+              </SelectItem>
+              <SelectItem value='120' className='cursor-pointer'>
+                &gt; 120 zile
+              </SelectItem>
+            </SelectContent>
+          </Select>
+
+          <div className='flex items-center gap-1'>
+            <Input
+              type='number'
+              placeholder='Suma Min'
+              value={minAmt}
+              onChange={(e) => setMinAmt(e.target.value)}
+              className='w-[100px] h-8 text-xs bg-background'
+            />
+            <span className='text-muted-foreground text-xs'>-</span>
+            <Input
+              type='number'
+              placeholder='Suma Max'
+              value={maxAmt}
+              onChange={(e) => setMaxAmt(e.target.value)}
+              className='w-[100px] h-8 text-xs bg-background'
+            />
+          </div>
+
+          <div className='flex items-center space-x-2 h-8 px-3 border rounded-md bg-background cursor-pointer hover:bg-muted/50 transition-colors'>
+            <Checkbox
+              id='strict-restante'
+              checked={onlyOverdue}
+              onCheckedChange={(checked) => setOnlyOverdue(!!checked)}
+            />
+            <label
+              htmlFor='strict-restante'
+              className='text-xs font-medium leading-none cursor-pointer select-none'
+            >
+              Strict Restante
+            </label>
+          </div>
+        </>
+      )}
+
+      {/* 2. STATUS SELECT (Ascuns pe Solduri) */}
       {!isBalances && (
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className='max-h-8.5 w-[120px] text-xs bg-background cursor-pointer'>
             <SelectValue placeholder='Status' />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value='ALL'>Toate</SelectItem>
+            <SelectItem value='ALL' className='cursor-pointer'>
+              Toate
+            </SelectItem>
             {statusOptions.map((opt) => (
               <SelectItem
                 key={opt.value}
@@ -196,8 +391,8 @@ export function PayablesFilterBar() {
         </Select>
       )}
 
-      {/* 3. TIP DATĂ - Doar pe facturi */}
-      {isInvoices && (
+      {/* 3. TIP DATĂ (Vizibil și pe Facturi și pe Solduri) */}
+      {(isInvoices || isBalances) && (
         <Select value={dateType} onValueChange={setDateType}>
           <SelectTrigger className='h-8 w-[150px] text-xs bg-background cursor-pointer border-dashed'>
             <div className='flex items-center gap-2'>
@@ -216,8 +411,9 @@ export function PayablesFilterBar() {
         </Select>
       )}
 
-      {/* 4. DATE PICKERS - ASCUNS PE SOLDURI */}
-      {!isBalances && (
+      {/* 4. DATE PICKERS (Vizibil și pe Facturi și pe Solduri) */}
+      {(!isBalances ||
+        isBalances) /* Am forțat vizibilitatea scriind așa ca să înțelegi, deși condiția e mereu true acum. Așa că îl lăsăm vizibil pentru logica de "Ce urmează să plătim" */ && (
         <div className='flex items-center gap-1'>
           {/* FROM DATE */}
           <Popover>
@@ -273,8 +469,51 @@ export function PayablesFilterBar() {
         </div>
       )}
 
+      {/* --- FILTRU SPECIFIC FACTURILOR --- */}
+      {isInvoices && (
+        <div className='flex items-center space-x-2 h-8 px-3 border rounded-md bg-background cursor-pointer hover:bg-muted/50 transition-colors'>
+          <Checkbox
+            id='invoices-overdue'
+            checked={onlyOverdue}
+            onCheckedChange={(checked) => setOnlyOverdue(!!checked)}
+          />
+          <label
+            htmlFor='invoices-overdue'
+            className='text-xs font-medium leading-none cursor-pointer select-none whitespace-nowrap'
+          >
+            Doar Restante
+          </label>
+        </div>
+      )}
+
+      {/* --- FILTRU SPECIFIC PLĂȚILOR --- */}
+      {isPayments && (
+        <div className='flex items-center space-x-2 h-8 px-3 border rounded-md bg-background cursor-pointer hover:bg-muted/50 transition-colors'>
+          <Checkbox
+            id='hide-compensations'
+            checked={hideCompensations}
+            onCheckedChange={(checked) => setHideCompensations(!!checked)}
+          />
+          <label
+            htmlFor='hide-compensations'
+            className='text-xs font-medium leading-none cursor-pointer select-none whitespace-nowrap'
+          >
+            Ascunde Compensările
+          </label>
+        </div>
+      )}
+
       {/* Butonul de RESET */}
-      {(text || status !== 'ALL' || fromDate || toDate) && (
+      {(text ||
+        status !== 'ALL' ||
+        fromDate ||
+        toDate ||
+        balanceType !== 'ALL' ||
+        overdueDays !== 'ALL' ||
+        minAmt ||
+        maxAmt ||
+        onlyOverdue ||
+        hideCompensations) && (
         <Button
           variant='ghost'
           size='sm'

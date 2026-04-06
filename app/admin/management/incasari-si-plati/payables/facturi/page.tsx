@@ -48,6 +48,7 @@ export default async function InvoicesPage({
     from?: string
     to?: string
     dateType?: string
+    onlyOverdue?: string
   }>
 }) {
   const session = await auth()
@@ -62,6 +63,7 @@ export default async function InvoicesPage({
         from: params.from,
         to: params.to,
         dateType: params.dateType,
+        onlyOverdue: params.onlyOverdue === 'true',
       }),
       getAllSuppliersForAdmin({ limit: 1000 }),
       getBudgetCategories(),
@@ -78,11 +80,23 @@ export default async function InvoicesPage({
 
   return (
     <div className='flex flex-col h-full space-y-1'>
-      <PayablesSummaryCard
-        label='Total Facturi Filtrate'
-        amount={invoicesData.summaryTotal || 0}
-        type='invoice'
-      />
+      <div className='flex gap-3'>
+        <PayablesSummaryCard
+          label='Total Facturi'
+          amount={invoicesData.summaryTotal || 0}
+          type='invoice'
+        />
+        <PayablesSummaryCard
+          label='Facturi Pozitive (De plata)'
+          amount={invoicesData.summaryPositive || 0}
+          type='invoice'
+        />
+        <PayablesSummaryCard
+          label='Facturi Negative / Storno'
+          amount={invoicesData.summaryNegative || 0}
+          type='invoice'
+        />
+      </div>
 
       <div className='flex-1 min-h-0'>
         <SupplierInvoiceListWrapper

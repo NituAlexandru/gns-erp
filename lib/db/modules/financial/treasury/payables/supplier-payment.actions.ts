@@ -303,6 +303,7 @@ export async function getSupplierPayments(
     status?: string
     from?: string
     to?: string
+    hideCompensations?: boolean
   },
 ): Promise<
   SupplierPaymentsPage & {
@@ -343,6 +344,10 @@ export async function getSupplierPayments(
       query.status = { $ne: 'ANULATA' }
     }
 
+    if (filters?.hideCompensations) {
+      query.paymentMethod = { $ne: 'COMPENSARE' }
+    }
+
     if (filters?.from || filters?.to) {
       query.paymentDate = {}
 
@@ -376,7 +381,15 @@ export async function getSupplierPayments(
       }),
       // --- AGREGARE SUMA ---
       SupplierPaymentModel.aggregate([
-        { $match: query },
+        {
+          $match: {
+            $and: [
+              query, // Păstrează ORICE filtru vine din UI (inclusiv statusul specific)
+              { status: { $ne: 'ANULATA' } }, // + Excludere permanentă Anulate
+              { paymentMethod: { $ne: 'COMPENSARE' } }, // + Excludere permanentă Compensări
+            ],
+          },
+        },
         {
           $group: {
             _id: null,

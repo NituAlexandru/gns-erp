@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   TableBody,
@@ -17,13 +17,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, Loader2 } from 'lucide-react'
+import {
+  MoreHorizontal,
+  Loader2,
+  ChevronsRight,
+  ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+} from 'lucide-react'
 import { SupplierInvoiceListItem } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 import { SUPPLIER_INVOICE_STATUS_MAP } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.constants'
 import { formatCurrency, formatDateTime, toSlug } from '@/lib/utils'
 import { PAYABLES_PAGE_SIZE } from '@/lib/constants'
 import { createSupplierCompensationPayment } from '@/lib/db/modules/financial/treasury/payables/supplier-allocation.actions'
 import { toast } from 'sonner'
+import { Input } from '@/components/ui/input'
 
 interface SupplierInvoicesTableProps {
   data: {
@@ -55,7 +63,12 @@ export function SupplierInvoicesTable({
   // Citim pagina curentă din URL (default 1)
   const currentPage = Number(searchParams.get('page')) || 1
   const [isPending, setIsPending] = useState(false)
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
   const [processingId, setProcessingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
 
   // Funcție pentru schimbarea paginii în URL
   const handlePageChange = (newPage: number) => {
@@ -65,7 +78,21 @@ export function SupplierInvoicesTable({
     router.push(`${pathname}?${params.toString()}`)
     setIsPending(false)
   }
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    const maxPage = data.totalPages
 
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= maxPage &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
   const handleCompensate = async (invoice: SupplierInvoiceListItem) => {
     if (!currentUser?.id) {
       toast.error('Eroare: Utilizator neidentificat.')
@@ -320,33 +347,69 @@ export function SupplierInvoicesTable({
 
       {/* Paginare Sincronizată cu URL-ul */}
       {data.totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2 py-4 border-t bg-background shrink-0'>
+        <div className='flex items-center justify-center gap-2 py-3 border-t bg-background shrink-0'>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
+          >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
           <Button
             variant='outline'
             size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage <= 1 || isPending}
           >
             {isPending ? (
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
             ) : (
-              'Anterior'
+              <ChevronLeft className='h-4 w-4 mr-1' />
             )}
+            Anterior
           </Button>
-          <span className='text-sm text-muted-foreground'>
-            Pagina {currentPage} din {data.totalPages}
-          </span>
+
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {data.totalPages}</span>
+          </div>
+
           <Button
             variant='outline'
             size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage >= data.totalPages || isPending}
           >
+            Următor
             {isPending ? (
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
             ) : (
-              'Următor'
+              <ChevronRight className='h-4 w-4 ml-1' />
             )}
+          </Button>
+
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(data.totalPages)}
+            disabled={currentPage >= data.totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

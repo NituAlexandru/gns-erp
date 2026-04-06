@@ -12,6 +12,7 @@ export default async function PaymentsPage({
     status?: string
     from?: string
     to?: string
+    hideCompensations?: string
   }>
 }) {
   const params = await searchParams
@@ -22,6 +23,7 @@ export default async function PaymentsPage({
     status: params.status,
     from: params.from,
     to: params.to,
+    hideCompensations: params.hideCompensations === 'true',
   })
 
   const safeData = {

@@ -7,7 +7,7 @@ import { decrypt, encrypt } from '@/lib/utils/encryption'
 import AnafToken from './anaf-token.model'
 import { AnafAuthResponse, AnafMessagesResponse } from './anaf.types'
 import { ExchangeTokenSchema } from './anaf.validator'
-import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
+import { MANAGEMENT_ROLES, SUPER_ADMIN_ROLES } from '../../user/user-roles'
 import SupplierInvoiceModel from '../../financial/treasury/payables/supplier-invoice.model'
 import Supplier from '../../suppliers/supplier.model'
 import { parseAnafXml } from '@/lib/db/modules/setting/efactura/anaf-parser'
@@ -678,8 +678,11 @@ export async function getAnafLogs(
 }
 // RETRY PROCESS MESSAGE (SINGLE ITEM) ---
 export async function retryProcessMessage(messageId: string) {
-  await checkAdmin()
   const session = await auth()
+  if (!session?.user?.role || !MANAGEMENT_ROLES.includes(session.user.role)) {
+    throw new Error('Nu ai permisiuni suficiente pentru această acțiune.')
+  }
+
   const userId = session?.user?.id
   const settings = await getNoCachedSetting()
   if (!settings) {

@@ -1,22 +1,9 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '@/components/ui/accordion'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { formatCurrency, formatDateTime, cn, toSlug } from '@/lib/utils'
-import { Building2, CheckCircle2, Loader2 } from 'lucide-react'
+import { Accordion } from '@/components/ui/accordion'
+import { formatDateTime } from '@/lib/utils'
+import { CheckCircle2, Loader2 } from 'lucide-react'
 import { ClientBalanceSummary } from '@/lib/db/modules/financial/invoices/invoice.types'
 import { useState, useTransition } from 'react'
 import {
@@ -27,26 +14,12 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { ClientInvoiceDetails } from './ClientInvoiceDetails'
-import { Button } from '@/components/ui/button'
 import { AllocationModal } from './AllocationModal'
 import { CreateClientPaymentForm } from './CreateClientPaymentForm'
 import { createCompensationPayment } from '@/lib/db/modules/financial/treasury/receivables/payment-allocation.actions'
 import { toast } from 'sonner'
-import { Badge } from '@/components/ui/badge'
-import {
-  INVOICE_STATUS_MAP,
-  InvoiceStatusKey,
-} from '@/lib/db/modules/financial/invoices/invoice.constants'
-import {
-  CLIENT_PAYMENT_STATUS_MAP,
-  ClientPaymentStatus,
-} from '@/lib/db/modules/financial/treasury/receivables/client-payment.constants'
 import { approveInvoice } from '@/lib/db/modules/financial/invoices/invoice.actions'
-import { TIMEZONE } from '@/lib/constants'
-import { toZonedTime } from 'date-fns-tz'
 import { PenaltyBillingModal } from '../penalties/PenaltyBillingModal'
-import { getNextBusinessDay, isBusinessDay } from '@/lib/deliveryDates'
-import { addDays, startOfDay } from 'date-fns'
 import { ClientBalanceItem } from './ClientBalanceItem'
 
 interface ClientBalancesListProps {

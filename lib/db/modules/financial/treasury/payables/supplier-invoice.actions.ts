@@ -26,8 +26,9 @@ import NirModel from '../../nir/nir.model'
 import { generateNextDocumentNumber } from '../../../numbering/numbering.actions'
 import { CreateOpeningBalanceInput } from '../../initial-balance/initial-balance.validator'
 import SupplierAllocationModel from './supplier-allocation.model'
-import { fromZonedTime } from 'date-fns-tz'
-import { differenceInDays } from 'date-fns'
+import { fromZonedTime, toZonedTime } from 'date-fns-tz'
+import { differenceInCalendarDays, differenceInDays } from 'date-fns'
+import { round2 } from '@/lib/utils'
 //
 type SupplierInvoiceActionResult = {
   success: boolean
@@ -77,21 +78,30 @@ export interface ReceptionListItem {
   totalValue: number
 }
 
+export type SupplierBalanceItemDTO = {
+  _id: string
+  type: 'INVOICE' | 'PAYMENT'
+  seriesName: string | null
+  documentNumber: string
+  date: Date | string
+  dueDate: Date | string | null
+  grandTotal: number
+  invoiceType: string | null
+  remainingAmount: number
+  mathematicalRemaining: number
+  daysOverdue: number
+  status: string
+}
+
 export type SupplierBalanceSummary = {
   supplierId: string
   supplierName: string
   totalBalance: number
   invoicesCount: number
-  invoices: {
-    _id: string
-    seriesName: string
-    invoiceNumber: string
-    invoiceDate: Date
-    dueDate: Date
-    grandTotal: number
-    remainingAmount: number
-    daysOverdue: number
-  }[]
+  paymentsCount: number
+  compensationsCount: number
+  overdueCount: number
+  items: SupplierBalanceItemDTO[]
 }
 
 function buildCompanySnapshot(settings: ISettingInput): OurCompanySnapshot {
@@ -203,6 +213,7 @@ export async function getSupplierInvoices(
     from?: string
     to?: string
     dateType?: string
+    onlyOverdue?: boolean
   },
 ) {
   try {
@@ -233,7 +244,11 @@ export async function getSupplierInvoices(
 
     if (filters?.status && filters.status !== 'ALL') {
       if (filters.status === 'STORNO') {
-        query.invoiceType = 'STORNO'
+        // Căutăm FIE documente marcate explicit STORNO, FIE documente cu total negativ
+        query.$and = query.$and || []
+        query.$and.push({
+          $or: [{ invoiceType: 'STORNO' }, { 'totals.grandTotal': { $lt: 0 } }],
+        })
       } else {
         query.status = filters.status
       }
@@ -261,6 +276,15 @@ export async function getSupplierInvoices(
       }
     }
 
+    if (filters?.onlyOverdue) {
+      const todayRO = toZonedTime(new Date(), TIMEZONE)
+      query.$and = query.$and || []
+      // Scadența e în trecut (mai mică decât data de azi)
+      query.$and.push({ dueDate: { $lt: todayRO } })
+      // Factura nu e închisă (e neplătită sau parțial plătită)
+      query.$and.push({ status: { $in: ['NEPLATITA', 'PARTIAL_PLATITA'] } })
+    }
+
     // 2. Executăm Query-urile PARALEL (Inclusiv Agregarea pentru Total)
     const [invoices, total, totalCurrentYear, statsResult] = await Promise.all([
       SupplierInvoiceModel.find(query)
@@ -280,21 +304,30 @@ export async function getSupplierInvoices(
       SupplierInvoiceModel.aggregate([
         { $match: query },
         {
+          $project: {
+            mathTotal: {
+              $cond: {
+                if: {
+                  $and: [
+                    { $eq: ['$invoiceType', 'STORNO'] },
+                    { $gt: ['$totals.grandTotal', 0] },
+                  ],
+                },
+                then: { $multiply: ['$totals.grandTotal', -1] },
+                else: { $ifNull: ['$totals.grandTotal', 0] },
+              },
+            },
+          },
+        },
+        {
           $group: {
             _id: null,
-            totalValue: {
-              $sum: {
-                $cond: {
-                  if: {
-                    $and: [
-                      { $eq: ['$invoiceType', 'STORNO'] }, // E marcat ca STORNO
-                      { $gt: ['$totals.grandTotal', 0] }, // ȘI valoarea e pozitivă (ex: ARTOIL, LEROY)
-                    ],
-                  },
-                  then: { $multiply: ['$totals.grandTotal', -1] }, // O facem negativă
-                  else: '$totals.grandTotal', // Altfel o luăm așa cum e (ex: SOCERAM care e deja negativ)
-                },
-              },
+            totalValue: { $sum: '$mathTotal' },
+            totalPositive: {
+              $sum: { $cond: [{ $gt: ['$mathTotal', 0] }, '$mathTotal', 0] },
+            },
+            totalNegative: {
+              $sum: { $cond: [{ $lt: ['$mathTotal', 0] }, '$mathTotal', 0] },
             },
           },
         },
@@ -302,8 +335,13 @@ export async function getSupplierInvoices(
     ])
 
     const normalizedInvoices = JSON.parse(JSON.stringify(invoices))
-    // Luăm suma din rezultatul agregării (sau 0 dacă nu sunt rezultate)
+
+    // Extragem toate cele 3 sume calculate
     const summaryTotal = statsResult.length > 0 ? statsResult[0].totalValue : 0
+    const summaryPositive =
+      statsResult.length > 0 ? statsResult[0].totalPositive : 0
+    const summaryNegative =
+      statsResult.length > 0 ? statsResult[0].totalNegative : 0
 
     return {
       success: true,
@@ -311,7 +349,9 @@ export async function getSupplierInvoices(
       totalPages: Math.ceil(total / limit),
       total: total,
       totalCurrentYear: totalCurrentYear,
-      summaryTotal: summaryTotal, // <--- Trimitem suma calculată
+      summaryTotal: summaryTotal,
+      summaryPositive: summaryPositive,
+      summaryNegative: summaryNegative,
     }
   } catch (error) {
     console.error('❌ Eroare getSupplierInvoices:', error)
@@ -322,6 +362,8 @@ export async function getSupplierInvoices(
       total: 0,
       totalCurrentYear: 0,
       summaryTotal: 0,
+      summaryPositive: 0,
+      summaryNegative: 0,
     }
   }
 }
@@ -799,41 +841,189 @@ export async function deleteSupplierInvoice(
 
 export async function getSupplierBalances(
   searchQuery?: string,
-): Promise<SupplierBalanceSummary[]> {
+  filters?: {
+    balanceType?: string
+    minAmt?: string
+    maxAmt?: string
+    overdueDays?: string
+    onlyOverdue?: boolean
+    dateType?: string
+    startDate?: string
+    endDate?: string
+  },
+): Promise<{
+  data: SupplierBalanceSummary[]
+  summary: {
+    totalNetBalance: number
+    totalUnpaidInvoices: number
+    totalUnallocatedAdvances: number
+  }
+}> {
   try {
     await connectToDatabase()
 
-    // Construim pipeline-ul de agregare
+    // --- Faza 1: Filtrarea Facturilor ---
+    const matchConditions: any = {
+      remainingAmount: { $ne: 0 },
+      status: { $ne: 'ANULATA' },
+    }
+
+    // Filtrul de Dată acționează STRICT pe Facturi
+    if (filters?.startDate || filters?.endDate) {
+      const dateField = filters?.dateType === 'due' ? 'dueDate' : 'invoiceDate'
+      matchConditions[dateField] = {}
+
+      if (filters.startDate) {
+        matchConditions[dateField].$gte = fromZonedTime(
+          `${filters.startDate} 00:00:00.000`,
+          TIMEZONE,
+        )
+      }
+      if (filters.endDate) {
+        matchConditions[dateField].$lte = fromZonedTime(
+          `${filters.endDate} 23:59:59.999`,
+          TIMEZONE,
+        )
+      }
+    }
+
     const pipeline: any[] = [
-      // 1. Filtrăm doar facturile care mai au rest de plată SAU sunt storno active
-      // (Dacă vrei să vezi și istoricul celor plătite în lista asta, scoate remainingAmount: { $ne: 0 })
-      // Dar pentru "Solduri", de obicei vrei doar ce e activ.
+      // 1. Aducem Facturile Furnizorilor
+      { $match: matchConditions },
+      // 1.1 Standardizăm formatul
       {
-        $match: {
-          remainingAmount: { $ne: 0 },
-          status: { $ne: 'ANULATA' },
+        $project: {
+          supplierId: 1,
+          supplierSnapshot: 1,
+          type: { $literal: 'INVOICE' },
+          seriesName: '$invoiceSeries',
+          documentNumber: '$invoiceNumber',
+          date: '$invoiceDate',
+          dueDate: 1,
+          grandTotal: '$totals.grandTotal',
+          remainingAmount: 1,
+          invoiceType: 1,
+          status: 1,
         },
       },
+      // 2. UNION: Turnăm și plățile nealocate
+      {
+        $unionWith: {
+          coll: 'supplierpayments', // Colecția nativă Mongoose pentru plăți
+          pipeline: [
+            {
+              $match: {
+                unallocatedAmount: { $gt: 0 },
+                status: { $in: ['NEALOCATA', 'PARTIAL_ALOCATA'] },
+              },
+            },
+            {
+              $project: {
+                supplierId: 1,
+                supplierSnapshot: { $literal: null },
+                type: { $literal: 'PAYMENT' },
+                seriesName: 1,
+                documentNumber: '$paymentNumber',
+                date: '$paymentDate',
+                dueDate: { $literal: null },
+                grandTotal: '$totalAmount',
+                remainingAmount: '$unallocatedAmount',
+                invoiceType: { $literal: null },
+                status: 1,
+              },
+            },
+          ],
+        },
+      },
+      // 3. Grupare pe Furnizor
       {
         $group: {
           _id: '$supplierId',
-          supplierSnapshot: { $first: '$supplierSnapshot' },
-          totalBalance: { $sum: '$remainingAmount' },
-          invoicesCount: { $sum: 1 },
-          invoices: {
-            $push: {
-              _id: '$_id',
-              seriesName: '$invoiceSeries',
-              invoiceNumber: '$invoiceNumber',
-              invoiceDate: '$invoiceDate',
-              dueDate: '$dueDate',
-              grandTotal: '$totals.grandTotal',
-              remainingAmount: '$remainingAmount',
+          // Luăm primul snapshot non-null
+          supplierSnapshot: { $max: '$supplierSnapshot' },
+
+          // SOLD NET: Adunăm datoriile, scădem creditele
+          totalBalance: {
+            $sum: {
+              $cond: [
+                { $eq: ['$type', 'PAYMENT'] },
+                { $multiply: ['$remainingAmount', -1] }, // Plata scade datoria
+                {
+                  $cond: [
+                    {
+                      // Dacă e STORNO și are sumă pozitivă în DB, trebuie scăzută
+                      $and: [
+                        { $eq: ['$invoiceType', 'STORNO'] },
+                        { $gt: ['$remainingAmount', 0] },
+                      ],
+                    },
+                    { $multiply: ['$remainingAmount', -1] },
+                    // Altfel, o adunăm (dacă e deja negativă se va scădea natural)
+                    '$remainingAmount',
+                  ],
+                },
+              ],
             },
           },
+          invoicesCount: {
+            $sum: { $cond: [{ $eq: ['$type', 'INVOICE'] }, 1, 0] },
+          },
+          paymentsCount: {
+            $sum: { $cond: [{ $eq: ['$type', 'PAYMENT'] }, 1, 0] },
+          },
+          compensationsCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$type', 'INVOICE'] },
+                    {
+                      $or: [
+                        { $lt: ['$remainingAmount', 0] },
+                        {
+                          $and: [
+                            { $eq: ['$invoiceType', 'STORNO'] },
+                            { $gt: ['$remainingAmount', 0] },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          items: { $push: '$$ROOT' },
         },
       },
-      // Lookup pentru a ne asigura că avem numele cel mai recent
+      // 4. Aplicăm filtrele globale de sume sau de tip sold
+      ...(() => {
+        const groupMatchConditions: any = {}
+        const totalBalanceQuery: any = {}
+
+        if (filters?.minAmt && !isNaN(Number(filters.minAmt))) {
+          totalBalanceQuery.$gte = Number(filters.minAmt)
+        }
+        if (filters?.maxAmt && !isNaN(Number(filters.maxAmt))) {
+          totalBalanceQuery.$lte = Number(filters.maxAmt)
+        }
+
+        if (filters?.balanceType === 'DEBT') totalBalanceQuery.$gt = 0
+        if (filters?.balanceType === 'ADVANCE') totalBalanceQuery.$lt = 0
+        if (filters?.balanceType === 'UNALLOCATED')
+          groupMatchConditions.paymentsCount = { $gt: 0 }
+
+        if (Object.keys(totalBalanceQuery).length > 0) {
+          groupMatchConditions.totalBalance = totalBalanceQuery
+        }
+
+        return Object.keys(groupMatchConditions).length > 0
+          ? [{ $match: groupMatchConditions }]
+          : []
+      })(),
+      // 5. Lookup Nume Furnizor
       {
         $lookup: {
           from: 'suppliers',
@@ -842,72 +1032,208 @@ export async function getSupplierBalances(
           as: 'supplierDetails',
         },
       },
-      // Adăugăm un câmp 'computedName' pentru filtrare ușoară
+      // 6. Flatten Nume
       {
         $addFields: {
           computedName: {
             $ifNull: [
               { $arrayElemAt: ['$supplierDetails.name', 0] },
               '$supplierSnapshot.name',
+              'Furnizor Necunoscut',
             ],
           },
         },
       },
     ]
 
-    // --- FILTRARE DUPĂ NUME (Dacă există query) ---
+    // 7. Căutare Text
     if (searchQuery) {
       pipeline.push({
         $match: {
-          computedName: { $regex: searchQuery, $options: 'i' }, // Case insensitive
+          computedName: { $regex: searchQuery, $options: 'i' },
         },
       })
     }
 
-    // Sortare finală
-    pipeline.push({ $sort: { totalBalance: -1 } })
+    // 8. Sortare Sold
+    if (filters?.balanceType === 'ADVANCE') {
+      pipeline.push({ $sort: { totalBalance: 1 } })
+    } else {
+      pipeline.push({ $sort: { totalBalance: -1 } })
+    }
 
     const results = await SupplierInvoiceModel.aggregate(pipeline)
-    const today = new Date()
+    const now = new Date()
+    const todayZoned = toZonedTime(now, TIMEZONE)
 
-    // 2. Procesare rezultate (calcul zile depășire)
-    const formattedResults: SupplierBalanceSummary[] = results.map((group) => {
-      const processedInvoices = group.invoices.map((inv: any) => {
-        const dueDate = new Date(inv.dueDate)
-        let daysOverdue = 0
-        // Calculăm zile doar pentru datorii active
-        if (inv.remainingAmount > 0 && dueDate < today) {
-          daysOverdue = differenceInDays(today, dueDate)
-        }
+    // --- FAZA DE POST-PROCESARE (JS) ---
+    let formattedResults: any[] = results.map((group) => {
+      let overdueCount = 0
 
-        return {
-          _id: inv._id.toString(),
-          seriesName: inv.seriesName,
-          invoiceNumber: inv.invoiceNumber,
-          invoiceDate: inv.invoiceDate,
-          dueDate: inv.dueDate,
-          grandTotal: inv.grandTotal,
-          remainingAmount: inv.remainingAmount,
-          daysOverdue: daysOverdue,
+      const processedItems = group.items.map((item: any) => {
+        if (item.type === 'INVOICE') {
+          // Standardizare: Orice storno devine "minus matematic"
+          let actualRemaining = item.remainingAmount
+          if (item.invoiceType === 'STORNO' && item.remainingAmount > 0) {
+            actualRemaining = -item.remainingAmount
+          }
+
+          let daysOverdue = 0
+          // Doar o factură cu datorie reală (actualRemaining > 0) poate fi întârziată
+          if (actualRemaining > 0 && item.dueDate) {
+            const dueDateZoned = toZonedTime(new Date(item.dueDate), TIMEZONE)
+            const diff = differenceInCalendarDays(todayZoned, dueDateZoned)
+            if (diff > 0) {
+              daysOverdue = diff
+              overdueCount++
+            }
+          }
+
+          return {
+            _id: item._id.toString(),
+            type: item.type,
+            seriesName: item.seriesName,
+            documentNumber: item.documentNumber,
+            date: item.date,
+            dueDate: item.dueDate,
+            grandTotal: item.grandTotal,
+            invoiceType: item.invoiceType,
+            remainingAmount: item.remainingAmount, // Păstrăm cum e în DB pentru UI
+            mathematicalRemaining: actualRemaining, // Păstrăm o referință clară pentru noi
+            daysOverdue: daysOverdue,
+            status: item.status,
+          }
+        } else {
+          // Este PLATĂ
+          const payDateZoned = toZonedTime(new Date(item.date), TIMEZONE)
+          const daysSincePayment = Math.max(
+            0,
+            differenceInCalendarDays(todayZoned, payDateZoned),
+          )
+
+          return {
+            _id: item._id.toString(),
+            type: item.type,
+            seriesName: item.seriesName,
+            documentNumber: item.documentNumber,
+            date: item.date,
+            dueDate: null,
+            grandTotal: item.grandTotal,
+            remainingAmount: item.remainingAmount,
+            mathematicalRemaining: -item.remainingAmount,
+            daysOverdue: daysSincePayment,
+            status: item.status,
+          }
         }
       })
 
-      // Sortare internă
-      processedInvoices.sort((a: any, b: any) => b.daysOverdue - a.daysOverdue)
+      // Sortare după dată (cele mai vechi primele)
+      processedItems.sort(
+        (a: any, b: any) =>
+          new Date(a.date).getTime() - new Date(b.date).getTime(),
+      )
 
       return {
         supplierId: group._id.toString(),
-        supplierName: group.computedName || 'Furnizor Necunoscut',
-        totalBalance: group.totalBalance,
+        supplierName: group.computedName,
+        totalBalance: round2(group.totalBalance),
         invoicesCount: group.invoicesCount,
-        invoices: processedInvoices,
+        paymentsCount: group.paymentsCount,
+        compensationsCount: group.compensationsCount,
+        overdueCount: overdueCount,
+        items: processedItems,
       }
     })
 
-    return formattedResults
+    // Filtre adiționale pentru zile de întârziere
+    const isOverdueType = filters?.balanceType === 'OVERDUE'
+    const hasOverdueDaysFilter =
+      filters?.overdueDays && filters.overdueDays !== 'ALL'
+
+    if (filters?.onlyOverdue) {
+      // Păstrează doar clienții care au măcar o factură întârziată,
+      // și pe ei curăță-i să aibă DOAR acele facturi afișate
+      formattedResults = formattedResults
+        .map((client) => {
+          const onlyOverdueItems = client.items.filter(
+            (i: any) =>
+              i.type === 'INVOICE' &&
+              i.mathematicalRemaining > 0 &&
+              i.daysOverdue > 0,
+          )
+          const newTotalBalance = onlyOverdueItems.reduce(
+            (acc: number, i: any) => acc + i.mathematicalRemaining,
+            0,
+          )
+          return {
+            ...client,
+            items: onlyOverdueItems,
+            totalBalance: round2(newTotalBalance),
+          }
+        })
+        .filter((c) => c.items.length > 0)
+    } else if (isOverdueType || hasOverdueDaysFilter) {
+      let minDays = 0
+      if (hasOverdueDaysFilter) {
+        minDays = Number(filters.overdueDays)
+      }
+      formattedResults = formattedResults.filter((c) => {
+        return c.items.some(
+          (item: any) =>
+            item.type === 'INVOICE' &&
+            item.mathematicalRemaining > 0 &&
+            item.daysOverdue > minDays,
+        )
+      })
+    }
+
+    // Sortare Finală pe Array (Re-asigurare)
+    if (filters?.balanceType === 'ADVANCE') {
+      formattedResults.sort((a, b) => a.totalBalance - b.totalBalance)
+    } else {
+      formattedResults.sort((a, b) => b.totalBalance - a.totalBalance)
+    }
+
+    // Calculăm Summary-ul pentru Cardurile din Susul Paginii
+    let totalNetBalance = 0
+    let totalUnpaidInvoices = 0
+    let totalUnallocatedAdvances = 0
+
+    formattedResults.forEach((supplier) => {
+      totalNetBalance += supplier.totalBalance
+
+      supplier.items.forEach((item: any) => {
+        if (item.type === 'INVOICE') {
+          if (item.mathematicalRemaining > 0) {
+            totalUnpaidInvoices += item.mathematicalRemaining
+          } else {
+            // Este Storno (bani blocați ce pot fi compensați)
+            totalUnallocatedAdvances += Math.abs(item.mathematicalRemaining)
+          }
+        } else if (item.type === 'PAYMENT') {
+          totalUnallocatedAdvances += item.remainingAmount
+        }
+      })
+    })
+
+    return {
+      data: formattedResults,
+      summary: {
+        totalNetBalance: round2(totalNetBalance),
+        totalUnpaidInvoices: round2(totalUnpaidInvoices),
+        totalUnallocatedAdvances: round2(totalUnallocatedAdvances),
+      },
+    }
   } catch (error) {
     console.error('Eroare getSupplierBalances:', error)
-    return []
+    return {
+      data: [],
+      summary: {
+        totalNetBalance: 0,
+        totalUnpaidInvoices: 0,
+        totalUnallocatedAdvances: 0,
+      },
+    }
   }
 }
 
