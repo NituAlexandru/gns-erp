@@ -179,6 +179,7 @@ export async function createSupplierPayment(
         supplierId: validatedData.supplierId,
         status: { $in: ['NEPLATITA', 'PARTIAL_PLATITA'] },
         remainingAmount: { $gt: 0 },
+        invoiceType: { $ne: 'STORNO' },
       })
         .sort({ dueDate: 1, _id: 1 }) // Ordonare implicită FIFO
         .session(session)

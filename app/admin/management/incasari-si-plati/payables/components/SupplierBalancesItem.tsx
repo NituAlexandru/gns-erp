@@ -232,7 +232,7 @@ export function SupplierBalancesItem({
                         {item.seriesName ? `${item.seriesName} - ` : ''}
                         {item.documentNumber}
                       </div>
-                      <div className=' text-muted-foreground'>
+                      <div className='text-primary'>
                         {item.invoiceType === 'STORNO' ? 'Storno' : 'Factură'}{' '}
                         din {formatDate(item.date)}
                       </div>

@@ -342,7 +342,7 @@ export async function getSupplierLedger(supplierId: string): Promise<{
           status: { $in: ['NEPLATITA', 'PARTIAL_PLATITA'] },
           dueDate: { $lt: now },
           // Excludem AVANS și STORNO de la datorii scadente
-          invoiceType: { $ne: 'AVANS' },
+          invoiceType: { $nin: ['AVANS', 'STORNO'] },
           remainingAmount: { $ne: 0 },
         },
       },
@@ -363,7 +363,7 @@ export async function getSupplierLedger(supplierId: string): Promise<{
         $match: {
           supplierId: id,
           status: { $ne: 'ANULATA' },
-          invoiceType: { $in: ['STANDARD', 'STORNO'] },
+          invoiceType: { $in: ['STANDARD', 'STORNO', 'AVANS'] },
         },
       },
       {
