@@ -22,6 +22,7 @@ import { VatRateDTO } from '@/lib/db/modules/setting/vat-rate/types'
 import { BudgetCategoryDTO } from '@/lib/db/modules/financial/treasury/budgeting/budget-category.types'
 import { IBudgetCategoryTree } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.types'
 import { PayablesFilterBar } from './PayablesFilterBar'
+import { PrintSupplierBalancesButton } from '@/app/admin/reports/components/suppliers/PrintSupplierBalancesButton'
 
 interface PayablesLayoutClientProps {
   children: React.ReactNode
@@ -106,6 +107,7 @@ export function PayablesLayoutClient({
           </p>
         </div>
         <div className='flex items-center gap-2'>
+          <PrintSupplierBalancesButton />
           <AnafSyncButton />
           <Button
             variant='outline'

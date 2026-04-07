@@ -104,4 +104,13 @@ export const AVAILABLE_REPORTS: ReportDefinition[] = [
     icon: 'Users',
     filters: ['balanceType', 'amountRange', 'overdueDays'],
   },
+  {
+    id: 'supplier-balances',
+    title: 'Solduri Furnizori',
+    description:
+      'Situația financiară a furnizorilor, restanțe, avansuri și sume nealocate.',
+    category: 'suppliers',
+    icon: 'Users',
+    filters: ['balanceType', 'amountRange', 'overdueDays'],
+  },
 ]

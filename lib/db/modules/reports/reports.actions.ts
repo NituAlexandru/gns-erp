@@ -9,6 +9,7 @@ import { generateProductMarginReport } from './sales/product-margin.report.actio
 import { generateProductHistoryReport } from './inventory/product-history.report.action'
 import { generateSalesPeriodReport } from './sales/sales-period.report.action'
 import { generateClientBalancesReport } from './clients/client-balances.report.action'
+import { generateSupplierBalancesReport } from './suppliers/supplier-balances.report.action'
 
 // Definim tipul de răspuns standard
 type GenerateReportResult = {
@@ -72,6 +73,11 @@ export async function generateReportAction(
       case 'client-balances':
         await generateClientBalancesReport(workbook, filters)
         filename = `Solduri_Clienti_${new Date().toISOString().split('T')[0]}.xlsx`
+        break
+
+      case 'supplier-balances':
+        await generateSupplierBalancesReport(workbook, filters)
+        filename = `Solduri_Furnizori_${new Date().toISOString().split('T')[0]}.xlsx`
         break
 
       default:

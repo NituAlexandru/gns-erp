@@ -10,6 +10,7 @@ import { ProductMarginReportDialog } from './product-margin-report-dialog'
 import { ProductHistoryReportDialog } from './product-history-report-dialog'
 import { SalesPeriodReportDialog } from './sales-period-report-dialog'
 import { ClientBalancesReportDialog } from './clients/ClientBalancesReportDialog'
+import { SupplierBalancesReportDialog } from './suppliers/SupplierBalancesReportDialog'
 
 export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(
@@ -22,6 +23,7 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [isProductHistoryOpen, setIsProductHistoryOpen] = useState(false)
   const [isSalesPeriodOpen, setIsSalesPeriodOpen] = useState(false)
   const [isClientBalancesOpen, setIsClientBalancesOpen] = useState(false)
+  const [isSupplierBalancesOpen, setIsSupplierBalancesOpen] = useState(false)
 
   const handleSelectReport = (report: ReportDefinition) => {
     setSelectedReport(report)
@@ -41,6 +43,8 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
       setIsSalesPeriodOpen(true)
     } else if (report.id === 'client-balances') {
       setIsClientBalancesOpen(true)
+    } else if (report.id === 'supplier-balances') {
+      setIsSupplierBalancesOpen(true)
     } else {
       console.log('Acest raport încă nu are modal implementat.')
     }
@@ -114,11 +118,17 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
           report={selectedReport}
         />
       )}
-      {/* Solduri clienti */}
       {selectedReport && selectedReport.id === 'client-balances' && (
         <ClientBalancesReportDialog
           open={isClientBalancesOpen}
           onOpenChange={setIsClientBalancesOpen}
+          report={selectedReport}
+        />
+      )}
+      {selectedReport && selectedReport.id === 'supplier-balances' && (
+        <SupplierBalancesReportDialog
+          open={isSupplierBalancesOpen}
+          onOpenChange={setIsSupplierBalancesOpen}
           report={selectedReport}
         />
       )}

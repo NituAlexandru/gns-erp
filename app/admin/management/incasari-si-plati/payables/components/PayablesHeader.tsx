@@ -88,7 +88,6 @@ export function PayablesHeader({
       </div>
 
       <div className='flex gap-2'>
-        {/* Buton 1: Factură (Adaugă Factură) */}
         <Sheet open={invoiceModalOpen} onOpenChange={setInvoiceModalOpen}>
           <SheetTrigger asChild>
             <Button variant='outline' className='gap-2'>
