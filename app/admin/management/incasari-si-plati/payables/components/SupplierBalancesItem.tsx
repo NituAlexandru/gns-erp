@@ -60,7 +60,7 @@ export function SupplierBalancesItem({
               onClick={(e) => {
                 e.stopPropagation()
                 router.push(
-                  `/admin/management/incasari-si-plati/payables/suppliers/${supplier.supplierId}/${toSlug(
+                  `/admin/management/suppliers/${supplier.supplierId}/${toSlug(
                     supplier.supplierName,
                   )}?tab=payments`,
                 )
