@@ -54,8 +54,6 @@ import { generateReportAction } from '@/lib/db/modules/reports/reports.actions'
 import { searchStockableItems } from '@/lib/db/modules/product/product.actions'
 import { SearchedProduct } from '@/lib/db/modules/product/types'
 import { useDebounce } from '@/hooks/use-debounce'
-
-// IMPORTUL PENTRU REUTILIZAREA COMPONENTEI DE SEARCH (ajustează calea dacă diferă)
 import { SearchResultItem } from '@/app/(root)/orders/components/mini-components/SearchResultItem'
 
 interface ProductHistoryReportDialogProps {

@@ -77,7 +77,7 @@ export default function ProductStockStatus({
             } text-muted-foreground ${compact ? 'text-[10px]' : 'text-sm'}`}
           >
             <span className='whitespace-nowrap'>
-              Total:{' '}
+              Total (toate gestiunile):{' '}
               <span className='font-medium text-foreground'>
                 {formatStock(totalStockBase, true)}
               </span>
@@ -88,7 +88,7 @@ export default function ProductStockStatus({
             </span>
 
             <span className='whitespace-nowrap'>
-              Rezervat:{' '}
+              Rezervat (Comenzi create):{' '}
               <span className='font-medium text-orange-600'>
                 {formatStock(totalReservedBase, true)}
               </span>
@@ -99,7 +99,7 @@ export default function ProductStockStatus({
             </span>
 
             <span className='whitespace-nowrap'>
-              Disponibil:{' '}
+              Disponibil (Total-Rezervat):{' '}
               <span className='font-medium text-green-600'>
                 {formatStock(totalAvailableBase, true)}
               </span>

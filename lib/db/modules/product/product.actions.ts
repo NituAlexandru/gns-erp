@@ -809,7 +809,7 @@ export async function getEnrichedProductData(
         available: available,
       }
     })
-    .filter((s) => s.totalStock > 0)
+    .filter((s) => s.totalStock !== 0)
 
   return {
     baseCost: maxPurchasePrice,
