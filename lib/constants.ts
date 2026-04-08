@@ -73,6 +73,21 @@ export const NO_PALLET = 'NO_PALLET_SELECTED'
 
 export const AVAILABLE_PALLET_TYPES: PalletType[] = [
   {
+    id: '6822e8884ef1b57a5f18319b',
+    name: 'Palet Intertrans',
+    slug: 'palet-intertrans',
+    custodyFee: 50,
+    lengthCm: 150,
+    widthCm: 120,
+    heightCm: 15,
+    weightKg: 25,
+    volumeM3: 0.27,
+    image: '/images/palet.webp',
+    supplier: 'IntertransCom Impex',
+    returnConditions:
+      'Returnabil in maxim 60 zile la valoarea de 00,00 RON, in stare buna.',
+  },
+  {
     id: '6822e8884ef1b57a5f1831a1',
     name: 'Serviciu de paletizare ThermoSystem',
     slug: 'serviciu-paletizare-thermosystem',

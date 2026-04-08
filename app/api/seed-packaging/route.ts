@@ -10,6 +10,8 @@ const CATEGORY_IDS = {
   SUB_PALETI: new Types.ObjectId('686e2eff73bbbfb3cd36b964'), // Sub-categoria "Paleti"
 }
 
+// Ruta - http://localhost:3000/api/seed-packaging
+
 export async function GET() {
   try {
     await connectToDatabase()
