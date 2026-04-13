@@ -207,6 +207,7 @@ export function AssignedDeliveryCard({
     delivery.deliveryAddress.numar,
     delivery.deliveryAddress.localitate,
     delivery.deliveryAddress.judet,
+    delivery.deliveryAddress.codPostal,
   ]
   const formattedAddress = addressParts.filter((part) => part).join(', ')
 
@@ -353,7 +354,7 @@ export function AssignedDeliveryCard({
           <div className='space-y-2 text-sm border-t pt-3 mt-3 text-muted-foreground'>
             <div className='flex items-center gap-2'>
               <User className='h-4 w-4 flex-shrink-0' />
-              <div className='font-medium text-foreground flex gap-20'>
+              <div className='font-medium text-foreground flex gap-10'>
                 <span> {delivery.clientSnapshot.name} </span>
                 <span>
                   {delivery.clientSnapshot.cui
@@ -362,6 +363,15 @@ export function AssignedDeliveryCard({
                       ? `CNP: ${delivery.clientSnapshot.cnp}`
                       : 'CUI/CNP Indisponibil'}
                 </span>
+              </div>
+            </div>
+            <div className='flex items-center gap-2'>
+              <User className='h-4 w-4 flex-shrink-0' />
+              <div className='font-medium text-foreground flex gap-10'>
+                <span>
+                  Pers. contact: {delivery.deliveryAddress.persoanaContact}
+                </span>
+                <span>Tel.: {delivery.deliveryAddress.telefonContact}</span>
               </div>
             </div>
             <div className='flex items-start gap-2'>

@@ -73,11 +73,11 @@ export function CreateSupplierPaymentForm({
     defaultValues: {
       supplierId: initialSupplierId || '',
       paymentDate: new Date(),
-      totalAmount: 0,
+      totalAmount: '' as any,
       paymentMethod: 'ORDIN_DE_PLATA',
       currency: 'RON',
       exchangeRate: 1,
-      originalCurrencyAmount: 0,
+      originalCurrencyAmount: '' as any,
       seriesName: '',
       paymentNumber: '',
       referenceDocument: '',
@@ -307,6 +307,7 @@ export function CreateSupplierPaymentForm({
     try {
       const payload = {
         ...data,
+        totalAmount: Number(data.totalAmount),
         selectedInvoiceIds: selectedInvoiceIds,
         originalCurrencyAmount: isForeignCurrency
           ? Number(data.originalCurrencyAmount)
@@ -549,7 +550,6 @@ export function CreateSupplierPaymentForm({
                         readOnly={isForeignCurrency}
                         className={`font-bold text-lg h-9 ${isForeignCurrency ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : 'bg-background'}`}
                         {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
                       />
                       {isForeignCurrency && (
                         <Calculator className='absolute right-3 top-2.5 h-4 w-4 text-muted-foreground opacity-50' />

@@ -67,7 +67,7 @@ export function CreateClientPaymentForm({
     defaultValues: {
       clientId: initialClientId || undefined,
       paymentDate: new Date(),
-      totalAmount: initialAmount || 0,
+      totalAmount: initialAmount || ('' as any),
       paymentMethod: 'ORDIN_DE_PLATA',
       seriesName: '',
       paymentNumber: '',
@@ -76,7 +76,7 @@ export function CreateClientPaymentForm({
       // Valori Default Monedă
       currency: 'RON',
       exchangeRate: 1,
-      originalCurrencyAmount: 0,
+      originalCurrencyAmount: '' as any,
     },
   })
 
@@ -269,8 +269,7 @@ export function CreateClientPaymentForm({
       const dataWithNumberAmount = {
         ...data,
         totalAmount: Number(data.totalAmount),
-        selectedInvoiceIds: selectedInvoiceIds, // Array direct
-        // Date valută
+        selectedInvoiceIds: selectedInvoiceIds,
         originalCurrencyAmount: isForeignCurrency
           ? Number(data.originalCurrencyAmount)
           : undefined,
@@ -433,9 +432,6 @@ export function CreateClientPaymentForm({
                             className='bg-background font-semibold border-primary h-9'
                             placeholder='0.00'
                             {...field}
-                            onChange={(e) =>
-                              field.onChange(Number(e.target.value))
-                            }
                           />
                         </FormControl>
                       </FormItem>
@@ -499,10 +495,9 @@ export function CreateClientPaymentForm({
                         type='number'
                         step='0.01'
                         placeholder='0.00'
-                        readOnly={isForeignCurrency} // AICI E CHEIA
+                        readOnly={isForeignCurrency}
                         className={`font-bold text-lg h-9 ${isForeignCurrency ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : 'bg-background'}`}
                         {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
                       />
                       {/* Buton Recalculare (Doar RON) */}
                       {!isForeignCurrency && selectedInvoiceIds.length > 0 && (
