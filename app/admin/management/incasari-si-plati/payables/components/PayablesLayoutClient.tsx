@@ -237,6 +237,7 @@ export function PayablesLayoutClient({
         <SheetContent
           side='right'
           className='w-[90%] max-w-none sm:w-[90%] md:w-[80%] lg:w-[70%] xl:w-[60%] overflow-y-auto'
+          onInteractOutside={(e) => e.preventDefault()}
         >
           <SheetHeader>
             <SheetTitle>Adăugare Factură Furnizor</SheetTitle>
