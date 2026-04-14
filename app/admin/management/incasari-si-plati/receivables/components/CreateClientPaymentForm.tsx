@@ -67,16 +67,15 @@ export function CreateClientPaymentForm({
     defaultValues: {
       clientId: initialClientId || undefined,
       paymentDate: new Date(),
-      totalAmount: initialAmount || ('' as any),
+      totalAmount: initialAmount || (undefined as any),
       paymentMethod: 'ORDIN_DE_PLATA',
       seriesName: '',
       paymentNumber: '',
       referenceDocument: '',
       notes: initialNotes || '',
-      // Valori Default Monedă
       currency: 'RON',
       exchangeRate: 1,
-      originalCurrencyAmount: '' as any,
+      originalCurrencyAmount: undefined as any,
     },
   })
 
@@ -498,6 +497,11 @@ export function CreateClientPaymentForm({
                         readOnly={isForeignCurrency}
                         className={`font-bold text-lg h-9 ${isForeignCurrency ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : 'bg-background'}`}
                         {...field}
+                        value={field.value ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          field.onChange(val === '' ? undefined : Number(val))
+                        }}
                       />
                       {/* Buton Recalculare (Doar RON) */}
                       {!isForeignCurrency && selectedInvoiceIds.length > 0 && (
