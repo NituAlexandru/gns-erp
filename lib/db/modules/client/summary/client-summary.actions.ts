@@ -31,8 +31,8 @@ export async function findOrCreateClientSummary(clientId: string) {
 
       summary = await ClientSummary.create({
         clientId,
-        creditLimit: 0,
-        availableCredit: 0,
+        creditLimit: 1,
+        availableCredit: 1,
       })
     }
 
@@ -138,8 +138,8 @@ export async function updateClientFinancialSettings(
       // Logica de creare dacă nu există (copiată din findOrCreate)
       summary = await ClientSummary.create({
         clientId,
-        creditLimit: 0,
-        availableCredit: 0,
+        creditLimit: 1,
+        availableCredit: 1,
         lockingStatus: 'AUTO',
       })
     }

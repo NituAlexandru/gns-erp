@@ -17,7 +17,7 @@ const addressSchema = new Schema(
     travelTimeInMinutes: { type: Number },
     isActive: { type: Boolean, default: true, required: true },
   },
-  { _id: true }
+  { _id: true },
 )
 
 //  Schemă reutilizabilă pentru contul bancar
@@ -26,7 +26,7 @@ const bankAccountSchema = new Schema(
     iban: { type: String },
     bankName: { type: String },
   },
-  { _id: false }
+  { _id: false },
 )
 
 const clientSchema = new Schema<IClientDoc>(
@@ -64,7 +64,15 @@ const clientSchema = new Schema<IClientDoc>(
     phone: { type: String },
     contractNumber: { type: String },
     contractDate: { type: Date },
-
+    isErpCreatedContract: { type: Boolean, default: false },
+    activeContractId: { type: Schema.Types.ObjectId, ref: 'Contract' },
+    addendums: [
+      {
+        number: { type: String },
+        date: { type: Date },
+        contractId: { type: Schema.Types.ObjectId, ref: 'GeneratedContract' },
+      },
+    ],
     address: {
       type: addressSchema,
       required: true,
@@ -94,7 +102,7 @@ const clientSchema = new Schema<IClientDoc>(
       retailPrice: { type: Number, default: 0 },
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 // Indici pentru căutări rapide

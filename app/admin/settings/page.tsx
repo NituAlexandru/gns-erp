@@ -8,6 +8,7 @@ import { getShippingRates } from '@/lib/db/modules/setting/shipping-rates/shippi
 import { getSetting } from '@/lib/db/modules/setting/setting.actions'
 import { getAnafStatus } from '@/lib/db/modules/setting/efactura/anaf.actions' // <-- NEW
 import { SUPER_ADMIN_ROLES } from '@/lib/db/modules/user/user-roles'
+import { getContractTemplates } from '@/lib/db/modules/contracts/contract-template.actions'
 
 const SettingPage = async () => {
   const session = await auth()
@@ -26,6 +27,7 @@ const SettingPage = async () => {
     seriesResult,
     shippingRatesResult,
     anafStatusResult,
+    templatesResult,
   ] = await Promise.all([
     getSetting(),
     getVatRates(),
@@ -33,20 +35,22 @@ const SettingPage = async () => {
     getSeries(),
     getShippingRates(),
     getAnafStatus(),
+    getContractTemplates(),
   ])
 
   return (
     <SettingsContainer
       initialCompanySettings={JSON.parse(
-        JSON.stringify(companySettingsResult || null)
+        JSON.stringify(companySettingsResult || null),
       )}
       initialVatRates={JSON.parse(JSON.stringify(vatRatesResult.data || []))}
       initialServices={JSON.parse(JSON.stringify(servicesResult.data || []))}
       initialShippingRates={JSON.parse(
-        JSON.stringify(shippingRatesResult.data || [])
+        JSON.stringify(shippingRatesResult.data || []),
       )}
       initialSeries={JSON.parse(JSON.stringify(seriesResult || []))}
       anafStatus={JSON.parse(JSON.stringify(anafStatusResult))}
+      initialTemplates={JSON.parse(JSON.stringify(templatesResult || []))}
       userId={userId}
     >
       <DefaultVatHistory />

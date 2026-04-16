@@ -26,6 +26,7 @@ const SeriesSchema: Schema = new Schema(
         'BonConsum',
         'DispozitiePlata',
         'NotaRetur',
+        'Contract',
       ],
       required: true,
     },
@@ -34,7 +35,7 @@ const SeriesSchema: Schema = new Schema(
       default: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 )
 
 SeriesSchema.index({ name: 1, documentType: 1 }, { unique: true })

@@ -27,8 +27,11 @@ export interface PdfEntity {
   capitalSocial?: string
   phone?: string
   email?: string
-  // Adăugăm câmpuri opționale pentru Client
   contactPerson?: string
+  representative?: string
+  repFunction?: string
+  clientType?: string
+  cnp?: string
 }
 
 // Structura standard pentru Liniile din Tabel
@@ -77,6 +80,8 @@ export interface PdfDocumentData {
     | 'NIR'
     | 'CLIENT_LEDGER'
     | 'SUPPLIER_LEDGER'
+    | 'CONTRACT'
+    | 'ADDENDUM'
   series: string
   number: string
   date: string
@@ -84,7 +89,15 @@ export interface PdfDocumentData {
   supplier: PdfEntity
   client: PdfEntity
   invoiceType?: string
-  // Câmpuri noi pentru Logistică și Expediție
+  contractData?: {
+    documentTitle: string
+    paragraphs: {
+      id?: string
+      title?: string
+      content: string
+      order?: number
+    }[]
+  }
   logistic?: {
     orderNumber?: string
     deliveryNumber?: string
@@ -134,4 +147,5 @@ export interface PdfDocumentData {
       dueDate?: string
     }[]
   }
+  parentInfo?: string
 }

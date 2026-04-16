@@ -36,3 +36,10 @@ Ar trebui așa.
 4. ⁠Mașini mici (dube - poate rămâne livrare mică)
 5. ⁠Pf (persoane fizice)
 6. Retail (aici este link pentru revânzători)
+
+Urgent
+
+- comanda - de blocat sa nu mai modifice tipul de livrare (pt ca se poate modifica si pretul sub minim, de oprit cumva) sub minim
+- sold cuiul sa, sa fac cumva sa pot adauga plati negative? adica mi-au returnat cumva banii furnizorii (aveam sold negativ, mi-au dat banii inapoi, iar acum soldul e pe 0)
+- notificari pentru executori - sa le faca automat din solduri
+- in fisa de client - de facut total plati - total incasari jos la totaluri

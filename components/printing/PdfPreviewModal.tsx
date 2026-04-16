@@ -17,6 +17,7 @@ import { NirTemplate } from './templates/NirTemplate'
 import { ReceiptTemplate } from './templates/ReceiptTemplate'
 import { ClientLedgerTemplate } from './templates/ClientLedgerTemplate'
 import { SupplierLedgerTemplate } from './templates/SupplierLedgerTemplate'
+import { ContractTemplate } from './templates/ContractTemplate'
 
 export interface PdfPreviewModalProps {
   isOpen: boolean
@@ -46,6 +47,9 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
         return <ClientLedgerTemplate data={data} />
       case 'SUPPLIER_LEDGER':
         return <SupplierLedgerTemplate data={data} />
+      case 'CONTRACT':
+      case 'ADDENDUM':
+        return <ContractTemplate data={data} />
       default:
         return null
     }

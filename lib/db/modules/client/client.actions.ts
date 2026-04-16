@@ -7,7 +7,9 @@ import type { IClientCreate, IClientDoc, IClientUpdate } from './types'
 import { revalidatePath } from 'next/cache'
 import { PAGE_SIZE } from '@/lib/constants'
 import { logAudit } from '../audit-logs/audit.actions'
-import { ClientWithSummary } from './summary/client-summary.model'
+import ClientSummary, {
+  ClientWithSummary,
+} from './summary/client-summary.model'
 import { getClientSummary } from './summary/client-summary.actions'
 import { FilterQuery } from 'mongoose'
 
@@ -31,6 +33,13 @@ export async function createClient(
   }
 
   const client = await ClientModel.create(clientData)
+  await ClientSummary.create({
+    clientId: client._id,
+    creditLimit: 1,
+    availableCredit: 1,
+    lockingStatus: 'AUTO',
+  })
+
   revalidatePath('/clients')
 
   // 2) Logăm audit

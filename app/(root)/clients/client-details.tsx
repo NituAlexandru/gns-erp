@@ -34,10 +34,10 @@ export function ClientDetails({ client, isAdmin }: ClientDetailsProps) {
         </div>
       </div>
 
-      <div className='px-6 space-y-6'>
+      <div className='px-6 space-y-2'>
         <div className='grid grid-cols-1 md:grid-cols-3 gap-6 mb-0'>
           {/* Informații Generale */}
-          <div className='space-y-2'>
+          <div className='space-y-0'>
             <p>
               <strong>ID:</strong> {client._id}
             </p>
@@ -53,7 +53,7 @@ export function ClientDetails({ client, isAdmin }: ClientDetailsProps) {
 
             {/* 🔽 MODIFICAT: Afișare cont bancar structurat */}
             {client.bankAccountLei?.iban && (
-              <div className='pt-2'>
+              <div className='pt-3'>
                 <p className='text-sm font-semibold'>Cont Bancar LEI</p>
                 <p>
                   <strong>IBAN:</strong>{' '}
@@ -79,7 +79,7 @@ export function ClientDetails({ client, isAdmin }: ClientDetailsProps) {
           </div>
 
           {/* Informații Fiscale */}
-          <div className='space-y-2'>
+          <div className='space-y-0'>
             {client.isVatPayer && (
               <p className='font-semibold text-green-600'>✔ Plătitor de TVA</p>
             )}
@@ -125,24 +125,63 @@ export function ClientDetails({ client, isAdmin }: ClientDetailsProps) {
             {(client.contractNumber || client.contractDate) && (
               <div className='pt-2'>
                 <p className='text-sm font-semibold'>Detalii Contract</p>
-                {client.contractNumber && (
+                <div className='pl-2 space-y-0 mt-1 text-sm'>
+                  {client.contractNumber && (
+                    <p>
+                      <strong>Număr:</strong> {client.contractNumber}
+                    </p>
+                  )}
+                  {client.contractDate && (
+                    <p>
+                      <strong>Data:</strong>{' '}
+                      {new Date(client.contractDate).toLocaleDateString(
+                        'ro-RO',
+                      )}
+                    </p>
+                  )}
                   <p>
-                    <strong>Număr:</strong> {client.contractNumber}
+                    <strong>Sursă:</strong>{' '}
+                    {client.isErpCreatedContract ? (
+                      <span className='text-green-500 font-medium'>
+                        Generat din GenesisERP
+                      </span>
+                    ) : (
+                      <span className='text-yellow-500 font-medium'>
+                        Adăugat Manual
+                      </span>
+                    )}
                   </p>
-                )}
-                {client.contractDate && (
-                  <p>
-                    <strong>Data:</strong>{' '}
-                    {new Date(client.contractDate).toLocaleDateString('ro-RO')}
-                  </p>
-                )}
+
+                  {client.addendums && client.addendums.length > 0 && (
+                    <div className='mt-2 pt-2 border-t border-border/50'>
+                      <p className='font-semibold mb-1 text-xs uppercase'>
+                        Acte Adiționale:
+                      </p>
+                      <ul className='space-y-0'>
+                        {client.addendums.map((addendum, idx) => (
+                          <li key={idx} className='text-xs'>
+                            <span className='font-medium'>
+                              AA nr. {addendum.number}
+                            </span>{' '}
+                            /{' '}
+                            {addendum.date
+                              ? new Date(addendum.date).toLocaleDateString(
+                                  'ro-RO',
+                                )
+                              : '-'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
           {/* Adrese de livrare și Markup-uri */}
           <div className='space-y-4'>
-            {/* 🔽 MODIFICAT: Afișare adrese de livrare structurate */}
+            {/*  Afișare adrese de livrare structurate */}
             {client.deliveryAddresses &&
               client.deliveryAddresses.length > 0 && (
                 <div>
@@ -211,7 +250,7 @@ export function ClientDetails({ client, isAdmin }: ClientDetailsProps) {
         )}
 
         {/* Timestamps */}
-        <div className='mb-0 text-sm text-muted-foreground space-y-1 flex flex-wrap gap-x-12 gap-y-2 justify-end'>
+        <div className='mb-0 text-sm text-muted-foreground space-y-0 flex flex-wrap gap-x-12 gap-y-2 justify-end'>
           <div>
             <p>
               <strong>Creat la:</strong>{' '}

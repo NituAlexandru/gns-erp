@@ -24,16 +24,27 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
-// Asigură-te că importul este corect către server action-ul nou adăugat
 import { getClientByCode } from '@/lib/db/modules/client/client.actions'
+import { ContractTemplateDTO } from '@/lib/db/modules/contracts/contract.types'
+import { ContractActions } from '@/app/admin/contracts/contract-actions'
 
 interface Props {
   data: IClientDoc[]
   totalPages: number
   currentPage: number
+  adminId: string
+  addendumTemplates: ContractTemplateDTO[]
+  isAdmin: boolean
 }
 
-export default function ClientList({ data, totalPages, currentPage }: Props) {
+export default function ClientList({
+  data,
+  totalPages,
+  currentPage,
+  adminId,
+  addendumTemplates,
+  isAdmin,
+}: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -103,8 +114,8 @@ export default function ClientList({ data, totalPages, currentPage }: Props) {
   }
 
   return (
-    <div className='p-0 py-4 max-w-full'>
-      <div className='grid mb-4 grid-cols-1 items-center gap-4 lg:grid-cols-3 lg:items-center w-full'>
+    <div className='p-0 py-0 max-w-full'>
+      <div className='grid mb-2 grid-cols-1 items-center gap-4 lg:grid-cols-3 lg:items-center w-full'>
         <h1 className='text-2xl font-bold'>Clienți</h1>
 
         {/* Input Căutare - citim valoarea inițială din URL */}
@@ -152,14 +163,15 @@ export default function ClientList({ data, totalPages, currentPage }: Props) {
               <TableHead className='hidden sm:table-cell'>CUI</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Telefon</TableHead>
-              <TableHead className='w-48 text-right'>Acțiuni</TableHead>
+              <TableHead className='hidden xl:table-cell'>Contract</TableHead>
+              <TableHead className='w-[400px] text-right'>Acțiuni</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className='h-24 text-center text-muted-foreground'
                 >
                   {searchParams.get('q')
@@ -189,8 +201,52 @@ export default function ClientList({ data, totalPages, currentPage }: Props) {
                   </TableCell>
                   <TableCell>{c.email || '—'}</TableCell>
                   <TableCell>{c.phone || '—'}</TableCell>
+                  <TableCell className='hidden xl:table-cell'>
+                    {c.contractNumber ? (
+                      <div className='flex flex-col text-xs'>
+                        <span
+                          className={
+                            c.isErpCreatedContract
+                              ? 'text-green-500 font-medium'
+                              : 'font-medium'
+                          }
+                        >
+                          {c.isErpCreatedContract
+                            ? `GNS-${c.contractNumber}`
+                            : c.contractNumber}{' '}
+                          /{' '}
+                          {c.contractDate
+                            ? new Date(c.contractDate).toLocaleDateString(
+                                'ro-RO',
+                              )
+                            : '-'}
+                        </span>
+                        {c.addendums && c.addendums.length > 0 && (
+                          <span className='text-muted-foreground'>
+                            + {c.addendums.length}{' '}
+                            {c.addendums.length === 1
+                              ? 'Act Adițional'
+                              : 'Acte Adiționale'}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className='text-muted-foreground italic text-xs'>
+                        —
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <div className='flex justify-end gap-2'>
+                      {isAdmin && (
+                        <ContractActions
+                          clientId={c._id}
+                          adminId={adminId}
+                          hasActiveContract={!!c.isErpCreatedContract}
+                          addendumTemplates={addendumTemplates}
+                        />
+                      )}
+
                       {/* Desktop Actions */}
                       <div className='hidden xl:flex gap-2'>
                         <Button variant='outline' size='sm' asChild>
@@ -241,7 +297,7 @@ export default function ClientList({ data, totalPages, currentPage }: Props) {
 
       {/* Paginare */}
       {totalPages > 1 && (
-        <div className='py-4 flex justify-center items-center gap-2'>
+        <div className='py-2 flex justify-center items-center gap-2'>
           <Button
             variant='outline'
             onClick={() => handlePageChange(currentPage - 1)}

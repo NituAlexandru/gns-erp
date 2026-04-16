@@ -32,6 +32,7 @@ const DOCUMENT_TYPES = [
   { value: 'NotaRetur', label: 'Notă de Retur' },
   { value: 'BonConsum', label: 'Bon de Consum' },
   { value: 'DispozitiePlata', label: 'Dispoziție de Plată' },
+  { value: 'Contract', label: 'Contract' },
 ]
 
 interface SeriesFormProps {

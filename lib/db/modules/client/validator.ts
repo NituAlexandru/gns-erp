@@ -41,7 +41,7 @@ export const BankAccountSchema = z
       message:
         'Dacă unul dintre câmpurile bancare este completat, celălalt devine obligatoriu.',
       path: ['bankName'],
-    }
+    },
   )
 
 export const BaseClientSchema = z.object({
@@ -53,14 +53,14 @@ export const BaseClientSchema = z.object({
       .string()
       .min(13, 'CNP este obligatoriu pentru Persoana fizica')
       .max(13, 'CNP-ul trebuie să aibă 13 caractere')
-      .optional()
+      .optional(),
   ),
   vatId: z.preprocess(
     (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
     z
       .string()
       .min(2, 'Codul fiscal este obligatoriu pentru Persoana juridica')
-      .optional()
+      .optional(),
   ),
   nrRegComert: z.preprocess(
     (val) => (typeof val === 'string' && val.trim() === '' ? undefined : val),
@@ -68,9 +68,9 @@ export const BaseClientSchema = z.object({
       .string()
       .min(
         7,
-        'Numărul de înregistrare la RegCom este obligatoriu pentru Persoana juridica'
+        'Numărul de înregistrare la RegCom este obligatoriu pentru Persoana juridica',
       )
-      .optional()
+      .optional(),
   ),
   isVatPayer: z.boolean().optional().default(false),
   contractNumber: z.string().optional(),
@@ -102,6 +102,18 @@ export const BaseClientSchema = z.object({
       retailPrice: z.number().nonnegative().optional(),
     })
     .optional(),
+  isErpCreatedContract: z.boolean().optional().default(false),
+  activeContractId: z.string().optional(),
+  addendums: z
+    .array(
+      z.object({
+        number: z.string(),
+        date: z.coerce.date(),
+        contractId: z.string(),
+      }),
+    )
+    .optional()
+    .default([]),
 })
 
 export const ClientCreateSchema = BaseClientSchema.superRefine((data, ctx) => {

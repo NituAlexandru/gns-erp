@@ -43,7 +43,7 @@ const ClientSummarySchema = new Schema<IClientSummary>(
     overdueBalance: { type: Number, default: 0 },
     overdueInvoicesCount: { type: Number, default: 0 },
     // Plafonul de credit negociat
-    creditLimit: { type: Number, default: 0 },
+    creditLimit: { type: Number, default: 1 },
     // Câmp calculat: Plafon - Sold
     availableCredit: { type: Number, default: 0 },
     // Statusul de blocare (ex: dacă a depășit plafonul sau scadența)
@@ -67,7 +67,7 @@ const ClientSummarySchema = new Schema<IClientSummary>(
   },
   {
     timestamps: true, // Adaugă automat createdAt și updatedAt
-  }
+  },
 )
 
 const ClientSummary =

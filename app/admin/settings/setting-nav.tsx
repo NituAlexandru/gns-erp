@@ -8,6 +8,7 @@ import {
   Truck,
   Building,
   ShieldCheck,
+  FileSignature,
 } from 'lucide-react'
 
 const navItems = [
@@ -21,6 +22,11 @@ const navItems = [
   { name: 'Servicii', hash: 'services', icon: <Handshake /> },
   { name: 'Tarife Transport', hash: 'shipping-rates', icon: <Truck /> },
   { name: 'Serii Documente', hash: 'series', icon: <FileText /> },
+  {
+    name: 'Șabloane Contracte',
+    hash: 'contracts',
+    icon: <FileSignature className='w-4 h-4' />,
+  },
 ]
 
 interface SettingNavProps {

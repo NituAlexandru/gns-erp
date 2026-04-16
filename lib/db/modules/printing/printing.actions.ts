@@ -2,7 +2,6 @@
 
 import { connectToDatabase } from '@/lib/db'
 import InvoiceModel from '@/lib/db/modules/financial/invoices/invoice.model'
-// FIX: Importăm numele corect al funcției (mapInvoiceToPdfData)
 import { mapInvoiceToPdfData } from './mappers/map-invoice'
 import { PdfDocumentData } from './printing.types'
 import { mapDeliveryNoteToPdfData } from './mappers/map-delivery-note'
@@ -22,6 +21,14 @@ import {
 } from '../suppliers/summary/supplier-summary.actions'
 import { mapSupplierLedgerToPdfData } from './mappers/map-supplier-ledger'
 import Supplier from '../suppliers/supplier.model'
+import {
+  ContractTemplateDTO,
+  GeneratedContractDTO,
+} from '../contracts/contract.types'
+import GeneratedContract from '../contracts/generated-contract.model'
+import ContractTemplate from '../contracts/contract-template.model'
+import { IClientDoc } from '../client/types'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 // Tipul de răspuns standard
 type PrintResult =
@@ -36,7 +43,9 @@ export async function getPrintData(
     | 'NIR'
     | 'RECEIPT'
     | 'CLIENT_LEDGER'
-    | 'SUPPLIER_LEDGER',
+    | 'SUPPLIER_LEDGER'
+    | 'CONTRACT'
+    | 'ADDENDUM',
 ): Promise<PrintResult> {
   try {
     await connectToDatabase()
@@ -155,6 +164,69 @@ export async function getPrintData(
       )
 
       return { success: true, data: pdfData }
+    }
+
+    // --- LOGICĂ PENTRU CONTRACTE ---
+    if (type === 'CONTRACT' || type === 'ADDENDUM') {
+      const contract = (await GeneratedContract.findById(
+        documentId,
+      ).lean()) as any
+
+      if (!contract) return { success: false, message: 'Contract negăsit.' }
+
+      let parentInfo = ''
+      if (type === 'ADDENDUM' && contract.parentContractId) {
+        const parent = (await GeneratedContract.findById(
+          contract.parentContractId,
+        ).lean()) as any
+        if (parent) {
+          parentInfo = `${parent.series}-${parent.number}`
+        }
+      }
+
+      const pdfData: PdfDocumentData = {
+        type: contract.type,
+        series: contract.series,
+        number: contract.number,
+        date: contract.date.toISOString(),
+        parentInfo: parentInfo,
+        supplier: {
+          name: contract.companySnapshot.name,
+          cui: contract.companySnapshot.cui,
+          regCom: contract.companySnapshot.regCom,
+          address: contract.companySnapshot.address,
+          iban: contract.companySnapshot.bankAccounts?.[0]?.iban || '-',
+          bank: contract.companySnapshot.bankAccounts?.[0]?.bankName || '-',
+          email: contract.companySnapshot.emails?.[0]?.address || '-',
+          representative: 'Popa Lucian Daniel',
+          repFunction: 'Administrator',
+        },
+        client: {
+          name: contract.clientSnapshot.name,
+          clientType: contract.clientSnapshot.clientType,
+          cui: contract.clientSnapshot.vatId,
+          cnp: contract.clientSnapshot.cnp,
+          regCom: contract.clientSnapshot.nrRegComert,
+          address: contract.clientSnapshot.address,
+          iban: contract.clientSnapshot.bankAccountLei?.iban || '-',
+          bank: contract.clientSnapshot.bankAccountLei?.bankName || '-',
+          email: contract.clientSnapshot.email || '-',
+          phone: contract.clientSnapshot.phone || '-',
+          representative:
+            contract.clientSnapshot.address?.persoanaContact || '-',
+          repFunction: 'Administrator',
+        },
+        items: [],
+        totals: { subtotal: 0, vatTotal: 0, grandTotal: 0, currency: 'RON' },
+        contractData: {
+          documentTitle: contract.documentTitle,
+          paragraphs: contract.paragraphs, // Folosim paragrafele deja procesate din snapshot!
+        },
+      }
+
+      const serializedData = JSON.parse(JSON.stringify(pdfData))
+
+      return { success: true, data: serializedData }
     }
 
     return {

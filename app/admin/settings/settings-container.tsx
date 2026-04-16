@@ -15,6 +15,8 @@ import { ISettingInput } from '@/lib/db/modules/setting/types'
 import { CompanySettingsForm } from './components/company-settings-form'
 import { useSearchParams } from 'next/navigation'
 import { EFacturaSettings } from './efactura/efactura-settings'
+import { ContractTemplateDTO } from '@/lib/db/modules/contracts/contract.types'
+import { ContractTemplateBuilder } from '../contracts/contract-template-builder'
 
 interface SettingsContainerProps {
   initialCompanySettings: ISettingInput | null
@@ -22,6 +24,7 @@ interface SettingsContainerProps {
   initialServices: ServiceDTO[]
   initialSeries: SeriesDTO[]
   initialShippingRates: ShippingRateDTO[]
+  initialTemplates: ContractTemplateDTO[]
   anafStatus: {
     connected: boolean
     expiresAt?: Date
@@ -37,6 +40,7 @@ export default function SettingsContainer({
   initialServices,
   initialSeries,
   initialShippingRates,
+  initialTemplates,
   anafStatus,
   userId,
   children,
@@ -53,7 +57,7 @@ export default function SettingsContainer({
   }, [searchParams])
 
   return (
-    <div className='grid md:grid-cols-5 max-w-7xl mx-auto gap-8'>
+    <div className='grid md:grid-cols-5 max-w-full mx-auto gap-8'>
       <aside className='md:col-span-1 sticky top-24 self-start'>
         <SettingNav
           activeSection={activeSection}
@@ -67,6 +71,10 @@ export default function SettingsContainer({
 
         {activeSection === 'efactura' && (
           <EFacturaSettings initialStatus={anafStatus} />
+        )}
+
+        {activeSection === 'contracts' && (
+          <ContractTemplateBuilder initialTemplates={initialTemplates} />
         )}
 
         {activeSection === 'vat-rates' && (
