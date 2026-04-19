@@ -403,7 +403,7 @@ export async function getClientLedger(
           clientId: id,
           status: { $in: ['APPROVED', 'PARTIAL_PAID'] },
           dueDate: { $lt: now },
-          invoiceType: { $ne: 'AVANS' },
+          invoiceType: { $in: ['STANDARD', 'STORNO'] },
           remainingAmount: { $gt: 0.01 },
           seriesName: { $ne: 'INIT-AMB' },
         },
