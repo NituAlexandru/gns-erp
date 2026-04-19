@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useTransition } from 'react'
+import { useState, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import DeleteDialog from '@/components/shared/delete-dialog'
 import { Input } from '@/components/ui/input'
-import { formatError, toSlug } from '@/lib/utils'
+import { formatCurrency, formatError, toSlug } from '@/lib/utils'
 import { toast } from 'sonner'
 import { IClientDoc } from '@/lib/db/modules/client/types'
 import { BarcodeScanner } from '@/components/barcode/barcode-scanner'
@@ -29,7 +29,7 @@ import { ContractTemplateDTO } from '@/lib/db/modules/contracts/contract.types'
 import { ContractActions } from '@/app/admin/contracts/contract-actions'
 
 interface Props {
-  data: IClientDoc[]
+  data: (IClientDoc & { summary?: any })[]
   totalPages: number
   currentPage: number
   adminId: string
@@ -159,8 +159,10 @@ export default function ClientList({
             <TableRow className='bg-muted'>
               <TableHead>Nume</TableHead>
               <TableHead className='hidden sm:table-cell'>Tip client</TableHead>
-              <TableHead className='hidden sm:table-cell'>CNP</TableHead>
-              <TableHead className='hidden sm:table-cell'>CUI</TableHead>
+              <TableHead className='hidden md:table-cell'>
+                Plafon Credit
+              </TableHead>
+              <TableHead className='hidden sm:table-cell'>CNP / CUI</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Telefon</TableHead>
               <TableHead className='hidden xl:table-cell'>Contract</TableHead>
@@ -191,13 +193,25 @@ export default function ClientList({
                     </Link>
                   </TableCell>
                   <TableCell className='hidden sm:table-cell'>
-                    {c.clientType}
+                    {c.clientType === 'Persoana fizica' ? (
+                      <span className='px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200'>
+                        PF
+                      </span>
+                    ) : (
+                      <span className='px-2 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200'>
+                        PJ
+                      </span>
+                    )}
                   </TableCell>
-                  <TableCell className='hidden sm:table-cell'>
-                    {c.cnp || '—'}
+                  <TableCell className='hidden md:table-cell font-medium'>
+                    {c.summary && typeof c.summary.creditLimit === 'number'
+                      ? formatCurrency(c.summary.creditLimit)
+                      : '—'}
                   </TableCell>
-                  <TableCell className='hidden sm:table-cell'>
-                    {c.vatId || '—'}
+                  <TableCell className='hidden sm:table-cell font-mono'>
+                    {c.clientType === 'Persoana fizica'
+                      ? c.cnp || '—'
+                      : c.vatId || '—'}
                   </TableCell>
                   <TableCell>{c.email || '—'}</TableCell>
                   <TableCell>{c.phone || '—'}</TableCell>

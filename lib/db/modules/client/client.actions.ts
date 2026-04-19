@@ -146,7 +146,7 @@ export async function getAllClients({
   limit?: number
   query?: string
 }): Promise<{
-  data: IClientDoc[]
+  data: (IClientDoc & { summary?: any })[]
   totalPages: number
   total: number
   from: number
@@ -169,13 +169,30 @@ export async function getAllClients({
     ]
   }
 
-  // 2. Aplicăm filtrul la find și count
+  // 2. Extragem datele cu o agregare pentru a include și sumarul
   const [data, total] = await Promise.all([
-    ClientModel.find(filter)
-      .sort({ createdAt: -1, _id: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
+    ClientModel.aggregate([
+      { $match: filter },
+      { $sort: { createdAt: -1, _id: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: 'clientsummaries',
+          localField: '_id',
+          foreignField: 'clientId',
+          as: 'summaryData',
+        },
+      },
+      {
+        $addFields: {
+          summary: { $arrayElemAt: ['$summaryData', 0] },
+        },
+      },
+      {
+        $project: { summaryData: 0 },
+      },
+    ]),
     ClientModel.countDocuments(filter),
   ])
 
