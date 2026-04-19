@@ -1551,6 +1551,17 @@ export async function getAllInvoices(
         },
       })
     }
+    pipeline.push({
+      $addFields: {
+        sortDate: {
+          $dateToString: {
+            format: '%Y-%m-%d',
+            date: '$invoiceDate',
+            timezone: TIMEZONE,
+          },
+        },
+      },
+    })
 
     // --- Faza 4: Paginare și Numărare ($facet) ---
     pipeline.push({
@@ -1591,7 +1602,7 @@ export async function getAllInvoices(
           { $sort: { _id: 1 } },
         ],
         data: [
-          { $sort: { invoiceDate: -1, invoiceNumber: -1, _id: -1 } },
+          { $sort: { sortDate: -1, seriesName: 1, sequenceNumber: -1 } },
           { $skip: skip },
           { $limit: limit },
           {
