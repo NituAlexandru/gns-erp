@@ -167,9 +167,20 @@ export const buildAnafXml = ({
     const quantity = Number(
       (item.unitPrice < 0 ? -item.quantity : item.quantity).toFixed(2),
     )
-    const lineValue = Number(item.lineValue.toFixed(2))
+
+    const lineValue = Number(
+      (quantity < 0
+        ? -Math.abs(item.lineValue)
+        : Math.abs(item.lineValue)
+      ).toFixed(2),
+    )
     const vatRate = item.vatRateDetails.rate
-    const vatValue = Number(item.vatRateDetails.value.toFixed(2))
+    const vatValue = Number(
+      (quantity < 0
+        ? -Math.abs(item.vatRateDetails.value)
+        : Math.abs(item.vatRateDetails.value)
+      ).toFixed(2),
+    )
     const lineId = (i + 1).toString()
 
     const existing = taxSubtotalsMap.get(vatRate) || {
