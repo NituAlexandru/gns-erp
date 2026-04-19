@@ -291,7 +291,7 @@ export function DeliveryNotesList({
               </TableRow>
             ) : data.length > 0 ? (
               data.map((note) => {
-                const address = note.deliveryAddress
+                const address = note.deliveryAddress || {}
                 const addressString = `Str. ${address.strada || '-'}, nr. ${address.numar || ''}, ${address.alteDetalii || ''}, ${address.localitate || ''}, ${address.judet || ''}`
                 const formattedDeliveryDate = note.deliveryDate
                   ? new Date(note.deliveryDate).toLocaleDateString('ro-RO')
@@ -311,7 +311,7 @@ export function DeliveryNotesList({
                 let noteProductRevenue = 0
 
                 if (isSuperAdmin && hasCostData) {
-                  note.items.forEach((item) => {
+                  note.items?.forEach((item) => {
                     const isProduct = item.stockableItemType === 'ERPProduct'
 
                     if (isProduct) {
