@@ -76,7 +76,8 @@ function mapOrderItemsToPlannerItems(
   return orderItems.map((item) => {
     const orderLineIdStr = item._id.toString().trim()
     const qtyOrdered = item.quantityInBaseUnit ?? item.quantity ?? 0
-    const qtyShipped = item.quantityShipped ?? 0
+    const factor = item.conversionFactor || 1
+    const qtyShipped = (item.quantityShipped ?? 0) * factor
     const qtyPlanned = plannedQuantitiesMap.get(orderLineIdStr) || 0
     const baseUnit = item.baseUnit || item.unitOfMeasure
     const vatRate = item.vatRateDetails?.rate ?? 0
