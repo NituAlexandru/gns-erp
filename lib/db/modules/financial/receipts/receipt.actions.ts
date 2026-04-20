@@ -104,6 +104,15 @@ export async function createReceiptAction(data: CreateReceiptDTO) {
       const allocations = data.allocations || []
 
       if (allocations.length > 0) {
+        const totalToAllocateFromRequest = allocations.reduce(
+          (sum, a) => sum + round2(a.amountToPay),
+          0,
+        )
+        if (round2(totalToAllocateFromRequest) > round2(data.amount)) {
+          throw new Error(
+            `Eroare critică: Suma trimisă spre alocare (${totalToAllocateFromRequest} RON) depășește valoarea chitanței (${data.amount} RON).`,
+          )
+        }
         for (const alloc of allocations) {
           const amount = round2(alloc.amountToPay)
           if (amount <= 0) continue

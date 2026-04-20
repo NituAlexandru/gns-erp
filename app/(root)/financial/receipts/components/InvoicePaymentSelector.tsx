@@ -22,7 +22,7 @@ interface InvoicePaymentSelectorProps {
   clientId: string
   onSelectionChange: (
     totalAmount: number,
-    allocations: ReceiptAllocationItem[]
+    allocations: ReceiptAllocationItem[],
   ) => void
 }
 
@@ -87,7 +87,7 @@ export function InvoicePaymentSelector({
 
     const rawTotal = selected.reduce(
       (sum, inv) => sum + (inv.amountToPay || 0),
-      0
+      0,
     )
     const totalAmount = round2(rawTotal)
 
@@ -120,18 +120,22 @@ export function InvoicePaymentSelector({
 
   // 4. Handler pentru modificarea sumei (plată parțială)
   const changeAmount = (index: number, newValue: string) => {
-    const val = parseFloat(newValue)
+    let val = parseFloat(newValue)
     const newInvoices = [...invoices]
 
-    // Validare simplă
     if (!isNaN(val)) {
-      newInvoices[index].amountToPay = val
-      // Dacă modifică suma, bifăm automat factura
-      if (!newInvoices[index].isSelected) {
-        newInvoices[index].isSelected = true
+      // PREVENȚIE: Nu lăsăm să scrie o sumă mai mare decât restul facturii
+      if (val > newInvoices[index].remainingAmount) {
+        val = newInvoices[index].remainingAmount
       }
+      if (val < 0) val = 0 // Fără valori negative
+
+      newInvoices[index].amountToPay = val
+      // Dacă a pus o sumă > 0, o bifăm. Altfel, o debifăm.
+      newInvoices[index].isSelected = val > 0
     } else {
       newInvoices[index].amountToPay = 0
+      newInvoices[index].isSelected = false
     }
 
     setInvoices(newInvoices)

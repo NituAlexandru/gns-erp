@@ -39,6 +39,11 @@ import { ReceiptAllocationItem } from '@/lib/db/modules/financial/receipts/recei
 import { ClientSelector } from '@/app/(root)/orders/components/ClientSelector'
 import { InvoicePaymentSelector } from './InvoicePaymentSelector'
 import { Textarea } from '@/components/ui/textarea'
+import { formatCurrency } from '@/lib/utils'
+import { format } from 'date-fns'
+import { toZonedTime } from 'date-fns-tz'
+import { TIMEZONE } from '@/lib/constants'
+import { ro } from 'date-fns/locale'
 
 export function CreateReceiptForm() {
   const router = useRouter()
@@ -85,13 +90,18 @@ export function CreateReceiptForm() {
     name: 'amount',
   })
 
+  const watchedAllocations = useWatch({
+    control: form.control,
+    name: 'allocations',
+  })
+
   const amountInWordsPreview =
     watchedAmount > 0 ? numberToWordsRo(watchedAmount) : ''
 
   // Handler tabel facturi
   const handleInvoiceSelection = (
     totalAmount: number,
-    allocations: ReceiptAllocationItem[]
+    allocations: ReceiptAllocationItem[],
   ) => {
     form.setValue('amount', totalAmount)
     form.setValue('allocations', allocations)
@@ -240,7 +250,15 @@ export function CreateReceiptForm() {
                 name='amount'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Suma Încasată (RON)</FormLabel>
+                    <FormLabel className='flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3'>
+                      <span>Suma Încasată (RON)</span>
+                      {(watchedAllocations?.length ?? 0) > 0 && (
+                        <span className='text-xs font-normal text-destructive italic'>
+                          * Pentru plată parțială modifică suma în tabel. Pentru
+                          încasare nealocată debifează facturile.
+                        </span>
+                      )}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type='number'
@@ -250,6 +268,7 @@ export function CreateReceiptForm() {
                           field.onChange(parseFloat(e.target.value) || 0)
                         }
                         className='font-bold text-lg'
+                        disabled={watchedAllocations.length > 0}
                       />
                     </FormControl>
                     <FormDescription className='italic text-primary'>
@@ -292,7 +311,59 @@ export function CreateReceiptForm() {
                 </FormItem>
               )}
             />
+            {/* SUMAR ALOCĂRI */}
+            {(watchedAllocations?.length ?? 0) > 0 && (
+              <div className='rounded-md border border-primary/20 bg-primary/5 p-4 space-y-3'>
+                <h4 className='font-semibold text-sm flex items-center justify-between'>
+                  <span>Sumar Alocare Facturi:</span>
+                  <span className='text-xs font-normal text-muted-foreground'>
+                    Suma va fi distribuită astfel:
+                  </span>
+                </h4>
 
+                <ul className='text-sm space-y-1.5'>
+                  {watchedAllocations.map((alloc) => (
+                    <li
+                      key={alloc.invoiceId}
+                      className='flex justify-between items-center'
+                    >
+                      <span className='text-muted-foreground'>
+                        Factura {alloc.invoiceSeries} - {alloc.invoiceNumber} /{' '}
+                        {format(
+                          toZonedTime(new Date(alloc.invoiceDate), TIMEZONE),
+                          'dd.MM.yyyy',
+                          { locale: ro },
+                        )}
+                      </span>
+                      <span className='font-medium font-mono'>
+                        {formatCurrency(alloc.amountToPay)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className='border-t border-primary/20 pt-2 mt-2 flex justify-between items-center font-bold'>
+                  <span>Total de alocat:</span>
+                  <span
+                    className={
+                      watchedAllocations.reduce(
+                        (sum, a) => sum + (a.amountToPay || 0),
+                        0,
+                      ) !== watchedAmount
+                        ? 'text-destructive font-mono text-base'
+                        : 'text-primary font-mono text-base'
+                    }
+                  >
+                    {formatCurrency(
+                      watchedAllocations.reduce(
+                        (sum, a) => sum + (a.amountToPay || 0),
+                        0,
+                      ),
+                    )}
+                  </span>
+                </div>
+              </div>
+            )}
             <Button
               type='submit'
               className='w-full'
