@@ -395,7 +395,12 @@ export const PdfHeader: React.FC<PdfHeaderProps> = ({
               )}
 
               {meta.contactPhone && (
-                <Text style={[styles.details, { marginBottom: 0 }]}>
+                <Text
+                  style={[
+                    styles.details,
+                    { marginBottom: 0, fontSize: 7.5, fontWeight: 'bold' },
+                  ]}
+                >
                   <Text style={styles.bold}>Tel.:</Text> {meta.contactPhone}
                 </Text>
               )}
