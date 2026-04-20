@@ -41,7 +41,6 @@ import {
   Clock,
   Percent,
   X,
-  AlertCircle,
   Check,
   ChevronsUpDown,
   Loader2,
@@ -49,8 +48,6 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-
-// Refolosim helper-ul tău existent pentru a aduce clienții
 import { getClientsForSelector } from '@/lib/db/modules/overview/sales-lists/sales-list.helpers'
 import { PenaltyRuleDTO } from '@/lib/db/modules/financial/penalties/penalty.types'
 import {
@@ -67,11 +64,8 @@ interface SimpleEntity {
 
 export function PenaltyManagementModal() {
   const [open, setOpen] = useState(false)
-
-  // Panouri active
   const [isCreating, setIsCreating] = useState(false)
   const [isEditingDefault, setIsEditingDefault] = useState(false)
-
   const [rules, setRules] = useState<PenaltyRuleDTO[]>([])
   const [isLoadingRules, setIsLoadingRules] = useState(false)
   const [isSaving, setIsSaving] = useState(false)

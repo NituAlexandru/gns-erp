@@ -105,6 +105,24 @@ export const AVAILABLE_REPORTS: ReportDefinition[] = [
     filters: ['balanceType', 'amountRange', 'overdueDays'],
   },
   {
+    id: 'client-administrative-details',
+    title: 'Detalii Administrative Clienți',
+    description:
+      'Export complet cu plafoane de credit, date de contract și status blocare livrări.',
+    category: 'clients',
+    icon: 'FileText',
+    filters: [],
+  },
+  {
+    id: 'penalty-rules-lists',
+    title: 'Liste Penalități',
+    description:
+      'Exportă clienții asignați pentru fiecare regulă de penalizare și cotele aplicate.',
+    category: 'clients',
+    icon: 'Settings2',
+    filters: [],
+  },
+  {
     id: 'supplier-balances',
     title: 'Solduri Furnizori',
     description:

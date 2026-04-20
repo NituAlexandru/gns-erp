@@ -10,6 +10,8 @@ import { generateProductHistoryReport } from './inventory/product-history.report
 import { generateSalesPeriodReport } from './sales/sales-period.report.action'
 import { generateClientBalancesReport } from './clients/client-balances.report.action'
 import { generateSupplierBalancesReport } from './suppliers/supplier-balances.report.action'
+import { generateClientDetailsReport } from './clients/client-details.report.action'
+import { generatePenaltyRulesReport } from './clients/penalty-rules.report.action'
 
 // Definim tipul de răspuns standard
 type GenerateReportResult = {
@@ -73,6 +75,16 @@ export async function generateReportAction(
       case 'client-balances':
         await generateClientBalancesReport(workbook, filters)
         filename = `Solduri_Clienti_${new Date().toISOString().split('T')[0]}.xlsx`
+        break
+
+      case 'client-administrative-details':
+        await generateClientDetailsReport(workbook, filters)
+        filename = `Detalii_Administrative_Clienti_${new Date().toISOString().split('T')[0]}.xlsx`
+        break
+
+      case 'penalty-rules-lists':
+        await generatePenaltyRulesReport(workbook, filters)
+        filename = `Liste_Penalitati_${new Date().toISOString().split('T')[0]}.xlsx`
         break
 
       case 'supplier-balances':

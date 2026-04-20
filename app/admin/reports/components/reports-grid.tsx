@@ -11,6 +11,8 @@ import { ProductHistoryReportDialog } from './product-history-report-dialog'
 import { SalesPeriodReportDialog } from './sales-period-report-dialog'
 import { ClientBalancesReportDialog } from './clients/ClientBalancesReportDialog'
 import { SupplierBalancesReportDialog } from './suppliers/SupplierBalancesReportDialog'
+import { ClientDetailsReportDialog } from './clients/ClientDetailsReportDialog'
+import { PenaltyRulesReportDialog } from './clients/PenaltyRulesReportDialog'
 
 export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(
@@ -24,6 +26,8 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
   const [isSalesPeriodOpen, setIsSalesPeriodOpen] = useState(false)
   const [isClientBalancesOpen, setIsClientBalancesOpen] = useState(false)
   const [isSupplierBalancesOpen, setIsSupplierBalancesOpen] = useState(false)
+  const [isClientDetailsOpen, setIsClientDetailsOpen] = useState(false)
+  const [isPenaltyRulesOpen, setIsPenaltyRulesOpen] = useState(false)
 
   const handleSelectReport = (report: ReportDefinition) => {
     setSelectedReport(report)
@@ -45,6 +49,10 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
       setIsClientBalancesOpen(true)
     } else if (report.id === 'supplier-balances') {
       setIsSupplierBalancesOpen(true)
+    } else if (report.id === 'client-administrative-details') {
+      setIsClientDetailsOpen(true)
+    } else if (report.id === 'penalty-rules-lists') {
+      setIsPenaltyRulesOpen(true)
     } else {
       console.log('Acest raport încă nu are modal implementat.')
     }
@@ -125,6 +133,25 @@ export function ReportsGrid({ reports }: { reports: ReportDefinition[] }) {
           report={selectedReport}
         />
       )}
+
+      {/* MODAL DETALII ADMINISTRATIVE */}
+      {selectedReport &&
+        selectedReport.id === 'client-administrative-details' && (
+          <ClientDetailsReportDialog
+            open={isClientDetailsOpen}
+            onOpenChange={setIsClientDetailsOpen}
+            report={selectedReport}
+          />
+        )}
+
+      {selectedReport && selectedReport.id === 'penalty-rules-lists' && (
+        <PenaltyRulesReportDialog
+          open={isPenaltyRulesOpen}
+          onOpenChange={setIsPenaltyRulesOpen}
+          report={selectedReport}
+        />
+      )}
+
       {selectedReport && selectedReport.id === 'supplier-balances' && (
         <SupplierBalancesReportDialog
           open={isSupplierBalancesOpen}
