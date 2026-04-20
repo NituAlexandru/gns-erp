@@ -397,7 +397,7 @@ export function OrderForm({
             ? `Modificare Comandă #${initialOrderData?.orderNumber}`
             : 'Creare Comandă Nouă'}
         </h1>
-        <div className='grid grid-cols-1 md:grid-cols-[2fr_1.5fr_1.5fr_auto] gap-4 p-4 border rounded-lg'>
+        <div className='grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-[2fr_1.5fr_1.5fr_auto] gap-4 p-2 sm:p-4 border rounded-lg'>
           {/* Coloana 1 */}
           <div className='p-4 border rounded-lg flex flex-col space-y-4'>
             <EntitySelector
@@ -414,7 +414,10 @@ export function OrderForm({
           {/* Coloana 2 */}
           <div className='p-4 border rounded-lg flex flex-col'>
             <h2 className='text-lg font-semibold mb-2'>Detalii Logistice</h2>
-            <OrderLogistics shippingRates={initialDataForm.shippingRates} />
+            <OrderLogistics
+              shippingRates={initialDataForm.shippingRates}
+              isReadOnly={isEditing && !isAdmin}
+            />
           </div>
           {/* Coloana 3 */}
           <div className='p-4 border rounded-lg flex flex-col'>
@@ -439,11 +442,12 @@ export function OrderForm({
           />
         </div>
         {/* Butoane */}
-        <div className='flex justify-end gap-4'>
+        <div className='flex flex-col-reverse sm:flex-row justify-end gap-3 sm:gap-4 mt-6'>
           {!isEditing && (
             <Button
               type='button'
               variant='outline'
+              className='w-full sm:w-auto'
               onClick={onSaveDraft}
               disabled={isSubmitting}
             >
@@ -454,7 +458,7 @@ export function OrderForm({
           {isEditing && initialOrderData?.status === 'DRAFT' && (
             <Button
               type='button'
-              className='bg-green-600 hover:bg-green-700 text-white'
+              className='w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white'
               onClick={onConfirmDraft}
               disabled={isSubmitting}
             >
@@ -464,6 +468,7 @@ export function OrderForm({
 
           <Button
             type='submit'
+            className='w-full sm:w-auto'
             disabled={isSubmitting || isLoadingData || isClientLoading}
           >
             {isSubmitting

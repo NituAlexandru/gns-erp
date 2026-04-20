@@ -498,7 +498,12 @@ export function OrderItemsManager({
           </PopoverContent>
         </Popover>
 
-        <Button variant='outline' type='button' onClick={handleAddManualLine}>
+        <Button
+          variant='outline'
+          type='button'
+          className='w-full sm:w-auto'
+          onClick={handleAddManualLine}
+        >
           Adaugă Linie Liberă
         </Button>
         {!hasServices && (

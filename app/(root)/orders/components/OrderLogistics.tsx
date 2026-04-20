@@ -23,11 +23,14 @@ import {
 import { IAddress } from '@/lib/db/modules/client/types'
 import { formatCurrency } from '@/lib/utils'
 import { useEffect, useMemo } from 'react'
+import { Lock } from 'lucide-react'
 
 export function OrderLogistics({
   shippingRates,
+  isReadOnly = false,
 }: {
   shippingRates: ShippingRateDTO[]
+  isReadOnly?: boolean
 }) {
   const { control, setValue } = useFormContext()
 
@@ -43,7 +46,7 @@ export function OrderLogistics({
   }) as IAddress | null
 
   const selectedMethodInfo = DELIVERY_METHODS.find(
-    (m) => m.key === deliveryMethodKey
+    (m) => m.key === deliveryMethodKey,
   )
   const showVehicleSection = selectedMethodInfo?.requiresVehicle === true
 
@@ -100,6 +103,15 @@ export function OrderLogistics({
 
   return (
     <div className='space-y-4'>
+      {isReadOnly && (
+        <div className='flex items-start gap-2 p-3 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md dark:bg-amber-950/30 dark:text-amber-200 dark:border-amber-900'>
+          <Lock className='w-4 h-4 mt-0.5 shrink-0' />
+          <p>
+            Doar administratorii pot modifica detaliile logistice pentru o
+            comandă deja emisă.
+          </p>
+        </div>
+      )}
       {/* Mod Livrare */}
       <Controller
         name='deliveryType'
@@ -115,6 +127,7 @@ export function OrderLogistics({
                 }
               }}
               value={field.value || ''}
+              disabled={isReadOnly}
             >
               <FormControl>
                 <SelectTrigger>
@@ -146,6 +159,7 @@ export function OrderLogistics({
                   <Checkbox
                     checked={field.value ?? false}
                     onCheckedChange={field.onChange}
+                    disabled={isReadOnly}
                   />
                 </FormControl>
                 <div className='space-y-1 leading-none'>
@@ -170,7 +184,7 @@ export function OrderLogistics({
                     <Select
                       onValueChange={field.onChange}
                       value={field.value || ''}
-                      disabled={filteredRates.length === 0}
+                      disabled={isReadOnly || filteredRates.length === 0}
                     >
                       <FormControl>
                         <SelectTrigger>
