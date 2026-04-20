@@ -391,7 +391,7 @@ export function OrderForm({
 
   return (
     <FormProvider {...methods}>
-      <form onSubmit={methods.handleSubmit(onSubmit)} className='space-y-6'>
+      <form onSubmit={methods.handleSubmit(onSubmit)} className='space-y-2'>
         <h1 className='text-2xl font-bold'>
           {isEditing
             ? `Modificare Comandă #${initialOrderData?.orderNumber}`
