@@ -14,10 +14,9 @@ import { generateNextDocumentNumber } from '../../../numbering/numbering.actions
 import InvoiceModel from '../invoice.model'
 import { updateRelatedDocuments } from '../invoice.helpers'
 import DeliveryNoteModel from '../../delivery-notes/delivery-note.model'
-import { getSetting } from '../../../setting/setting.actions' // NECESAR
-import { ISettingInput } from '../../../setting/types' // NECESAR
+import { getSetting } from '../../../setting/setting.actions'
+import { ISettingInput } from '../../../setting/types'
 import DeliveryModel from '../../../deliveries/delivery.model'
-import { round2 } from '@/lib/utils'
 
 // Funcție helper copiată din invoice.actions.ts pentru consistență
 function buildCompanySnapshot(settings: ISettingInput) {
@@ -245,7 +244,7 @@ export async function createSplitInvoices(
               // --- Detalii Transport ---
               driverName: invoiceData.driverName || allDrivers,
               vehicleNumber: invoiceData.vehicleNumber || allVehicles,
-              vehicleType: invoiceData.vehicleType, 
+              vehicleType: invoiceData.vehicleType,
               trailerNumber: invoiceData.trailerNumber || allTrailers,
               uitCode: invoiceData.uitCode || allUITs,
 
