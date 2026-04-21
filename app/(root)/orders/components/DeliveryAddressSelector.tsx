@@ -43,7 +43,7 @@ export function DeliveryAddressSelector({
         typeof deliveryAddressIdFromForm === 'string'
       ) {
         const initialAddress = activeDeliveryAddresses.find(
-          (addr) => addr._id === deliveryAddressIdFromForm
+          (addr) => addr._id === deliveryAddressIdFromForm,
         )
         if (initialAddress) {
           addressToSelect = initialAddress
@@ -57,7 +57,7 @@ export function DeliveryAddressSelector({
         addressToSelect = activeDeliveryAddresses[0]
         console.log(
           'DAS: Defaulting to first address:',
-          addressToSelect?.strada
+          addressToSelect?.strada,
         )
       }
     } else {
@@ -71,7 +71,7 @@ export function DeliveryAddressSelector({
 
   const handleSelectChange = (addressId: string) => {
     const addressObject = activeDeliveryAddresses.find(
-      (addr) => addr._id === addressId
+      (addr) => addr._id === addressId,
     )
     if (addressObject) {
       setSelectedAddress(addressObject)
@@ -107,11 +107,11 @@ export function DeliveryAddressSelector({
             {activeDeliveryAddresses.map((addr) => (
               <SelectItem key={addr._id!} value={addr._id!}>
                 {[
+                  addr.judet,
+                  addr.localitate,
                   addr.strada,
                   addr.numar,
                   addr.alteDetalii,
-                  addr.judet,
-                  addr.localitate,
                 ]
                   .filter(Boolean)
                   .join(', ')}

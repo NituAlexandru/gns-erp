@@ -155,9 +155,9 @@ export function ClientSelector({
       )}
 
       {selectedClient && !isFetchingDetails && (
-        <div className='mt-2 p-3 border rounded-md bg-card text-sm space-y-3 shadow-sm'>
+        <div className='mt-2 p-3 border rounded-md bg-card text-sm space-y-1 shadow-sm'>
           {/* Secțiunea Financiară */}
-          <div className='pb-3 border-b space-y-2'>
+          <div className='pb-1 border-b space-y-0'>
             {/* Plafon */}
             <div className='flex justify-between items-center'>
               <span className='text-muted-foreground'>Plafon Credit:</span>
@@ -262,7 +262,7 @@ export function ClientSelector({
           </div>
 
           {/* Detalii Generale  */}
-          <div className='grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-muted-foreground'>
+          <div className='grid grid-cols-1 gap-x-2 gap-y-0.5 text-xs text-muted-foreground'>
             {/* Rândul 1: CUI și Termen Plată */}
             <p>
               <strong className='text-foreground'>CUI:</strong>{' '}
@@ -278,7 +278,7 @@ export function ClientSelector({
               <strong className='text-foreground'>Telefon:</strong>{' '}
               {selectedClient.phone || 'N/A'}
             </p>
-            <p>
+            <p className='col-span-2'>
               <strong className='text-foreground'>Email:</strong>{' '}
               <span className='break-all'>{selectedClient.email || 'N/A'}</span>
             </p>
@@ -286,7 +286,7 @@ export function ClientSelector({
             {/* Rândul 3: Adresa (pe toată lățimea) */}
             <p className='col-span-2'>
               <strong className='text-foreground'>Adresă:</strong>{' '}
-              {`${selectedClient.address.strada}, ${selectedClient.address.localitate}`}
+              {`${selectedClient.address.localitate}, ${selectedClient.address.judet}, Str. ${selectedClient.address.strada}, Nr. ${selectedClient.address.numar}, ${selectedClient.address.alteDetalii}`}
             </p>
           </div>
         </div>

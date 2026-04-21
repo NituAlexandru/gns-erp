@@ -54,7 +54,9 @@ export function BlockedClientsCard() {
             {count}
           </span>
           <p className='text-xs text-muted-foreground mt-1 uppercase font-semibold'>
-            {hasBlocked ? 'Clienți cu livrare oprită' : 'Niciun client blocat'}
+            {hasBlocked
+              ? 'Clienți cu livrarea sistată'
+              : 'Niciun client blocat'}
           </p>
         </div>
 

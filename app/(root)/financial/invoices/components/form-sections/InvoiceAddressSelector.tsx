@@ -85,11 +85,11 @@ export function InvoiceAddressSelector({
                 value={addr._id?.toString() || ''}
               >
                 {[
-                  addr.strada,
-                  addr.numar,
-                  addr.alteDetalii, // Dacă e undefined/null, va fi filtrat
                   addr.judet,
                   addr.localitate,
+                  addr.strada,
+                  addr.numar,
+                  addr.alteDetalii,
                 ]
                   .filter(Boolean) // Elimină tot ce e null, undefined sau string gol
                   .join(', ')}{' '}
