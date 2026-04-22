@@ -40,8 +40,14 @@ import {
 import { DeliveryNotesFilters } from './DeliveryNotesFilters'
 import { DeliveryNoteStatusBadge } from './DeliveryNoteStatusBadge'
 import { ConfirmDeliveryModal } from '@/components/shared/modals/ConfirmDeliveryModal'
-import { InvoiceActionResult } from '@/lib/db/modules/financial/invoices/invoice.types'
-import { createInvoiceFromSingleNote } from '@/lib/db/modules/financial/invoices/invoice.actions'
+import {
+  InvoiceActionResult,
+  InvoiceLineInput,
+} from '@/lib/db/modules/financial/invoices/invoice.types'
+import {
+  createChunkedInvoices,
+  createInvoiceFromSingleNote,
+} from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { DocumentType } from '@/lib/db/modules/numbering/documentCounter.model'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
@@ -53,6 +59,9 @@ import {
   getMarginColorClass,
   getProfitColorClass,
 } from '@/lib/db/modules/financial/invoices/invoice.utils'
+import { ISeries } from '@/lib/db/modules/numbering/series.model'
+import { FractionalInvoiceModal } from '../../invoices/components/FractionalInvoice/FractionalInvoiceModal'
+import { getActiveSeriesForDocumentType } from '@/lib/db/modules/numbering/numbering.actions'
 
 interface DeliveryNotesListProps {
   data: DeliveryNoteDTO[]
@@ -87,27 +96,28 @@ export function DeliveryNotesList({
   const [noteToConfirm, setNoteToConfirm] = useState<DeliveryNoteDTO | null>(
     null,
   )
-
   const [showInvoiceSeriesModal, setShowInvoiceSeriesModal] = useState(false)
   const [noteToInvoice, setNoteToInvoice] = useState<DeliveryNoteDTO | null>(
     null,
   )
-
   const [previewNote, setPreviewNote] = useState<DeliveryNoteDTO | null>(null)
   const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
-
   const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false)
   const [noteToRevoke, setNoteToRevoke] = useState<DeliveryNoteDTO | null>(null)
+  // --- STĂRI PENTRU FACTURARE FRACȚIONATĂ ---
+  const [isFractionalModalOpen, setIsFractionalModalOpen] = useState(false)
+  const [noteToFraction, setNoteToFraction] = useState<DeliveryNoteDTO | null>(
+    null,
+  )
+  const [invoiceSeriesList, setInvoiceSeriesList] = useState<ISeries[]>([])
 
-  // Funcție Navigare Pagini
+  // --- LOGICĂ ACȚIUNI ---
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams)
     params.set('page', newPage.toString())
     router.push(`${pathname}?${params.toString()}`)
   }
-
-  // --- LOGICĂ ACȚIUNI ---
 
   const handleConfirmClick = (note: DeliveryNoteDTO) => {
     setNoteToConfirm(note)
@@ -236,6 +246,53 @@ export function DeliveryNotesList({
       setNoteToRevoke(null)
       setActionLoadingId(null)
     })
+  }
+
+  const handleOpenFractionalInvoice = async (note: DeliveryNoteDTO) => {
+    setActionLoadingId(note._id)
+    try {
+      // Tragem seriile active din BD pentru facturi
+      const seriesList = await getActiveSeriesForDocumentType('Factura' as any)
+      if (!seriesList || seriesList.length === 0) {
+        toast.error('Nu aveți nicio serie activă pentru facturi.')
+        return
+      }
+      setInvoiceSeriesList(seriesList)
+      setNoteToFraction(note)
+      setIsFractionalModalOpen(true)
+    } catch (error) {
+      toast.error('Eroare la încărcarea seriilor de facturi.')
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const handleConfirmFractionalInvoice = async (
+    seriesName: string,
+    chunks: InvoiceLineInput[][],
+  ) => {
+    if (!noteToFraction) return
+
+    const toastId = toast.loading('Se generează facturile...')
+    try {
+      // Trimitem DOAR esențialul la server. Serverul va citi el restul din DB!
+      const result = await createChunkedInvoices({
+        deliveryNoteId: noteToFraction._id,
+        seriesName: seriesName,
+        chunks: chunks,
+      })
+
+      if (result.success) {
+        toast.success(result.message, { id: toastId })
+        setIsFractionalModalOpen(false)
+        setNoteToFraction(null)
+        router.refresh()
+      } else {
+        toast.error(result.message, { id: toastId })
+      }
+    } catch (error) {
+      toast.error('Eroare necunoscută', { id: toastId })
+    }
   }
 
   return (
@@ -492,6 +549,15 @@ export function DeliveryNotesList({
                                   >
                                     Generează Factură Automată
                                   </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className='cursor-pointer text-amber-600 font-medium'
+                                    onSelect={() =>
+                                      handleOpenFractionalInvoice(note)
+                                    }
+                                  >
+                                    Facturare Fracționată (CASH)
+                                  </DropdownMenuItem>
+
                                   {isSuperAdmin && (
                                     <DropdownMenuItem
                                       className='text-red-500 cursor-pointer'
@@ -585,6 +651,30 @@ export function DeliveryNotesList({
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={isRevokeModalOpen} onOpenChange={setIsRevokeModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className='text-red-600'>
+              Revocare Confirmare
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Ești sigur că vrei să anulezi livrarea pentru{' '}
+              {noteToRevoke?.seriesName}-{noteToRevoke?.noteNumber}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setNoteToRevoke(null)}>
+              Renunță
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRevokeConfirmation}
+              className='bg-red-600'
+            >
+              Confirmă Revocarea
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {isConfirmModalOpen && (
         <ConfirmDeliveryModal
           onConfirm={executeConfirmation}
@@ -623,30 +713,24 @@ export function DeliveryNotesList({
         />
       )}
 
-      <AlertDialog open={isRevokeModalOpen} onOpenChange={setIsRevokeModalOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className='text-red-600'>
-              Revocare Confirmare
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Ești sigur că vrei să anulezi livrarea pentru{' '}
-              {noteToRevoke?.seriesName}-{noteToRevoke?.noteNumber}?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setNoteToRevoke(null)}>
-              Renunță
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRevokeConfirmation}
-              className='bg-red-600'
-            >
-              Confirmă Revocarea
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {isFractionalModalOpen && noteToFraction && (
+        <FractionalInvoiceModal
+          isOpen={isFractionalModalOpen}
+          onClose={() => {
+            setIsFractionalModalOpen(false)
+            setNoteToFraction(null)
+          }}
+          onConfirm={handleConfirmFractionalInvoice}
+          originalItems={noteToFraction.items as any[]}
+          grandTotal={noteToFraction.totals.grandTotal}
+          seriesList={invoiceSeriesList}
+          noteSeries={noteToFraction.seriesName}
+          noteNumber={noteToFraction.noteNumber}
+          clientName={
+            noteToFraction.clientSnapshot?.name || 'Client Necunoscut'
+          }
+        />
+      )}
     </div>
   )
 }

@@ -3202,3 +3202,251 @@ export async function createPenaltyInvoiceFromOverdue(
     return { success: false, message: (error as Error).message }
   }
 }
+
+// ==========================================
+// FACTURARE FRACȚIONATĂ (CHUNKED INVOICES)
+// ==========================================
+
+export interface CreateChunkedInvoicesInput {
+  deliveryNoteId: string
+  seriesName: string
+  chunks: InvoiceLineInput[][]
+}
+
+export async function createChunkedInvoices(
+  data: CreateChunkedInvoicesInput,
+): Promise<{ success: boolean; message: string; invoiceIds?: string[] }> {
+  await connectToDatabase()
+  const session = await startSession()
+
+  try {
+    const resultIds: string[] = []
+
+    await session.withTransaction(async (session) => {
+      // 1. Auth Check
+      const authSession = await auth()
+      const userId = authSession?.user?.id
+      const userName = authSession?.user?.name
+      if (!userId || !userName) throw new Error('Utilizator neautentificat.')
+
+      // 2. Setări Companie
+      const companySettings = await getSetting()
+      if (!companySettings)
+        throw new Error('Setările companiei nu sunt configurate.')
+      const companySnapshot = buildCompanySnapshot(companySettings)
+
+      // 3. Extragem Avizul direct din DB (Aici avem TOATE datele de care aveam nevoie)
+      const note = (await DeliveryNoteModel.findById(data.deliveryNoteId)
+        .lean()
+        .session(session)) as unknown as IDeliveryNoteDoc
+
+      if (!note) throw new Error('Avizul nu a fost găsit în baza de date.')
+      if (note.isInvoiced) throw new Error('Acest aviz este deja facturat.')
+
+      // 4. Preluare Client (O SINGURĂ DATĂ)
+      const client = (await ClientModel.findById(note.clientId)
+        .lean()
+        .session(session)) as IClientDoc | null
+
+      if (!client) throw new Error(`Clientul nu a fost găsit.`)
+
+      const clientSnapshot: ClientSnapshot = {
+        name: client.name,
+        cui: client.vatId || client.cnp || '',
+        regCom: client.nrRegComert || '',
+        bank: client.bankAccountLei?.bankName || '',
+        iban: client.bankAccountLei?.iban || '',
+        address: {
+          judet: client.address.judet,
+          localitate: client.address.localitate,
+          strada: client.address.strada,
+          numar: client.address.numar || '',
+          codPostal: client.address.codPostal,
+          tara: client.address.tara || 'RO',
+          alteDetalii: client.address.alteDetalii || '',
+        },
+      }
+
+      // 5. Preluare Metadate Logistice (Fix ca la o factură normală)
+      const logisticSnapshots = {
+        orderNumbers: note.orderNumberSnapshot
+          ? [note.orderNumberSnapshot]
+          : [],
+        deliveryNumbers: note.deliveryNumberSnapshot
+          ? [note.deliveryNumberSnapshot]
+          : [],
+        deliveryNoteNumbers: [`${note.seriesName}-${note.noteNumber}`],
+      }
+
+      const { items: baseItems } = consolidateInvoiceFromNotes([note])
+
+      const chunkGroupId = new Types.ObjectId()
+      let index = 1
+      const invoiceDate = new Date()
+      const dueDate = addDays(invoiceDate, client.paymentTerm || 0)
+
+      // 6. Iterare și Salvare Facturi (Chunks)
+      for (const chunkItems of data.chunks) {
+        if (!chunkItems || chunkItems.length === 0) continue
+
+        // --- MAPAREA INTELIGENTĂ A LINIILOR (Păstrarea Integrității ERP) ---
+        const processedChunkItems: InvoiceLineInput[] = []
+
+        for (const frontendItem of chunkItems) {
+          const newQty = frontendItem.quantity || 0
+          if (newQty <= 0) continue
+
+          // Găsim linia corespondentă în matrița perfectă generată anterior
+          const baseItem = baseItems.find(
+            (bi) =>
+              bi.sourceDeliveryNoteLineId?.toString() ===
+              (frontendItem as any)._id?.toString(),
+          )
+
+          if (!baseItem) continue
+
+          // Calculăm rația de tăiere
+          const ratio = baseItem.quantity > 0 ? newQty / baseItem.quantity : 0
+
+          // Clonăm linia perfectă și o castăm corespunzător
+          const scaledItem = { ...baseItem } as InvoiceLineInput
+
+          scaledItem.quantity = newQty
+
+          if (scaledItem.quantityInBaseUnit) {
+            scaledItem.quantityInBaseUnit = Number(
+              (scaledItem.quantityInBaseUnit * ratio).toFixed(6),
+            )
+          }
+
+          scaledItem.lineValue = Number((baseItem.lineValue * ratio).toFixed(6))
+          scaledItem.lineCostFIFO = Number(
+            ((baseItem.lineCostFIFO || 0) * ratio).toFixed(6),
+          )
+          scaledItem.lineTotal = Number((baseItem.lineTotal * ratio).toFixed(6))
+
+          scaledItem.vatRateDetails = {
+            rate: baseItem.vatRateDetails.rate,
+            value: Number((baseItem.vatRateDetails.value * ratio).toFixed(6)),
+          }
+
+          scaledItem.lineProfit = Number(
+            (scaledItem.lineValue - (scaledItem.lineCostFIFO || 0)).toFixed(6),
+          )
+          scaledItem.lineMargin =
+            scaledItem.lineValue > 0
+              ? Number(
+                  (
+                    (scaledItem.lineProfit / scaledItem.lineValue) *
+                    100
+                  ).toFixed(2),
+                )
+              : 0
+
+          // Scalăm cantitățile din array-ul de Cost Breakdown FIFO
+          if (baseItem.costBreakdown && baseItem.costBreakdown.length > 0) {
+            scaledItem.costBreakdown = baseItem.costBreakdown.map((cb) => ({
+              ...cb,
+              quantity: Number((cb.quantity * ratio).toFixed(6)),
+            }))
+          }
+
+          processedChunkItems.push(scaledItem)
+        }
+
+        if (processedChunkItems.length === 0) continue
+
+        // Calculăm totalurile folosind liniile procesate curat din backend
+        const totals = calculateInvoiceTotals(processedChunkItems)
+
+        // Generăm numărul consecutiv
+        const nextSeq = await generateNextDocumentNumber(data.seriesName, {
+          session,
+        })
+        const invoiceNumber = String(nextSeq).padStart(5, '0')
+        const year = invoiceDate.getFullYear()
+
+        const chunkNotes = `Factură generată din Avizul ${note.seriesName}-${note.noteNumber} (Partea ${index} din ${data.chunks.length}).`
+
+        const [createdInvoice] = await InvoiceModel.create(
+          [
+            {
+              sequenceNumber: nextSeq,
+              invoiceNumber: invoiceNumber,
+              seriesName: data.seriesName,
+              year: year,
+              invoiceDate: invoiceDate,
+              dueDate: dueDate,
+              clientId: note.clientId,
+              clientSnapshot: clientSnapshot,
+              companySnapshot: companySnapshot,
+              items: processedChunkItems,
+              totals: totals,
+
+              // --- Status & Audit ---
+              status: 'CREATED',
+              eFacturaStatus: 'PENDING',
+              createdBy: new Types.ObjectId(userId),
+              createdByName: userName,
+
+              // --- Referințe luate direct din Aviz ---
+              deliveryAddressId: note.deliveryAddressId,
+              deliveryAddress: note.deliveryAddress,
+              salesAgentId: note.salesAgentId,
+              salesAgentSnapshot: note.salesAgentSnapshot,
+
+              sourceDeliveryNotes: [note._id],
+              relatedOrders: [note.orderId],
+              relatedDeliveries: [note.deliveryId],
+              relatedInvoiceIds: [],
+              relatedAdvanceIds: [],
+
+              // --- Snapshots Logistice ---
+              logisticSnapshots: logisticSnapshots,
+              notes: chunkNotes,
+              orderNotesSnapshot: note.orderNotesSnapshot,
+              deliveryNotesSnapshot: note.deliveryNotesSnapshot,
+
+              // --- Detalii Transport ---
+              driverName: note.driverName,
+              vehicleNumber: note.vehicleNumber,
+              vehicleType: note.vehicleType,
+              trailerNumber: note.trailerNumber,
+              uitCode: note.uitCode,
+
+              // --- Grupare & Plăți ---
+              invoiceType: 'STANDARD',
+              vatCategory: 'S',
+              splitGroupId: chunkGroupId,
+              paidAmount: 0,
+              remainingAmount: totals.grandTotal,
+            },
+          ],
+          { session },
+        )
+
+        resultIds.push(createdInvoice._id.toString())
+
+        // Actualizăm documentele conexe
+        await updateRelatedDocuments(createdInvoice, {}, { session })
+
+        index++
+      }
+    })
+
+    await session.endSession()
+
+    return {
+      success: true,
+      message: `${resultIds.length} facturi au fost generate cu succes.`,
+      invoiceIds: resultIds,
+    }
+  } catch (error) {
+    if (session.inTransaction()) {
+      await session.abortTransaction()
+    }
+    await session.endSession()
+    console.error('❌ Eroare createChunkedInvoices:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}

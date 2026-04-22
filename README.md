@@ -37,9 +37,10 @@ Ar trebui așa.
 5. ⁠Pf (persoane fizice)
 6. Retail (aici este link pentru revânzători)
 
+- in lista facturi furnizori / receptii, de creat un modal care notifa - facturi create in receptii si necreate in facturi furnizori / facturi furnizori create si necreate in receptii
+
 Urgent
 
-- comanda - de blocat sa nu mai modifice tipul de livrare (pt ca se poate modifica si pretul sub minim, de oprit cumva) sub minim
 - sold cuiul sa, sa fac cumva sa pot adauga plati negative? adica mi-au returnat cumva banii furnizorii (aveam sold negativ, mi-au dat banii inapoi, iar acum soldul e pe 0)
 - notificari pentru executori - sa le faca automat din solduri
 - in fisa de client - de facut total plati - total incasari jos la totaluri
