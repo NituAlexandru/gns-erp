@@ -241,23 +241,46 @@ export function SupplierInvoicesTable({
 
                     <TableCell className='text-right font-medium py-1'>
                       {(() => {
-                        // 1. Determinăm valoarea reală de afișat
+                        // 1. Determinăm valoarea reală de afișat (RON)
                         let displayValue = inv.totals.grandTotal
+                        let originalDisplayValue =
+                          inv.totals.originalCurrencyTotal
+
                         const isStornoType = inv.invoiceType === 'STORNO'
                         const isNegativeValue = inv.totals.grandTotal < 0
 
                         // Dacă e tip STORNO dar valoarea e pozitivă -> o afișăm ca negativă
                         if (isStornoType && !isNegativeValue) {
                           displayValue = -inv.totals.grandTotal
+                          if (originalDisplayValue)
+                            originalDisplayValue = -originalDisplayValue
                         }
 
                         // 2. Determinăm culoarea (orice e negativ e roșu)
                         const isRed = displayValue < 0
 
+                        // 3. Verificăm dacă avem o valută externă
+                        const hasForeignCurrency =
+                          inv.originalCurrency &&
+                          inv.originalCurrency !== 'RON' &&
+                          originalDisplayValue
+
                         return (
-                          <span className={isRed ? 'text-red-600' : ''}>
-                            {formatCurrency(displayValue)}
-                          </span>
+                          <div className='flex flex-col items-end'>
+                            <span className={isRed ? 'text-red-600' : ''}>
+                              {formatCurrency(displayValue)}
+                            </span>
+                            {hasForeignCurrency && (
+                              <span className='text-xs text-yellow-600 font-normal'>
+                                (
+                                {originalDisplayValue.toLocaleString('ro-RO', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}{' '}
+                                {inv.originalCurrency})
+                              </span>
+                            )}
+                          </div>
                         )
                       })()}
                     </TableCell>

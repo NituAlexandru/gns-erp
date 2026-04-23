@@ -181,9 +181,18 @@ export const parseAnafXml = (xmlContent: string): ParsedAnafInvoice => {
     }
   }
 
-  const exchangeRate = getNumber(invoice.TaxExchangeRate?.CalculationRate)
-  //  REFERINTE -------------------
+  let exchangeRate = getNumber(invoice.TaxExchangeRate?.CalculationRate)
   const notes = asArray(invoice.Note).map((n) => getText(n))
+  if (!exchangeRate && notes.length > 0) {
+    const notesStr = notes.join(' ')
+    // Caută pattern-uri gen "Curs: 1 EUR = 5.0989" sau "Curs valutar: 5.0989"
+    const match = notesStr.match(
+      /(?:curs|curs valutar)[\s:a-z]*([\d.,]+)\s*(?:lei|ron)/i,
+    )
+    if (match && match[1]) {
+      exchangeRate = parseFloat(match[1].replace(',', '.'))
+    }
+  }
   const contractReference = getText(invoice.ContractDocumentReference?.ID)
   const orderReference = getText(invoice.OrderReference?.ID)
   const salesOrderID = getText(invoice.OrderReference?.SalesOrderID)

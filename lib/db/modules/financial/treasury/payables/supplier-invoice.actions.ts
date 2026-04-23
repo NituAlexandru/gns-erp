@@ -51,7 +51,10 @@ export interface SupplierInvoiceListItem {
   remainingAmount: number
   totals: {
     grandTotal: number
+    originalCurrencyTotal: number
   }
+  originalCurrency: string
+
   createdAt: Date
   supplierId?: {
     _id: string
@@ -904,6 +907,8 @@ export async function getSupplierBalances(
           remainingAmount: 1,
           invoiceType: 1,
           status: 1,
+          originalCurrency: 1,
+          originalCurrencyTotal: '$totals.originalCurrencyTotal',
         },
       },
       // 2. UNION: Turnăm și plățile nealocate
@@ -1102,6 +1107,8 @@ export async function getSupplierBalances(
             mathematicalRemaining: actualRemaining, // Păstrăm o referință clară pentru noi
             daysOverdue: daysOverdue,
             status: item.status,
+            originalCurrency: item.originalCurrency,
+            originalCurrencyTotal: item.originalCurrencyTotal,
           }
         } else {
           // Este PLATĂ

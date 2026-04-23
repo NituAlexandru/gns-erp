@@ -18,6 +18,7 @@ import AdmZip from 'adm-zip'
 import { getNoCachedSetting } from '../setting.actions'
 import { XMLParser } from 'fast-xml-parser'
 import { ANAF_SYNC_LOOKBACK_DAYS, PAYABLES_PAGE_SIZE } from '@/lib/constants'
+import { getBNRRates } from '@/lib/finance/bnr.actions'
 
 // --- HELPER AUTH CHECK ---
 async function checkAdmin() {
@@ -391,6 +392,25 @@ export async function syncAndProcessAnaf() {
                 try {
                   const parsed = parseAnafXml(xmlText)
 
+                  // LOGICĂ DE CONVERSIE VALUTARĂ
+                  let finalExchangeRate = parsed.exchangeRate || 1
+                  const isForeignCurrency =
+                    parsed.currency && parsed.currency !== 'RON'
+
+                  if (isForeignCurrency && finalExchangeRate <= 0) {
+                    const bnrResult = await getBNRRates()
+                    if (
+                      bnrResult.success &&
+                      bnrResult.data &&
+                      bnrResult.data[parsed.currency]
+                    ) {
+                      finalExchangeRate = bnrResult.data[parsed.currency]
+                    } else {
+                      finalExchangeRate = 1
+                    }
+                  }
+                  const multiplier = isForeignCurrency ? finalExchangeRate : 1
+
                   const cleanCuiSupplier = parsed.supplierCui
                     .replace(/^RO/, '')
                     .trim()
@@ -478,10 +498,13 @@ export async function syncAndProcessAnaf() {
                       invoiceDate: parsed.invoiceDate,
                       dueDate: parsed.dueDate,
                       invoicePeriod: parsed.invoicePeriod,
-                      invoiceCurrency: parsed.currency,
+                      invoiceCurrency: 'RON',
+                      originalCurrency: isForeignCurrency
+                        ? parsed.currency
+                        : 'RON',
                       paymentMethodCode: parsed.paymentMethodCode,
                       notes: parsed.notes ? parsed.notes.join('\n') : '',
-                      exchangeRate: parsed.exchangeRate,
+                      exchangeRate: finalExchangeRate,
                       references: {
                         contract: parsed.contractReference,
                         order: parsed.orderReference,
@@ -497,31 +520,44 @@ export async function syncAndProcessAnaf() {
                         productCode: line.productCode,
                         quantity: line.quantity,
                         unitOfMeasure: line.unitOfMeasure,
-                        unitPrice: line.price,
-                        lineValue: line.lineValue,
+                        unitCode: line.unitCode,
+                        unitPrice: line.price * multiplier,
+                        lineValue: line.lineValue * multiplier,
                         vatRateDetails: {
                           rate: line.vatRate,
-                          value: line.vatAmount,
+                          value: line.vatAmount * multiplier,
                         },
-                        lineTotal: line.lineValue + line.vatAmount,
+                        lineTotal:
+                          (line.lineValue + line.vatAmount) * multiplier,
+                        originalCurrencyAmount: isForeignCurrency
+                          ? line.price
+                          : undefined,
                         originCountry: line.originCountry,
                         baseQuantity: line.baseQuantity,
-                        allowanceAmount: line.lineAllowanceAmount,
-                        unitCode: line.unitCode,
+                        allowanceAmount: line.lineAllowanceAmount * multiplier,
                         description: line.productDescription,
                         cpvCode: line.commodityCode,
                       })),
-                      taxSubtotals: parsed.taxSubtotals,
+                      taxSubtotals: parsed.taxSubtotals.map((ts) => ({
+                        ...ts,
+                        taxableAmount: ts.taxableAmount * multiplier,
+                        taxAmount: ts.taxAmount * multiplier,
+                      })),
                       totals: {
-                        subtotal: parsed.totalAmount - parsed.totalTax,
-                        vatTotal: parsed.totalTax,
-                        grandTotal: parsed.totalAmount,
-                        payableAmount: parsed.payableAmount,
-                        prepaidAmount: parsed.prepaidAmount,
-                        globalDiscount: parsed.totalAllowance,
-                        globalTax: parsed.totalCharges,
-                        productsSubtotal: parsed.totalAmount - parsed.totalTax,
-                        productsVat: parsed.totalTax,
+                        subtotal:
+                          (parsed.totalAmount - parsed.totalTax) * multiplier,
+                        vatTotal: parsed.totalTax * multiplier,
+                        grandTotal: parsed.totalAmount * multiplier,
+                        payableAmount: parsed.payableAmount * multiplier,
+                        prepaidAmount: parsed.prepaidAmount * multiplier,
+                        globalDiscount: parsed.totalAllowance * multiplier,
+                        globalTax: parsed.totalCharges * multiplier,
+                        productsSubtotal:
+                          (parsed.totalAmount - parsed.totalTax) * multiplier,
+                        productsVat: parsed.totalTax * multiplier,
+                        originalCurrencyTotal: isForeignCurrency
+                          ? parsed.totalAmount
+                          : undefined,
                         packagingSubtotal: 0,
                         packagingVat: 0,
                         servicesSubtotal: 0,
@@ -741,6 +777,25 @@ export async function retryProcessMessage(messageId: string) {
 
     //. Parsare XML
     const parsed = parseAnafXml(xmlText)
+
+    // LOGICĂ DE CONVERSIE VALUTARĂ
+    let finalExchangeRate = parsed.exchangeRate || 1
+    const isForeignCurrency = parsed.currency && parsed.currency !== 'RON'
+
+    if (isForeignCurrency && finalExchangeRate <= 0) {
+      const bnrResult = await getBNRRates()
+      if (
+        bnrResult.success &&
+        bnrResult.data &&
+        bnrResult.data[parsed.currency]
+      ) {
+        finalExchangeRate = bnrResult.data[parsed.currency]
+      } else {
+        finalExchangeRate = 1
+      }
+    }
+    const multiplier = isForeignCurrency ? finalExchangeRate : 1
+
     const cleanCuiSupplier = parsed.supplierCui.replace(/^RO/, '').trim()
 
     // Căutare Furnizor
@@ -834,12 +889,13 @@ export async function retryProcessMessage(messageId: string) {
       invoiceSeries: parsed.invoiceSeries,
       invoiceNumber: parsed.invoiceNumber,
       invoiceDate: parsed.invoiceDate,
-      invoicePeriod: parsed.invoicePeriod,
       dueDate: parsed.dueDate,
-      invoiceCurrency: parsed.currency,
+      invoicePeriod: parsed.invoicePeriod,
+      invoiceCurrency: 'RON',
+      originalCurrency: isForeignCurrency ? parsed.currency : 'RON',
       paymentMethodCode: parsed.paymentMethodCode,
       notes: parsed.notes ? parsed.notes.join('\n') : '',
-      exchangeRate: parsed.exchangeRate,
+      exchangeRate: finalExchangeRate,
       references: {
         contract: parsed.contractReference,
         order: parsed.orderReference,
@@ -856,30 +912,38 @@ export async function retryProcessMessage(messageId: string) {
         quantity: line.quantity,
         unitOfMeasure: line.unitOfMeasure,
         unitCode: line.unitCode,
-        unitPrice: line.price,
-        lineValue: line.lineValue,
+        unitPrice: line.price * multiplier,
+        lineValue: line.lineValue * multiplier,
         vatRateDetails: {
           rate: line.vatRate,
-          value: line.vatAmount,
+          value: line.vatAmount * multiplier,
         },
-        lineTotal: line.lineValue + line.vatAmount,
+        lineTotal: (line.lineValue + line.vatAmount) * multiplier,
+        originalCurrencyAmount: isForeignCurrency ? line.price : undefined,
         originCountry: line.originCountry,
         baseQuantity: line.baseQuantity,
-        allowanceAmount: line.lineAllowanceAmount,
+        allowanceAmount: line.lineAllowanceAmount * multiplier,
         description: line.productDescription,
         cpvCode: line.commodityCode,
       })),
-      taxSubtotals: parsed.taxSubtotals,
+      taxSubtotals: parsed.taxSubtotals.map((ts) => ({
+        ...ts,
+        taxableAmount: ts.taxableAmount * multiplier,
+        taxAmount: ts.taxAmount * multiplier,
+      })),
       totals: {
-        subtotal: parsed.totalAmount - parsed.totalTax,
-        vatTotal: parsed.totalTax,
-        grandTotal: parsed.totalAmount,
-        payableAmount: parsed.payableAmount,
-        prepaidAmount: parsed.prepaidAmount,
-        globalDiscount: parsed.totalAllowance,
-        globalTax: parsed.totalCharges,
-        productsSubtotal: parsed.totalAmount - parsed.totalTax,
-        productsVat: parsed.totalTax,
+        subtotal: (parsed.totalAmount - parsed.totalTax) * multiplier,
+        vatTotal: parsed.totalTax * multiplier,
+        grandTotal: parsed.totalAmount * multiplier,
+        payableAmount: parsed.payableAmount * multiplier,
+        prepaidAmount: parsed.prepaidAmount * multiplier,
+        globalDiscount: parsed.totalAllowance * multiplier,
+        globalTax: parsed.totalCharges * multiplier,
+        productsSubtotal: (parsed.totalAmount - parsed.totalTax) * multiplier,
+        productsVat: parsed.totalTax * multiplier,
+        originalCurrencyTotal: isForeignCurrency
+          ? parsed.totalAmount
+          : undefined,
         packagingSubtotal: 0,
         packagingVat: 0,
         servicesSubtotal: 0,

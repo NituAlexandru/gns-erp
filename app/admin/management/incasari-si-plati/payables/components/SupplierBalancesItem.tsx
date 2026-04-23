@@ -336,8 +336,28 @@ export function SupplierBalancesItem({
                       </div>
                     </TableCell>
 
-                    <TableCell className='py-1 text-sm text-right text-muted-foreground font-mono'>
-                      {formatCurrency(item.grandTotal)}
+                    <TableCell className='py-1 text-right text-muted-foreground font-mono'>
+                      <div className='flex flex-col items-end justify-center'>
+                        <span className='text-sm'>
+                          {formatCurrency(item.grandTotal)}
+                        </span>
+                        {/* Afișare Monedă Originală (dacă există și este diferită de RON) */}
+                        {item.originalCurrency &&
+                          item.originalCurrency !== 'RON' &&
+                          item.originalCurrencyTotal && (
+                            <span className='text-xs font-sans font-normal leading-tight mt-0.5'>
+                              (
+                              {item.originalCurrencyTotal.toLocaleString(
+                                'ro-RO',
+                                {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                },
+                              )}{' '}
+                              {item.originalCurrency})
+                            </span>
+                          )}
+                      </div>
                     </TableCell>
 
                     <TableCell

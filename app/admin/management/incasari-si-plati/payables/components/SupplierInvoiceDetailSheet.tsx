@@ -100,7 +100,7 @@ export function SupplierInvoiceDetailSheet({
 }: SupplierInvoiceDetailSheetProps) {
   const [invoice, setInvoice] = useState<ISupplierInvoiceDoc | null>(null)
   const [history, setHistory] = useState<PopulatedInvoiceAllocationHistory[]>(
-    []
+    [],
   )
   const [isLoading, setIsLoading] = useState(false)
   const isOpen = !!invoiceId
@@ -436,8 +436,23 @@ export function SupplierInvoiceDetailSheet({
                         <TableCell className='text-right'>
                           <div className='flex flex-col items-end'>
                             <span>{formatCurrency(item.unitPrice)}</span>
+                            {invoice.originalCurrency &&
+                              invoice.originalCurrency !== 'RON' &&
+                              item.originalCurrencyAmount && (
+                                <span className='text-xs text-primary'>
+                                  (
+                                  {item.originalCurrencyAmount.toLocaleString(
+                                    'ro-RO',
+                                    {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    },
+                                  )}{' '}
+                                  {invoice.originalCurrency})
+                                </span>
+                              )}
                             {item.baseQuantity && item.baseQuantity > 1 && (
-                              <span className='text-[10px] text-muted-foreground'>
+                              <span className='text-xs text-primary'>
                                 per {item.baseQuantity} {item.unitOfMeasure}
                               </span>
                             )}
@@ -452,9 +467,23 @@ export function SupplierInvoiceDetailSheet({
                         <TableCell className='text-right font-bold'>
                           <div className='flex flex-col items-end'>
                             <span>{formatCurrency(item.lineValue)}</span>
+                            {invoice.originalCurrency &&
+                              invoice.originalCurrency !== 'RON' &&
+                              item.originalCurrencyAmount && (
+                                <span className='text-xs text-muted-foreground font-normal'>
+                                  (
+                                  {(
+                                    item.originalCurrencyAmount * item.quantity
+                                  ).toLocaleString('ro-RO', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}{' '}
+                                  {invoice.originalCurrency})
+                                </span>
+                              )}
                             {item.allowanceAmount &&
                             item.allowanceAmount > 0 ? (
-                              <span className='text-[10px] text-green-600 font-normal'>
+                              <span className='text-xs text-green-600 font-normal'>
                                 (Disc. {formatCurrency(item.allowanceAmount)})
                               </span>
                             ) : null}
@@ -546,24 +575,55 @@ export function SupplierInvoiceDetailSheet({
                         Defalcare TVA:
                       </div>
                       {invoice.taxSubtotals.map((sub, i) => (
-                        <div key={i} className='flex justify-between gap-4'>
-                          <span className='text-left'>
+                        <div
+                          key={i}
+                          className='flex justify-between gap-4 items-start mb-2 last:mb-0'
+                        >
+                          <span className='text-left mt-0.5'>
                             Cota TVA: {sub.percent}% ({sub.categoryCode})
                           </span>
 
-                          <div className='flex gap-2'>
-                            <span>
-                              <span className='text-muted-foreground'>
-                                Bază:
-                              </span>{' '}
-                              {formatCurrency(sub.taxableAmount)}
-                            </span>
-                            <span>
-                              <span className='text-muted-foreground'>
-                                TVA:
-                              </span>{' '}
-                              {formatCurrency(sub.taxAmount)}
-                            </span>
+                          <div className='flex flex-col items-end gap-0.5'>
+                            <div className='flex gap-2'>
+                              <span className='w-[140px] text-right'>
+                                <span className='text-muted-foreground mr-1'>
+                                  Bază:
+                                </span>
+                                {formatCurrency(sub.taxableAmount)}
+                              </span>
+                              <span className='w-[120px] text-right'>
+                                <span className='text-muted-foreground mr-1'>
+                                  TVA:
+                                </span>
+                                {formatCurrency(sub.taxAmount)}
+                              </span>
+                            </div>
+                            {invoice.originalCurrency &&
+                              invoice.originalCurrency !== 'RON' &&
+                              (invoice.exchangeRate || 0) > 0 && (
+                                <div className='flex gap-2 text-[10px] text-muted-foreground'>
+                                  <span className='w-[140px] text-right pr-1'>
+                                    (
+                                    {(
+                                      sub.taxableAmount / invoice.exchangeRate!
+                                    ).toLocaleString('ro-RO', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}{' '}
+                                    {invoice.originalCurrency})
+                                  </span>
+                                  <span className='w-[120px] text-right pr-1'>
+                                    (
+                                    {(
+                                      sub.taxAmount / invoice.exchangeRate!
+                                    ).toLocaleString('ro-RO', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}{' '}
+                                    {invoice.originalCurrency})
+                                  </span>
+                                </div>
+                              )}
                           </div>
                         </div>
                       ))}
@@ -610,29 +670,70 @@ export function SupplierInvoiceDetailSheet({
                     </div>
                   )}
 
-                  {/* Curs Valutar - Corectat să nu afișeze 0 */}
-                  {(invoice.exchangeRate || 0) > 0 && (
-                    <div className='flex justify-between text-xs text-muted-foreground mb-1'>
-                      <span>Curs Valutar:</span>
-                      <span className='font-medium text-foreground'>
-                        {invoice.exchangeRate}
-                      </span>
-                    </div>
-                  )}
+                  {/* Curs Valutar - Explicitat */}
+                  {(invoice.exchangeRate || 0) > 0 &&
+                    invoice.originalCurrency &&
+                    invoice.originalCurrency !== 'RON' && (
+                      <div className='flex justify-between text-xs text-muted-foreground mb-1'>
+                        <span>Curs Valutar:</span>
+                        <span className='font-medium text-foreground'>
+                          1 {invoice.originalCurrency} = {invoice.exchangeRate}{' '}
+                          RON
+                        </span>
+                      </div>
+                    )}
+
+                  {/* Total Factură Original (Valută) */}
+                  {invoice.originalCurrency &&
+                    invoice.originalCurrency !== 'RON' &&
+                    invoice.totals.originalCurrencyTotal && (
+                      <div className='flex justify-between text-sm text-muted-foreground mt-2 pb-2 border-b border-dashed'>
+                        <span>Total Factură ({invoice.originalCurrency}):</span>
+                        <span className='font-bold text-foreground'>
+                          {invoice.totals.originalCurrencyTotal.toLocaleString(
+                            'ro-RO',
+                            {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            },
+                          )}{' '}
+                          {invoice.originalCurrency}
+                        </span>
+                      </div>
+                    )}
+
                   {/* DE PLATĂ (Final) */}
                   <div className='border-t pt-2 mt-2 flex justify-between items-baseline'>
                     <span className='text-lg font-bold'>DE PLATĂ:</span>
-                    <div className='text-right'>
-                      <span className='text-lg font-bold text-primary'>
-                        {formatCurrency(
-                          invoice.totals.payableAmount ??
-                            invoice.totals.grandTotal
+                    <div className='text-right flex flex-col items-end'>
+                      <div>
+                        <span className='text-lg font-bold text-primary'>
+                          {formatCurrency(
+                            invoice.totals.payableAmount ??
+                              invoice.totals.grandTotal,
+                          )}
+                        </span>
+                        {/* Moneda Explicită */}
+                        <span className='text-sm font-medium text-muted-foreground ml-1'>
+                          {invoice.invoiceCurrency}
+                        </span>
+                      </div>
+                      {/* Valoarea totală în valută, afișată sub RON */}
+                      {invoice.originalCurrency &&
+                        invoice.originalCurrency !== 'RON' &&
+                        invoice.totals.originalCurrencyTotal && (
+                          <span className='text-sm font-bold text-primary mt-0.5'>
+                            echivalent a{' '}
+                            {invoice.totals.originalCurrencyTotal.toLocaleString(
+                              'ro-RO',
+                              {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              },
+                            )}{' '}
+                            {invoice.originalCurrency}
+                          </span>
                         )}
-                      </span>
-                      {/* Moneda Explicită */}
-                      <span className='text-sm font-medium text-muted-foreground ml-1'>
-                        {invoice.invoiceCurrency}
-                      </span>
                     </div>
                   </div>
 
