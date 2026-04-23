@@ -73,6 +73,21 @@ export const NO_PALLET = 'NO_PALLET_SELECTED'
 
 export const AVAILABLE_PALLET_TYPES: PalletType[] = [
   {
+    id: '6822e8884ef1b57a5f18319c',
+    name: 'Palet Ytong',
+    slug: 'palet-ytong',
+    custodyFee: 90,
+    lengthCm: 120,
+    widthCm: 100,
+    heightCm: 15,
+    weightKg: 25,
+    volumeM3: 0.18,
+    image: '/images/palet.webp',
+    supplier: 'Ytong',
+    returnConditions:
+      'Returnabil in maxim 60 zile la valoarea de 80,00 RON, in stare buna.', 
+  },
+  {
     id: '6822e8884ef1b57a5f18319b',
     name: 'Palet Intertrans',
     slug: 'palet-intertrans',
