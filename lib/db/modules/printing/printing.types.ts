@@ -131,8 +131,14 @@ export interface PdfDocumentData {
   totals: PdfTotals
   status?: string
   ledgerData?: {
+    period?: {
+      from: string
+      to: string
+    }
     summary: {
       initialBalance: number
+      initialDebit?: number
+      initialCredit?: number
       totalDebit: number
       totalCredit: number
       finalBalance: number

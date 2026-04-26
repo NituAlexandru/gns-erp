@@ -12,6 +12,8 @@ import {
   PAYMENT_METHODS,
   PaymentMethodKey,
 } from '../../financial/treasury/payment.constants'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { TIMEZONE } from '@/lib/constants'
 
 export interface SupplierLedgerEntry {
   _id: string
@@ -28,6 +30,14 @@ export interface SupplierLedgerEntry {
   remainingAmount?: number
 }
 
+export interface SupplierLedgerTotals {
+  initialDebit: number
+  initialCredit: number
+  initialBalance: number
+  totalDebit: number
+  totalCredit: number
+  finalBalance: number
+}
 export async function findOrCreateSupplierSummary(supplierId: string) {
   await connectToDatabase()
   if (!mongoose.Types.ObjectId.isValid(supplierId)) {
@@ -108,9 +118,15 @@ export async function recalculateSupplierSummary(
  * Debit = Plăți (scade datoria)
  * Credit = Facturi (crește datoria)
  */
-export async function getSupplierLedger(supplierId: string): Promise<{
+export async function getSupplierLedger(
+  supplierId: string,
+  fromDate?: string,
+  toDate?: string,
+): Promise<{
   success: boolean
-  data: SupplierLedgerEntry[]
+  data:
+    | { entries: SupplierLedgerEntry[]; totals: SupplierLedgerTotals }
+    | never[]
   message?: string
 }> {
   try {
@@ -409,9 +425,64 @@ export async function getSupplierLedger(supplierId: string): Promise<{
 
     await summaryToSave.save()
 
+    // 1. Setăm datele folosind date-fns-tz pentru a respecta strict fusul orar
+    const currentDate = new Date()
+    const currentYearStr = formatInTimeZone(currentDate, TIMEZONE, 'yyyy')
+
+    const start = fromDate
+      ? fromZonedTime(`${fromDate}T00:00:00.000`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-01-01T00:00:00.000`, TIMEZONE)
+
+    const end = toDate
+      ? fromZonedTime(`${toDate}T23:59:59.999`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-12-31T23:59:59.999`, TIMEZONE)
+
+    // 2. Calculăm Soldul Inițial și totalurile aferente
+    const initialEntries = ledgerEntries.filter((e) => new Date(e.date) < start)
+    const initialBalance =
+      initialEntries.length > 0
+        ? initialEntries[initialEntries.length - 1].runningBalance
+        : 0
+    const initialDebit = initialEntries.reduce(
+      (sum, e) => sum + (e.debit || 0),
+      0,
+    )
+    const initialCredit = initialEntries.reduce(
+      (sum, e) => sum + Math.abs(e.credit || 0),
+      0,
+    )
+
+    // 3. Filtrăm doar tranzacțiile din perioada selectată
+    const periodEntries = ledgerEntries.filter((e) => {
+      const d = new Date(e.date)
+      return d >= start && d <= end
+    })
+
+    // 4. Calculăm totalurile strict pentru perioada filtrată
+    const totalDebit = periodEntries.reduce((sum, e) => sum + (e.debit || 0), 0)
+    const totalCredit = periodEntries.reduce(
+      (sum, e) => sum + Math.abs(e.credit || 0),
+      0,
+    )
+
+    // 5. Soldul final
+    const finalBalance =
+      periodEntries.length > 0
+        ? periodEntries[periodEntries.length - 1].runningBalance
+        : initialBalance
+
+    const totals: SupplierLedgerTotals = {
+      initialDebit,
+      initialCredit,
+      initialBalance,
+      totalDebit,
+      totalCredit,
+      finalBalance,
+    }
+
     return {
       success: true,
-      data: JSON.parse(JSON.stringify(ledgerEntries)),
+      data: JSON.parse(JSON.stringify({ entries: periodEntries, totals })),
     }
   } catch (error) {
     console.error('❌ Eroare getSupplierLedger:', error)

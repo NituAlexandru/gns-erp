@@ -15,7 +15,17 @@ import { cn } from '@/lib/utils'
 
 interface ClientLedgerTableProps {
   clientId: string
-  entries: ClientLedgerEntry[]
+  data: {
+    entries: ClientLedgerEntry[]
+    totals: {
+      initialBalance: number
+      initialDebit: number
+      initialCredit: number
+      totalDebit: number
+      totalCredit: number
+      finalBalance: number
+    }
+  }
   onInvoiceClick: (entry: ClientLedgerEntry) => void
   onPaymentClick: (paymentId: string) => void
   isAdmin: boolean
@@ -23,14 +33,20 @@ interface ClientLedgerTableProps {
 
 export function ClientLedgerTable({
   clientId,
-  entries = [],
+  data,
   onInvoiceClick,
   onPaymentClick,
   isAdmin,
 }: ClientLedgerTableProps) {
-  // Calculăm soldul final pe loc (nu mai folosim state)
-  const finalBalance =
-    entries.length > 0 ? entries[entries.length - 1].runningBalance : 0
+  const entries = data?.entries || []
+  const totals = data?.totals || {
+    initialBalance: 0,
+    initialDebit: 0,
+    initialCredit: 0,
+    totalDebit: 0,
+    totalCredit: 0,
+    finalBalance: 0,
+  }
 
   const formatDate = (date: Date | string) =>
     formatDateTime(new Date(date)).dateOnly
@@ -48,24 +64,32 @@ export function ClientLedgerTable({
   return (
     <div className='relative w-full max-h-[450px] overflow-auto border rounded-md'>
       <table className={cn('w-full caption-bottom text-sm')}>
-        <TableHeader>
-          <TableRow>
-            <TableHead className='sticky top-0 bg-muted w-[120px]'>
-              Data
+        <TableHeader className='sticky top-0 z-20 bg-background shadow-sm ring-1 ring-border'>
+          <TableRow className='bg-muted hover:bg-muted border-none'>
+            <TableHead className='w-[120px]'>Data</TableHead>
+            <TableHead className='w-[120px]'>Scadență</TableHead>
+            <TableHead>Document</TableHead>
+            <TableHead>Detalii</TableHead>
+            <TableHead className='text-right'>Debit (Datorat)</TableHead>
+            <TableHead className='text-right'>Credit (Încasat)</TableHead>
+            <TableHead className='text-right'>Sold Curent</TableHead>
+          </TableRow>
+
+          <TableRow className='bg-background hover:bg-background border-b-2'>
+            <TableHead
+              colSpan={4}
+              className='text-left font-bold text-foreground'
+            >
+              SOLD PRECEDENT LA ÎNCEPUTUL PERIOADEI:
             </TableHead>
-            <TableHead className='sticky top-0 bg-muted w-[120px]'>
-              Scadență
+            <TableHead className='text-right text-red-600 font-bold'>
+              {formatCurrency(totals.initialDebit || 0)}
             </TableHead>
-            <TableHead className='sticky top-0 bg-muted'>Document</TableHead>
-            <TableHead className='sticky top-0 bg-muted'>Detalii</TableHead>
-            <TableHead className='sticky top-0 bg-muted text-right'>
-              Debit (Datorat)
+            <TableHead className='text-right text-green-600 font-bold'>
+              {formatCurrency(totals.initialCredit || 0)}
             </TableHead>
-            <TableHead className='sticky top-0 bg-muted text-right'>
-              Credit (Încasat)
-            </TableHead>
-            <TableHead className='sticky top-0 bg-muted text-right'>
-              Sold Curent
+            <TableHead className='text-right font-bold text-foreground'>
+              {formatCurrency(totals.initialBalance || 0)}
             </TableHead>
           </TableRow>
         </TableHeader>
@@ -129,12 +153,22 @@ export function ClientLedgerTable({
         </TableBody>
         <TableFooter className='bg-background'>
           <TableRow>
-            <TableCell colSpan={6} className='text-right'>
-              <span className='font-bold text-lg'>SOLD FINAL CLIENT:</span>
+            <TableCell colSpan={4} className='text-right'>
+              <span className='font-bold text-lg'>
+                TOTAL RULAJE / SOLD FINAL:
+              </span>
+            </TableCell>
+            <TableCell className='text-right text-red-600 font-bold'>
+              {totals.totalDebit !== 0 ? formatCurrency(totals.totalDebit) : 0}
+            </TableCell>
+            <TableCell className='text-right text-green-600 font-bold'>
+              {totals.totalCredit !== 0
+                ? formatCurrency(totals.totalCredit)
+                : 0}
             </TableCell>
             <TableCell className='text-right'>
               <span className='font-bold text-lg'>
-                {formatCurrency(finalBalance)}
+                {formatCurrency(totals.finalBalance)}
               </span>
             </TableCell>
           </TableRow>

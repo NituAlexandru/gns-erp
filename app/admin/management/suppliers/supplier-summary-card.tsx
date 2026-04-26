@@ -16,6 +16,7 @@ import { getPrintData } from '@/lib/db/modules/printing/printing.actions'
 import { toast } from 'sonner'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 import { Button } from '@/components/ui/button'
+import { useSearchParams } from 'next/navigation'
 
 interface SupplierSummaryCardProps {
   summary: ISupplierSummary
@@ -24,6 +25,7 @@ interface SupplierSummaryCardProps {
 export default function SupplierSummaryCard({
   summary,
 }: SupplierSummaryCardProps) {
+  const searchParams = useSearchParams()
   const [isPdfOpen, setIsPdfOpen] = useState(false)
   const [pdfData, setPdfData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
@@ -54,7 +56,9 @@ export default function SupplierSummaryCard({
           ? (summary.supplierId as any).toString()
           : summary.supplierId
 
-      const result = await getPrintData(id, 'SUPPLIER_LEDGER')
+      const fromDate = searchParams.get('from') || undefined
+      const toDate = searchParams.get('to') || undefined
+      const result = await getPrintData(id, 'SUPPLIER_LEDGER', fromDate, toDate)
 
       if (result.success) {
         setPdfData(result.data)
@@ -113,7 +117,7 @@ export default function SupplierSummaryCard({
           {/* CARD 2: SOLD SCADENT (VALOARE) */}
           <Card>
             <CardHeader className='flex flex-row items-center justify-between space-y-0 pb-2'>
-              <CardTitle className='text-sm font-medium'>
+              <CardTitle className='text-sm font-medium '>
                 Sold Scadent
               </CardTitle>
               <AlertCircle className='h-4 w-4 text-muted-foreground' />
@@ -121,7 +125,7 @@ export default function SupplierSummaryCard({
             <CardContent>
               <div
                 className={`text-2xl font-bold ${
-                  hasOverdue ? 'text-red-600' : 'text-gray-900'
+                  hasOverdue ? 'text-red-600' : 'text-muted-foreground'
                 }`}
               >
                 {formatCurrency(overdueVal)}

@@ -3,17 +3,34 @@ import { PdfDocumentData, PdfEntity } from '../printing.types'
 export const mapClientLedgerToPdfData = (
   clientData: any,
   settingData: any,
-  entries: any[],
+  ledgerData: any,
   summary: any,
+  fromDate?: string,
+  toDate?: string,
 ): PdfDocumentData => {
-  // --- 1. CALCUL TOTALURI ---
-  const totalDebit = entries.reduce((acc, curr) => acc + (curr.debit || 0), 0)
-  const totalCredit = entries.reduce(
-    (acc, curr) => acc + (Math.abs(curr.credit) || 0),
-    0,
-  )
-  const finalBalance =
-    entries.length > 0 ? entries[entries.length - 1].runningBalance : 0
+  const currentYear = new Date().getFullYear()
+  const periodFrom = fromDate
+    ? new Date(fromDate).toLocaleDateString('ro-RO')
+    : `01.01.${currentYear}`
+  const periodTo = toDate
+    ? new Date(toDate).toLocaleDateString('ro-RO')
+    : `31.12.${currentYear}`
+  const entries = ledgerData.entries || []
+  const totals = ledgerData.totals || {
+    initialBalance: 0,
+    initialDebit: 0,
+    initialCredit: 0,
+    totalDebit: entries.reduce(
+      (acc: number, curr: any) => acc + (curr.debit || 0),
+      0,
+    ),
+    totalCredit: entries.reduce(
+      (acc: number, curr: any) => acc + (Math.abs(curr.credit) || 0),
+      0,
+    ),
+    finalBalance:
+      entries.length > 0 ? entries[entries.length - 1].runningBalance : 0,
+  }
 
   // --- 2. MAPARE FURNIZOR (Din Settings) ---
   const defaultBank =
@@ -79,13 +96,16 @@ export const mapClientLedgerToPdfData = (
     client,
 
     ledgerData: {
+      period: { from: periodFrom, to: periodTo },
       summary: {
-        initialBalance: 0,
-        totalDebit,
-        totalCredit,
-        finalBalance,
+        initialBalance: totals.initialBalance,
+        initialDebit: totals.initialDebit,
+        initialCredit: totals.initialCredit,
+        totalDebit: totals.totalDebit,
+        totalCredit: totals.totalCredit,
+        finalBalance: totals.finalBalance,
       },
-      entries: entries.map((entry) => {
+      entries: entries.map((entry: any) => {
         let details = entry.details
         if (entry.documentNumber && entry.documentNumber.startsWith('INIT-C')) {
           // La CLIENT e invers față de furnizor:
@@ -116,7 +136,7 @@ export const mapClientLedgerToPdfData = (
     totals: {
       subtotal: 0,
       vatTotal: 0,
-      grandTotal: finalBalance,
+      grandTotal: totals.finalBalance,
       currency: 'RON',
     },
   }

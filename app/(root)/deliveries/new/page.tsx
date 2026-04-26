@@ -7,6 +7,7 @@ import { IDelivery } from '@/lib/db/modules/deliveries/delivery.model'
 import { ORDER_STATUS_MAP } from '@/lib/db/modules/order/constants'
 import { OrderStatusKey } from '@/lib/db/modules/order/types'
 import { connectToDatabase } from '@/lib/db'
+import Link from 'next/link'
 
 // Funcția Helper de Serializare
 function sanitizeForClient<T>(data: T): T {
@@ -58,12 +59,45 @@ export default async function CreateDeliveryPage({
     const statusKey = order.status as OrderStatusKey
     const statusFrumos = ORDER_STATUS_MAP[statusKey]?.name || order.status
 
+    if (order.status === 'DRAFT') {
+      return (
+        <div className='p-8 text-center flex flex-col items-center space-y-4'>
+          <h1 className='text-2xl font-bold'>
+            Comanda cu numărul{' '}
+            <span className='text-primary'>#{order.orderNumber}</span> a fost
+            actualizată, o poți vizualiza{' '}
+            <Link
+              href={`/orders/${order._id}`}
+              className='text-primary hover:underline font-bold'
+            >
+              aici
+            </Link>
+            .
+          </h1>
+          <p className='text-amber-600 text-2xl'>
+            Comanda nu poate fi programată deoarece are statusul{' '}
+            <strong>"Ciornă"</strong>.
+          </p>
+          <p className='text-2xl'>
+            Dacă vrei să o programezi pentru livrare, trebuie mai întâi să
+            confirmi comanda{' '}
+            <Link
+              href={`/orders/${order._id}/edit`}
+              className='text-primary hover:underline font-bold'
+            >
+              #{order.orderNumber}
+            </Link>
+            .
+          </p>
+        </div>
+      )
+    }
+
     return (
       <div className='p-4 text-center text-destructive'>
         <h1>Status Comandă Invalid</h1>
         <p>
           Nu se pot planifica livrări pentru o comandă cu statusul{' '}
-          {/* 👇 Afișăm statusul tradus */}
           <strong>{statusFrumos}</strong>.
         </p>
       </div>

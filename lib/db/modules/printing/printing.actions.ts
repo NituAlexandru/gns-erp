@@ -46,6 +46,8 @@ export async function getPrintData(
     | 'SUPPLIER_LEDGER'
     | 'CONTRACT'
     | 'ADDENDUM',
+  fromDate?: string,
+  toDate?: string,
 ): Promise<PrintResult> {
   try {
     await connectToDatabase()
@@ -99,7 +101,7 @@ export async function getPrintData(
       if (!settings) return { success: false, message: 'Setări firmă lipsă.' }
 
       const [ledgerResult, summaryData] = await Promise.all([
-        getClientLedger(documentId),
+        getClientLedger(documentId, fromDate, toDate),
         getClientSummary(documentId),
       ])
 
@@ -125,6 +127,8 @@ export async function getPrintData(
         settings as any,
         ledgerResult.data,
         summaryData,
+        fromDate,
+        toDate,
       )
 
       return { success: true, data: pdfData }
@@ -138,7 +142,7 @@ export async function getPrintData(
       if (!settings) return { success: false, message: 'Setări firmă lipsă.' }
 
       const [ledgerResult, summaryData] = await Promise.all([
-        getSupplierLedger(documentId),
+        getSupplierLedger(documentId, fromDate, toDate),
         getSupplierSummary(documentId),
       ])
 
@@ -161,6 +165,8 @@ export async function getPrintData(
         settings as any,
         ledgerResult.data,
         summaryData,
+        fromDate,
+        toDate,
       )
 
       return { success: true, data: pdfData }

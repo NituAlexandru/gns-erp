@@ -10,6 +10,16 @@ import { SupplierInvoicesList } from './SupplierInvoicesList'
 import { SupplierReceptionsList } from './SupplierReceptionsList'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { SupplierLedgerTable } from './SupplierLedgerTable'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
+import { CalendarIcon } from 'lucide-react'
+import { formatInTimeZone } from 'date-fns-tz'
+import { TIMEZONE } from '@/lib/constants'
+import { Calendar } from '@/components/ui/calendar'
 
 interface SupplierFileViewProps {
   supplier: ISupplierDoc
@@ -49,11 +59,10 @@ export default function SupplierFileView({
         </div>
       </aside>
 
-      <main className='md:col-span-4 space-y-6'>
+      <main className='md:col-span-4 space-y-1'>
         <SupplierSummaryCard summary={summary} />
 
         <div>
-
           {activeTab === 'details' && <SupplierDetails supplier={supplier} />}
 
           {/* TAB: RECEPȚII (NIR) */}
@@ -76,10 +85,126 @@ export default function SupplierFileView({
 
           {/* TAB: PLĂȚI */}
           {activeTab === 'payments' && (
-            <SupplierLedgerTable
-              supplierId={supplier._id}
-              entries={tabData} 
-            />
+            <div className='space-y-1'>
+              <div className='flex items-center gap-6 bg-muted/30 p-0.5 px-2 rounded-md border'>
+                <span className='text-sm font-bold text-muted-foreground uppercase'>
+                  Filtrează Perioada:
+                </span>
+                <div className='flex items-center gap-2'>
+                  <label className='text-sm font-medium'>De la:</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant='outline'
+                        className='w-[160px] justify-start text-left font-normal bg-background'
+                      >
+                        <CalendarIcon className='mr-2 h-4 w-4' />
+                        {searchParams.get('from')
+                          ? formatInTimeZone(
+                              new Date(searchParams.get('from')!),
+                              TIMEZONE,
+                              'dd.MM.yyyy',
+                            )
+                          : `01.01.${new Date().getFullYear()}`}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className='w-auto p-0' align='start'>
+                      <Calendar
+                        mode='single'
+                        selected={
+                          searchParams.get('from')
+                            ? new Date(searchParams.get('from')! + 'T00:00:00')
+                            : new Date(
+                                `${new Date().getFullYear()}-01-01T00:00:00`,
+                              )
+                        }
+                        defaultMonth={
+                          searchParams.get('from')
+                            ? new Date(searchParams.get('from')! + 'T00:00:00')
+                            : new Date(
+                                `${new Date().getFullYear()}-01-01T00:00:00`,
+                              )
+                        }
+                        onSelect={(date) => {
+                          const params = new URLSearchParams(
+                            searchParams.toString(),
+                          )
+                          if (date) {
+                            params.set(
+                              'from',
+                              formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd'),
+                            )
+                          } else {
+                            params.delete('from')
+                          }
+                          router.replace(`${pathname}?${params.toString()}`, {
+                            scroll: false,
+                          })
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className='flex items-center gap-2'>
+                  <label className='text-sm font-medium'>Până la:</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant='outline'
+                        className='w-[160px] justify-start text-left font-normal bg-background'
+                      >
+                        <CalendarIcon className='mr-2 h-4 w-4' />
+                        {searchParams.get('to')
+                          ? formatInTimeZone(
+                              new Date(searchParams.get('to')!),
+                              TIMEZONE,
+                              'dd.MM.yyyy',
+                            )
+                          : `31.12.${new Date().getFullYear()}`}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className='w-auto p-0' align='start'>
+                      <Calendar
+                        mode='single'
+                        selected={
+                          searchParams.get('to')
+                            ? new Date(searchParams.get('to')! + 'T00:00:00')
+                            : new Date(
+                                `${new Date().getFullYear()}-12-31T00:00:00`,
+                              )
+                        }
+                        defaultMonth={
+                          searchParams.get('to')
+                            ? new Date(searchParams.get('to')! + 'T00:00:00')
+                            : new Date(
+                                `${new Date().getFullYear()}-12-31T00:00:00`,
+                              )
+                        }
+                        onSelect={(date) => {
+                          const params = new URLSearchParams(
+                            searchParams.toString(),
+                          )
+                          if (date) {
+                            params.set(
+                              'to',
+                              formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd'),
+                            )
+                          } else {
+                            params.delete('to')
+                          }
+                          router.replace(`${pathname}?${params.toString()}`, {
+                            scroll: false,
+                          })
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+              <SupplierLedgerTable supplierId={supplier._id} data={tabData} />
+            </div>
           )}
 
           {/* TAB: PRODUSE */}

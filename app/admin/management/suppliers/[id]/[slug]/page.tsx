@@ -20,7 +20,13 @@ export default async function SupplierViewPage({
   searchParams,
 }: {
   params: Promise<{ id: string; slug: string }>
-  searchParams: Promise<{ tab?: string; page?: string; status?: string }>
+  searchParams: Promise<{
+    tab?: string
+    page?: string
+    status?: string
+    from?: string
+    to?: string
+  }>
 }) {
   const session = await auth()
   const allowedRoles = [
@@ -38,6 +44,8 @@ export default async function SupplierViewPage({
   const resolvedSearchParams = await searchParams
   const tab = resolvedSearchParams.tab || 'details'
   const page = Number(resolvedSearchParams.page) || 1
+  const fromDate = resolvedSearchParams.from
+  const toDate = resolvedSearchParams.to
 
   const supplierRaw = await getSupplierById(id)
   if (!supplierRaw) return notFound()
@@ -67,8 +75,10 @@ export default async function SupplierViewPage({
       tabDataRaw = await getInvoicesForSupplier(id, page)
       break
     case 'payments':
-      const ledgerRes = await getSupplierLedger(id)
-      tabDataRaw = ledgerRes.success ? ledgerRes.data : []
+      const ledgerRes = await getSupplierLedger(id, fromDate, toDate)
+      tabDataRaw = ledgerRes.success
+        ? ledgerRes.data
+        : { entries: [], totals: null }
       break
     case 'products':
       const prodRes = await getProductStatsForSupplier(id, page)

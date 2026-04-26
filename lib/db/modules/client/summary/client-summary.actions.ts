@@ -15,6 +15,8 @@ import InvoiceModel from '../../financial/invoices/invoice.model'
 import { revalidatePath } from 'next/cache'
 import { auth } from '@/auth'
 import { SUPER_ADMIN_ROLES } from '../../user/user-roles'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { TIMEZONE } from '@/lib/constants'
 
 export async function findOrCreateClientSummary(clientId: string) {
   await connectToDatabase()
@@ -173,7 +175,23 @@ export async function updateClientFinancialSettings(
 
 export async function getClientLedger(
   clientId: string,
-): Promise<{ success: boolean; data: ClientLedgerEntry[]; message?: string }> {
+  startDateStr?: string,
+  endDateStr?: string,
+): Promise<{
+  success: boolean
+  data: {
+    entries: ClientLedgerEntry[]
+    totals: {
+      initialBalance: number
+      initialDebit: number
+      initialCredit: number
+      totalDebit: number
+      totalCredit: number
+      finalBalance: number
+    }
+  }
+  message?: string
+}> {
   try {
     await connectToDatabase()
 
@@ -456,12 +474,87 @@ export async function getClientLedger(
 
     await summaryToSave.save()
 
+    // 1. Setăm datele folosind date-fns-tz pentru a respecta strict fusul orar
+    const currentDate = new Date()
+    const currentYearStr = formatInTimeZone(currentDate, TIMEZONE, 'yyyy')
+
+    const start = startDateStr
+      ? fromZonedTime(`${startDateStr}T00:00:00.000`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-01-01T00:00:00.000`, TIMEZONE)
+
+    const end = endDateStr
+      ? fromZonedTime(`${endDateStr}T23:59:59.999`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-12-31T23:59:59.999`, TIMEZONE)
+
+    // 2. Calculăm Soldul Inițial și totalurile aferente
+    const entriesBeforeStart = ledgerEntries.filter(
+      (e) => new Date(e.date) < start,
+    )
+    const initialBalance =
+      entriesBeforeStart.length > 0
+        ? entriesBeforeStart[entriesBeforeStart.length - 1].runningBalance
+        : 0
+    const initialDebit = entriesBeforeStart.reduce(
+      (sum, e) => sum + (e.debit || 0),
+      0,
+    )
+    const initialCredit = entriesBeforeStart.reduce(
+      (sum, e) => sum + Math.abs(e.credit || 0),
+      0,
+    )
+
+    // 3. Filtrăm doar tranzacțiile din perioada selectată
+    const filteredEntries = ledgerEntries.filter((e) => {
+      const d = new Date(e.date)
+      return d >= start && d <= end
+    })
+
+    // 4. Calculăm totalurile strict pentru perioada filtrată
+    const totalDebit = filteredEntries.reduce(
+      (sum, e) => sum + (e.debit || 0),
+      0,
+    )
+    const totalCredit = filteredEntries.reduce(
+      (sum, e) => sum + Math.abs(e.credit || 0),
+      0,
+    )
+
+    // 5. Soldul final
+    const finalBalance =
+      filteredEntries.length > 0
+        ? filteredEntries[filteredEntries.length - 1].runningBalance
+        : initialBalance
+
     return {
       success: true,
-      data: JSON.parse(JSON.stringify(ledgerEntries)),
+      data: {
+        entries: JSON.parse(JSON.stringify(filteredEntries)),
+        totals: {
+          initialBalance,
+          initialDebit,
+          initialCredit,
+          totalDebit,
+          totalCredit,
+          finalBalance,
+        },
+      },
     }
   } catch (error) {
     console.error('❌ Eroare getClientLedger:', error)
-    return { success: false, data: [], message: (error as Error).message }
+    return {
+      success: false,
+      data: {
+        entries: [],
+        totals: {
+          initialBalance: 0,
+          initialDebit: 0,
+          initialCredit: 0,
+          totalDebit: 0,
+          totalCredit: 0,
+          finalBalance: 0,
+        },
+      },
+      message: (error as Error).message,
+    }
   }
 }

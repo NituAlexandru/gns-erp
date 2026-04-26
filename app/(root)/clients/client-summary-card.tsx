@@ -12,6 +12,7 @@ import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { getPrintData } from '@/lib/db/modules/printing/printing.actions'
 import { toast } from 'sonner'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
+import { useSearchParams } from 'next/navigation'
 
 interface ClientSummaryCardProps {
   summary: IClientSummary
@@ -26,6 +27,7 @@ export default function ClientSummaryCard({
   clientSlug,
   isAdmin,
 }: ClientSummaryCardProps) {
+  const searchParams = useSearchParams()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isPdfOpen, setIsPdfOpen] = useState(false)
   const [pdfData, setPdfData] = useState<PdfDocumentData | null>(null)
@@ -48,7 +50,7 @@ export default function ClientSummaryCard({
   )
   let statusSubtitle = summary.isBlocked ? 'Livrare oprită' : 'Livrare activă'
 
-  // LOGICA NOUĂ: Suprascriere pentru Status Manual + Motiv
+  // Suprascriere pentru Status Manual + Motiv
   if (summary.lockingStatus === LOCKING_STATUS.MANUAL_BLOCK) {
     statusTitle = 'Blocat (Setat Manual)'
     statusColor = 'text-red-600'
@@ -68,8 +70,18 @@ export default function ClientSummaryCard({
     setIsGeneratingPdf(true)
     setIsPdfOpen(true) // Deschidem modalul imediat cu loading state
 
+    // Extragem datele din URL
+    const fromDate = searchParams.get('from') || undefined
+    const toDate = searchParams.get('to') || undefined
+
     try {
-      const result = await getPrintData(clientId, 'CLIENT_LEDGER' as any) // Cast as any temporar pana se actualizeaza tipurile in tot proiectul sau modifica tipul in functie
+      // Pasăm fromDate și toDate ca parametri suplimentari
+      const result = await getPrintData(
+        clientId,
+        'CLIENT_LEDGER' as any,
+        fromDate,
+        toDate,
+      )
       if (result.success) {
         setPdfData(result.data)
       } else {

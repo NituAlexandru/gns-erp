@@ -28,10 +28,25 @@ const styles = StyleSheet.create({
   creditColor: { color: '#dc2626' },
 })
 
-export const PdfSupplierLedgerTable = ({ entries }: { entries: any[] }) => {
-  const finalBalance =
-    entries.length > 0 ? entries[entries.length - 1].balance : 0
-  const finalColor = finalBalance > 0 ? styles.creditColor : styles.debitColor
+export const PdfSupplierLedgerTable = ({
+  entries,
+  totals,
+  period,
+}: {
+  entries: any[]
+  totals?: any
+  period?: { from: string; to: string }
+}) => {
+  const safeTotals = totals || {
+    initialBalance: 0,
+    initialDebit: 0,
+    initialCredit: 0,
+    totalDebit: 0,
+    totalCredit: 0,
+    finalBalance: entries.length > 0 ? entries[entries.length - 1].balance : 0,
+  }
+  const finalColor =
+    safeTotals.finalBalance > 0 ? styles.creditColor : styles.debitColor
 
   return (
     <View style={styles.table}>
@@ -40,9 +55,46 @@ export const PdfSupplierLedgerTable = ({ entries }: { entries: any[] }) => {
         <Text style={[styles.cell, styles.colDate]}>Data</Text>
         <Text style={[styles.cell, styles.colDoc]}>Document</Text>
         <Text style={[styles.cell, styles.colDetails]}>Detalii</Text>
-        <Text style={[styles.cell, styles.colDebit]}>Debit</Text>
-        <Text style={[styles.cell, styles.colCredit]}>Credit</Text>
+        <Text style={[styles.cell, styles.colDebit]}>Debit (Plătit)</Text>
+        <Text style={[styles.cell, styles.colCredit]}>Credit (Facturat)</Text>
         <Text style={[styles.cell, styles.colBalance]}>Sold</Text>
+      </View>
+
+      {/* Rând Sold Precedent */}
+      <View
+        style={[styles.row, { backgroundColor: '#f8fafc', minHeight: 20 }]}
+        wrap={false}
+      >
+        <Text
+          style={{
+            width: '56%',
+            textAlign: 'left',
+            paddingRight: 10,
+            fontWeight: 'bold',
+          }}
+        >
+          SOLD PRECEDENT LA ÎNCEPUTUL PERIOADEI{' '}
+          {period?.from ? `(${period.from} - ${period.to})` : ''}:
+        </Text>
+        <Text
+          style={[
+            styles.colDebit,
+            { fontWeight: 'bold', padding: 4, color: '#16a34a' },
+          ]}
+        >
+          {formatCurrency(safeTotals.initialDebit)}
+        </Text>
+        <Text
+          style={[
+            styles.colCredit,
+            { fontWeight: 'bold', padding: 4, color: '#dc2626' },
+          ]}
+        >
+          {formatCurrency(safeTotals.initialCredit)}
+        </Text>
+        <Text style={[styles.colBalance, { padding: 4 }]}>
+          {formatCurrency(safeTotals.initialBalance)}
+        </Text>
       </View>
 
       {/* ROWS */}
@@ -87,28 +139,48 @@ export const PdfSupplierLedgerTable = ({ entries }: { entries: any[] }) => {
       <View
         style={[
           styles.row,
-          { borderBottomWidth: 0, marginTop: 5, justifyContent: 'flex-end' },
+          {
+            backgroundColor: '#f8fafc',
+            borderBottomWidth: 0,
+            borderTopWidth: 1,
+            borderTopColor: '#cbd5e1',
+            marginTop: 5,
+            minHeight: 24,
+          },
         ]}
+        wrap={false}
       >
         <Text
           style={{
-            fontSize: 8,
+            width: '56%',
+            textAlign: 'right',
+            paddingRight: 10,
             fontWeight: 'bold',
-            marginRight: 10,
-            padding: 4,
+            textTransform: 'uppercase',
           }}
         >
-          SOLD FINAL FURNIZOR:
+          TOTAL RULAJE / SOLD FINAL:
         </Text>
         <Text
           style={[
-            styles.cell,
-            styles.colBalance,
-            finalColor,
-            { textAlign: 'right', fontSize: 9 },
+            styles.colDebit,
+            { fontWeight: 'bold', padding: 4, color: '#16a34a' },
           ]}
         >
-          {formatCurrency(finalBalance)}
+          {formatCurrency(safeTotals.totalDebit)}
+        </Text>
+        <Text
+          style={[
+            styles.colCredit,
+            { fontWeight: 'bold', padding: 4, color: '#dc2626' },
+          ]}
+        >
+          {formatCurrency(safeTotals.totalCredit)}
+        </Text>
+        <Text
+          style={[styles.colBalance, finalColor, { padding: 4, fontSize: 9 }]}
+        >
+          {formatCurrency(safeTotals.finalBalance)}
         </Text>
       </View>
     </View>

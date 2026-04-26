@@ -10,7 +10,6 @@ import { getDeliveriesForClient } from '@/lib/db/modules/deliveries/client-deliv
 import { getDeliveryNotesForClient } from '@/lib/db/modules/financial/delivery-notes/client-delivery-note.actions'
 import { getInvoicesForClient } from '@/lib/db/modules/financial/invoices/client-invoice.actions'
 import { getProductStatsForClient } from '@/lib/db/modules/client/summary/client-product-stats.actions'
-
 import { toSlug } from '@/lib/utils'
 import { auth } from '@/auth'
 import ClientFileView from './client-file-view'
@@ -21,16 +20,23 @@ export default async function ClientViewPage({
   searchParams,
 }: {
   params: Promise<{ id: string; slug: string }>
-  searchParams: Promise<{ tab?: string; page?: string; status?: string }>
+  searchParams: Promise<{
+    tab?: string
+    page?: string
+    status?: string
+    from?: string
+    to?: string
+  }>
 }) {
   const session = await auth()
   const isAdmin = session?.user?.role === 'Admin'
-
   const { id, slug } = await params
   const resolvedSearchParams = await searchParams
   const tab = resolvedSearchParams.tab || 'details'
   const page = Number(resolvedSearchParams.page) || 1
   const statusFilter = resolvedSearchParams.status || 'ALL'
+  const fromDate = resolvedSearchParams.from || ''
+  const toDate = resolvedSearchParams.to || ''
 
   const client = await getClientById(id)
   if (!client) return notFound()
@@ -63,8 +69,18 @@ export default async function ClientViewPage({
       tabData = await getInvoicesForClient(id, page, statusFilter)
       break
     case 'payments':
-      const ledgerRes = await getClientLedger(id)
-      tabData = ledgerRes.success ? ledgerRes.data : []
+      const ledgerRes = await getClientLedger(id, fromDate, toDate)
+      tabData = ledgerRes.success
+        ? ledgerRes.data
+        : {
+            entries: [],
+            totals: {
+              initialBalance: 0,
+              totalDebit: 0,
+              totalCredit: 0,
+              finalBalance: 0,
+            },
+          }
       break
     case 'products':
       const prodRes = await getProductStatsForClient(id, page)

@@ -1,4 +1,3 @@
-import React from 'react'
 import { View, Text, StyleSheet } from '@react-pdf/renderer'
 import { PDF_COLORS } from '../../config/styles'
 import { formatCurrency } from '@/lib/utils'
@@ -79,11 +78,26 @@ const styles = StyleSheet.create({
   },
 })
 
-export const PdfClientLedgerTable = ({ entries }: { entries: any[] }) => {
+export const PdfClientLedgerTable = ({
+  entries,
+  totals,
+  period,
+}: {
+  entries: any[]
+  totals?: any
+  period?: { from: string; to: string }
+}) => {
   const fmt = (n: number) => formatCurrency(n)
   const fmtDate = (d: string) => new Date(d).toLocaleDateString('ro-RO')
-  const finalBalance =
-    entries.length > 0 ? entries[entries.length - 1].balance : 0
+
+  const safeTotals = totals || {
+    initialBalance: 0,
+    initialDebit: 0,
+    initialCredit: 0,
+    totalDebit: 0,
+    totalCredit: 0,
+    finalBalance: entries.length > 0 ? entries[entries.length - 1].balance : 0,
+  }
 
   return (
     <View style={styles.tableContainer}>
@@ -95,6 +109,30 @@ export const PdfClientLedgerTable = ({ entries }: { entries: any[] }) => {
         <Text style={[styles.colDebit, styles.headerText]}>Debit</Text>
         <Text style={[styles.colCredit, styles.headerText]}>Credit</Text>
         <Text style={[styles.colBalance, styles.headerText]}>Sold</Text>
+      </View>
+
+      <View
+        style={[styles.row, { backgroundColor: '#f8fafc', minHeight: 20 }]}
+        wrap={false}
+      >
+        <Text
+          style={{
+            width: '56%',
+            textAlign: 'left',
+            paddingRight: 10,
+            fontWeight: 'bold',
+          }}
+        >
+          SOLD PRECEDENT LA ÎNCEPUTUL PERIOADEI{' '}
+          {period?.from ? `(${period.from} - ${period.to})` : ''}:
+        </Text>
+        <Text style={[styles.colDebit, styles.bold]}>
+          {fmt(safeTotals.initialDebit)}
+        </Text>
+        <Text style={[styles.colCredit, styles.bold]}>
+          {fmt(safeTotals.initialCredit)}
+        </Text>
+        <Text style={styles.colBalance}>{fmt(safeTotals.initialBalance)}</Text>
       </View>
 
       {/* Rows */}
@@ -124,15 +162,23 @@ export const PdfClientLedgerTable = ({ entries }: { entries: any[] }) => {
         </View>
       ))}
       <View style={styles.footerRow} wrap={false}>
-        <Text style={styles.footerLabel}>SOLD FINAL CLIENT:</Text>
         <Text
-          style={[
-            styles.footerValue,
-            { color: finalBalance > 0 ? '#dc2626' : '#16a34a' },
-          ]}
+          style={{
+            width: '56%',
+            textAlign: 'right',
+            paddingRight: 10,
+            fontWeight: 'bold',
+          }}
         >
-          {fmt(finalBalance)}
+          TOTAL RULAJE / SOLD FINAL:
         </Text>
+        <Text style={[styles.colDebit, styles.bold]}>
+          {fmt(safeTotals.totalDebit)}
+        </Text>
+        <Text style={[styles.colCredit, styles.bold]}>
+          {fmt(safeTotals.totalCredit)}
+        </Text>
+        <Text style={styles.colBalance}>{fmt(safeTotals.finalBalance)}</Text>
       </View>
     </View>
   )

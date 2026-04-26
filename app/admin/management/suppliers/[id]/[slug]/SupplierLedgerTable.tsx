@@ -12,7 +12,10 @@ import {
 import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { SupplierLedgerEntry } from '@/lib/db/modules/suppliers/summary/supplier-summary.actions'
+import {
+  SupplierLedgerEntry,
+  SupplierLedgerTotals,
+} from '@/lib/db/modules/suppliers/summary/supplier-summary.actions'
 import {
   SupplierAllocationModal,
   PopulatedSupplierPayment,
@@ -22,20 +25,32 @@ import { SupplierInvoiceAllocationHistorySheet } from './SupplierInvoiceAllocati
 
 interface SupplierLedgerTableProps {
   supplierId: string
-  entries: SupplierLedgerEntry[]
+  data:
+    | { entries: SupplierLedgerEntry[]; totals?: SupplierLedgerTotals }
+    | never[]
 }
 
 export function SupplierLedgerTable({
   supplierId,
-  entries = [],
+  data,
 }: SupplierLedgerTableProps) {
+  const entries = !Array.isArray(data) && data?.entries ? data.entries : []
+  const totals =
+    !Array.isArray(data) && data?.totals
+      ? data.totals
+      : {
+          initialDebit: 0,
+          initialCredit: 0,
+          initialBalance: 0,
+          totalDebit: 0,
+          totalCredit: 0,
+          finalBalance: 0,
+        }
+
   const [selectedInvoiceEntry, setSelectedInvoiceEntry] =
     useState<SupplierLedgerEntry | null>(null)
   const [selectedPayment, setSelectedPayment] =
     useState<PopulatedSupplierPayment | null>(null)
-
-  const finalBalance =
-    entries.length > 0 ? entries[entries.length - 1].runningBalance : 0
 
   const formatDate = (date: Date | string | undefined) => {
     if (!date) return '—'
@@ -58,7 +73,7 @@ export function SupplierLedgerTable({
         toast.error('Eroare la deschiderea plății.')
       }
     } else {
-       setSelectedInvoiceEntry(entry)
+      setSelectedInvoiceEntry(entry)
     }
   }
 
@@ -74,27 +89,35 @@ export function SupplierLedgerTable({
 
   return (
     <>
-      <div className='relative w-full max-h-[450px] overflow-auto border rounded-md'>
+      <div className='relative w-full max-h-[500px] overflow-auto border rounded-md'>
         <table className={cn('w-full caption-bottom text-sm')}>
-          <TableHeader>
-            <TableRow>
-              <TableHead className='sticky top-0 bg-muted'>Document</TableHead>
-              <TableHead className='sticky top-0 bg-muted'>Tip Doc.</TableHead>
-              <TableHead className='sticky top-0 bg-muted w-[100px]'>
-                Data Doc.
+          <TableHeader className='sticky top-0 z-20 bg-background shadow-sm ring-1 ring-border'>
+            <TableRow className='bg-muted hover:bg-muted border-none'>
+              <TableHead>Document</TableHead>
+              <TableHead>Tip Doc.</TableHead>
+              <TableHead className='w-[100px]'>Data Doc.</TableHead>
+              <TableHead className='w-[100px]'>Scadență</TableHead>
+              <TableHead>Detalii</TableHead>
+              <TableHead className='text-right'>Debit (Plătit)</TableHead>
+              <TableHead className='text-right'>Credit (Facturat)</TableHead>
+              <TableHead className='text-right'>Sold Curent</TableHead>
+            </TableRow>
+
+            <TableRow className='bg-background hover:bg-background border-b-2'>
+              <TableHead
+                colSpan={5}
+                className='text-left font-bold text-foreground'
+              >
+                SOLD PRECEDENT LA ÎNCEPUTUL PERIOADEI:
               </TableHead>
-              <TableHead className='sticky top-0 bg-muted w-[100px]'>
-                Scadență
+              <TableHead className='text-right text-green-600 font-bold'>
+                {formatCurrency(totals.initialDebit || 0)}
               </TableHead>
-              <TableHead className='sticky top-0 bg-muted'>Detalii</TableHead>
-              <TableHead className='sticky top-0 bg-muted text-right'>
-                Debit (Plătit)
+              <TableHead className='text-right text-red-600 font-bold'>
+                {formatCurrency(totals.initialCredit || 0)}
               </TableHead>
-              <TableHead className='sticky top-0 bg-muted text-right'>
-                Credit (Facturat)
-              </TableHead>
-              <TableHead className='sticky top-0 bg-muted text-right'>
-                Sold Curent
+              <TableHead className='text-right font-bold text-foreground'>
+                {formatCurrency(totals.initialBalance || 0)}
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -168,12 +191,24 @@ export function SupplierLedgerTable({
 
           <TableFooter className='bg-background'>
             <TableRow>
-              <TableCell colSpan={7} className='text-right'>
-                <span className='font-bold text-lg'>SOLD FINAL FURNIZOR:</span>
+              <TableCell colSpan={5} className='text-right'>
+                <span className='font-bold text-lg'>
+                  TOTAL RULAJE / SOLD FINAL:
+                </span>
+              </TableCell>
+              <TableCell className='text-right text-green-600'>
+                <span className='font-bold text-lg'>
+                  {formatCurrency(totals.totalDebit || 0)}
+                </span>
+              </TableCell>
+              <TableCell className='text-right text-red-600'>
+                <span className='font-bold text-lg'>
+                  {formatCurrency(totals.totalCredit || 0)}
+                </span>
               </TableCell>
               <TableCell className='text-right'>
                 <span className='font-bold text-lg'>
-                  {formatCurrency(finalBalance)}
+                  {formatCurrency(totals.finalBalance || 0)}
                 </span>
               </TableCell>
             </TableRow>
