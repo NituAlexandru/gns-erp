@@ -23,6 +23,7 @@ import {
   getNextClientReceiptNumberPreview,
   updateClientReceiptCounter,
 } from '../../../numbering/ClientReceiptCounter/actions'
+import ClientRefundAllocationModel from './client-refund-allocation.model'
 
 type PopulatedClientPayment = ClientPaymentDTO & {
   clientId: {
@@ -103,6 +104,7 @@ export async function createClientPayment(
             unallocatedAmount: validatedData.totalAmount,
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
+            isRefund: validatedData.totalAmount < 0,
           },
         ],
         { session },
@@ -355,6 +357,7 @@ export async function getClientPayments(
               status: 1,
               paymentMethod: 1,
               referenceDocument: 1,
+              isRefund: 1,
               clientId: {
                 _id: '$clientDoc._id',
                 name: '$clientDoc.name',
@@ -446,6 +449,20 @@ export async function cancelClientPayment(
       if (allocationCount > 0) {
         throw new Error(
           'Eroare de integritate: Încasarea este NEALOCATA dar are alocări în baza de date.',
+        )
+      }
+
+      const refundAllocationCount =
+        await ClientRefundAllocationModel.countDocuments({
+          $or: [
+            { advancePaymentId: new Types.ObjectId(paymentId) },
+            { refundPaymentId: new Types.ObjectId(paymentId) },
+          ],
+        }).session(session)
+
+      if (refundAllocationCount > 0) {
+        throw new Error(
+          'Încasarea are alocări de restituire active. Vă rugăm să ștergeți legăturile de restituire înainte de a anula încasarea.',
         )
       }
 

@@ -27,6 +27,8 @@ export interface ISupplierPaymentDoc extends Document {
   totalAmount: number
   unallocatedAmount: number
 
+  isRefund: boolean
+
   referenceDocument?: string
   notes?: string
   status: SupplierPaymentStatus
@@ -58,6 +60,7 @@ export interface SupplierPaymentDTO {
   exchangeRate: number
   originalCurrencyAmount?: number
   unallocatedAmount: number
+  isRefund: boolean
   referenceDocument?: string
   notes?: string
   status: SupplierPaymentStatus

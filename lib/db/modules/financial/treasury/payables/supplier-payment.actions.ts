@@ -29,6 +29,7 @@ import {
   incrementPaymentNumber,
 } from '../../../numbering/payment-numbering.actions'
 import { fromZonedTime } from 'date-fns-tz'
+import SupplierRefundAllocationModel from './supplier-refund-allocation.model'
 
 type AllocationDetail = { invoiceNumber: string; allocatedAmount: number }
 
@@ -164,6 +165,7 @@ export async function createSupplierPayment(
             sequenceNumber: null,
             createdBy: new Types.ObjectId(userId),
             createdByName: userName,
+            isRefund: totalAmount < 0,
           },
         ],
         { session },
@@ -305,6 +307,7 @@ export async function getSupplierPayments(
     from?: string
     to?: string
     hideCompensations?: boolean
+    method?: string
   },
 ): Promise<
   SupplierPaymentsPage & {
@@ -347,6 +350,10 @@ export async function getSupplierPayments(
 
     if (filters?.hideCompensations) {
       query.paymentMethod = { $ne: 'COMPENSARE' }
+    }
+
+    if (filters?.method && filters.method !== 'ALL') {
+      query.paymentMethod = filters.method
     }
 
     if (filters?.from || filters?.to) {
@@ -492,6 +499,20 @@ export async function cancelSupplierPayment(
 
       if (allocationCount > 0) {
         throw new Error('Plata are înregistrări de alocări în baza de date.')
+      }
+
+      const refundAllocationCount =
+        await SupplierRefundAllocationModel.countDocuments({
+          $or: [
+            { advancePaymentId: new Types.ObjectId(paymentId) },
+            { refundPaymentId: new Types.ObjectId(paymentId) },
+          ],
+        }).session(session)
+
+      if (refundAllocationCount > 0) {
+        throw new Error(
+          'Plata are alocări de restituire active. Vă rugăm să ștergeți legăturile de restituire înainte de a anula plata.',
+        )
       }
 
       // 4. Actualizează Statusul

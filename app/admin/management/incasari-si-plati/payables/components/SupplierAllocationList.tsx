@@ -28,15 +28,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { deleteSupplierRefundAllocation } from '@/lib/db/modules/financial/treasury/payables/supplier-refund-allocation.actions'
 
 interface SupplierAllocationListProps {
   allocations: PopulatedSupplierAllocation[]
+  refundAllocations?: any[]
   onAllocationDeleted: () => void
   parentPayment: PopulatedSupplierPayment | null
 }
 
 export function SupplierAllocationList({
   allocations,
+  refundAllocations = [],
   onAllocationDeleted,
   parentPayment,
 }: SupplierAllocationListProps) {
@@ -46,6 +49,22 @@ export function SupplierAllocationList({
     setDeletingId(allocationId)
     try {
       const result = await deleteSupplierAllocation(allocationId)
+      if (result.success) {
+        toast.success(result.message)
+        onAllocationDeleted()
+      } else {
+        toast.error('Eroare la ștergere:', { description: result.message })
+      }
+    } catch {
+      toast.error('A apărut o eroare neașteptată.')
+    }
+    setDeletingId(null)
+  }
+
+  const handleDeleteRefund = async (allocationId: string) => {
+    setDeletingId(allocationId)
+    try {
+      const result = await deleteSupplierRefundAllocation(allocationId)
       if (result.success) {
         toast.success(result.message)
         onAllocationDeleted()
@@ -152,6 +171,80 @@ export function SupplierAllocationList({
             </div>
           </div>
         ))}
+        {/* --- SECȚIUNEA PENTRU RESTITUIRI --- */}
+        {refundAllocations.map((alloc) => {
+          // Găsim detaliile documentului opus (Restituirea în sine)
+          const isAdvance = alloc.advancePaymentId?._id === parentPayment?._id
+          const linkedDoc = isAdvance
+            ? alloc.refundPaymentId
+            : alloc.advancePaymentId
+
+          return (
+            <div
+              key={alloc._id}
+              className='flex items-center justify-between rounded-md border bg-background px-2 py-1 mt-2'
+            >
+              <div>
+                <p className='font-medium text-primary'>
+                  {isAdvance ? 'Stins cu Restituirea:' : 'Alocat pe Avansul:'}{' '}
+                  {linkedDoc?.seriesName ? `${linkedDoc.seriesName} - ` : ''}
+                  {linkedDoc?.paymentNumber}
+                </p>
+                <p className='text-sm text-muted-foreground'>
+                  {formatDateTime(new Date(alloc.allocationDate)).dateOnly}
+                </p>
+              </div>
+
+              <div className='flex items-center gap-2'>
+                <span className='font-semibold text-lg text-primary'>
+                  {formatCurrency(alloc.amountAllocated)}
+                </span>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      size='icon'
+                      className='text-red-600 hover:text-red-700'
+                      disabled={!!deletingId}
+                    >
+                      {deletingId === alloc._id ? (
+                        <Loader2 className='h-4 w-4 animate-spin' />
+                      ) : (
+                        <Trash2 className='h-4 w-4' />
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmă Ștergerea</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Ești sigur că vrei să anulezi această alocare de{' '}
+                        {formatCurrency(alloc.amountAllocated)}? Sumele vor fi
+                        returnate pe documentele inițiale.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Anulează</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDeleteRefund(alloc._id)}
+                        className='bg-red-600 hover:bg-red-700'
+                      >
+                        Șterge Alocarea
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+          )
+        })}
+        {/* Actualizăm și mesajul de 'gol' să țină cont de ambele */}
+        {allocations.length === 0 && refundAllocations.length === 0 && (
+          <p className='text-center text-sm text-muted-foreground py-2'>
+            Nicio alocare existentă.
+          </p>
+        )}
       </CardContent>
     </Card>
   )

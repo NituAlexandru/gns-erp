@@ -2605,7 +2605,7 @@ export async function getClientBalances(
           pipeline: [
             {
               $match: {
-                unallocatedAmount: { $gt: 0 },
+                unallocatedAmount: { $ne: 0 },
                 status: { $in: ['NEALOCATA', 'PARTIAL_ALOCAT'] },
               },
             },

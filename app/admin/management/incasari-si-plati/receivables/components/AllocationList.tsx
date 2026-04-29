@@ -19,9 +19,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { deleteClientRefundAllocation } from '@/lib/db/modules/financial/treasury/receivables/client-refund-allocation.actions'
 
 interface AllocationListProps {
   allocations: PopulatedAllocation[]
+  refundAllocations?: any[]
   onAllocationDeleted: () => void
   isAdmin: boolean
   parentPayment: PopulatedClientPayment | null
@@ -29,6 +31,7 @@ interface AllocationListProps {
 
 export function AllocationList({
   allocations,
+  refundAllocations = [],
   onAllocationDeleted,
   isAdmin,
   parentPayment,
@@ -53,11 +56,26 @@ export function AllocationList({
     }
     setDeletingId(null)
   }
+  const handleDeleteRefund = async (allocationId: string) => {
+    setDeletingId(allocationId)
+    try {
+      const result = await deleteClientRefundAllocation(allocationId)
+      if (result.success) {
+        toast.success(result.message)
+        onAllocationDeleted()
+      } else {
+        toast.error('Eroare la ștergere:', { description: result.message })
+      }
+    } catch {
+      toast.error('A apărut o eroare neașteptată.')
+    }
+    setDeletingId(null)
+  }
 
   return (
     <Card className='shadow-none border-dashed'>
       <CardContent className='p-4 space-y-3'>
-        {allocations.length === 0 && (
+        {allocations.length === 0 && refundAllocations.length === 0 && (
           <p className='text-center text-sm text-muted-foreground py-4'>
             Nicio alocare existentă.
           </p>
@@ -141,6 +159,75 @@ export function AllocationList({
                       </AlertDialogContent>
                     </AlertDialog>
                   )
+                )}
+              </div>
+            </div>
+          )
+        })}
+        {/* --- BLOC PENTRU RESTITUIRI --- */}
+        {refundAllocations.map((alloc) => {
+          const isAdvance = alloc.advancePaymentId?._id === parentPayment?._id
+          const linkedDoc = isAdvance
+            ? alloc.refundPaymentId
+            : alloc.advancePaymentId
+
+          return (
+            <div
+              key={alloc._id}
+              className='flex items-center justify-between rounded-md border bg-background p-3 mt-3'
+            >
+              <div>
+                <p className='font-medium text-sky-500'>
+                  {isAdvance ? 'Stins cu Restituirea:' : 'Alocat pe Avansul:'}{' '}
+                  {linkedDoc?.seriesName ? `${linkedDoc.seriesName} - ` : ''}
+                  {linkedDoc?.paymentNumber}
+                </p>
+                <p className='text-sm text-muted-foreground'>
+                  {formatDateTime(new Date(alloc.allocationDate)).dateOnly}
+                </p>
+              </div>
+
+              <div className='flex items-center gap-2'>
+                <span className='font-semibold text-lg text-sky-500'>
+                  {formatCurrency(alloc.amountAllocated)}
+                </span>
+
+                {isAdmin && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant='ghost'
+                        size='icon'
+                        className='text-red-600 hover:text-red-700'
+                        disabled={!!deletingId}
+                      >
+                        {deletingId === alloc._id ? (
+                          <Loader2 className='h-4 w-4 animate-spin' />
+                        ) : (
+                          <Trash2 className='h-4 w-4' />
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Confirmă Ștergerea</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Ești sigur că vrei să anulezi această alocare de{' '}
+                          {formatCurrency(alloc.amountAllocated)}? Sumele vor fi
+                          returnate pe documentele inițiale.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Anulează</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDeleteRefund(alloc._id)}
+                          className='bg-red-600 hover:bg-red-700'
+                        >
+                          Șterge Alocarea
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 )}
               </div>
             </div>

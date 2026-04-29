@@ -20,11 +20,13 @@ import { useRouter } from 'next/navigation'
 import { SUPPLIER_PAYMENT_STATUS_MAP } from '@/lib/db/modules/financial/treasury/payables/supplier-payment.constants'
 import { Badge } from '@/components/ui/badge'
 import { SUPPLIER_INVOICE_STATUS_MAP } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.constants'
+import { toast } from 'sonner'
 
 interface SupplierBalancesItemProps {
   supplier: any
   onOpenInvoiceDetails: (invoiceId: string) => void
   onOpenCreatePayment: (supplierId: string, invoiceId?: string) => void
+  onOpenRefundModal: (payment: any) => void
   onOpenAllocationModal: (payment: any) => void
   onCompensate: (invoiceId: string) => void
   processingId: string | null
@@ -35,6 +37,7 @@ export function SupplierBalancesItem({
   onOpenInvoiceDetails,
   onOpenCreatePayment,
   onOpenAllocationModal,
+  onOpenRefundModal,
   onCompensate,
   processingId,
 }: SupplierBalancesItemProps) {
@@ -164,11 +167,26 @@ export function SupplierBalancesItem({
                     >
                       <TableCell className='py-1 text-xs'>
                         <div className='font-medium text-foreground w-fit'>
+                          {/* Adăugăm prefixul RESTITUIRE dacă suma este negativă */}
+                          {item.grandTotal < 0 && (
+                            <span className='font-bold'>RESTITUIRE - </span>
+                          )}
                           {item.seriesName ? `${item.seriesName} - ` : ''}
                           {item.documentNumber}
                         </div>
-                        <div className='text-xs text-green-600'>
-                          Plată din {formatDate(item.date)}
+                        <div
+                          className={cn(
+                            'text-xs',
+                            item.grandTotal < 0
+                              ? 'text-primary'
+                              : 'text-green-600',
+                          )}
+                        >
+                          {/* Schimbăm și textul dedesubt pentru claritate */}
+                          {item.grandTotal < 0
+                            ? 'Restituire din '
+                            : 'Plată din '}
+                          {formatDate(item.date)}
                         </div>
                       </TableCell>
                       <TableCell className='py-1 text-xs text-center'>
@@ -188,20 +206,56 @@ export function SupplierBalancesItem({
                         </span>
                       </TableCell>
                       <TableCell className='py-1'>
-                        <Button
-                          variant='outline'
-                          className='h-7 text-xs px-2 cursor-pointer text-primary'
-                          onClick={() => onOpenAllocationModal(item)}
-                          disabled={isBusy}
-                        >
-                          Alocare
-                        </Button>
+                        {/* Verificăm dacă e restituire (suma negativă) */}
+                        {item.grandTotal < 0 ? (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            className='h-7 text-xs px-2 cursor-pointer text-primary border-primary-200 hover:bg-primary-50'
+                            onClick={(e) => {
+                              e.preventDefault()
+                              onOpenRefundModal({
+                                ...item,
+                                unallocatedAmount: item.remainingAmount,
+                                supplierId: {
+                                  _id: supplier.supplierId,
+                                  name: supplier.supplierName,
+                                },
+                              })
+                            }}
+                            disabled={isBusy}
+                          >
+                            Stinge Avans
+                          </Button>
+                        ) : (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            className='h-7 text-xs px-2 cursor-pointer text-primary'
+                            onClick={(e) => {
+                              e.preventDefault()
+                              onOpenAllocationModal(item)
+                            }}
+                            disabled={isBusy}
+                          >
+                            Alocare
+                          </Button>
+                        )}
                       </TableCell>
                       <TableCell className='py-1 text-sm text-right text-muted-foreground font-mono'>
                         {formatCurrency(item.grandTotal)}
                       </TableCell>
-                      <TableCell className='py-1 text-sm text-right font-bold font-mono text-green-600'>
-                        -{formatCurrency(item.remainingAmount)}
+                      <TableCell
+                        className={cn(
+                          'py-1 text-sm text-right font-bold font-mono',
+                          item.remainingAmount < 0
+                            ? 'text-primary'
+                            : 'text-green-600',
+                        )}
+                      >
+                        {item.remainingAmount < 0
+                          ? `+${formatCurrency(Math.abs(item.remainingAmount))}`
+                          : `-${formatCurrency(item.remainingAmount)}`}
                       </TableCell>
                     </TableRow>
                   )

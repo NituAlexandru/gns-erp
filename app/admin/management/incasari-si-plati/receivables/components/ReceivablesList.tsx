@@ -26,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsRight,
+  RefreshCcw,
 } from 'lucide-react'
 import {
   AlertDialog,
@@ -60,6 +61,7 @@ interface ReceivablesListProps {
   }
   isAdmin: boolean
   onOpenAllocationModal: (payment: PopulatedClientPayment) => void
+  onOpenRefundModal?: (payment: PopulatedClientPayment) => void
 }
 
 const FALLBACK_STATUS = { name: 'Necunoscut', variant: 'secondary' } as const
@@ -68,6 +70,7 @@ export function ReceivablesList({
   data,
   isAdmin,
   onOpenAllocationModal,
+  onOpenRefundModal,
 }: ReceivablesListProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -168,6 +171,7 @@ export function ReceivablesList({
 
                 const isAllocationsViewable = payment.status !== 'ANULATA'
                 const isCancelable = payment.status === 'NEALOCATA' // Doar dacă nu s-a folosit niciun ban
+                const isRefundDoc = payment.isRefund || payment.totalAmount < 0
 
                 return (
                   <TableRow
@@ -181,9 +185,25 @@ export function ReceivablesList({
                     <TableCell className='py-1 font-medium uppercase'>
                       <span
                         className='cursor-pointer hover:underline hover:text-primary transition-colors'
-                        onClick={() => onOpenAllocationModal(payment)}
-                        title='Vezi Detalii Plată'
+                        onClick={() => {
+                          if (isRefundDoc && onOpenRefundModal) {
+                            onOpenRefundModal(payment)
+                          } else {
+                            onOpenAllocationModal(payment)
+                          }
+                        }}
+                        title={
+                          isRefundDoc
+                            ? 'Vezi Detalii Restituire'
+                            : 'Vezi Detalii Încasare'
+                        }
                       >
+                        {/* AICI AM SCHIMBAT */}
+                        {isRefundDoc && (
+                          <span className='text-primary font-bold mr-1'>
+                            RESTITUIRE -
+                          </span>
+                        )}
                         {payment.seriesName ? `${payment.seriesName} - ` : ''}
                         {payment.paymentNumber}
                       </span>
@@ -225,8 +245,10 @@ export function ReceivablesList({
                     <TableCell className='text-right font-bold py-1'>
                       <span
                         className={
-                          payment.unallocatedAmount > 0
-                            ? 'text-green-600'
+                          Math.abs(payment.unallocatedAmount) > 0
+                            ? isRefundDoc /* AICI AM SCHIMBAT */
+                              ? 'text-red-600'
+                              : 'text-green-600'
                             : 'text-muted-foreground'
                         }
                       >
@@ -235,9 +257,20 @@ export function ReceivablesList({
                     </TableCell>
 
                     <TableCell className='py-1'>
-                      <Badge variant={statusInfo.variant}>
-                        {statusInfo.name}
-                      </Badge>
+                      <div className='flex gap-2 items-center'>
+                        <Badge variant={statusInfo.variant}>
+                          {statusInfo.name}
+                        </Badge>
+                        {/* AICI AM SCHIMBAT */}
+                        {isRefundDoc && (
+                          <Badge
+                            variant='outline'
+                            className='text-primary border-primary-200 bg-primary-50/50'
+                          >
+                            RESTITUIRE
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
 
                     {isAdmin && (
@@ -250,21 +283,37 @@ export function ReceivablesList({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align='end'>
-                            <DropdownMenuItem
-                              onClick={() => onOpenAllocationModal(payment)}
-                              disabled={!isAllocationsViewable}
-                              className='cursor-pointer'
-                            >
-                              <Eye className='mr-2 h-4 w-4' />
-                              Vezi / Modifică Alocările
-                            </DropdownMenuItem>
+                            {/* AICI AM SCHIMBAT */}
+                            {isRefundDoc ? (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  onOpenRefundModal &&
+                                  onOpenRefundModal(payment)
+                                }
+                                disabled={!isAllocationsViewable}
+                                className='cursor-pointer'
+                              >
+                                <RefreshCcw className='mr-2 h-4 w-4' />
+                                Gestionează Restituirea
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                onClick={() => onOpenAllocationModal(payment)}
+                                disabled={!isAllocationsViewable}
+                                className='cursor-pointer'
+                              >
+                                <Eye className='mr-2 h-4 w-4' />
+                                Vezi / Modifică Alocările
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               className='text-red-600 focus:text-red-700 focus:bg-red-50 cursor-pointer'
                               onClick={() => setPaymentToCancel(payment)}
                               disabled={!isCancelable}
                             >
                               <Trash2 className='mr-2 h-4 w-4' />
-                              Anulează Încasarea
+                              Anulează {/* AICI AM SCHIMBAT */}
+                              {isRefundDoc ? 'Restituirea' : 'Încasarea'}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -360,7 +409,10 @@ export function ReceivablesList({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmă Anularea Încasării</AlertDialogTitle>
+            <AlertDialogTitle>
+              Confirmă Anularea{' '}
+              {paymentToCancel?.isRefund ? 'Restituirii' : 'Încasării'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               Ești sigur că vrei să anulezi încasarea{' '}
               <span className='font-bold'>

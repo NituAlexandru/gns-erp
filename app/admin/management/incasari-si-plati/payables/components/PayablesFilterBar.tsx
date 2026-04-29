@@ -22,6 +22,10 @@ import {
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  PAYMENT_METHOD_MAP,
+  PAYMENT_METHODS,
+} from '@/lib/db/modules/financial/treasury/payment.constants'
 
 export function PayablesFilterBar() {
   const router = useRouter()
@@ -51,6 +55,8 @@ export function PayablesFilterBar() {
   const [hideCompensations, setHideCompensations] = useState(
     searchParams.get('hideCompensations') === 'true',
   )
+  const [method, setMethod] = useState(searchParams.get('method') || 'ALL')
+
   const isMounted = useRef(false)
   const isTyping = useRef(false)
   const [fromDate, setFromDate] = useState<Date | undefined>(
@@ -71,6 +77,8 @@ export function PayablesFilterBar() {
     setMaxAmt(searchParams.get('maxAmt') || '')
     setOnlyOverdue(searchParams.get('onlyOverdue') === 'true')
     setHideCompensations(searchParams.get('hideCompensations') === 'true')
+    setMethod(searchParams.get('method') || 'ALL')
+
     setFromDate(
       searchParams.get('from')
         ? new Date(searchParams.get('from')!)
@@ -94,6 +102,7 @@ export function PayablesFilterBar() {
     currentMaxAmt: string = maxAmt,
     currentOnlyOverdue: boolean = onlyOverdue,
     currentHideCompensations: boolean = hideCompensations,
+    currentMethod: string = method,
   ) => {
     const params = new URLSearchParams(searchParams)
     params.set('page', '1') // Resetăm pagina la 1
@@ -140,10 +149,9 @@ export function PayablesFilterBar() {
       else params.delete('hideCompensations')
     }
 
-    if (isPayments) {
-      if (currentHideCompensations) params.set('hideCompensations', 'true')
-      else params.delete('hideCompensations')
-    }
+    if (currentMethod && currentMethod !== 'ALL')
+      params.set('method', currentMethod)
+    else params.delete('method')
 
     router.push(`${pathname}?${params.toString()}`)
   }
@@ -170,6 +178,7 @@ export function PayablesFilterBar() {
         maxAmt,
         onlyOverdue,
         hideCompensations,
+        method,
       )
     }, 1000)
     return () => clearTimeout(timer)
@@ -195,6 +204,7 @@ export function PayablesFilterBar() {
         maxAmt,
         onlyOverdue,
         hideCompensations,
+        method,
       )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -207,6 +217,7 @@ export function PayablesFilterBar() {
     fromTime,
     toTime,
     hideCompensations,
+    method,
   ])
 
   // EFECT 2: Filtrare Instantanee (cu fix pentru bucla infinită)
@@ -228,6 +239,7 @@ export function PayablesFilterBar() {
     setOnlyOverdue(false)
     setFromDate(undefined)
     setHideCompensations(false)
+    setMethod('ALL')
     setToDate(undefined)
     router.push(pathname)
   }
@@ -376,7 +388,7 @@ export function PayablesFilterBar() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value='ALL' className='cursor-pointer'>
-              Toate
+              Status
             </SelectItem>
             {statusOptions.map((opt) => (
               <SelectItem
@@ -385,6 +397,23 @@ export function PayablesFilterBar() {
                 className='cursor-pointer'
               >
                 {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* METODĂ PLATĂ (Adăugat doar pe tabul de Plăți) */}
+      {isPayments && !isBalances && (
+        <Select value={method} onValueChange={setMethod}>
+          <SelectTrigger className='max-h-8.5 w-[140px] text-xs bg-background cursor-pointer'>
+            <SelectValue placeholder='Metodă Plată' />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value='ALL'>Metoda Plata</SelectItem>
+            {PAYMENT_METHODS.map((m) => (
+              <SelectItem key={m} value={m} className='cursor-pointer'>
+                {PAYMENT_METHOD_MAP[m].name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -513,7 +542,8 @@ export function PayablesFilterBar() {
         minAmt ||
         maxAmt ||
         onlyOverdue ||
-        hideCompensations) && (
+        hideCompensations ||
+        method !== 'ALL') && (
         <Button
           variant='ghost'
           size='sm'

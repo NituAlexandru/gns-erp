@@ -55,11 +55,13 @@ interface SupplierPaymentsTableProps {
     total: number
   }
   onOpenAllocationModal: (payment: PopulatedSupplierPayment) => void
+  onOpenRefundModal: (payment: PopulatedSupplierPayment) => void
 }
 
 export function SupplierPaymentsTable({
   data,
   onOpenAllocationModal,
+  onOpenRefundModal,
 }: SupplierPaymentsTableProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -204,6 +206,14 @@ export function SupplierPaymentsTable({
                       <Badge variant={statusInfo.variant}>
                         {statusInfo.name}
                       </Badge>
+                      {payment.isRefund && (
+                        <Badge
+                          variant='outline'
+                          className='text-blue-600 border-blue-200 bg-blue-50 text-xs h-5 font-bold ml-1'
+                        >
+                          RESTITUIRE
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className='text-right font-medium py-1'>
                       {formatCurrency(payment.totalAmount)}
@@ -219,12 +229,21 @@ export function SupplierPaymentsTable({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align='end'>
-                          <DropdownMenuItem
-                            onClick={() => onOpenAllocationModal(payment)}
-                            disabled={!isAllocationsViewable}
-                          >
-                            Vezi / Modifică Alocările
-                          </DropdownMenuItem>
+                          {payment.isRefund ? (
+                            <DropdownMenuItem
+                              onClick={() => onOpenRefundModal(payment)}
+                              disabled={!isAllocationsViewable}
+                            >
+                              Stinge Avans (Alocare Restituire)
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              onClick={() => onOpenAllocationModal(payment)}
+                              disabled={!isAllocationsViewable}
+                            >
+                              Vezi / Modifică Alocările pe Facturi
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={() => setPaymentToCancel(payment)}
                             disabled={!isCancelable}

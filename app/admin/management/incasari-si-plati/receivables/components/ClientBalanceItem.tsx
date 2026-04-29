@@ -226,11 +226,26 @@ export const ClientBalanceItem = memo(function ClientBalanceItem({
                     >
                       <TableCell className='py-1 text-xs'>
                         <div className='font-medium text-foreground w-fit'>
-                          {item.seriesName ? `${item.seriesName} - ` : ''}
+                          {item.grandTotal < 0 && (
+                            <span className='text-primary font-bold mr-1'>
+                              RESTITUIRE
+                            </span>
+                          )}
+                          - {item.seriesName ? `${item.seriesName} - ` : ''}
                           {item.documentNumber}
                         </div>
-                        <div className='text-xs text-green-500'>
-                          Plată din {formatDate(item.date)}
+                        <div
+                          className={cn(
+                            'text-xs',
+                            item.grandTotal < 0
+                              ? 'text-primary'
+                              : 'text-green-500',
+                          )}
+                        >
+                          {item.grandTotal < 0
+                            ? 'Restituire din '
+                            : 'Încasare din '}
+                          {formatDate(item.date)}
                         </div>
                       </TableCell>
                       <TableCell className='py-1 text-xs text-center'>
@@ -256,24 +271,62 @@ export const ClientBalanceItem = memo(function ClientBalanceItem({
                       <TableCell className='py-1 text-center text-muted-foreground'></TableCell>
                       {isAdmin && (
                         <TableCell className='py-1'>
-                          <Button
-                            variant='outline'
-                            disabled={isPending}
-                            className='h-7 text-xs px-2 cursor-pointer'
-                            onClick={() => onOpenAllocation(item)}
-                          >
-                            Alocare
-                          </Button>
+                          {item.grandTotal < 0 ? (
+                            <Button
+                              type='button'
+                              variant='outline'
+                              disabled={isPending}
+                              className='h-7 text-xs px-2 cursor-pointer text-primary border-primary-200 hover:bg-primary-50/50'
+                              onClick={(e) => {
+                                e.preventDefault()
+                                onOpenAllocation({
+                                  ...item,
+                                  unallocatedAmount: item.remainingAmount,
+                                  isRefund: true,
+                                  clientId: {
+                                    _id: client.clientId,
+                                    name: client.clientName,
+                                  },
+                                })
+                              }}
+                            >
+                              Stinge Avans
+                            </Button>
+                          ) : (
+                            <Button
+                              type='button'
+                              variant='outline'
+                              disabled={isPending}
+                              className='h-7 text-xs px-2 cursor-pointer'
+                              onClick={(e) => {
+                                e.preventDefault()
+                                onOpenAllocation(item)
+                              }}
+                            >
+                              Alocare
+                            </Button>
+                          )}
                         </TableCell>
                       )}
                       <TableCell className='py-1 text-center text-muted-foreground'></TableCell>
                       <TableCell className='py-1 text-center text-muted-foreground'></TableCell>
                       <TableCell className='py-1 text-center text-muted-foreground'></TableCell>
-                      <TableCell className='py-1 text-sm text-right font-mono text-green-600'>
-                        -{formatCurrency(item.grandTotal)}
+                      <TableCell className='py-1 text-sm text-right font-mono text-red-600'>
+                        {item.grandTotal < 0
+                          ? `-${formatCurrency(Math.abs(item.grandTotal))}`
+                          : `-${formatCurrency(item.grandTotal)}`}
                       </TableCell>
-                      <TableCell className='py-1 text-sm text-right font-bold font-mono text-green-600'>
-                        -{formatCurrency(item.remainingAmount)}
+                      <TableCell
+                        className={cn(
+                          'py-1 text-sm text-right font-bold font-mono',
+                          item.remainingAmount < 0
+                            ? 'text-green-600'
+                            : 'text-green-600',
+                        )}
+                      >
+                        {item.remainingAmount < 0
+                          ? `+${formatCurrency(Math.abs(item.remainingAmount))}`
+                          : `-${formatCurrency(item.remainingAmount)}`}
                       </TableCell>
                     </TableRow>
                   )

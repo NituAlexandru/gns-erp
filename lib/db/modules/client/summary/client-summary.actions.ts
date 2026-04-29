@@ -262,6 +262,7 @@ export async function getClientLedger(
           },
           debit: { $ifNull: ['$totals.grandTotal', 0] },
           credit: { $literal: 0 },
+          isRefund: { $ifNull: ['$isRefund', false] },
         },
       },
     ]
@@ -349,9 +350,15 @@ export async function getClientLedger(
             $concat: [
               {
                 $cond: [
-                  { $eq: ['$isAdvance', true] },
-                  'Încasare AVANS',
-                  'Încasare',
+                  { $eq: ['$isRefund', true] },
+                  'Restituire',
+                  {
+                    $cond: [
+                      { $eq: ['$isAdvance', true] },
+                      'Încasare AVANS',
+                      'Încasare',
+                    ],
+                  },
                 ],
               },
               {
@@ -364,6 +371,7 @@ export async function getClientLedger(
           },
           debit: { $literal: 0 },
           credit: { $multiply: [{ $ifNull: ['$totalAmount', 0] }, -1] },
+          isRefund: { $ifNull: ['$isRefund', false] },
         },
       },
     ]
@@ -498,10 +506,10 @@ export async function getClientLedger(
       (sum, e) => sum + (e.debit || 0),
       0,
     )
-    const initialCredit = entriesBeforeStart.reduce(
-      (sum, e) => sum + Math.abs(e.credit || 0),
-      0,
-    )
+    const initialCredit = entriesBeforeStart.reduce((sum, e) => {
+      const val = Math.abs(e.credit || 0)
+      return e.isRefund ? sum - val : sum + val
+    }, 0)
 
     // 3. Filtrăm doar tranzacțiile din perioada selectată
     const filteredEntries = ledgerEntries.filter((e) => {
@@ -514,10 +522,10 @@ export async function getClientLedger(
       (sum, e) => sum + (e.debit || 0),
       0,
     )
-    const totalCredit = filteredEntries.reduce(
-      (sum, e) => sum + Math.abs(e.credit || 0),
-      0,
-    )
+    const totalCredit = filteredEntries.reduce((sum, e) => {
+      const val = Math.abs(e.credit || 0)
+      return e.isRefund ? sum - val : sum + val
+    }, 0)
 
     // 5. Soldul final
     const finalBalance =

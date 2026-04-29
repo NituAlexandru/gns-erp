@@ -139,9 +139,16 @@ export function ClientLedgerTable({
                 <TableCell className='text-right font-medium text-red-600'>
                   {entry.debit !== 0 ? formatCurrency(entry.debit) : '—'}
                 </TableCell>
-                <TableCell className='text-right font-medium text-green-600'>
+                <TableCell
+                  className={cn(
+                    'text-right font-medium',
+                    entry.isRefund ? 'text-red-600' : 'text-green-600',
+                  )}
+                >
                   {entry.credit !== 0
-                    ? formatCurrency(Math.abs(entry.credit))
+                    ? entry.isRefund
+                      ? `-${formatCurrency(Math.abs(entry.credit))}`
+                      : formatCurrency(Math.abs(entry.credit))
                     : '—'}
                 </TableCell>
                 <TableCell className='text-right font-bold'>
@@ -161,10 +168,15 @@ export function ClientLedgerTable({
             <TableCell className='text-right text-red-600 font-bold'>
               {totals.totalDebit !== 0 ? formatCurrency(totals.totalDebit) : 0}
             </TableCell>
-            <TableCell className='text-right text-green-600 font-bold'>
+            <TableCell
+              className={cn(
+                'text-right font-bold',
+                totals.totalCredit < 0 ? 'text-red-600' : 'text-green-600',
+              )}
+            >
               {totals.totalCredit !== 0
                 ? formatCurrency(totals.totalCredit)
-                : 0}
+                : '0,00 RON'}
             </TableCell>
             <TableCell className='text-right'>
               <span className='font-bold text-lg'>

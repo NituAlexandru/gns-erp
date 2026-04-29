@@ -35,13 +35,13 @@ const styles = StyleSheet.create({
     width: '15%',
     textAlign: 'right',
     paddingRight: 4,
-    color: '#dc2626',
+    // color: '#dc2626',
   }, // Rosu
   colCredit: {
     width: '15%',
     textAlign: 'right',
     paddingRight: 4,
-    color: '#16a34a',
+    // color: '#16a34a',
   }, // Verde
   colBalance: {
     width: '14%',
@@ -136,31 +136,51 @@ export const PdfClientLedgerTable = ({
       </View>
 
       {/* Rows */}
-      {entries.map((item, i) => (
-        <View key={i} style={styles.row} wrap={false}>
-          <Text style={[styles.colDate, styles.cellText]}>
-            {fmtDate(item.date)}
-          </Text>
-          <Text style={[styles.colDoc, styles.cellText]}>
-            {item.documentNumber}
-          </Text>
-          <Text style={[styles.colDetails, styles.cellText]}>
-            {item.details}
-          </Text>
+      {entries.map((item, i) => {
+        // Căutăm cuvântul "Restituire" ca măsură de siguranță supremă
+        const isRefundRow =
+          item.isRefund || (item.details && item.details.includes('Restituire'))
 
-          <Text style={[styles.colDebit]}>
-            {item.debit !== 0 ? fmt(item.debit) : '-'}
-          </Text>
+        return (
+          <View key={i} style={styles.row} wrap={false}>
+            <Text style={[styles.colDate, styles.cellText]}>
+              {fmtDate(item.date)}
+            </Text>
+            <Text style={[styles.colDoc, styles.cellText]}>
+              {item.documentNumber}
+            </Text>
+            <Text style={[styles.colDetails, styles.cellText]}>
+              {item.details}
+            </Text>
 
-          <Text style={[styles.colCredit]}>
-            {item.credit !== 0 ? fmt(Math.abs(item.credit)) : '-'}
-          </Text>
+            <Text
+              style={[
+                styles.colDebit,
+                { color: item.debit < 0 ? '#16a34a' : '#dc2626' }, // Verde pt storno, Roșu pt datorie normală
+              ]}
+            >
+              {item.debit !== 0 ? fmt(item.debit) : '-'}
+            </Text>
 
-          <Text style={[styles.colBalance, styles.cellText]}>
-            {fmt(item.balance)}
-          </Text>
-        </View>
-      ))}
+            <Text
+              style={[
+                styles.colCredit,
+                { color: isRefundRow ? '#dc2626' : '#16a34a' }, // Roșu pt Restituiri, Verde pt încasări normale
+              ]}
+            >
+              {item.credit !== 0
+                ? isRefundRow
+                  ? `-${fmt(Math.abs(item.credit))}`
+                  : fmt(Math.abs(item.credit))
+                : '-'}
+            </Text>
+
+            <Text style={[styles.colBalance, styles.cellText]}>
+              {fmt(item.balance)}
+            </Text>
+          </View>
+        )
+      })}
       <View style={styles.footerRow} wrap={false}>
         <Text
           style={{
@@ -175,7 +195,13 @@ export const PdfClientLedgerTable = ({
         <Text style={[styles.colDebit, styles.bold]}>
           {fmt(safeTotals.totalDebit)}
         </Text>
-        <Text style={[styles.colCredit, styles.bold]}>
+        <Text
+          style={[
+            styles.colCredit,
+            styles.bold,
+            { color: safeTotals.totalCredit < 0 ? '#dc2626' : '#16a34a' },
+          ]}
+        >
           {fmt(safeTotals.totalCredit)}
         </Text>
         <Text style={styles.colBalance}>{fmt(safeTotals.finalBalance)}</Text>

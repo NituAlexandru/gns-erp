@@ -55,6 +55,7 @@ const SupplierPaymentSchema = new Schema<ISupplierPaymentDoc>(
       type: Number,
       required: false,
     },
+    isRefund: { type: Boolean, default: false },
     budgetCategorySnapshot: {
       type: BudgetCategorySnapshotSchema,
       required: false,
@@ -79,6 +80,19 @@ SupplierPaymentSchema.pre('save', function (this: ISupplierPaymentDoc, next) {
 
   const unallocated = round2(this.unallocatedAmount)
   const total = round2(this.totalAmount)
+
+  if (this.isRefund) {
+    // Pentru restituiri (sume negative), logica se inversează
+    if (unallocated >= 0) {
+      this.status = 'ALOCATA'
+      this.unallocatedAmount = 0
+    } else if (unallocated <= total) {
+      this.status = 'NEALOCATA'
+    } else {
+      this.status = 'PARTIAL_ALOCATA'
+    }
+    return next()
+  }
 
   if (unallocated <= 0) {
     this.status = 'ALOCATA'

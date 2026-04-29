@@ -20,10 +20,8 @@ export const SupplierPaymentPayloadSchema = z.object({
   currency: z.string().default('RON'), // RON, EUR, USD
   exchangeRate: z.number().optional().default(1), // Cursul
   originalCurrencyAmount: z.number().optional(), // Suma în valută
-  totalAmount: z
-    .number({ required_error: 'Suma este obligatorie.' })
-    .positive('Suma trebuie să fie mai mare ca 0.'),
-  unallocatedAmount: z.coerce.number().min(0),
+  totalAmount: z.number({ required_error: 'Suma este obligatorie.' }),
+  unallocatedAmount: z.coerce.number(),
   paymentNumber: z.string().min(1, 'Numărul documentului este obligatoriu.'),
   seriesName: z.string().optional(),
   referenceDocument: z.string().optional().default(''),

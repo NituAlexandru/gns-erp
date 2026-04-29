@@ -21,6 +21,7 @@ import { toast } from 'sonner'
 import { approveInvoice } from '@/lib/db/modules/financial/invoices/invoice.actions'
 import { PenaltyBillingModal } from '../penalties/PenaltyBillingModal'
 import { ClientBalanceItem } from './ClientBalanceItem'
+import { ClientRefundAllocationSheet } from './ClientRefundAllocationSheet'
 
 interface ClientBalancesListProps {
   data: ClientBalanceSummary[]
@@ -48,6 +49,7 @@ export function ClientBalancesList({
   const [allocationModalPayment, setAllocationModalPayment] = useState<
     any | null
   >(null)
+  const [refundModalPayment, setRefundModalPayment] = useState<any | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [penaltyModalData, setPenaltyModalData] = useState<{
@@ -133,7 +135,13 @@ export function ClientBalancesList({
               isAdmin={isAdmin}
               onOpenDetails={setSelectedInvoiceId}
               onOpenPayment={setPaymentModalData}
-              onOpenAllocation={setAllocationModalPayment}
+              onOpenAllocation={(payment) => {
+                if (payment.isRefund) {
+                  setRefundModalPayment(payment)
+                } else {
+                  setAllocationModalPayment(payment)
+                }
+              }}
               onOpenPenalty={setPenaltyModalData}
               onCompensate={handleCompensate}
               onApprove={handleApprove}
@@ -205,6 +213,15 @@ export function ClientBalancesList({
           })
         }}
         isAdmin={isAdmin}
+      />
+      <ClientRefundAllocationSheet
+        refundPayment={refundModalPayment}
+        onClose={() => {
+          setRefundModalPayment(null)
+          startTransition(() => {
+            router.refresh()
+          })
+        }}
       />
       {penaltyModalData && (
         <PenaltyBillingModal

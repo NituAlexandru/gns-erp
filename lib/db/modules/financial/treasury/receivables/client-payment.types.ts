@@ -19,6 +19,7 @@ export interface IClientPaymentDoc extends Document {
   referenceDocument?: string
   notes?: string
   status: ClientPaymentStatus
+  isRefund: boolean
   createdBy: Types.ObjectId
   createdByName: string
   createdAt: Date
@@ -42,6 +43,7 @@ export interface ClientPaymentDTO {
   referenceDocument?: string
   notes?: string
   status: ClientPaymentStatus
+  isRefund: boolean
   createdByName: string
   createdAt: string
 }

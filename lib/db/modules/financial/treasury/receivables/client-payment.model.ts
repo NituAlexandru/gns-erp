@@ -34,6 +34,7 @@ const ClientPaymentSchema = new Schema<IClientPaymentDoc>(
     },
     totalAmount: { type: Number, required: true },
     unallocatedAmount: { type: Number, required: true },
+    isRefund: { type: Boolean, default: false },
     referenceDocument: {
       type: String,
       index: true,
@@ -68,6 +69,21 @@ ClientPaymentSchema.pre('save', function (this: IClientPaymentDoc, next) {
   // Rotunjim valorile înainte de a le compara
   const unallocated = round2(this.unallocatedAmount)
   const total = round2(this.totalAmount)
+
+  // --- Izolată strict pentru RESTITUIRI (Sume Negative) ---
+  if (this.isRefund) {
+    // Atenție: aici lucrăm cu numere negative! (ex: total -900)
+    // Când s-a alocat tot, ajunge la 0 (sau peste din eroare de rotunjire microscopică)
+    if (unallocated >= 0) {
+      this.status = 'ALOCAT_COMPLET'
+      this.unallocatedAmount = 0
+    } else if (unallocated <= total) {
+      this.status = 'NEALOCATA'
+    } else {
+      this.status = 'PARTIAL_ALOCAT'
+    }
+    return next()
+  }
 
   // Asigurăm că valoarea negativă este 0
   if (unallocated < 0) {

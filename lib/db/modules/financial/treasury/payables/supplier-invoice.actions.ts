@@ -428,7 +428,7 @@ export async function getInvoicesForSupplier(
 
     const invoices = await SupplierInvoiceModel.find(queryConditions)
       .select(
-        'invoiceSeries invoiceNumber invoiceDate dueDate status totals.grandTotal',
+        'invoiceSeries invoiceNumber invoiceDate dueDate status invoiceType totals.grandTotal',
       )
       .sort({ invoiceDate: -1, _id: -1 })
       .skip(skip)
@@ -918,7 +918,7 @@ export async function getSupplierBalances(
           pipeline: [
             {
               $match: {
-                unallocatedAmount: { $gt: 0 },
+                unallocatedAmount: { $ne: 0 },
                 status: { $in: ['NEALOCATA', 'PARTIAL_ALOCATA'] },
               },
             },

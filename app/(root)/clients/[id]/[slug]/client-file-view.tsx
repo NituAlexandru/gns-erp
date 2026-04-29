@@ -89,6 +89,7 @@ export default function ClientFileView({
       createdAt: new Date().toISOString(),
       currency: 'RON',
       exchangeRate: 1,
+      isRefund: false,
     }
     setSelectedPayment(pseudoPayment)
   }

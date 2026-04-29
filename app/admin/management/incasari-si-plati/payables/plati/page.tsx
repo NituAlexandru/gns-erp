@@ -13,6 +13,7 @@ export default async function PaymentsPage({
     from?: string
     to?: string
     hideCompensations?: string
+    method?: string
   }>
 }) {
   const params = await searchParams
@@ -24,6 +25,7 @@ export default async function PaymentsPage({
     from: params.from,
     to: params.to,
     hideCompensations: params.hideCompensations === 'true',
+    method: params.method,
   })
 
   const safeData = {

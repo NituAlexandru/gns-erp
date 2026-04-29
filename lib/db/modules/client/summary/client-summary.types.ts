@@ -30,4 +30,5 @@ export type ClientLedgerEntry = {
   runningBalance: number
   dueDate?: Date
   remainingAmount: number
+  isRefund?: boolean
 }

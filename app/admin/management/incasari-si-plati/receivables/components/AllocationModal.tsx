@@ -22,6 +22,7 @@ import { AllocationList } from './AllocationList'
 import { useRouter } from 'next/navigation'
 import { ClientUnpaidInvoiceList } from './ClientUnpaidInvoiceList' // <--- Componenta nouă creată la Pasul 3
 import { ClientManualAllocationModal } from './ClientManualAllocationModal' // <--- Componenta nouă creată la Pasul 2
+import { getRefundAllocationsForClientPayment } from '@/lib/db/modules/financial/treasury/receivables/client-refund-allocation.actions'
 
 export type PopulatedClientPayment = PopulatedClientPaymentType
 export type PopulatedAllocation = PopulatedAllocationType
@@ -48,6 +49,7 @@ export function AllocationModal({
   // State-uri pentru date
   const [allocations, setAllocations] = useState<PopulatedAllocation[]>([])
   const [invoices, setInvoices] = useState<UnpaidInvoice[]>([])
+  const [refundAllocations, setRefundAllocations] = useState<any[]>([])
   const [latestPayment, setLatestPayment] =
     useState<PopulatedClientPayment | null>(payment)
 
@@ -72,17 +74,22 @@ export function AllocationModal({
           setLatestPayment(payment)
         }
 
-        // B. Fetch Alocări și Facturi în paralel
-        const [allocationsResult, invoicesResult] = await Promise.all([
-          getAllocationsForPayment(currentPaymentData._id),
-          getUnpaidInvoicesByClient(currentPaymentData.clientId._id),
-        ])
+        // B. Fetch Alocări, Facturi ȘI RESTITUIRI în paralel
+        const [allocationsResult, invoicesResult, refundsResult] =
+          await Promise.all([
+            getAllocationsForPayment(currentPaymentData._id),
+            getUnpaidInvoicesByClient(currentPaymentData.clientId._id),
+            getRefundAllocationsForClientPayment(currentPaymentData._id),
+          ])
 
         if (allocationsResult.success) {
           setAllocations(allocationsResult.data as PopulatedAllocation[])
         }
         if (invoicesResult.success) {
           setInvoices(invoicesResult.data as UnpaidInvoice[])
+        }
+        if (refundsResult.success) {
+          setRefundAllocations(refundsResult.data)
         }
         setIsLoading(false)
       }
@@ -98,11 +105,12 @@ export function AllocationModal({
     setIsLoading(true)
     setManualAllocInvoice(null)
 
-    const [paymentResult, allocationsResult, invoicesResult] =
+    const [paymentResult, allocationsResult, invoicesResult, refundsResult] =
       await Promise.all([
         getClientPaymentById(latestPayment._id),
         getAllocationsForPayment(latestPayment._id),
         getUnpaidInvoicesByClient(latestPayment.clientId._id),
+        getRefundAllocationsForClientPayment(latestPayment._id),
       ])
 
     if (paymentResult.success && paymentResult.data) {
@@ -113,6 +121,7 @@ export function AllocationModal({
       setAllocations(allocationsResult.data as PopulatedAllocation[])
     if (invoicesResult.success)
       setInvoices(invoicesResult.data as UnpaidInvoice[])
+    if (refundsResult.success) setRefundAllocations(refundsResult.data)
 
     router.refresh()
     setIsLoading(false)
@@ -155,6 +164,7 @@ export function AllocationModal({
                   <h3 className='font-semibold'>Alocări Existente</h3>
                   <AllocationList
                     allocations={allocations}
+                    refundAllocations={refundAllocations}
                     onAllocationDeleted={refreshData}
                     isAdmin={isAdmin}
                     parentPayment={latestPayment}

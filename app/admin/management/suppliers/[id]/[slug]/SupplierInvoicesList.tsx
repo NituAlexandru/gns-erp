@@ -15,6 +15,8 @@ import { formatCurrency } from '@/lib/utils'
 import { SupplierInvoiceStatusBadge } from './SupplierInvoiceStatusBadge'
 import { SupplierInvoiceListItem } from '@/lib/db/modules/financial/treasury/payables/supplier-invoice.actions'
 
+// Lista de facturi pentru furnizor (individual)
+
 interface SupplierInvoicesListProps {
   supplierId: string
   initialData: {
@@ -52,6 +54,7 @@ export function SupplierInvoicesList({
           <TableHeader>
             <TableRow className='bg-muted/50'>
               <TableHead>Serie & Număr</TableHead>
+              <TableHead>Tip Factură</TableHead>
               <TableHead>Data Facturii</TableHead>
               <TableHead>Scadență</TableHead>
               <TableHead>Status</TableHead>
@@ -71,6 +74,17 @@ export function SupplierInvoicesList({
                   <TableCell className='font-medium uppercase'>
                     {inv.invoiceSeries} - {inv.invoiceNumber}
                   </TableCell>
+                  <TableCell className='text-xs font-semibold'>
+                    <span
+                      className={
+                        inv.invoiceType === 'STORNO'
+                          ? 'text-red-500'
+                          : 'text-muted-foreground'
+                      }
+                    >
+                      {inv.invoiceType || 'STANDARD'}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     {new Date(inv.invoiceDate).toLocaleDateString('ro-RO')}
                   </TableCell>
@@ -80,8 +94,14 @@ export function SupplierInvoicesList({
                   <TableCell>
                     <SupplierInvoiceStatusBadge status={inv.status} />
                   </TableCell>
-                  <TableCell className='text-right font-semibold'>
-                    {formatCurrency(inv.totals.grandTotal)}
+                  <TableCell
+                    className={`text-right font-semibold ${inv.invoiceType === 'STORNO' ? 'text-red-500' : ''}`}
+                  >
+                    {formatCurrency(
+                      inv.invoiceType === 'STORNO'
+                        ? -inv.totals.grandTotal
+                        : inv.totals.grandTotal,
+                    )}
                   </TableCell>
                 </TableRow>
               ))

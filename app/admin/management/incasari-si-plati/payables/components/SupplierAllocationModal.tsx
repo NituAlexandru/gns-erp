@@ -21,6 +21,7 @@ import { SupplierAllocationList } from './SupplierAllocationList'
 import { UnpaidSupplierInvoiceList } from './UnpaidSupplierInvoiceList'
 import { ManualAllocationModal } from './ManualAllocationModal'
 import { useRouter } from 'next/navigation'
+import { getRefundAllocationsForPayment } from '@/lib/db/modules/financial/treasury/payables/supplier-refund-allocation.actions'
 
 // Tipul pentru o plată populată (din SupplierPaymentsList)
 export type PopulatedSupplierPayment = SupplierPaymentDTO & {
@@ -55,6 +56,7 @@ export function SupplierAllocationModal({
     [],
   )
   const [invoices, setInvoices] = useState<UnpaidSupplierInvoice[]>([])
+  const [refundAllocations, setRefundAllocations] = useState<any[]>([])
   const [latestPayment, setLatestPayment] =
     useState<PopulatedSupplierPayment | null>(payment)
   const [manualAllocInvoice, setManualAllocInvoice] =
@@ -79,17 +81,16 @@ export function SupplierAllocationModal({
         }
 
         // 2. Fetch alocările și facturile folosind datele cele mai recente
-        const [allocationsResult, invoicesResult] = await Promise.all([
-          getAllocationsForSupplierPayment(payment._id),
-          getUnpaidSupplierInvoices(currentPaymentData.supplierId._id),
-        ])
+        const [allocationsResult, invoicesResult, refundsResult] =
+          await Promise.all([
+            getAllocationsForSupplierPayment(payment._id),
+            getUnpaidSupplierInvoices(currentPaymentData.supplierId._id),
+            getRefundAllocationsForPayment(payment._id),
+          ])
 
-        if (allocationsResult.success) {
-          setAllocations(allocationsResult.data)
-        }
-        if (invoicesResult.success) {
-          setInvoices(invoicesResult.data)
-        }
+        if (allocationsResult.success) setAllocations(allocationsResult.data)
+        if (invoicesResult.success) setInvoices(invoicesResult.data)
+        if (refundsResult.success) setRefundAllocations(refundsResult.data)
         setIsLoading(false)
       }
       fetchData()
@@ -105,11 +106,12 @@ export function SupplierAllocationModal({
     setManualAllocInvoice(null)
 
     // Fetch payment din nou pentru a obține suma nealocată actualizată
-    const [paymentResult, allocationsResult, invoicesResult] =
+    const [paymentResult, allocationsResult, invoicesResult, refundsResult] =
       await Promise.all([
         getSupplierPaymentById(latestPayment._id),
         getAllocationsForSupplierPayment(latestPayment._id),
         getUnpaidSupplierInvoices(latestPayment.supplierId._id),
+        getRefundAllocationsForPayment(latestPayment._id),
       ])
 
     // Actualizăm state-ul plății
@@ -119,6 +121,7 @@ export function SupplierAllocationModal({
 
     if (allocationsResult.success) setAllocations(allocationsResult.data)
     if (invoicesResult.success) setInvoices(invoicesResult.data)
+    if (refundsResult.success) setRefundAllocations(refundsResult.data)
     setIsLoading(false)
 
     router.refresh()
@@ -160,6 +163,7 @@ export function SupplierAllocationModal({
                 <h3 className='font-semibold'>Alocări Existente</h3>
                 <SupplierAllocationList
                   allocations={allocations}
+                  refundAllocations={refundAllocations}
                   onAllocationDeleted={refreshData}
                   parentPayment={latestPayment}
                 />

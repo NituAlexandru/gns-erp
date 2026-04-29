@@ -20,6 +20,7 @@ import {
   SupplierAllocationModal,
   PopulatedSupplierPayment,
 } from './SupplierAllocationModal'
+import { SupplierRefundAllocationSheet } from './SupplierRefundAllocationSheet'
 
 interface SupplierBalancesListProps {
   data: any[]
@@ -48,6 +49,7 @@ export function SupplierBalancesList({
   >(undefined)
   const [allocationModalPayment, setAllocationModalPayment] =
     useState<PopulatedSupplierPayment | null>(null)
+  const [refundModalPayment, setRefundModalPayment] = useState<any | null>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
 
   // Handlers
@@ -106,6 +108,7 @@ export function SupplierBalancesList({
               onOpenInvoiceDetails={setInvoiceToView}
               onOpenCreatePayment={handleOpenPayment}
               onOpenAllocationModal={setAllocationModalPayment}
+              onOpenRefundModal={setRefundModalPayment}
               onCompensate={handleCompensate}
               processingId={processingId}
             />
@@ -153,6 +156,15 @@ export function SupplierBalancesList({
         payment={allocationModalPayment}
         onClose={() => {
           setAllocationModalPayment(null)
+          startTransition(() => {
+            router.refresh()
+          })
+        }}
+      />
+      <SupplierRefundAllocationSheet
+        refundPayment={refundModalPayment}
+        onClose={() => {
+          setRefundModalPayment(null)
           startTransition(() => {
             router.refresh()
           })

@@ -154,7 +154,7 @@ export function CreateClientPaymentForm({
 
         // Recalculare inversă la schimbarea monedei
         const currentRon = form.getValues('totalAmount') || 0
-        if (currentRon > 0) {
+        if (currentRon !== 0) {
           setValue('originalCurrencyAmount', round2(currentRon / rate))
         }
       } else {
@@ -431,6 +431,13 @@ export function CreateClientPaymentForm({
                             className='bg-background font-semibold border-primary h-9'
                             placeholder='0.00'
                             {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              field.onChange(
+                                val === '' ? undefined : Number(val),
+                              )
+                            }}
                           />
                         </FormControl>
                       </FormItem>

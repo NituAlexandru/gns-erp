@@ -4,6 +4,7 @@ import { startTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ReceivablesList } from './ReceivablesList'
 import { AllocationModal, PopulatedClientPayment } from './AllocationModal'
+import { ClientRefundAllocationSheet } from './ClientRefundAllocationSheet'
 
 interface ReceiptsListWrapperProps {
   data: {
@@ -24,6 +25,21 @@ export function ReceiptsListWrapper({
   const router = useRouter()
   const [allocationModalPayment, setAllocationModalPayment] =
     useState<PopulatedClientPayment | null>(null)
+  const [refundModalPayment, setRefundModalPayment] =
+    useState<PopulatedClientPayment | null>(null)
+
+  const handleOpenRefundModal = (payment: PopulatedClientPayment) => {
+    setRefundModalPayment(payment)
+  }
+
+  const handleCloseRefundModal = () => {
+    setRefundModalPayment(null)
+    setTimeout(() => {
+      startTransition(() => {
+        router.refresh()
+      })
+    }, 300)
+  }
 
   const handleOpenAllocationModal = (payment: PopulatedClientPayment) => {
     setAllocationModalPayment(payment)
@@ -44,12 +60,18 @@ export function ReceiptsListWrapper({
         data={data}
         isAdmin={isAdmin}
         onOpenAllocationModal={handleOpenAllocationModal}
+        onOpenRefundModal={handleOpenRefundModal}
       />
 
       <AllocationModal
         payment={allocationModalPayment}
         onClose={handleCloseAllocationModal}
         isAdmin={isAdmin}
+      />
+
+      <ClientRefundAllocationSheet
+        refundPayment={refundModalPayment}
+        onClose={handleCloseRefundModal}
       />
     </>
   )
