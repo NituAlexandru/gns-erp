@@ -36,7 +36,7 @@ export default async function DeliveriesListPage({ searchParams }: PageProps) {
   }))
 
   return (
-    <div className='flex flex-col h-[calc(100vh-12rem)] w-full p-0 max-w-full'>
+    <div className='w-full p-0 max-w-full space-y-4'>
       <div className='flex justify-between items-center mb-2 shrink-0'>
         <h1 className='text-2xl font-bold'>Listă Livrări</h1>
         <FilterControls statuses={statuses} />

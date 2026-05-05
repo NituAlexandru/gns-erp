@@ -97,7 +97,7 @@ export function DeliveriesTable({
           <TableHeader>
             <TableRow className='bg-muted'>
               {/* EXACT LA FEL CA LA CLIENTI: h-8 py-1 */}
-              <TableHead className='h-8 py-1 w-[120px]'>Status</TableHead>
+              <TableHead className='h-8 py-0.5 w-[120px]'>Status</TableHead>
               <TableHead className='h-8 py-1 w-[150px]'>Dată Creare</TableHead>
               <TableHead className='h-8 py-1'>Client</TableHead>
               <TableHead className='h-8 py-1'>Comandă</TableHead>
@@ -129,31 +129,31 @@ export function DeliveriesTable({
                     key={delivery._id.toString()}
                     className='hover:bg-muted/50'
                   >
-                    <TableCell className='py-1.5'>
+                    <TableCell className='py-1'>
                       <Badge variant={statusInfo.variant}>
                         {statusInfo.name}
                       </Badge>
                     </TableCell>
-                    <TableCell className='py-1.5'>
+                    <TableCell className='py-1'>
                       {delivery.createdAt
                         ? format(new Date(delivery.createdAt), 'PPP', {
                             locale: ro,
                           })
                         : 'N/A'}
                     </TableCell>
-                    <TableCell className='py-1.5'>
+                    <TableCell className='py-1'>
                       {delivery.clientSnapshot?.name}
                     </TableCell>
-                    <TableCell className='py-1.5'>
+                    <TableCell className='py-1'>
                       {delivery.orderNumber}
                     </TableCell>
-                    <TableCell className='py-1.5'>
+                    <TableCell className='py-1'>
                       {delivery.deliveryNumber}
                     </TableCell>
-                    <TableCell className='py-1.5'>
+                    <TableCell className='py-1'>
                       {delivery.createdByName}
                     </TableCell>
-                    <TableCell className='text-right py-1.5'>
+                    <TableCell className='text-right py-1'>
                       <div className='flex justify-end gap-1 items-center'>
                         <DeliveryPreview delivery={delivery} />
                         <Button

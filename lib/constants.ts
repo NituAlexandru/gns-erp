@@ -85,7 +85,7 @@ export const AVAILABLE_PALLET_TYPES: PalletType[] = [
     image: '/images/palet.webp',
     supplier: 'Ytong',
     returnConditions:
-      'Returnabil in maxim 60 zile la valoarea de 80,00 RON, in stare buna.', 
+      'Returnabil in maxim 60 zile la valoarea de 80,00 RON, in stare buna.',
   },
   {
     id: '6822e8884ef1b57a5f18319b',
@@ -416,7 +416,7 @@ export const CHUNK_SIZE = 7 // Afișăm 7 ansambluri pe rând
 export const ADMIN_PAGE_SIZE = 14
 export const PAYABLES_PAGE_SIZE = 15
 export const RECEIVABLES_PAGE_SIZE = 15
-export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 13)
+export const PAGE_SIZE = Number(process.env.PAGE_SIZE || 16)
 export const MOVEMENTS_PAGE_SIZE = 15
 export const STOCK_PAGE_SIZE = 17
 export const CLIENT_DETAIL_PAGE_SIZE = Number(
