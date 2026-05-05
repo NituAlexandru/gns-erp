@@ -181,22 +181,22 @@ export default function ClientList({
         <Table>
           <TableHeader>
             <TableRow className='bg-muted'>
-              <TableHead className='h-8 py-1'>Nume</TableHead>
-              <TableHead className='h-8 py-1 hidden sm:table-cell'>
+              <TableHead className='h-8 py-0.5'>Nume</TableHead>
+              <TableHead className='h-8 py-0.5 hidden sm:table-cell'>
                 Tip client
               </TableHead>
-              <TableHead className='h-8 py-1 hidden md:table-cell'>
+              <TableHead className='h-8 py-0.5 hidden md:table-cell'>
                 Plafon Credit
               </TableHead>
-              <TableHead className='h-8 py-1 hidden sm:table-cell'>
+              <TableHead className='h-8 py-0.5 hidden sm:table-cell'>
                 CNP / CUI
               </TableHead>
-              <TableHead className='h-8 py-1'>Email</TableHead>
-              <TableHead className='h-8 py-1'>Telefon</TableHead>
-              <TableHead className='h-8 py-1 hidden xl:table-cell'>
+              <TableHead className='h-8 py-0.5'>Email</TableHead>
+              <TableHead className='h-8 py-0.5'>Telefon</TableHead>
+              <TableHead className='h-8 py-0.5 hidden xl:table-cell'>
                 Contract
               </TableHead>
-              <TableHead className='h-8 py-1 w-[400px] text-right'>
+              <TableHead className='h-8 py-0.5 w-[400px] text-right'>
                 Acțiuni
               </TableHead>
             </TableRow>
@@ -215,8 +215,8 @@ export default function ClientList({
               </TableRow>
             ) : (
               data.map((c) => (
-                <TableRow key={c._id} className='hover:bg-muted/50 py-1'>
-                  <TableCell className='py-1.5'>
+                <TableRow key={c._id} className='hover:bg-muted/50 py-0.5'>
+                  <TableCell className='py-0.5'>
                     <Link
                       href={`/clients/${c._id}/${toSlug(c.name)}`}
                       className='hover:underline font-medium'
@@ -226,7 +226,7 @@ export default function ClientList({
                   </TableCell>
                   <TableCell className='py-0 hidden sm:table-cell'>
                     {c.clientType === 'Persoana fizica' ? (
-                      <span className='px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200'>
+                      <span className='px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200'>
                         PF
                       </span>
                     ) : (
@@ -245,8 +245,8 @@ export default function ClientList({
                       ? c.cnp || '—'
                       : c.vatId || '—'}
                   </TableCell>
-                  <TableCell className='py-1.5'>{c.email || '—'}</TableCell>
-                  <TableCell className='py-1.5'>{c.phone || '—'}</TableCell>
+                  <TableCell className='py-0.5'>{c.email || '—'}</TableCell>
+                  <TableCell className='py-0.5'>{c.phone || '—'}</TableCell>
                   <TableCell className='py-0 hidden xl:table-cell'>
                     {c.contractNumber ? (
                       <div className='flex flex-col text-xs'>
@@ -282,7 +282,7 @@ export default function ClientList({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className='py-1.5'>
+                  <TableCell className='py-0.5'>
                     <div className='flex justify-end gap-2'>
                       {isAdmin && (
                         <ContractActions

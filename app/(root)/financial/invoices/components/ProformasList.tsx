@@ -140,12 +140,12 @@ export function ProformasList({
   }
 
   return (
-    <div className='flex flex-col gap-1 h-[calc(100vh-11rem)] w-full'>
+    <div className='flex flex-col gap-4 w-full'>
       <ProformasFilters />
 
       {/* 2. Afișare Total */}
       <div className='flex justify-start'>
-        <div className='bg-muted/50 px-3 py-1 rounded text-sm font-medium border border-border'>
+        <div className='bg-muted/50 px-3 py-0.5 rounded text-sm font-medium border border-border'>
           Total Proforme Filtrate:{' '}
           <span className='text-primary font-bold'>
             {formatCurrency(totalFilteredSum)}
@@ -154,8 +154,8 @@ export function ProformasList({
       </div>
 
       {/* 3. Tabelul */}
-      <div className='flex-1 border rounded-lg overflow-auto bg-card [&>div]:h-full'>
-        <Table className='h-full'>
+      <div className='border rounded-lg bg-card overflow-x-auto'>
+        <Table>
           <TableHeader>
             <TableRow className='bg-muted/50'>
               <TableHead>Serie - Nr.</TableHead>
@@ -175,7 +175,7 @@ export function ProformasList({
                   key={invoice._id.toString()}
                   className='hover:bg-muted/50'
                 >
-                  <TableCell className='font-medium py-1'>
+                  <TableCell className='font-medium py-0.5'>
                     <div className='flex flex-col'>
                       <span>
                         {invoice.seriesName}-{invoice.invoiceNumber}
@@ -185,25 +185,25 @@ export function ProformasList({
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className='py-1'>
+                  <TableCell className='py-0.5'>
                     {new Date(invoice.invoiceDate).toLocaleDateString('ro-RO')}
                   </TableCell>
-                  <TableCell className='py-1'>
+                  <TableCell className='py-0.5'>
                     {new Date(invoice.dueDate).toLocaleDateString('ro-RO')}
                   </TableCell>
-                  <TableCell className='py-1'>
+                  <TableCell className='py-0.5'>
                     {invoice.clientId?.name || 'N/A'}
                   </TableCell>
-                  <TableCell className='py-1'>
+                  <TableCell className='py-0.5'>
                     {invoice.createdByName || 'N/A'}
                   </TableCell>
-                  <TableCell className='py-1'>
+                  <TableCell className='py-0.5'>
                     <InvoiceStatusBadge status={invoice.status} />
                   </TableCell>
-                  <TableCell className='text-right font-semibold py-1'>
+                  <TableCell className='text-right font-semibold py-0.5'>
                     {formatCurrency(invoice.totals.grandTotal)}
                   </TableCell>
-                  <TableCell className='text-right py-1'>
+                  <TableCell className='text-right py-0.5'>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant='ghost' size='icon'>
@@ -257,7 +257,7 @@ export function ProformasList({
 
       {/* 4. Paginarea */}
       {totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0'>
+        <div className='flex items-center justify-center gap-2 py-0.5 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
             size='icon'

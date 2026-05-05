@@ -494,7 +494,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                     className='even:bg-muted/50 hover:bg-muted'
                   >
                     {/* --- COLOANĂ NIR --- */}
-                    <TableCell className='py-1.5'>
+                    <TableCell className='py-1'>
                       {rec.nirNumber ? (
                         <div className='flex items-center gap-1'>
                           {/* Buton Print (Placeholder) */}
@@ -537,7 +537,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm max-w-[150px]'>
+                    <TableCell className='py-1 text-xs 2xl:text-sm max-w-[150px]'>
                       <TooltipProvider>
                         <Tooltip delayDuration={300}>
                           <TooltipTrigger asChild>
@@ -554,10 +554,10 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                         </Tooltip>
                       </TooltipProvider>
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                    <TableCell className='py-1 text-xs 2xl:text-sm'>
                       {format(new Date(rec.receptionDate), 'dd/MM/yyyy ')}
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                    <TableCell className='py-1 text-xs 2xl:text-sm'>
                       {deliveries.length > 0
                         ? deliveries.map((d, i) => (
                             <div
@@ -583,7 +583,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                           ))
                         : '-'}
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                    <TableCell className='py-1 text-xs 2xl:text-sm'>
                       {invoices.length > 0
                         ? invoices.map((inv, i) => (
                             <div key={i} className='leading-tight'>
@@ -597,10 +597,10 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                           ))
                         : '-'}
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                    <TableCell className='py-1 text-xs 2xl:text-sm'>
                       {formatCurrency(totals.generalRON)}
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm flex'>
+                    <TableCell className='py-1 text-xs 2xl:text-sm flex'>
                       <Badge
                         variant={
                           rec.status === 'DRAFT' ? 'secondary' : 'default'
@@ -617,15 +617,15 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                    <TableCell className='py-1 text-xs 2xl:text-sm'>
                       {rec.createdByName || rec.createdBy?.name || '–'}
                     </TableCell>
-                    <TableCell className='py-1.5 text-xs 2xl:text-sm'>
+                    <TableCell className='py-1 text-xs 2xl:text-sm'>
                       {rec.createdAt
                         ? format(new Date(rec.createdAt), 'dd/MM/yyyy ')
                         : '-'}
                     </TableCell>
-                    <TableCell className='text-center py-1.5'>
+                    <TableCell className='text-center py-1'>
                       <div className='flex items-center justify-center gap-1'>
                         {/* --- PREVIEW CARD --- */}
                         <HoverCard>

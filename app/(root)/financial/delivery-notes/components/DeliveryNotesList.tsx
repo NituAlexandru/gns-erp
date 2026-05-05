@@ -331,22 +331,22 @@ export function DeliveryNotesList({
         <Table className='h-full w-full'>
           <TableHeader>
             <TableRow className='bg-muted/50 h-10'>
-              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-0.5 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Serie - Nr.
               </TableHead>
-              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-0.5 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Data
               </TableHead>
-              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-0.5 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Client
               </TableHead>
-              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-0.5 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Agent
               </TableHead>
-              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-0.5 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Status
               </TableHead>
-              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-0.5 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Data Livrare
               </TableHead>
               <TableHead className='max-w-[300px] text-[10px] lg:text-xs xl:text-sm hidden xl:table-cell'>
@@ -421,7 +421,7 @@ export function DeliveryNotesList({
 
                 return (
                   <TableRow key={note._id} className='hover:bg-muted/50'>
-                    <TableCell className='py-1 text-[10px] xl:text-xs 2xl:text-sm px-2'>
+                    <TableCell className='py-0.5 text-[10px] xl:text-xs 2xl:text-sm px-2'>
                       <div className='flex flex-col'>
                         <Link
                           href={`/financial/delivery-notes/${note._id}`}
@@ -437,26 +437,26 @@ export function DeliveryNotesList({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] xl:text-xs 2xl:text-sm'>
+                    <TableCell className='py-0.5 text-[10px] xl:text-xs 2xl:text-sm'>
                       {new Date(note.createdAt).toLocaleDateString('ro-RO')}
                     </TableCell>
                     <TableCell
-                      className='py-1 text-[10px] xl:text-xs 2xl:text-sm max-w-[100px] lg:max-w-[150px] xl:max-w-[220px] truncate'
+                      className='py-0.5 text-[10px] xl:text-xs 2xl:text-sm max-w-[100px] lg:max-w-[150px] xl:max-w-[220px] truncate'
                       title={note.clientSnapshot?.name}
                     >
                       {note.clientSnapshot?.name || 'N/A'}
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] xl:text-xs 2xl:text-sm'>
+                    <TableCell className='py-0.5 text-[10px] xl:text-xs 2xl:text-sm'>
                       {note.salesAgentSnapshot?.name || 'N/A'}
                     </TableCell>
-                    <TableCell className='py-1'>
+                    <TableCell className='py-0.5'>
                       <DeliveryNoteStatusBadge status={note.status} />
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
+                    <TableCell className='py-0.5 text-[10px] lg:text-xs xl:text-sm'>
                       {formattedDeliveryDate}
                     </TableCell>
                     <TableCell
-                      className='py-1 max-w-[100px] xl:max-w-[150px] 2xl:max-w-[200px] text-[10px] xl:text-xs 2xl:text-sm text-muted-foreground truncate hidden xl:table-cell cursor-pointer'
+                      className='py-0.5 max-w-[100px] xl:max-w-[150px] 2xl:max-w-[200px] text-[10px] xl:text-xs 2xl:text-sm text-muted-foreground truncate hidden xl:table-cell cursor-pointer'
                       title={addressString}
                     >
                       {addressString}
@@ -465,20 +465,20 @@ export function DeliveryNotesList({
                       <>
                         <TableCell
                           className={cn(
-                            'py-1 text-right text-[10px] xl:text-xs 2xl:text-sm',
+                            'py-0.5 text-right text-[10px] xl:text-xs 2xl:text-sm',
                             getProfitColorClass(noteProfit),
                           )}
                         >
                           {hasCostData ? formatCurrency(noteProfit) : '-'}
                         </TableCell>
-                        <TableCell className='text-right py-1'>
+                        <TableCell className='text-right py-0.5'>
                           <div className='flex flex-col items-end justify-center gap-0.5'>
                             {hasCostData ? (
                               <>
                                 <div className='flex gap-1 items-center'>
                                   {hasProvisionalCost && (
                                     <div
-                                      className='flex items-center justify-center gap-1 text-[10px] text-primary px-1.5 py-1.5 pb-0 rounded border border-primary mb-0.5 cursor-help'
+                                      className='flex items-center justify-center gap-1 text-[10px] text-primary px-1.5 py-0.5.5 pb-0 rounded border border-primary mb-0.5 cursor-help'
                                       title='Cost estimat: stoc insuficient la momentul facturării.'
                                     >
                                       <AlertTriangle className='h-3 w-3 pb-0.5' />
@@ -504,7 +504,7 @@ export function DeliveryNotesList({
                         </TableCell>
                       </>
                     )}
-                    <TableCell className='text-right py-1'>
+                    <TableCell className='text-right py-0.5'>
                       <div className='flex items-center justify-end gap-1'>
                         <DeliveryNotePreview
                           note={note}
@@ -622,7 +622,7 @@ export function DeliveryNotesList({
       </div>
 
       {totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0'>
+        <div className='flex items-center justify-center gap-2 py-0.5 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
             size='icon'

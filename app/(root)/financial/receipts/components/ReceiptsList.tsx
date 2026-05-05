@@ -199,7 +199,7 @@ export function ReceiptsList({
                     })}
                   </TableCell>
                   <TableCell className='py-0'>
-                    <div className='flex flex-col leading-none justify-center h-full py-1'>
+                    <div className='flex flex-col leading-none justify-center h-full py-0.5'>
                       <span className='font-medium'>
                         {receipt.clientSnapshot.name}
                       </span>
@@ -226,7 +226,7 @@ export function ReceiptsList({
                         <Button
                           variant='ghost'
                           size='icon'
-                          className='h-8 w-6 min-h-0'
+                          className='h-5 w-6 min-h-0'
                         >
                           <MoreHorizontal className='h-4 w-4' />
                         </Button>

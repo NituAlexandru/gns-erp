@@ -143,7 +143,7 @@ export function OrdersList({
         </div>
       </div>
 
-      <div className='flex-1 overflow-auto border'>
+      <div className='flex-1 overflow-auto border rounded'>
         <Table>
           <TableHeader>
             <TableRow className='bg-muted'>
@@ -166,7 +166,7 @@ export function OrdersList({
             ) : orders.length > 0 ? (
               orders.map((order) => (
                 <TableRow key={order._id} className='hover:bg-muted/50'>
-                  <TableCell className='font-medium'>
+                  <TableCell className='font-medium py-1'>
                     <Link
                       href={`/orders/${order._id}`}
                       className='text-foreground decoration-transparent underline-offset-4 transition-colors hover:underline hover:decoration-primary hover:text-primary'
@@ -174,18 +174,22 @@ export function OrdersList({
                       {order.orderNumber}
                     </Link>
                   </TableCell>
-                  <TableCell>{order.client?.name || 'N/A'}</TableCell>
-                  <TableCell>{order.salesAgent?.name || 'N/A'}</TableCell>
-                  <TableCell>
+                  <TableCell className='py-1'>
+                    {order.client?.name || 'N/A'}
+                  </TableCell>
+                  <TableCell className='py-1'>
+                    {order.salesAgent?.name || 'N/A'}
+                  </TableCell>
+                  <TableCell className='py-1'>
                     {new Date(order.createdAt).toLocaleString('ro-RO')}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='py-1'>
                     <OrderStatusBadge status={order.status} />
                   </TableCell>
-                  <TableCell className='text-right'>
+                  <TableCell className='text-right py-1'>
                     {formatCurrency(order.totals.grandTotal)}
                   </TableCell>
-                  <TableCell className='text-right'>
+                  <TableCell className='text-right py-1'>
                     <div className='flex items-center justify-end gap-0'>
                       <OrderPreview order={order} />
                       <DropdownMenu>

@@ -402,7 +402,7 @@ export function InvoicesList({
       />
       <div className='flex flex-wrap justify-start items-center gap-2 text-sm'>
         {/* Total General */}
-        <div className='bg-primary/10 px-3 py-1 rounded border border-primary/20'>
+        <div className='bg-primary/10 px-3 py-0.5 rounded border border-primary/20'>
           <span className='text-muted-foreground mr-1'>Total General:</span>
           <span className='font-bold text-primary'>
             {formatCurrency(totalFilteredSum)}
@@ -416,7 +416,7 @@ export function InvoicesList({
         {seriesStats.map((stat) => (
           <div
             key={stat._id}
-            className='bg-muted/40 px-2 py-1 rounded border text-xs'
+            className='bg-muted/40 px-2 py-0.5 rounded border text-xs'
           >
             <span className='font-semibold mr-1'>{stat._id}:</span>
             <span>{formatCurrency(stat.total)}</span>
@@ -467,7 +467,7 @@ export function InvoicesList({
                     key={invoice._id.toString()}
                     className='hover:bg-muted/50'
                   >
-                    <TableCell className='font-medium py-1 text-[10px] lg:text-xs xl:text-sm'>
+                    <TableCell className='font-medium py-0.5 text-[10px] lg:text-xs xl:text-sm'>
                       {' '}
                       <div className='flex flex-col'>
                         <Link
@@ -482,15 +482,15 @@ export function InvoicesList({
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
+                    <TableCell className='py-0.5 text-[10px] lg:text-xs xl:text-sm'>
                       {new Date(invoice.invoiceDate).toLocaleDateString(
                         'ro-RO',
                       )}
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm'>
+                    <TableCell className='py-0.5 text-[10px] lg:text-xs xl:text-sm'>
                       {new Date(invoice.dueDate).toLocaleDateString('ro-RO')}
                     </TableCell>
-                    <TableCell className='py-1 text-[10px] lg:text-xs xl:text-sm truncate max-w-[150px] lg:max-w-[200px] xl:max-w-[250px]'>
+                    <TableCell className='py-0.5 text-[10px] lg:text-xs xl:text-sm truncate max-w-[150px] lg:max-w-[200px] xl:max-w-[250px]'>
                       {invoice.clientId ? (
                         <Link
                           href={`/clients/${invoice.clientId._id}/${toSlug(invoice.clientId.name)}?tab=payments`}
@@ -505,11 +505,11 @@ export function InvoicesList({
                     <TableCell className='text-[10px] lg:text-xs xl:text-sm max-w-[150px]'>
                       {invoice.createdByName || 'N/A'}
                     </TableCell>
-                    <TableCell className='py-1 max-w-[75px] lg:max-w-[125px]'>
+                    <TableCell className='py-0.5 max-w-[75px] lg:max-w-[125px]'>
                       <InvoiceStatusBadge status={invoice.status} />
                     </TableCell>
                     {/* COLOANA 1: STATUS EFACTURA */}
-                    <TableCell className='py-1'>
+                    <TableCell className='py-0.5'>
                       <div
                         className={cn(
                           'inline-block',
@@ -535,7 +535,7 @@ export function InvoicesList({
                     </TableCell>
 
                     {/* COLOANA 2: ACȚIUNI */}
-                    <TableCell className='py-1'>
+                    <TableCell className='py-0.5'>
                       {invoice.clientSnapshot?.address?.tara &&
                         invoice.clientSnapshot.address.tara.toUpperCase() !==
                           'RO' && (
@@ -591,7 +591,7 @@ export function InvoicesList({
                                 {/* Buton Download ZIP / ID */}
                                 <div
                                   className={cn(
-                                    'text-[10px] font-mono border px-2 py-1 rounded flex items-center gap-1 transition-colors h-7',
+                                    'text-[10px] font-mono border px-2 py-0.5 rounded flex items-center gap-1 transition-colors h-7',
                                     'hover:bg-primary/10 hover:text-primary cursor-pointer',
                                     'bg-muted text-muted-foreground',
                                   )}
@@ -639,14 +639,14 @@ export function InvoicesList({
                         <span className='text-muted-foreground text-xs'>-</span>
                       )}
                     </TableCell>
-                    <TableCell className='text-right text-[10px] lg:text-xs py-1'>
+                    <TableCell className='text-right text-[10px] lg:text-xs py-0.5'>
                       {formatCurrency(invoice.totals.grandTotal)}
                     </TableCell>
                     {isAdmin && (
                       <>
                         <TableCell
                           className={cn(
-                            'text-right text-[10px] lg:text-xs py-1',
+                            'text-right text-[10px] lg:text-xs py-0.5',
                             getProfitColorClass(invoice.totals.productsProfit),
                           )}
                         >
@@ -654,7 +654,7 @@ export function InvoicesList({
                             ? formatCurrency(invoice.totals.productsProfit)
                             : '-'}
                         </TableCell>
-                        <TableCell className='text-right py-1'>
+                        <TableCell className='text-right py-0.5'>
                           <div className='flex flex-col items-end justify-center gap-0.5'>
                             {invoice.invoiceType !== 'STORNO' ? (
                               <>
@@ -689,7 +689,7 @@ export function InvoicesList({
                         </TableCell>
                       </>
                     )}
-                    <TableCell className='text-right py-1 '>
+                    <TableCell className='text-right py-0.5 '>
                       <div className='flex items-center justify-end gap-1'></div>
                       <InvoicePreview
                         invoice={invoice}
@@ -822,7 +822,7 @@ export function InvoicesList({
       </div>
 
       {totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0'>
+        <div className='flex items-center justify-center gap-2 py-0.5 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
             size='icon'

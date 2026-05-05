@@ -128,7 +128,7 @@ export function NirList({
   }
 
   return (
-    <div className='flex flex-col gap-2 h-[calc(100vh-12rem)] w-full'>
+    <div className='flex flex-col gap-4 w-full'>
       <NirFilters />
       <div className='flex justify-start'>
         <div className='bg-muted/50 px-2 py-2 rounded-md border text-xs'>
@@ -138,8 +138,8 @@ export function NirList({
           </span>
         </div>
       </div>
-      <div className='flex-1 border rounded-lg overflow-auto bg-card [&>div]:h-full'>
-        <Table className='h-full'>
+      <div className='border rounded-lg overflow-x-auto bg-card'>
+        <Table>
           <TableHeader>
             <TableRow className='bg-muted/50'>
               <TableHead>NIR</TableHead>
@@ -163,7 +163,7 @@ export function NirList({
               data.map((nir) => (
                 <TableRow key={nir._id} className='hover:bg-muted/50'>
                   {/* Coloana 1: NIR */}
-                  <TableCell className='font-medium py-0 xl:py-1'>
+                  <TableCell className='font-medium py-0'>
                     <div className='flex items-center gap-2'>
                       <Button
                         variant='ghost'
@@ -192,12 +192,12 @@ export function NirList({
                   </TableCell>
 
                   {/* Coloana 2: Data */}
-                  <TableCell className='py-0 xl:py-1 text-[10px] xl:text-xs'>
+                  <TableCell className='py-0  text-[10px] xl:text-xs'>
                     {format(new Date(nir.nirDate), 'dd.MM.yyyy')}
                   </TableCell>
 
                   {/* Coloana 3: Furnizor */}
-                  <TableCell className='py-0 xl:py-1 text-[10px] xl:text-xs'>
+                  <TableCell className='py-0  text-[10px] xl:text-xs'>
                     <div className='flex flex-col'>
                       <span className='font-medium'>
                         {nir.supplierSnapshot.name}
@@ -209,7 +209,7 @@ export function NirList({
                   </TableCell>
 
                   {/* Coloana 4: Recepție Link */}
-                  <TableCell className='py-0 xl:py-1 text-[10px] xl:text-xs'>
+                  <TableCell className='py-0  text-[10px] xl:text-xs'>
                     <Button
                       variant='link'
                       size='sm'
@@ -226,24 +226,24 @@ export function NirList({
                   </TableCell>
 
                   {/* Coloana 5: Gestiune (Mapată) */}
-                  <TableCell className='py-0 xl:py-1'>
+                  <TableCell className='py-0 '>
                     {LOCATION_NAMES_MAP[
                       nir.destinationLocation as keyof typeof LOCATION_NAMES_MAP
                     ] || nir.destinationLocation}
                   </TableCell>
 
                   {/* Coloana 6: Total */}
-                  <TableCell className='text-right font-mono text-[10px] xl:text-xs py-0 xl:py-1'>
+                  <TableCell className='text-right font-mono text-[10px] xl:text-xs py-0 '>
                     {formatCurrency(nir.totals.grandTotal)}
                   </TableCell>
 
                   {/* Coloana 7: Status */}
-                  <TableCell className='py-0 xl:py-1'>
+                  <TableCell className='py-0 '>
                     <NirStatusBadge status={nir.status} />
                   </TableCell>
 
                   {/* Coloana 8: Acțiuni */}
-                  <TableCell className='text-right py-0 xl:py-1'>
+                  <TableCell className='text-right py-0 '>
                     <div className='flex items-center justify-end gap-1'>
                       <NirPreview nir={nir} />
                       <DropdownMenu>
