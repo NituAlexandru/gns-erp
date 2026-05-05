@@ -34,19 +34,17 @@ export default async function InvoicesTab({
   })
 
   return (
-    <div className='flex flex-col h-full space-y-1'>
+    <div className='flex flex-col space-y-1'>
       <ReceivablesSummaryCard
         label='Total Facturi Neîncasate'
         amount={invoicesData.summaryTotal || 0}
         type='invoice'
       />
 
-      <div className='flex-1 min-h-0'>
-        <ClientInvoicesWrapper
-          initialData={invoicesData}
-          currentUser={currentUser}
-        />
-      </div>
+      <ClientInvoicesWrapper
+        initialData={invoicesData}
+        currentUser={currentUser}
+      />
     </div>
   )
 }

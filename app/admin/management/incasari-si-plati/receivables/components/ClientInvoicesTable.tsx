@@ -147,20 +147,22 @@ export function ClientInvoicesTable({
   }
 
   return (
-    <div className='flex flex-col h-full'>
-      <div className='rounded-md border flex-1 overflow-auto min-h-0 relative '>
+    <div className='flex flex-col w-full gap-2'>
+      <div className='rounded-md border overflow-x-auto bg-card'>
         <table className='w-full caption-bottom text-sm text-left'>
           <TableHeader className='sticky top-0 z-10 bg-muted/50 shadow-sm backdrop-blur-sm'>
             <TableRow className='hover:bg-transparent'>
-              <TableHead className='w-[50px] py-1'>#</TableHead>
-              <TableHead className='py-1'>Serie / Număr</TableHead>
-              <TableHead className='py-1'>Client</TableHead>
-              <TableHead className='py-1'>Data Facturii</TableHead>
-              <TableHead className='py-1'>Scadența</TableHead>
-              <TableHead className='py-1'>Status</TableHead>
-              <TableHead className='text-right py-1'>Total Factură</TableHead>
-              <TableHead className='text-right py-1'>Rest de Încasat</TableHead>
-              <TableHead className='w-[50px] py-1'></TableHead>
+              <TableHead className='w-[50px] py-0.5'>#</TableHead>
+              <TableHead className='py-0.5'>Serie / Număr</TableHead>
+              <TableHead className='py-0.5'>Client</TableHead>
+              <TableHead className='py-0.5'>Data Facturii</TableHead>
+              <TableHead className='py-0.5'>Scadența</TableHead>
+              <TableHead className='py-0.5'>Status</TableHead>
+              <TableHead className='text-right py-0.5'>Total Factură</TableHead>
+              <TableHead className='text-right py-0.5'>
+                Rest de Încasat
+              </TableHead>
+              <TableHead className='w-[50px] py-0.5'></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -192,11 +194,11 @@ export function ClientInvoicesTable({
                     key={inv._id}
                     className='hover:bg-muted/30 group transition-colors'
                   >
-                    <TableCell className='font-medium text-muted-foreground py-1'>
+                    <TableCell className='font-medium text-muted-foreground py-0.5'>
                       {globalIndex}
                     </TableCell>
 
-                    <TableCell className='py-1'>
+                    <TableCell className='py-0.5'>
                       <div className='flex items-center gap-2'>
                         <span
                           className='font-semibold text-foreground uppercase cursor-pointer hover:underline hover:text-primary transition-colors'
@@ -216,7 +218,7 @@ export function ClientInvoicesTable({
                       </div>
                     </TableCell>
 
-                    <TableCell className='py-1 font-medium'>
+                    <TableCell className='py-0.5 font-medium'>
                       {inv.clientId ? (
                         <span
                           className='cursor-pointer hover:underline hover:text-primary transition-colors'
@@ -235,11 +237,11 @@ export function ClientInvoicesTable({
                       )}
                     </TableCell>
 
-                    <TableCell className='py-1 text-muted-foreground'>
+                    <TableCell className='py-0.5 text-muted-foreground'>
                       {formatDateTime(new Date(inv.invoiceDate)).dateOnly}
                     </TableCell>
 
-                    <TableCell className='py-1'>
+                    <TableCell className='py-0.5'>
                       <span
                         className={
                           isOverdue
@@ -251,17 +253,17 @@ export function ClientInvoicesTable({
                       </span>
                     </TableCell>
 
-                    <TableCell className='py-1'>
+                    <TableCell className='py-0.5'>
                       <Badge variant={statusInfo.variant}>
                         {statusInfo.name}
                       </Badge>
                     </TableCell>
 
-                    <TableCell className='text-right py-1 text-muted-foreground'>
+                    <TableCell className='text-right py-0.5 text-muted-foreground'>
                       {formatCurrency(inv.totals.grandTotal)}
                     </TableCell>
 
-                    <TableCell className='text-right font-bold py-1'>
+                    <TableCell className='text-right font-bold py-0.5'>
                       <span
                         className={
                           isNegative ? 'text-green-600' : 'text-red-600'
@@ -271,7 +273,7 @@ export function ClientInvoicesTable({
                       </span>
                     </TableCell>
 
-                    <TableCell className='py-1'>
+                    <TableCell className='py-0.5'>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button

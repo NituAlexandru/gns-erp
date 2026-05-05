@@ -136,20 +136,20 @@ export function ReceivablesList({
   }
 
   return (
-    <div className='flex flex-col h-full'>
-      <div className='rounded-md border flex-1 overflow-auto min-h-0 relative '>
+    <div className='flex flex-col'>
+      <div className='rounded-md border overflow-x-auto'>
         <table className='w-full caption-bottom text-sm text-left'>
           <TableHeader className='sticky top-0 z-10 bg-muted/50 shadow-sm backdrop-blur-sm'>
             <TableRow className='hover:bg-transparent'>
-              <TableHead className='w-[50px] py-2'>#</TableHead>
-              <TableHead className='py-2'>Serie / Nr. Doc.</TableHead>
-              <TableHead className='py-2'>Client</TableHead>
-              <TableHead className='py-2'>Tip Plată</TableHead>
-              <TableHead className='py-2'>Data Plată</TableHead>
-              <TableHead className='text-right py-2'>Total Încasat</TableHead>
-              <TableHead className='text-right py-2'>Nealocat</TableHead>
-              <TableHead className='py-2'>Status</TableHead>
-              {isAdmin && <TableHead className='w-[50px] py-2'></TableHead>}
+              <TableHead className='w-[50px] py-0.5'>#</TableHead>
+              <TableHead className='py-0.5'>Serie / Nr. Doc.</TableHead>
+              <TableHead className='py-0.5'>Client</TableHead>
+              <TableHead className='py-0.5'>Tip Plată</TableHead>
+              <TableHead className='py-0.5'>Data Plată</TableHead>
+              <TableHead className='text-right py-0.5'>Total Încasat</TableHead>
+              <TableHead className='text-right py-0.5'>Nealocat</TableHead>
+              <TableHead className='py-0.5'>Status</TableHead>
+              {isAdmin && <TableHead className='w-[50px] py-0.5'></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -178,11 +178,11 @@ export function ReceivablesList({
                     key={payment._id}
                     className='hover:bg-muted/30 group transition-colors'
                   >
-                    <TableCell className='font-medium text-muted-foreground py-2'>
+                    <TableCell className='font-medium text-muted-foreground py-0.5'>
                       {globalIndex}
                     </TableCell>
 
-                    <TableCell className='py-2 font-medium uppercase'>
+                    <TableCell className='py-0.5 font-medium uppercase'>
                       <span
                         className='cursor-pointer hover:underline hover:text-primary transition-colors'
                         onClick={() => {
@@ -209,7 +209,7 @@ export function ReceivablesList({
                       </span>
                     </TableCell>
 
-                    <TableCell className='py-2'>
+                    <TableCell className='py-0.5'>
                       {payment.clientId ? (
                         <span
                           className='cursor-pointer hover:underline hover:text-primary transition-colors'
@@ -228,21 +228,21 @@ export function ReceivablesList({
                       )}
                     </TableCell>
 
-                    <TableCell className='py-2 text-muted-foreground'>
+                    <TableCell className='py-0.5 text-muted-foreground'>
                       {PAYMENT_METHOD_MAP[
                         payment.paymentMethod as PaymentMethodKey
                       ]?.name || payment.paymentMethod}
                     </TableCell>
 
-                    <TableCell className='py-2 text-muted-foreground'>
+                    <TableCell className='py-0.5 text-muted-foreground'>
                       {formatDateTime(new Date(payment.paymentDate)).dateOnly}
                     </TableCell>
 
-                    <TableCell className='text-right py-2'>
+                    <TableCell className='text-right py-0.5'>
                       {formatCurrency(payment.totalAmount)}
                     </TableCell>
 
-                    <TableCell className='text-right font-bold py-2'>
+                    <TableCell className='text-right font-bold py-0.5'>
                       <span
                         className={
                           Math.abs(payment.unallocatedAmount) > 0
@@ -256,7 +256,7 @@ export function ReceivablesList({
                       </span>
                     </TableCell>
 
-                    <TableCell className='py-2'>
+                    <TableCell className='py-0.5'>
                       <div className='flex gap-2 items-center'>
                         <Badge variant={statusInfo.variant}>
                           {statusInfo.name}
@@ -274,7 +274,7 @@ export function ReceivablesList({
                     </TableCell>
 
                     {isAdmin && (
-                      <TableCell className='py-2'>
+                      <TableCell className='py-0.5'>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant='ghost' className='h-8 w-8 p-0'>
