@@ -414,13 +414,7 @@ export function OrderPreview({ order }: OrderPreviewProps) {
                             <TableCell className='text-right'>
                               {item.quantity.toFixed(2)}
                             </TableCell>
-                            <TableCell
-                              className={`text-right font-bold ${
-                                (item.quantityShipped || 0) >= item.quantity
-                                  ? 'text-green-600'
-                                  : 'text-red-600'
-                              }`}
-                            >
+                            <TableCell className='text-right font-bold text-green-600'>
                               {(item.quantityShipped || 0).toFixed(2)}
                             </TableCell>
                             <TableCell
