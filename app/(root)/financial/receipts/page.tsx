@@ -37,7 +37,7 @@ export default async function ReceiptsPage({
   })
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-1'>
       <div className='flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4'>
         <div>
           <h1 className='text-2xl font-bold tracking-tight'>Chitanțe</h1>

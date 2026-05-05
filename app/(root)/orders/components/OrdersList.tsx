@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import Link from 'next/link'
 import {
   Table,
@@ -39,6 +39,14 @@ import {
 } from '@/components/ui/alert-dialog'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { OrderPreview } from './OrderPreview'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from 'lucide-react'
+import { Input } from '@/components/ui/input'
 
 interface OrdersListProps {
   orders: PopulatedOrder[]
@@ -64,11 +72,32 @@ export function OrdersList({
   const [cancellationWarning, setCancellationWarning] = useState<string | null>(
     null,
   )
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
+
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
 
   const handlePageChange = (newPage: number) => {
-    const params = new URLSearchParams(searchParams)
-    params.set('page', newPage.toString())
-    router.push(`${pathname}?${params.toString()}`)
+    startTransition(() => {
+      const params = new URLSearchParams(searchParams)
+      params.set('page', newPage.toString())
+      router.push(`${pathname}?${params.toString()}`)
+    })
+  }
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
   }
 
   const handleCancel = async () => {
@@ -102,8 +131,8 @@ export function OrdersList({
     'PARTIALLY_INVOICED',
   ]
   return (
-    <div>
-      <div className='flex items-center justify-between gap-4 mb-4'>
+    <div className='flex flex-col flex-1 w-full h-full min-h-0'>
+      <div className='flex items-center justify-between gap-4 mb-2'>
         <h1 className='text-2xl font-bold'>Comenzi</h1>
 
         <div className='flex items-center gap-2'>
@@ -114,7 +143,7 @@ export function OrdersList({
         </div>
       </div>
 
-      <div className='overflow-x-auto'>
+      <div className='flex-1 overflow-auto border'>
         <Table>
           <TableHeader>
             <TableRow className='bg-muted'>
@@ -244,23 +273,67 @@ export function OrdersList({
       </div>
 
       {totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2 mt-4'>
+        <div className='flex items-center justify-center gap-2 py-3 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
+          >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage <= 1 || isPending}
           >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-          <span className='text-sm'>
-            Pagina {currentPage} din {totalPages}
-          </span>
+          {/* Zona Centrală: Sari la Pagina */}
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPages}</span>
+          </div>
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage >= totalPages || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(totalPages)}
+            disabled={currentPage >= totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

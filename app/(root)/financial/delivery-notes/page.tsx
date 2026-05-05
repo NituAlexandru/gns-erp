@@ -38,7 +38,7 @@ export default async function DeliveryNotesPage(props: PageProps) {
   const result = await getDeliveryNotes(page, filters)
 
   return (
-    <div className='flex flex-col gap-4'>
+    <div className='flex flex-col gap-1'>
       <div className='flex items-center justify-between'>
         <h1 className='text-2xl font-bold tracking-tight'>
           Avize de Însoțire a Mărfii

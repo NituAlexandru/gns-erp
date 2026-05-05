@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
@@ -13,6 +13,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { ClientProductStat } from '@/lib/db/modules/client/summary/client-product-stats.actions'
 import { formatCurrency } from '@/lib/utils'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from 'lucide-react'
+import { Input } from '@/components/ui/input'
 
 interface ClientProductsListProps {
   clientId: string
@@ -34,7 +42,25 @@ export function ClientProductsList({
   const [isPending, startTransition] = useTransition()
   const products = initialData?.data || []
   const totalPages = initialData?.totalPages || 0
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
 
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', newPage.toString())
@@ -59,8 +85,8 @@ export function ClientProductsList({
   }
 
   return (
-    <div className='flex flex-col gap-4'>
-      <div className='border rounded-lg overflow-x-auto bg-card'>
+    <div className='flex flex-col gap-4 flex-1 min-h-[calc(100vh-30rem)] w-full'>
+      <div className='flex-1 border rounded-lg overflow-x-auto bg-card'>
         <Table>
           <TableHeader>
             <TableRow className='bg-muted/50'>
@@ -101,23 +127,66 @@ export function ClientProductsList({
         </Table>
       </div>
       {totalPages > 1 && (
-        <div className='flex justify-center items-center gap-2 mt-0'>
+        <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
+          >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage <= 1 || isPending}
           >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-          <span className='text-sm'>
-            Pagina {currentPage} din {totalPages}
-          </span>
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPages}</span>
+          </div>
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage >= totalPages || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(totalPages)}
+            disabled={currentPage >= totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

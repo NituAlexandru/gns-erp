@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { cn, formatCurrency } from '@/lib/utils'
@@ -42,7 +42,16 @@ import {
   generateNirForReceptionAction,
   syncNirFromReceptionAction,
 } from '@/lib/db/modules/financial/nir/nir.actions'
-import { Eye, Loader2, Printer, Truck } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Eye,
+  Loader2,
+  Printer,
+  Truck,
+} from 'lucide-react'
 import { SelectSeriesModal } from '@/components/shared/modals/SelectSeriesModal'
 import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
@@ -58,6 +67,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 import { ReceptionPreviewCard } from './ReceptionPreviewCard'
+import { Input } from '@/components/ui/input'
 
 // ——— HELPER: calculează totalurile în RON pentru o recepție ———
 function computeReceptionTotals(rec: PopulatedReception) {
@@ -168,6 +178,25 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
   const totalPages = initialData.totalPages
   const currentPage = initialData.currentPage
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
+
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handleUpdateParams({ page: pageNum })
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
 
   const handleUpdateParams = (newParams: Record<string, string | number>) => {
     const params = new URLSearchParams(searchParams.toString())
@@ -365,7 +394,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
   }
 
   return (
-    <div className='flex flex-col h-[calc(100vh-100px)] space-y-4'>
+    <div className='flex flex-col flex-1 min-h-[calc(100vh-15rem)] w-full space-y-4'>
       {/* Header + filtre */}
       <div className='flex flex-col justify-between gap-1 mb-1'>
         <h1 className='text-2xl font-bold'>Recepții</h1>
@@ -423,7 +452,7 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
         {Math.min(currentPage * PAGE_SIZE, total)} din {total} recepții
       </p>
       {/* Tabel */}
-      <div className='overflow-x-auto flex-1'>
+      <div className='overflow-x-auto flex-1 border rounded-lg'>
         <Table>
           <TableHeader>
             <TableRow className='bg-muted'>
@@ -441,8 +470,8 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
           </TableHeader>
           <TableBody>
             {isPending ? (
-              <TableRow>
-                <TableCell colSpan={9} className='h-24 text-center'>
+              <TableRow className='h-[600px]'>
+                <TableCell colSpan={9} className='text-center align-middle'>
                   Se încarcă...
                 </TableCell>
               </TableRow>
@@ -866,26 +895,70 @@ export default function ReceptionList({ initialData }: ReceptionListProps) {
 
       {/* Paginare */}
       {totalPages > 1 && (
-        <div className='flex justify-center items-center gap-4 mt-auto py-4'>
+        <div className='flex items-center justify-center gap-2 py-2 pt-6 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handleUpdateParams({ page: 1 })}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
+          >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handleUpdateParams({ page: currentPage - 1 })}
             disabled={currentPage <= 1 || isPending}
           >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-          <span>
-            Pagina {currentPage} din {totalPages}
-          </span>
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPages}</span>
+          </div>
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handleUpdateParams({ page: currentPage + 1 })}
             disabled={currentPage >= totalPages || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handleUpdateParams({ page: totalPages })}
+            disabled={currentPage >= totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}
+
       {nirModalOpen && (
         <SelectSeriesModal
           documentType='NIR'

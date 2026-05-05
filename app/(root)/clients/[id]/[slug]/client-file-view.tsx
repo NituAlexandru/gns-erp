@@ -17,17 +17,15 @@ import { ClientDeliveriesList } from './ClientDeliveriesList'
 import { ClientDeliveryNotesList } from './ClientDeliveryNotesList'
 import { ClientProductsList } from './ClientProductsList'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { DateRangeFilter } from './DateRangeFilter'
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import { Button } from '@/components/ui/button'
-import { CalendarIcon } from 'lucide-react'
-import { formatInTimeZone } from 'date-fns-tz'
-import { TIMEZONE } from '@/lib/constants'
-import { cn } from '@/lib/utils'
-import { Calendar } from '@/components/ui/calendar'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { PrintTabExportButton } from '@/components/printing/PrintTabExportButton'
 
 interface ClientFileViewProps {
   client: IClientDoc
@@ -94,6 +92,22 @@ export default function ClientFileView({
     setSelectedPayment(pseudoPayment)
   }
 
+  const handleStatusChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('status', value)
+    params.delete('page')
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
+
+  const tabsWithDateFilter = [
+    'orders',
+    'deliveries',
+    'notices',
+    'invoices',
+    'payments',
+    'products',
+  ]
+
   return (
     <>
       <div className='grid md:grid-cols-5 max-w-full gap-8'>
@@ -116,6 +130,45 @@ export default function ClientFileView({
             isAdmin={isAdmin}
           />
 
+          {/* --- ZONA GLOBALĂ DE FILTRE --- */}
+          {tabsWithDateFilter.includes(activeTab) && (
+            <div className='flex justify-between items-center w-full mt-2'>
+              <DateRangeFilter />
+
+              <PrintTabExportButton
+                entityId={client._id}
+                entityType='CLIENT'
+                activeTab={activeTab}
+              />
+
+              {/* Selectorul de status apare DOAR pe tab-ul de facturi, pe același rând */}
+              {activeTab === 'invoices' && (
+                <>
+                  <div className='flex-1' />
+                  <div className='max-w-[220px]'>
+                    <Select
+                      value={searchParams.get('status') || 'ALL'}
+                      onValueChange={handleStatusChange}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder='Filtrează status' />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value='ALL'>Toate Facturile</SelectItem>
+                        <SelectItem value='UNPAID'>
+                          De Plată (Neachitate)
+                        </SelectItem>
+                        <SelectItem value='PAID'>Plătite</SelectItem>
+                        <SelectItem value='APPROVED'>Aprobate</SelectItem>
+                        <SelectItem value='CANCELLED'>Anulate</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <div>
             {/* Randăm condiționat, dar pasăm datele (tabData) direct */}
 
@@ -126,7 +179,7 @@ export default function ClientFileView({
             {activeTab === 'orders' && (
               <ClientOrdersList
                 clientId={client._id}
-                initialData={tabData} // <--- Datele vin de sus
+                initialData={tabData}
                 currentPage={currentPage}
               />
             )}
@@ -156,130 +209,13 @@ export default function ClientFileView({
             )}
 
             {activeTab === 'payments' && (
-              <div className='space-y-1'>
-                <div className='flex items-center gap-2 bg-muted/30 p-1 px-2 rounded-md border'>
-                  <span className='text-sm font-bold text-muted-foreground uppercase'>
-                    Filtrează Perioada:
-                  </span>
-
-                  {/* Calendar DE LA */}
-                  <div className='flex items-center gap-2'>
-                    <label className='text-sm font-medium'>De la:</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant='outline'
-                          className='w-[160px] justify-start text-left font-normal bg-background'
-                        >
-                          <CalendarIcon className='mr-2 h-4 w-4' />
-                          {searchParams.get('from')
-                            ? formatInTimeZone(
-                                new Date(searchParams.get('from')!),
-                                TIMEZONE,
-                                'dd.MM.yyyy',
-                              )
-                            : `01.01.${new Date().getFullYear()}`}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className='w-auto p-0' align='start'>
-                        <Calendar
-                          mode='single'
-                          selected={
-                            searchParams.get('from')
-                              ? new Date(searchParams.get('from')!)
-                              : new Date(`${new Date().getFullYear()}-01-01`)
-                          }
-                          defaultMonth={
-                            searchParams.get('from')
-                              ? new Date(searchParams.get('from')!)
-                              : new Date(`${new Date().getFullYear()}-01-01`)
-                          }
-                          onSelect={(date) => {
-                            const params = new URLSearchParams(
-                              searchParams.toString(),
-                            )
-                            if (date) {
-                              params.set(
-                                'from',
-                                formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd'),
-                              )
-                            } else {
-                              params.delete('from')
-                            }
-                            router.replace(`${pathname}?${params.toString()}`, {
-                              scroll: false,
-                            })
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-
-                  {/* Calendar PÂNĂ LA */}
-                  <div className='flex items-center gap-2'>
-                    <label className='text-sm font-medium'>Până la:</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant='outline'
-                          className='w-[160px] justify-start text-left font-normal bg-background'
-                        >
-                          <CalendarIcon className='mr-2 h-4 w-4' />
-                          {searchParams.get('to')
-                            ? formatInTimeZone(
-                                new Date(searchParams.get('to')!),
-                                TIMEZONE,
-                                'dd.MM.yyyy',
-                              )
-                            : `31.12.${new Date().getFullYear()}`}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className='w-auto p-0' align='start'>
-                        <Calendar
-                          mode='single'
-                          selected={
-                            searchParams.get('to')
-                              ? new Date(searchParams.get('to')!)
-                              : new Date(`${new Date().getFullYear()}-12-31`)
-                          }
-                          defaultMonth={
-                            searchParams.get('to')
-                              ? new Date(searchParams.get('to')!)
-                              : new Date(`${new Date().getFullYear()}-12-31`)
-                          }
-                          onSelect={(date) => {
-                            const params = new URLSearchParams(
-                              searchParams.toString(),
-                            )
-                            if (date) {
-                              params.set(
-                                'to',
-                                formatInTimeZone(date, TIMEZONE, 'yyyy-MM-dd'),
-                              )
-                            } else {
-                              params.delete('to')
-                            }
-                            router.replace(`${pathname}?${params.toString()}`, {
-                              scroll: false,
-                            })
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                {/* TABELUL */}
-                <ClientLedgerTable
-                  clientId={client._id}
-                  data={tabData}
-                  onInvoiceClick={handleInvoiceClick}
-                  onPaymentClick={handlePaymentClick}
-                  isAdmin={isAdmin}
-                />
-              </div>
+              <ClientLedgerTable
+                clientId={client._id}
+                data={tabData}
+                onInvoiceClick={handleInvoiceClick}
+                onPaymentClick={handlePaymentClick}
+                isAdmin={isAdmin}
+              />
             )}
 
             {activeTab === 'products' && (

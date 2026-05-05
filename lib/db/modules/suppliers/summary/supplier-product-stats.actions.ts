@@ -1,9 +1,10 @@
 'use server'
 
 import { connectToDatabase } from '@/lib/db'
-import ReceptionModel from '../../reception/reception.model' 
-import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
+import ReceptionModel from '../../reception/reception.model'
+import { CLIENT_DETAIL_PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import mongoose, { PipelineStage, Types } from 'mongoose'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 export interface SupplierProductStat {
   _id: string
@@ -17,12 +18,15 @@ export type SupplierProductStatsPage = {
   data: SupplierProductStat[]
   totalPages: number
   total: number
+  totalSum?: number
   message?: string
 }
 
 export async function getProductStatsForSupplier(
   supplierId: string,
-  page: number = 1
+  page: number = 1,
+  startDateStr?: string,
+  endDateStr?: string,
 ): Promise<SupplierProductStatsPage> {
   try {
     await connectToDatabase()
@@ -35,12 +39,24 @@ export async function getProductStatsForSupplier(
     const limit = CLIENT_DETAIL_PAGE_SIZE
     const skip = (page - 1) * limit
 
+    const currentDate = new Date()
+    const currentYearStr = formatInTimeZone(currentDate, TIMEZONE, 'yyyy')
+
+    const start = startDateStr
+      ? fromZonedTime(`${startDateStr}T00:00:00.000`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-01-01T00:00:00.000`, TIMEZONE)
+
+    const end = endDateStr
+      ? fromZonedTime(`${endDateStr}T23:59:59.999`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-12-31T23:59:59.999`, TIMEZONE)
+
     const aggregationPipeline: PipelineStage[] = [
       // 1. Filtrare: Doar recepțiile acestui furnizor care sunt CONFIRMATE
       {
         $match: {
           supplier: objectId,
           status: 'CONFIRMAT',
+          createdAt: { $gte: start, $lte: end },
         },
       },
       // 2. Proiectăm un singur array 'allItems' care combină Produsele și Ambalajele
@@ -101,18 +117,23 @@ export async function getProductStatsForSupplier(
       },
       // 5. Sortăm descrescător după valoare
       { $sort: { totalValue: -1 } },
-      // 6. Paginare
+      // 6. Paginare și Total General
       {
         $facet: {
           metadata: [{ $count: 'total' }],
           data: [{ $skip: skip }, { $limit: limit }],
+          overall: [
+            { $group: { _id: null, totalSum: { $sum: '$totalValue' } } },
+          ],
         },
       },
       // 7. Formatare finală
-      { $unwind: '$metadata' },
+      { $unwind: { path: '$metadata', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$overall', preserveNullAndEmptyArrays: true } },
       {
         $project: {
-          total: '$metadata.total',
+          total: { $ifNull: ['$metadata.total', 0] },
+          totalSum: { $ifNull: ['$overall.totalSum', 0] },
           data: {
             $map: {
               input: '$data',
@@ -139,9 +160,10 @@ export async function getProductStatsForSupplier(
 
     return {
       success: true,
-      data: JSON.parse(JSON.stringify(pageData.data)),
-      totalPages: Math.ceil(pageData.total / limit),
-      total: pageData.total,
+      data: JSON.parse(JSON.stringify(pageData.data || [])),
+      totalPages: Math.ceil((pageData.total || 0) / limit),
+      total: pageData.total || 0,
+      totalSum: pageData.totalSum || 0,
     }
   } catch (error) {
     console.error('Eroare la getProductStatsForSupplier:', error)
@@ -150,6 +172,7 @@ export async function getProductStatsForSupplier(
       data: [],
       totalPages: 0,
       total: 0,
+      totalSum: 0,
       message: error instanceof Error ? error.message : 'Eroare necunoscută',
     }
   }

@@ -56,17 +56,22 @@ export default async function ClientViewPage({
 
   switch (tab) {
     case 'orders':
-      tabData = await getOrdersForClient(id, page)
+      tabData = await getOrdersForClient(id, page, fromDate, toDate)
       break
     case 'deliveries':
-      tabData = await getDeliveriesForClient(id, page)
+      tabData = await getDeliveriesForClient(id, page, fromDate, toDate)
       break
     case 'notices':
-      tabData = await getDeliveryNotesForClient(id, page)
+      tabData = await getDeliveryNotesForClient(id, page, fromDate, toDate)
       break
     case 'invoices':
-      // Aici pasăm și filtrul de status dacă e cazul
-      tabData = await getInvoicesForClient(id, page, statusFilter)
+      tabData = await getInvoicesForClient(
+        id,
+        page,
+        statusFilter,
+        fromDate,
+        toDate,
+      )
       break
     case 'payments':
       const ledgerRes = await getClientLedger(id, fromDate, toDate)
@@ -83,7 +88,7 @@ export default async function ClientViewPage({
           }
       break
     case 'products':
-      const prodRes = await getProductStatsForClient(id, page)
+      const prodRes = await getProductStatsForClient(id, page, fromDate, toDate)
       tabData = prodRes.success ? prodRes : { data: [], totalPages: 0 }
       break
     default:

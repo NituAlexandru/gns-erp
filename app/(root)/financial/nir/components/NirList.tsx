@@ -24,6 +24,10 @@ import {
   Printer,
   FileText,
   ExternalLink,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { formatCurrency } from '@/lib/utils'
@@ -36,6 +40,7 @@ import { PdfDocumentData } from '@/lib/db/modules/printing/printing.types'
 import { PdfPreviewModal } from '@/components/printing/PdfPreviewModal'
 import { cancelNirAction } from '@/lib/db/modules/financial/nir/nir.actions'
 import { NirPreview } from './NirPreview'
+import { Input } from '@/components/ui/input'
 
 interface NirListProps {
   data: NirDTO[]
@@ -58,11 +63,31 @@ export function NirList({
   const [previewNir, setPreviewNir] = useState<NirDTO | null>(null)
   const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
 
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams)
     params.set('page', newPage.toString())
-    router.push(`${pathname}?${params.toString()}`)
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   const handlePrintPreview = async (nirId: string) => {
@@ -103,7 +128,7 @@ export function NirList({
   }
 
   return (
-    <div className='flex flex-col gap-2'>
+    <div className='flex flex-col gap-2 h-[calc(100vh-12rem)] w-full'>
       <NirFilters />
       <div className='flex justify-start'>
         <div className='bg-muted/50 px-2 py-2 rounded-md border text-xs'>
@@ -113,8 +138,8 @@ export function NirList({
           </span>
         </div>
       </div>
-      <div className='border rounded-lg overflow-x-auto bg-card'>
-        <Table>
+      <div className='flex-1 border rounded-lg overflow-auto bg-card [&>div]:h-full'>
+        <Table className='h-full'>
           <TableHeader>
             <TableRow className='bg-muted/50'>
               <TableHead>NIR</TableHead>
@@ -289,23 +314,69 @@ export function NirList({
 
       {/* Paginare */}
       {totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2 mt-2'>
+        <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage <= 1}
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
           >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
+          >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-          <span className='text-sm text-muted-foreground'>
-            Pagina {currentPage} din {totalPages}
-          </span>
+
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPages}</span>
+          </div>
+
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage >= totalPages}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(totalPages)}
+            disabled={currentPage >= totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

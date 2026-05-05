@@ -12,6 +12,7 @@ import { generateClientBalancesReport } from './clients/client-balances.report.a
 import { generateSupplierBalancesReport } from './suppliers/supplier-balances.report.action'
 import { generateClientDetailsReport } from './clients/client-details.report.action'
 import { generatePenaltyRulesReport } from './clients/penalty-rules.report.action'
+import { generateEntityTabExport } from './entity-tabs/entity-tab-export.action'
 
 // Definim tipul de răspuns standard
 type GenerateReportResult = {
@@ -90,6 +91,11 @@ export async function generateReportAction(
       case 'supplier-balances':
         await generateSupplierBalancesReport(workbook, filters)
         filename = `Solduri_Furnizori_${new Date().toISOString().split('T')[0]}.xlsx`
+        break
+
+      case 'entity-tab-export':
+        await generateEntityTabExport(workbook, filters)
+        filename = `Export_${filters.entityType}_${filters.activeTab}_${filters.fromDate}_${filters.toDate}.xlsx`
         break
 
       default:

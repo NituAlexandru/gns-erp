@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useTransition } from 'react'
+import { useState, useRef, useTransition, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
@@ -27,6 +27,13 @@ import {
 import { getClientByCode } from '@/lib/db/modules/client/client.actions'
 import { ContractTemplateDTO } from '@/lib/db/modules/contracts/contract.types'
 import { ContractActions } from '@/app/admin/contracts/contract-actions'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from 'lucide-react'
 
 interface Props {
   data: (IClientDoc & { summary?: any })[]
@@ -53,6 +60,25 @@ export default function ClientList({
 
   // Ref pentru debounce la căutare (să nu facă request la fiecare tastă)
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
+
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
 
   // 1. Logică Căutare (scrie în URL)
   const handleSearch = (term: string) => {
@@ -114,7 +140,7 @@ export default function ClientList({
   }
 
   return (
-    <div className='p-0 py-0 max-w-full'>
+    <div className='flex flex-col min-h-[calc(100vh-12rem)] w-full p-0 max-w-full'>
       <div className='grid mb-2 grid-cols-1 items-center gap-4 lg:grid-cols-3 lg:items-center w-full'>
         <h1 className='text-2xl font-bold'>Clienți</h1>
 
@@ -139,7 +165,6 @@ export default function ClientList({
           </Button>
         </div>
       </div>
-
       {/* Scanner */}
       {scanning && (
         <BarcodeScanner
@@ -151,22 +176,29 @@ export default function ClientList({
           onClose={() => setScanning(false)}
         />
       )}
-
       {/* Tabel */}
-      <div className='overflow-x-auto border rounded-md'>
+      <div className='flex-1 border rounded-md bg-background'>
         <Table>
           <TableHeader>
             <TableRow className='bg-muted'>
-              <TableHead>Nume</TableHead>
-              <TableHead className='hidden sm:table-cell'>Tip client</TableHead>
-              <TableHead className='hidden md:table-cell'>
+              <TableHead className='h-8 py-1'>Nume</TableHead>
+              <TableHead className='h-8 py-1 hidden sm:table-cell'>
+                Tip client
+              </TableHead>
+              <TableHead className='h-8 py-1 hidden md:table-cell'>
                 Plafon Credit
               </TableHead>
-              <TableHead className='hidden sm:table-cell'>CNP / CUI</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Telefon</TableHead>
-              <TableHead className='hidden xl:table-cell'>Contract</TableHead>
-              <TableHead className='w-[400px] text-right'>Acțiuni</TableHead>
+              <TableHead className='h-8 py-1 hidden sm:table-cell'>
+                CNP / CUI
+              </TableHead>
+              <TableHead className='h-8 py-1'>Email</TableHead>
+              <TableHead className='h-8 py-1'>Telefon</TableHead>
+              <TableHead className='h-8 py-1 hidden xl:table-cell'>
+                Contract
+              </TableHead>
+              <TableHead className='h-8 py-1 w-[400px] text-right'>
+                Acțiuni
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -183,8 +215,8 @@ export default function ClientList({
               </TableRow>
             ) : (
               data.map((c) => (
-                <TableRow key={c._id} className='hover:bg-muted/50'>
-                  <TableCell>
+                <TableRow key={c._id} className='hover:bg-muted/50 py-1'>
+                  <TableCell className='py-1.5'>
                     <Link
                       href={`/clients/${c._id}/${toSlug(c.name)}`}
                       className='hover:underline font-medium'
@@ -192,30 +224,30 @@ export default function ClientList({
                       {c.name}
                     </Link>
                   </TableCell>
-                  <TableCell className='hidden sm:table-cell'>
+                  <TableCell className='py-0 hidden sm:table-cell'>
                     {c.clientType === 'Persoana fizica' ? (
                       <span className='px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200'>
                         PF
                       </span>
                     ) : (
-                      <span className='px-2 py-1 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200'>
+                      <span className='px-2 py-0 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200'>
                         PJ
                       </span>
                     )}
                   </TableCell>
-                  <TableCell className='hidden md:table-cell font-medium'>
+                  <TableCell className='py-0 hidden md:table-cell font-medium'>
                     {c.summary && typeof c.summary.creditLimit === 'number'
                       ? formatCurrency(c.summary.creditLimit)
                       : '—'}
                   </TableCell>
-                  <TableCell className='hidden sm:table-cell font-mono'>
+                  <TableCell className='py-0 hidden sm:table-cell font-mono'>
                     {c.clientType === 'Persoana fizica'
                       ? c.cnp || '—'
                       : c.vatId || '—'}
                   </TableCell>
-                  <TableCell>{c.email || '—'}</TableCell>
-                  <TableCell>{c.phone || '—'}</TableCell>
-                  <TableCell className='hidden xl:table-cell'>
+                  <TableCell className='py-1.5'>{c.email || '—'}</TableCell>
+                  <TableCell className='py-1.5'>{c.phone || '—'}</TableCell>
+                  <TableCell className='py-0 hidden xl:table-cell'>
                     {c.contractNumber ? (
                       <div className='flex flex-col text-xs'>
                         <span
@@ -250,7 +282,7 @@ export default function ClientList({
                       </span>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='py-1.5'>
                     <div className='flex justify-end gap-2'>
                       {isAdmin && (
                         <ContractActions
@@ -308,26 +340,74 @@ export default function ClientList({
           </TableBody>
         </Table>
       </div>
-
       {/* Paginare */}
       {totalPages > 1 && (
-        <div className='py-2 flex justify-center items-center gap-2'>
+        <div className='flex items-center justify-center gap-2 py-3 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
+          >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage <= 1 || isPending}
           >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-          <span className='text-sm text-muted-foreground'>
-            Pagina {currentPage} din {totalPages}
-          </span>
+
+          {/* Zona Centrală: Sari la Pagina */}
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPages}</span>
+          </div>
+
+          {/* Buton: Următor (>) */}
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage >= totalPages || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+
+          {/* Buton: Ultima Pagină (>>) */}
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(totalPages)}
+            disabled={currentPage >= totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

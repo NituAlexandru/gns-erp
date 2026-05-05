@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import {
   Table,
   TableBody,
@@ -29,7 +29,15 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
-import { MoreHorizontal, Loader2, AlertTriangle } from 'lucide-react'
+import {
+  MoreHorizontal,
+  Loader2,
+  AlertTriangle,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
+} from 'lucide-react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { DeliveryNoteDTO } from '@/lib/db/modules/financial/delivery-notes/delivery-note.types'
 import {
@@ -87,6 +95,7 @@ export function DeliveryNotesList({
   // Stări pentru tranziții și încărcare (NU pentru date)
   const [isPending, startTransition] = useTransition()
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null)
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
 
   // Stări pentru Modale
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
@@ -105,18 +114,37 @@ export function DeliveryNotesList({
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
   const [isRevokeModalOpen, setIsRevokeModalOpen] = useState(false)
   const [noteToRevoke, setNoteToRevoke] = useState<DeliveryNoteDTO | null>(null)
-  // --- STĂRI PENTRU FACTURARE FRACȚIONATĂ ---
   const [isFractionalModalOpen, setIsFractionalModalOpen] = useState(false)
   const [noteToFraction, setNoteToFraction] = useState<DeliveryNoteDTO | null>(
     null,
   )
   const [invoiceSeriesList, setInvoiceSeriesList] = useState<ISeries[]>([])
 
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
+
   // --- LOGICĂ ACȚIUNI ---
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams)
     params.set('page', newPage.toString())
-    router.push(`${pathname}?${params.toString()}`)
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   const handleConfirmClick = (note: DeliveryNoteDTO) => {
@@ -296,29 +324,29 @@ export function DeliveryNotesList({
   }
 
   return (
-    <div className='flex flex-col gap-2'>
+    <div className='flex flex-col gap-2 flex-1 min-h-[calc(100vh-15rem)] w-full'>
       <DeliveryNotesFilters />
 
-      <div className='border rounded-lg overflow-x-auto bg-card'>
-        <Table>
+      <div className='flex-1 flex flex-col border rounded-lg bg-card [&>div]:flex-1 [&>div]:overflow-x-auto [&>div]:overflow-y-hidden'>
+        <Table className='h-full w-full'>
           <TableHeader>
-            <TableRow className='bg-muted/50'>
-              <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
+            <TableRow className='bg-muted/50 h-10'>
+              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Serie - Nr.
               </TableHead>
-              <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Data
               </TableHead>
-              <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Client
               </TableHead>
-              <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Agent
               </TableHead>
-              <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Status
               </TableHead>
-              <TableHead className='text-[10px] lg:text-xs xl:text-sm'>
+              <TableHead className='h-8 py-1 px-2 text-[10px] lg:text-xs xl:text-sm'>
                 Data Livrare
               </TableHead>
               <TableHead className='max-w-[300px] text-[10px] lg:text-xs xl:text-sm hidden xl:table-cell'>
@@ -393,7 +421,7 @@ export function DeliveryNotesList({
 
                 return (
                   <TableRow key={note._id} className='hover:bg-muted/50'>
-                    <TableCell className='text-[10px] xl:text-xs 2xl:text-sm py-1'>
+                    <TableCell className='py-1 text-[10px] xl:text-xs 2xl:text-sm px-2'>
                       <div className='flex flex-col'>
                         <Link
                           href={`/financial/delivery-notes/${note._id}`}
@@ -428,7 +456,7 @@ export function DeliveryNotesList({
                       {formattedDeliveryDate}
                     </TableCell>
                     <TableCell
-                      className='max-w-[100px] xl:max-w-[150px] 2xl:max-w-[200px] text-[10px] xl:text-xs 2xl:text-sm text-muted-foreground truncate py-1 hidden xl:table-cell cursor-pointer'
+                      className='py-1 max-w-[100px] xl:max-w-[150px] 2xl:max-w-[200px] text-[10px] xl:text-xs 2xl:text-sm text-muted-foreground truncate hidden xl:table-cell cursor-pointer'
                       title={addressString}
                     >
                       {addressString}
@@ -437,7 +465,7 @@ export function DeliveryNotesList({
                       <>
                         <TableCell
                           className={cn(
-                            'text-right text-[10px] xl:text-xs 2xl:text-sm py-1',
+                            'py-1 text-right text-[10px] xl:text-xs 2xl:text-sm',
                             getProfitColorClass(noteProfit),
                           )}
                         >
@@ -450,7 +478,7 @@ export function DeliveryNotesList({
                                 <div className='flex gap-1 items-center'>
                                   {hasProvisionalCost && (
                                     <div
-                                      className='flex items-center justify-center gap-1 text-[10px] text-primary px-1.5 py-0.5 pb-0 rounded border border-primary mb-0.5 cursor-help'
+                                      className='flex items-center justify-center gap-1 text-[10px] text-primary px-1.5 py-1.5 pb-0 rounded border border-primary mb-0.5 cursor-help'
                                       title='Cost estimat: stoc insuficient la momentul facturării.'
                                     >
                                       <AlertTriangle className='h-3 w-3 pb-0.5' />
@@ -488,6 +516,7 @@ export function DeliveryNotesList({
                               variant='ghost'
                               size='icon'
                               disabled={!!actionLoadingId}
+                              className='h-7 w-7'
                             >
                               {actionLoadingId === note._id ? (
                                 <Loader2 className='h-4 w-4 animate-spin' />
@@ -593,23 +622,66 @@ export function DeliveryNotesList({
       </div>
 
       {totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2 mt-4'>
+        <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
+          >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage <= 1 || isPending}
           >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-          <span className='text-sm text-muted-foreground'>
-            Pagina {currentPage} din {totalPages}
-          </span>
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPages}</span>
+          </div>
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage >= totalPages || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(totalPages)}
+            disabled={currentPage >= totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

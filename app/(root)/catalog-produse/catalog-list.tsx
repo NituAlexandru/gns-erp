@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useTransition } from 'react'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import {
   Table,
@@ -33,7 +33,13 @@ import {
 import { toast } from 'sonner'
 import { toSlug } from '@/lib/utils'
 import { CatalogRow } from './catalog-row'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from 'lucide-react'
 
 // Trebuie să primești categoriile ca prop
 interface CategoryOption {
@@ -89,6 +95,9 @@ export default function CatalogList({
 
   // Datele vin direct din server props
   const [items, setItems] = useState<ICatalogItem[]>(initialData.data)
+  const [, startTransition] = useTransition()
+  const [isPending, setIsPending] = useState(false)
+  const [jumpInputValue, setJumpInputValue] = useState(page.toString())
 
   const [scanning, setScanning] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -125,6 +134,10 @@ export default function CatalogList({
     },
     [searchParams, pathname, router],
   )
+
+  useEffect(() => {
+    setJumpInputValue(page.toString())
+  }, [page])
 
   // --- SYNC DATA ---
   useEffect(() => {
@@ -164,14 +177,29 @@ export default function CatalogList({
     updateUrl({ category: newVal || selectedMainCat, page: 1 })
   }
 
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= initialData.totalPages &&
+      pageNum !== page
+    ) {
+      changePage(pageNum)
+    } else {
+      setJumpInputValue(page.toString())
+    }
+  }
   const changePage = (newPage: number) => {
     if (newPage < 1 || newPage > initialData.totalPages) return
+    setIsPending(true)
     setPage(newPage)
     updateUrl({ page: newPage })
+    setIsPending(false)
   }
 
   return (
-    <div className='flex flex-col h-[calc(100vh-11rem)] w-full'>
+    <div className='flex flex-col min-h-[calc(100vh-11rem)] w-full'>
       {/* HEADER: Layout identic cu Admin */}
       <div className='grid mb-2 grid-cols-1 gap-4 lg:grid-cols-4 items-center shrink-0'>
         <h1 className='text-2xl font-bold'>Catalog Produse</h1>
@@ -242,7 +270,6 @@ export default function CatalogList({
           )}
         </div>
       </div>
-
       {scanning && (
         <div className='shrink-0 mb-4'>
           <BarcodeScanner
@@ -261,9 +288,8 @@ export default function CatalogList({
           />
         </div>
       )}
-
       {/* TABEL WRAPPER */}
-      <div className='flex-1 overflow-auto border rounded-md relative bg-background'>
+      <div className='flex-1 overflow-x-auto border rounded-md relative bg-background'>
         <Table className='min-h-full w-full'>
           <TableHeader className='sticky top-0 bg-background z-10 shadow-sm'>
             <TableRow className='bg-muted'>
@@ -334,7 +360,6 @@ export default function CatalogList({
           </TableBody>
         </Table>
       </div>
-
       {/* DIALOG STERGERE */}
       {deleteTarget && (
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
@@ -376,26 +401,70 @@ export default function CatalogList({
           </AlertDialogContent>
         </AlertDialog>
       )}
-
-      {/* PAGINATIE */}
+      {/* PAGINAȚIE */}
       {initialData.totalPages > 1 && (
-        <div className='flex justify-center items-center gap-2 mt-auto pt-2 border-t shrink-0'>
+        <div className='flex items-center justify-center gap-2 py-1 border-t bg-background shrink-0 mt-2'>
           <Button
             variant='outline'
-            onClick={() => changePage(page - 1)}
-            disabled={page <= 1}
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => changePage(1)}
+            disabled={page <= 1 || isPending}
+            title='Prima pagină'
           >
-            <ChevronLeft /> Anterior
+            <ChevronsLeft className='h-4 w-4' />
           </Button>
-          <span>
-            Pagina {page} din {initialData.totalPages}
-          </span>
           <Button
             variant='outline'
-            onClick={() => changePage(page + 1)}
-            disabled={page >= initialData.totalPages}
+            size='sm'
+            className='h-8'
+            onClick={() => changePage(page - 1)}
+            disabled={page <= 1 || isPending}
           >
-            Următor <ChevronRight />
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
+            Anterior
+          </Button>
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {initialData.totalPages}</span>
+          </div>
+
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
+            onClick={() => changePage(page + 1)}
+            disabled={page >= initialData.totalPages || isPending}
+          >
+            Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => changePage(initialData.totalPages)}
+            disabled={page >= initialData.totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

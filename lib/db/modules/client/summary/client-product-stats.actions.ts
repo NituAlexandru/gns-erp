@@ -2,8 +2,9 @@
 
 import { connectToDatabase } from '@/lib/db'
 import InvoiceModel from '../../financial/invoices/invoice.model'
-import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
+import { CLIENT_DETAIL_PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import mongoose, { PipelineStage, Types } from 'mongoose'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 export interface ClientProductStat {
   _id: string
@@ -29,7 +30,9 @@ export type ClientProductStatsError = {
 
 export async function getProductStatsForClient(
   clientId: string,
-  page: number = 1
+  page: number = 1,
+  startDateStr?: string,
+  endDateStr?: string,
 ): Promise<ClientProductStatsPage | ClientProductStatsError> {
   try {
     await connectToDatabase()
@@ -42,6 +45,17 @@ export async function getProductStatsForClient(
     const limit = CLIENT_DETAIL_PAGE_SIZE
     const skip = (page - 1) * limit
 
+    const currentDate = new Date()
+    const currentYearStr = formatInTimeZone(currentDate, TIMEZONE, 'yyyy')
+
+    const start = startDateStr
+      ? fromZonedTime(`${startDateStr}T00:00:00.000`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-01-01T00:00:00.000`, TIMEZONE)
+
+    const end = endDateStr
+      ? fromZonedTime(`${endDateStr}T23:59:59.999`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-12-31T23:59:59.999`, TIMEZONE)
+
     const aggregationPipeline: PipelineStage[] = [
       // 1. Găsește facturile finalizate (FĂRĂ AVANS)
       {
@@ -49,6 +63,7 @@ export async function getProductStatsForClient(
           clientId: objectId,
           status: { $in: ['APPROVED', 'PAID', 'PARTIAL_PAID'] },
           invoiceType: { $ne: 'AVANS' },
+          invoiceDate: { $gte: start, $lte: end },
         },
       },
       // 2. "Sparge" array-ul de itemi

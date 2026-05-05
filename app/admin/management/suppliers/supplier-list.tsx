@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useTransition } from 'react'
+import { useState, useRef, useTransition, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import {
@@ -23,8 +23,15 @@ import {
   DropdownMenuItem,
 } from '@/components/ui/dropdown-menu'
 import { ISupplierDoc } from '@/lib/db/modules/suppliers/types'
-// Importăm noua acțiune pentru scanner
 import { getSupplierByCode } from '@/lib/db/modules/suppliers/supplier.actions'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from 'lucide-react'
+import { Input } from '@/components/ui/input'
 
 interface Props {
   initialData: {
@@ -49,6 +56,25 @@ export default function SupplierList({ initialData, currentPage }: Props) {
   // Datele vin direct din props (server)
   const displayList = initialData.data
   const totalPagesDisplay = initialData.totalPages
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
+
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPagesDisplay &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
 
   // 1. Logică Căutare (URL)
   const handleSearch = (term: string) => {
@@ -115,7 +141,7 @@ export default function SupplierList({ initialData, currentPage }: Props) {
   }
 
   return (
-    <div className='p-0 space-y-4 mx-auto max-w-full'>
+    <div className='p-0 space-y-4 mx-auto max-w-full flex flex-col min-h-[calc(100vh-6rem)]'>
       <div className='grid grid-cols-1 items-center gap-4 lg:grid-cols-3 lg:items-center w-full'>
         <h1 className='justify-self-start text-2xl font-bold'>Furnizori</h1>
 
@@ -264,24 +290,66 @@ export default function SupplierList({ initialData, currentPage }: Props) {
 
       {/* Paginare */}
       {totalPagesDisplay > 1 && (
-        <div className='flex justify-center items-center gap-2 mt-4'>
+        <div className='flex items-center justify-center gap-2 py-4 mt-auto shrink-0'>
           <Button
             variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
+          >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage <= 1 || isPending}
           >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-          <span>
-            Pagina {currentPage} din {totalPagesDisplay}
-          </span>
-
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPagesDisplay}</span>
+          </div>
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage >= totalPagesDisplay || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(totalPagesDisplay)}
+            disabled={currentPage >= totalPagesDisplay || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

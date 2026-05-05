@@ -18,11 +18,17 @@ import {
   IN_TYPES,
 } from '@/lib/db/modules/inventory/constants'
 import { cn, formatCurrency, formatId, toSlug } from '@/lib/utils'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useTransition } from 'react'
 import { MovementsFilters, MovementsFiltersState } from './movements-filters'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Loader2,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import {
@@ -41,6 +47,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 import { ReceptionPreviewCard } from '../../reception/ReceptionPreviewCard'
+import { Input } from '@/components/ui/input'
 
 // Tip pentru UI
 type ExtendedStockMovement = PopulatedStockMovement & {
@@ -108,11 +115,32 @@ export default function StockMovementsPage() {
   const currentPage = Number(searchParams.get('page')) || 1
   const [totals, setTotals] = useState<MovementsTotals | null>(null)
   const [headerUnit, setHeaderUnit] = useState<string>('DEFAULT')
+  const [isPending, startTransition] = useTransition()
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
 
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams)
     params.set('page', newPage.toString())
-    replace(`${pathname}?${params.toString()}`)
+    startTransition(() => {
+      replace(`${pathname}?${params.toString()}`)
+    })
   }
 
   const fetchMovements = useCallback(async () => {
@@ -697,34 +725,70 @@ export default function StockMovementsPage() {
             </Table>
           </div>
 
-          {/* Footer cu Paginare legată de URL */}
-          <div className='flex justify-between items-center pt-2 mt-2 border-t'>
-            <div className='text-sm text-muted-foreground'>
-              Pagina {currentPage} din {totalPages}
-            </div>
-            <div className='flex gap-2'>
+          {totalPages > 1 && (
+            <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0 pt-3'>
+              <Button
+                variant='outline'
+                size='icon'
+                className='h-8 w-8'
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage <= 1 || isPending || loading}
+                title='Prima pagină'
+              >
+                <ChevronsLeft className='h-4 w-4' />
+              </Button>
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
+                className='h-8'
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1 || isPending || loading}
               >
-                <ChevronLeft className='h-4 w-4 mr-1' />
+                {isPending || loading ? (
+                  <Loader2 className='h-4 w-4 animate-spin mr-1' />
+                ) : (
+                  <ChevronLeft className='h-4 w-4 mr-1' />
+                )}
                 Anterior
               </Button>
+              <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+                <span>Pagina</span>
+                <Input
+                  value={jumpInputValue}
+                  onChange={(e) => setJumpInputValue(e.target.value)}
+                  onBlur={handleJump}
+                  onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+                  className='w-10 h-8 text-center px-1'
+                  disabled={isPending || loading}
+                />
+                <span>din {totalPages}</span>
+              </div>
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() =>
-                  handlePageChange(Math.min(totalPages, currentPage + 1))
-                }
-                disabled={currentPage === totalPages}
+                className='h-8'
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= totalPages || isPending || loading}
               >
                 Următor
-                <ChevronRight className='h-4 w-4 ml-1' />
+                {isPending || loading ? (
+                  <Loader2 className='h-4 w-4 animate-spin ml-1' />
+                ) : (
+                  <ChevronRight className='h-4 w-4 ml-1' />
+                )}
+              </Button>
+              <Button
+                variant='outline'
+                size='icon'
+                className='h-8 w-8'
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage >= totalPages || isPending || loading}
+                title='Ultima pagină'
+              >
+                <ChevronsRight className='h-4 w-4' />
               </Button>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

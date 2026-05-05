@@ -69,10 +69,10 @@ export default async function SupplierViewPage({
 
   switch (tab) {
     case 'receptions':
-      tabDataRaw = await getReceptionsForSupplier(id, page)
+      tabDataRaw = await getReceptionsForSupplier(id, page, fromDate, toDate)
       break
     case 'invoices':
-      tabDataRaw = await getInvoicesForSupplier(id, page)
+      tabDataRaw = await getInvoicesForSupplier(id, page, fromDate, toDate)
       break
     case 'payments':
       const ledgerRes = await getSupplierLedger(id, fromDate, toDate)
@@ -81,8 +81,15 @@ export default async function SupplierViewPage({
         : { entries: [], totals: null }
       break
     case 'products':
-      const prodRes = await getProductStatsForSupplier(id, page)
-      tabDataRaw = prodRes.success ? prodRes : { data: [], totalPages: 0 }
+      const prodRes = await getProductStatsForSupplier(
+        id,
+        page,
+        fromDate,
+        toDate,
+      )
+      tabDataRaw = prodRes.success
+        ? prodRes
+        : { data: [], totalPages: 0, totalSum: 0 }
       break
     default:
       tabDataRaw = null

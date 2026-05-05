@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { ro } from 'date-fns/locale'
 import {
@@ -38,6 +38,10 @@ import {
   Ban,
   Loader2,
   Printer,
+  ChevronsLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsRight,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { ReceiptDTO } from '@/lib/db/modules/financial/receipts/receipt.types'
@@ -62,6 +66,8 @@ export function ReceiptsList({
   totalSum,
 }: ReceiptsListProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [isCancelOpen, setIsCancelOpen] = useState(false)
   const [receiptToCancel, setReceiptToCancel] = useState<ReceiptDTO | null>(
     null,
@@ -71,9 +77,32 @@ export function ReceiptsList({
   const [previewReceipt, setPreviewReceipt] = useState<ReceiptDTO | null>(null)
   const [printData, setPrintData] = useState<PdfDocumentData | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
+
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
+
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
 
   const handlePageChange = (newPage: number) => {
-    router.push(`/financial/receipts?page=${newPage}`)
+    const params = new URLSearchParams(searchParams)
+    params.set('page', newPage.toString())
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
   // Deschide modalul
@@ -128,8 +157,9 @@ export function ReceiptsList({
       setIsGeneratingPdf(null)
     }
   }
+
   return (
-    <div className='space-y-2'>
+    <div className='flex flex-col gap-1 min-h-[calc(100vh-12rem)] w-full'>
       <div className='flex justify-start'>
         <div className='bg-muted/50 px-2 py-2 rounded-md border text-xs'>
           Total Încasări:{' '}
@@ -138,8 +168,8 @@ export function ReceiptsList({
           </span>
         </div>
       </div>
-      <div className='border rounded-lg overflow-x-auto bg-card'>
-        <Table>
+      <div className='flex-1 border rounded-lg overflow-auto bg-card [&>div]:h-full'>
+        <Table className='h-full'>
           <TableHeader>
             <TableRow className='bg-muted/50'>
               <TableHead>Serie - Număr</TableHead>
@@ -155,7 +185,7 @@ export function ReceiptsList({
             {receipts.length > 0 ? (
               receipts.map((receipt) => (
                 <TableRow key={receipt._id} className='hover:bg-muted/50'>
-                  <TableCell className='font-medium'>
+                  <TableCell className='font-medium py-0'>
                     <Link
                       href={`/financial/receipts/${receipt._id}`}
                       className='hover:underline '
@@ -163,13 +193,13 @@ export function ReceiptsList({
                       {receipt.series}-{receipt.number}
                     </Link>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='py-0'>
                     {format(new Date(receipt.date), 'dd.MM.yyyy', {
                       locale: ro,
                     })}
                   </TableCell>
-                  <TableCell>
-                    <div className='flex flex-col'>
+                  <TableCell className='py-0'>
+                    <div className='flex flex-col leading-none justify-center h-full py-1'>
                       <span className='font-medium'>
                         {receipt.clientSnapshot.name}
                       </span>
@@ -179,21 +209,25 @@ export function ReceiptsList({
                     </div>
                   </TableCell>
                   <TableCell
-                    className='max-w-[200px] truncate'
+                    className='max-w-[200px] truncate py-0'
                     title={receipt.explanation}
                   >
                     {receipt.explanation}
                   </TableCell>
-                  <TableCell className='text-right font-mono font-bold'>
+                  <TableCell className='text-right font-mono font-bold py-0'>
                     {formatCurrency(receipt.amount)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='py-0'>
                     <ReceiptStatusBadge status={receipt.status} />
                   </TableCell>
                   <TableCell className='text-right'>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant='ghost' size='icon'>
+                        <Button
+                          variant='ghost'
+                          size='icon'
+                          className='h-8 w-6 min-h-0'
+                        >
                           <MoreHorizontal className='h-4 w-4' />
                         </Button>
                       </DropdownMenuTrigger>
@@ -241,7 +275,7 @@ export function ReceiptsList({
               <TableRow>
                 <TableCell
                   colSpan={7}
-                  className='text-center h-24 text-muted-foreground'
+                  className='text-center h-24 text-muted-foreground py-0'
                 >
                   Nu există chitanțe emise.
                 </TableCell>
@@ -251,27 +285,71 @@ export function ReceiptsList({
         </Table>
       </div>
 
-      {/* Paginare Simplă */}
+      {/* Paginare */}
       {totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2'>
+        <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
-            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-            disabled={currentPage <= 1}
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
           >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage <= 1 || isPending}
+          >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-          <span className='text-sm text-muted-foreground'>
-            Pagina {currentPage} din {totalPages}
-          </span>
+
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPages}</span>
+          </div>
+
           <Button
             variant='outline'
-            onClick={() =>
-              handlePageChange(Math.min(totalPages, currentPage + 1))
-            }
-            disabled={currentPage >= totalPages}
+            size='sm'
+            className='h-8'
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(totalPages)}
+            disabled={currentPage >= totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

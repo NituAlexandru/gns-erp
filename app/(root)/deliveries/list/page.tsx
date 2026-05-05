@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import FilterControls from '../components/list/FilterControls'
 import { DeliveriesTable } from '../components/list/DeliveriesTable'
+import DeliveriesList from '../components/list/DeliveriesList'
 
 interface PageProps {
   searchParams: Promise<{
@@ -35,8 +36,8 @@ export default async function DeliveriesListPage({ searchParams }: PageProps) {
   }))
 
   return (
-    <div className='space-y-4'>
-      <div className='flex justify-between items-center'>
+    <div className='flex flex-col h-[calc(100vh-12rem)] w-full p-0 max-w-full'>
+      <div className='flex justify-between items-center mb-2 shrink-0'>
         <h1 className='text-2xl font-bold'>Listă Livrări</h1>
         <FilterControls statuses={statuses} />
         <Button asChild variant='outline'>
@@ -44,8 +45,7 @@ export default async function DeliveriesListPage({ searchParams }: PageProps) {
         </Button>
       </div>
 
-      {/* Randăm direct Tabelul (fără wrapper-ul intermediar dacă nu e necesar) */}
-      <DeliveriesTable
+      <DeliveriesList
         deliveries={data}
         pagination={pagination}
         currentYearCount={currentYearCount}

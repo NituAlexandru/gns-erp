@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import {
   Table,
   TableBody,
@@ -26,6 +26,10 @@ import {
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Download,
   Info,
   Loader2,
@@ -121,6 +125,11 @@ export function InvoicesList({
   const [isPreviewOpenPdf, setIsPreviewOpenPdf] = useState(false)
   const [printData, setPrintData] = useState<any>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<string | null>(null)
+  const [jumpInputValue, setJumpInputValue] = useState(currentPage.toString())
+
+  useEffect(() => {
+    setJumpInputValue(currentPage.toString())
+  }, [currentPage])
 
   const handleShowError = (errorMsg: string | undefined) => {
     setCurrentError(errorMsg || 'Eroare necunoscută.')
@@ -190,7 +199,6 @@ export function InvoicesList({
       setActionLoadingId(null)
     }
   }
-
   // --- HANDLER 2: DOWNLOAD ZIP ---
   const handleDownloadZip = async (invoice: PopulatedInvoice) => {
     if (actionLoadingId) return
@@ -368,11 +376,26 @@ export function InvoicesList({
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams)
     params.set('page', newPage.toString())
-    router.push(`${pathname}?${params.toString()}`)
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
   }
 
+  const handleJump = () => {
+    const pageNum = parseInt(jumpInputValue, 10)
+    if (
+      !isNaN(pageNum) &&
+      pageNum >= 1 &&
+      pageNum <= totalPages &&
+      pageNum !== currentPage
+    ) {
+      handlePageChange(pageNum)
+    } else {
+      setJumpInputValue(currentPage.toString())
+    }
+  }
   return (
-    <div className='flex flex-col gap-2'>
+    <div className='flex flex-col gap-2 min-h-[calc(100vh-11rem)] w-full'>
       <InvoicesFilters
         onBulkRefreshLoading={setIsBulkRefreshing}
         availableSeries={availableSeries}
@@ -402,8 +425,8 @@ export function InvoicesList({
         ))}
       </div>
 
-      <div className='border rounded-lg overflow-x-auto bg-card'>
-        <Table>
+      <div className='border rounded-lg bg-card'>
+        <Table className='h-full'>
           <TableHeader>
             <TableRow className='bg-muted/50'>
               <TableHead>Serie - Nr.</TableHead>
@@ -799,25 +822,66 @@ export function InvoicesList({
       </div>
 
       {totalPages > 1 && (
-        <div className='flex items-center justify-center gap-2 mt-4'>
+        <div className='flex items-center justify-center gap-2 py-1 mt-auto border-t bg-background shrink-0'>
           <Button
             variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(1)}
+            disabled={currentPage <= 1 || isPending}
+            title='Prima pagină'
+          >
+            <ChevronsLeft className='h-4 w-4' />
+          </Button>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage <= 1 || isPending}
           >
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin mr-1' />
+            ) : (
+              <ChevronLeft className='h-4 w-4 mr-1' />
+            )}
             Anterior
           </Button>
-
-          <span className='text-sm'>
-            Pagina {currentPage} din {totalPages}
-          </span>
-
+          <div className='flex items-center gap-2 text-sm text-muted-foreground mx-2'>
+            <span>Pagina</span>
+            <Input
+              value={jumpInputValue}
+              onChange={(e) => setJumpInputValue(e.target.value)}
+              onBlur={handleJump}
+              onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+              className='w-10 h-8 text-center px-1'
+              disabled={isPending}
+            />
+            <span>din {totalPages}</span>
+          </div>
           <Button
             variant='outline'
+            size='sm'
+            className='h-8'
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage >= totalPages || isPending}
           >
             Următor
+            {isPending ? (
+              <Loader2 className='h-4 w-4 animate-spin ml-1' />
+            ) : (
+              <ChevronRight className='h-4 w-4 ml-1' />
+            )}
+          </Button>
+          <Button
+            variant='outline'
+            size='icon'
+            className='h-8 w-8'
+            onClick={() => handlePageChange(totalPages)}
+            disabled={currentPage >= totalPages || isPending}
+            title='Ultima pagină'
+          >
+            <ChevronsRight className='h-4 w-4' />
           </Button>
         </div>
       )}

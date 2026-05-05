@@ -26,7 +26,7 @@ import NirModel from '../../nir/nir.model'
 import { generateNextDocumentNumber } from '../../../numbering/numbering.actions'
 import { CreateOpeningBalanceInput } from '../../initial-balance/initial-balance.validator'
 import SupplierAllocationModel from './supplier-allocation.model'
-import { fromZonedTime, toZonedTime } from 'date-fns-tz'
+import { formatInTimeZone, fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { differenceInCalendarDays, differenceInDays } from 'date-fns'
 import { round2 } from '@/lib/utils'
 //
@@ -69,6 +69,7 @@ export type SupplierInvoicesPage = {
   totalPages: number
   total: number
   totalCurrentYear?: number
+  totalSum?: number
 }
 
 export interface ReceptionListItem {
@@ -404,6 +405,8 @@ export async function getSupplierInvoiceById(
 export async function getInvoicesForSupplier(
   supplierId: string,
   page: number = 1,
+  startDateStr?: string,
+  endDateStr?: string,
 ): Promise<SupplierInvoicesPage> {
   try {
     await connectToDatabase()
@@ -416,15 +419,54 @@ export async function getInvoicesForSupplier(
     const limit = CLIENT_DETAIL_PAGE_SIZE
     const skip = (page - 1) * limit
 
+    const currentDate = new Date()
+    const currentYearStr = formatInTimeZone(currentDate, TIMEZONE, 'yyyy')
+
+    const start = startDateStr
+      ? fromZonedTime(`${startDateStr}T00:00:00.000`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-01-01T00:00:00.000`, TIMEZONE)
+
+    const end = endDateStr
+      ? fromZonedTime(`${endDateStr}T23:59:59.999`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-12-31T23:59:59.999`, TIMEZONE)
+
     const queryConditions = {
       supplierId: objectId,
+      invoiceDate: { $gte: start, $lte: end },
     }
 
     const total = await SupplierInvoiceModel.countDocuments(queryConditions)
 
     if (total === 0) {
-      return { data: [], totalPages: 0, total: 0 }
+      return { data: [], totalPages: 0, total: 0, totalSum: 0 }
     }
+
+    const sumAggregation = await SupplierInvoiceModel.aggregate([
+      {
+        $match: {
+          ...queryConditions,
+          status: { $ne: 'CANCELLED' },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalSum: {
+            $sum: {
+              $cond: [
+                { $eq: ['$invoiceType', 'STORNO'] },
+                // Dacă e STORNO: luăm valoarea absolută (ca să fim siguri) și o înmulțim cu -1 pentru a o scădea
+                { $multiply: [{ $abs: '$totals.grandTotal' }, -1] },
+                // Dacă NU e STORNO (adică e STANDARD): o lăsăm fix cum e (pozitivă se adună, negativă se scade)
+                '$totals.grandTotal',
+              ],
+            },
+          },
+        },
+      },
+    ])
+
+    const totalSum = sumAggregation.length > 0 ? sumAggregation[0].totalSum : 0
 
     const invoices = await SupplierInvoiceModel.find(queryConditions)
       .select(
@@ -445,20 +487,24 @@ export async function getInvoicesForSupplier(
       data: normalizedInvoices,
       totalPages: Math.ceil(total / limit),
       total: total,
+      totalSum: totalSum,
     }
   } catch (error) {
     console.error('Eroare la getInvoicesForSupplier:', error)
-    return { data: [], totalPages: 0, total: 0 }
+    return { data: [], totalPages: 0, total: 0, totalSum: 0 }
   }
 }
 
 export async function getReceptionsForSupplier(
   supplierId: string,
   page: number = 1,
+  startDateStr?: string,
+  endDateStr?: string,
 ): Promise<{
   data: ReceptionListItem[]
   totalPages: number
   total: number
+  totalSum?: number
 }> {
   try {
     await connectToDatabase()
@@ -472,16 +518,41 @@ export async function getReceptionsForSupplier(
     const limit = CLIENT_DETAIL_PAGE_SIZE // Folosim aceeași constantă ca la facturi (10)
     const skip = (page - 1) * limit
 
+    const currentDate = new Date()
+    const currentYearStr = formatInTimeZone(currentDate, TIMEZONE, 'yyyy')
+
+    const start = startDateStr
+      ? fromZonedTime(`${startDateStr}T00:00:00.000`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-01-01T00:00:00.000`, TIMEZONE)
+
+    const end = endDateStr
+      ? fromZonedTime(`${endDateStr}T23:59:59.999`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-12-31T23:59:59.999`, TIMEZONE)
+
     const queryConditions = {
       supplierId: objectId,
+      nirDate: { $gte: start, $lte: end },
     }
 
     // 1. Numărăm totalul documentelor
     const total = await NirModel.countDocuments(queryConditions)
 
     if (total === 0) {
-      return { data: [], totalPages: 0, total: 0 }
+      return { data: [], totalPages: 0, total: 0, totalSum: 0 }
     }
+
+    // --- COD NOU PENTRU TOTAL SUM ---
+    const sumAggregation = await NirModel.aggregate([
+      { $match: queryConditions }, // Dacă ai status 'ANULAT' la recepții, adaugă aici: { ...queryConditions, status: { $ne: 'ANULAT' } }
+      {
+        $group: {
+          _id: null,
+          totalSum: { $sum: '$totals.grandTotal' },
+        },
+      },
+    ])
+
+    const totalSum = sumAggregation.length > 0 ? sumAggregation[0].totalSum : 0
 
     // 2. Căutăm documentele cu proiecția corectă (select)
     const receptions = await NirModel.find(queryConditions)
@@ -520,10 +591,11 @@ export async function getReceptionsForSupplier(
       data: normalizedReceptions,
       totalPages: Math.ceil(total / limit),
       total: total,
+      totalSum: totalSum,
     }
   } catch (error) {
     console.error('Eroare la getReceptionsForSupplier:', error)
-    return { data: [], totalPages: 0, total: 0 }
+    return { data: [], totalPages: 0, total: 0, totalSum: 0 }
   }
 }
 /**

@@ -2,14 +2,15 @@
 
 import { connectToDatabase } from '@/lib/db'
 import Order from './order.model'
-import { CLIENT_DETAIL_PAGE_SIZE } from '@/lib/constants'
+import { CLIENT_DETAIL_PAGE_SIZE, TIMEZONE } from '@/lib/constants'
 import mongoose, { Types } from 'mongoose'
 import { OrderStatusKey } from './types'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 export interface ClientOrderItem {
   _id: Types.ObjectId
   orderNumber: string
-  createdAt: Date 
+  createdAt: Date
   status: OrderStatusKey
   salesAgentSnapshot: {
     name: string
@@ -18,7 +19,6 @@ export interface ClientOrderItem {
     grandTotal: number
   }
 }
-
 
 export type ClientOrdersPage = {
   data: ClientOrderItem[]
@@ -31,7 +31,9 @@ export type ClientOrdersPage = {
  */
 export async function getOrdersForClient(
   clientId: string,
-  page: number = 1
+  page: number = 1,
+  startDateStr?: string,
+  endDateStr?: string,
 ): Promise<ClientOrdersPage> {
   try {
     await connectToDatabase()
@@ -44,8 +46,20 @@ export async function getOrdersForClient(
     const limit = CLIENT_DETAIL_PAGE_SIZE
     const skip = (page - 1) * limit
 
+    const currentDate = new Date()
+    const currentYearStr = formatInTimeZone(currentDate, TIMEZONE, 'yyyy')
+
+    const start = startDateStr
+      ? fromZonedTime(`${startDateStr}T00:00:00.000`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-01-01T00:00:00.000`, TIMEZONE)
+
+    const end = endDateStr
+      ? fromZonedTime(`${endDateStr}T23:59:59.999`, TIMEZONE)
+      : fromZonedTime(`${currentYearStr}-12-31T23:59:59.999`, TIMEZONE)
+
     const queryConditions = {
       client: objectId,
+      createdAt: { $gte: start, $lte: end },
     }
 
     const total = await Order.countDocuments(queryConditions)
@@ -56,7 +70,7 @@ export async function getOrdersForClient(
 
     const orders = await Order.find(queryConditions)
       .select(
-        'orderNumber createdAt status salesAgentSnapshot.name totals.grandTotal'
+        'orderNumber createdAt status salesAgentSnapshot.name totals.grandTotal',
       )
       .sort({ createdAt: -1 })
       .skip(skip)
