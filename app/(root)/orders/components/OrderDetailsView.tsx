@@ -420,6 +420,7 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                       Cant. Comandată
                     </TableHead>
                     <TableHead className='text-right'>Cant. Livrată</TableHead>
+                    <TableHead className='text-right'>De livrat</TableHead>
                     <TableHead>U.M.</TableHead>
                     <TableHead className='text-right'>Preț Unitar</TableHead>
                     <TableHead className='text-right'>Valoare</TableHead>
@@ -465,8 +466,26 @@ export function OrderDetailsView({ order, deliveries }: OrderDetailsViewProps) {
                       <TableCell className='text-right'>
                         {item.quantity.toFixed(2)}
                       </TableCell>
-                      <TableCell className='text-right font-bold text-blue-500'>
+                      <TableCell
+                        className={`text-right font-bold ${
+                          (item.quantityShipped || 0) >= item.quantity
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}
+                      >
                         {(item.quantityShipped || 0).toFixed(2)}
+                      </TableCell>
+                      <TableCell
+                        className={`text-right font-bold ${
+                          item.quantity - (item.quantityShipped || 0) <= 0
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}
+                      >
+                        {Math.max(
+                          0,
+                          item.quantity - (item.quantityShipped || 0),
+                        ).toFixed(2)}
                       </TableCell>
                       <TableCell>{item.unitOfMeasure}</TableCell>
                       <TableCell className='text-right'>

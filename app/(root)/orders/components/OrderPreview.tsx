@@ -65,7 +65,7 @@ export function OrderPreview({ order }: OrderPreviewProps) {
         align='start'
         sideOffset={10}
         collisionPadding={100}
-        className='w-[900px] p-0 overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 
+        className='w-[600px] lg:w-[900px] xl:w-[1200px] p-0 overflow-hidden shadow-2xl border-slate-200 dark:border-slate-800 
                    data-[state=open]:animate-in data-[state=closed]:animate-out 
                    data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 
                    data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 
@@ -361,6 +361,9 @@ export function OrderPreview({ order }: OrderPreviewProps) {
                           <TableHead className='text-right'>
                             Cant. Livr
                           </TableHead>
+                          <TableHead className='text-right'>
+                            De livrat
+                          </TableHead>
                           <TableHead>U.M.</TableHead>
                           <TableHead className='text-right'>
                             Preț Unit
@@ -411,8 +414,26 @@ export function OrderPreview({ order }: OrderPreviewProps) {
                             <TableCell className='text-right'>
                               {item.quantity.toFixed(2)}
                             </TableCell>
-                            <TableCell className='text-right font-bold text-blue-500'>
+                            <TableCell
+                              className={`text-right font-bold ${
+                                (item.quantityShipped || 0) >= item.quantity
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                              }`}
+                            >
                               {(item.quantityShipped || 0).toFixed(2)}
+                            </TableCell>
+                            <TableCell
+                              className={`text-right font-bold ${
+                                item.quantity - (item.quantityShipped || 0) <= 0
+                                  ? 'text-green-600'
+                                  : 'text-red-600'
+                              }`}
+                            >
+                              {Math.max(
+                                0,
+                                item.quantity - (item.quantityShipped || 0),
+                              ).toFixed(2)}
                             </TableCell>
                             <TableCell>{item.unitOfMeasure}</TableCell>
                             <TableCell className='text-right'>

@@ -79,13 +79,13 @@ export default function SupplierOrderDetailPage({
         <div className='flex gap-2'>
           {/* Afișăm butonul de editare doar dacă statusul permite */}
           {['DRAFT', 'SENT', 'CONFIRMED', 'PARTIALLY_DELIVERED'].includes(
-            order.status
+            order.status,
           ) && (
             <Button
               variant='outline'
               onClick={() =>
                 router.push(
-                  `/admin/management/supplier-orders/${order._id}/edit`
+                  `/admin/management/supplier-orders/${order._id}/edit`,
                 )
               }
             >
@@ -126,7 +126,7 @@ export default function SupplierOrderDetailPage({
               <span>
                 {order.supplierOrderDate
                   ? new Date(order.supplierOrderDate).toLocaleDateString(
-                      'ro-RO'
+                      'ro-RO',
                     )
                   : '-'}
               </span>
@@ -235,7 +235,7 @@ export default function SupplierOrderDetailPage({
               </span>
               <span>
                 {formatCurrency(
-                  order.transportDetails?.totalTransportCost || 0
+                  order.transportDetails?.totalTransportCost || 0,
                 )}
               </span>
             </div>
@@ -255,7 +255,7 @@ export default function SupplierOrderDetailPage({
               <span>
                 {formatCurrency(
                   (order.totalValue || 0) -
-                    (order.transportDetails?.totalTransportCost || 0)
+                    (order.transportDetails?.totalTransportCost || 0),
                 )}
               </span>
             </div>
@@ -265,7 +265,7 @@ export default function SupplierOrderDetailPage({
               </span>
               <span>
                 {formatCurrency(
-                  order.transportDetails?.totalTransportCost || 0
+                  order.transportDetails?.totalTransportCost || 0,
                 )}
               </span>
             </div>
@@ -340,7 +340,7 @@ export default function SupplierOrderDetailPage({
                               ? 'text-green-600'
                               : (item.quantityReceived || 0) > 0
                                 ? 'text-orange-500'
-                                : 'text-muted-foreground'
+                                : 'text-muted-foreground',
                           )}
                         >
                           {(item.quantityReceived || 0).toLocaleString('ro-RO')}{' '}
@@ -352,7 +352,7 @@ export default function SupplierOrderDetailPage({
                           {Math.round(
                             ((item.quantityReceived || 0) /
                               item.quantityOrdered) *
-                              100
+                              100,
                           )}
                           %
                         </span>
@@ -428,11 +428,11 @@ export default function SupplierOrderDetailPage({
                               (item.quantityReceived || 0) ===
                                 item.quantityOrdered
                                 ? 'text-green-600'
-                                : 'text-muted-foreground'
+                                : 'text-muted-foreground',
                             )}
                           >
                             {(item.quantityReceived || 0).toLocaleString(
-                              'ro-RO'
+                              'ro-RO',
                             )}{' '}
                             {item.unitMeasure}
                           </span>
@@ -495,7 +495,7 @@ export default function SupplierOrderDetailPage({
                       {reception.receptionDate
                         ? new Date(reception.receptionDate).toLocaleDateString(
                             'ro-RO',
-                            { day: '2-digit', month: 'long', year: 'numeric' }
+                            { day: '2-digit', month: 'long', year: 'numeric' },
                           )
                         : '-'}
                     </TableCell>
