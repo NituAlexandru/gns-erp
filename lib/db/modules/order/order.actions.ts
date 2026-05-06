@@ -31,6 +31,8 @@ import DeliveryModel from '../deliveries/delivery.model'
 import DeliveryNoteModel from '../financial/delivery-notes/delivery-note.model'
 import { getEFacturaUomCode } from '@/lib/constants/uom.constants'
 import { fromZonedTime } from 'date-fns-tz'
+import { SUPER_ADMIN_ROLES } from '../user/user-roles'
+import ClientSummary from '../client/summary/client-summary.model'
 
 export async function calculateShippingCost(
   vehicleType: string,
@@ -778,6 +780,19 @@ export async function confirmOrder(orderId: string) {
       )
     }
 
+    // --- Verificare Client Blocat ---
+    const userRole = sessionAuth.user.role || 'user'
+    const isAdmin = SUPER_ADMIN_ROLES.includes(userRole)
+
+    const clientSummary = await ClientSummary.findOne({
+      clientId: order.client,
+    }).session(session)
+    if (clientSummary?.isBlocked && !isAdmin) {
+      throw new Error(
+        'Clientul are livrările sistate. Nu puteți confirma comanda. Contactați un admin.',
+      )
+    }
+
     // 2. Schimbăm statusul
     order.status = 'CONFIRMED'
     await order.save({ session })
@@ -802,6 +817,8 @@ export async function confirmOrder(orderId: string) {
     await session.endSession()
   }
 }
+
+
 export async function getRecentOrders() {
   await connectToDatabase()
 

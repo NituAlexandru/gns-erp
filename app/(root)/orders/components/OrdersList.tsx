@@ -18,6 +18,7 @@ import { formatCurrency } from '@/lib/utils'
 import {
   cancelOrder,
   checkOrderCancellationEligibility,
+  confirmOrder,
 } from '@/lib/db/modules/order/order.actions'
 import { toast } from 'sonner'
 import {
@@ -214,6 +215,29 @@ export function OrdersList({
                           >
                             Modifică Comanda
                           </DropdownMenuItem>
+                          {order.status === 'DRAFT' && (
+                            <DropdownMenuItem
+                              className='cursor-pointer font-medium text-green-600 focus:text-green-700 focus:bg-green-50 dark:focus:bg-green-900/20'
+                              onSelect={(e) => {
+                                e.preventDefault()
+                                startTransition(async () => {
+                                  const result = await confirmOrder(order._id)
+                                  if (result.success) {
+                                    toast.success(result.message)
+                                    // Opțional: poți redirecționa direct spre pagina de livrări
+                                    // router.push(`/deliveries/new?orderId=${order._id}`)
+                                  } else {
+                                    toast.error('Acțiune Blocată', {
+                                      description: result.message,
+                                    })
+                                  }
+                                })
+                              }}
+                              disabled={isPending}
+                            >
+                              Confirmă Comanda
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className='cursor-pointer'
                             onSelect={() =>
