@@ -64,17 +64,35 @@ function distributeLineItem(
 
   // ALGORITM: "Greedy Gap Filling"
   // ALGORITM DE DISTRIBUȚIE (Hibrid: Întregi vs Zecimale)
-  const isIntegerQty = Number.isInteger(totalQty)
+  // Definim ce unități din lista ta permit fracționarea (virgulă)
+  const fractionalUnits = ['kg', 'litru', 'm2', 'm3', 'ml', 'tona']
 
-  if (!isIntegerQty) {
-    // A. Dacă avem zecimale (m3, kg, etc.) tăiem direct din cantitate, nu numărăm
+  // Linia permite zecimale dacă UM se află în lista de mai sus SAU dacă cantitatea introdusă are deja zecimale (ca o măsură de siguranță extra)
+  const canUseDecimals =
+    fractionalUnits.includes(um.toLowerCase()) || !Number.isInteger(totalQty)
+
+  if (canUseDecimals) {
+    // A. Distribuție Divizibilă "Gap-Aware" (Conștientă de total)
+    // Calculăm de câți bani mai are nevoie fiecare client pentru a-și atinge ținta generală
+    const gaps = configs.map((config) => {
+      const tracker = trackers.get(config.clientId)!
+      const target = getTargetTotal(grandTotal, config.percentage)
+      const gap = target - tracker.accumulatedValue
+      return gap > 0 ? gap : 0 // Prevenim cantitățile negative
+    })
+
+    const totalGap = gaps.reduce((sum, gap) => sum + gap, 0)
     let remainingQty = totalQty
 
     distribution.forEach((dist, index) => {
       if (index === distribution.length - 1) {
         dist.qty = round2(remainingQty)
       } else {
-        const calculatedQty = round2(totalQty * (dist.percentage / 100))
+        // Alocăm cantitatea din linia curentă strict proporțional cu necesarul (gap-ul) rămas.
+        // Astfel, clientul care nu a primit Transport, va primi mai mult Oțel ca să recupereze banii.
+        const share =
+          totalGap > 0 ? gaps[index] / totalGap : dist.percentage / 100
+        const calculatedQty = round2(totalQty * share)
         dist.qty = calculatedQty
         remainingQty -= calculatedQty
       }
